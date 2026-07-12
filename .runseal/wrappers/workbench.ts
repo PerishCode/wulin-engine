@@ -65,7 +65,7 @@ function perceptionPayload(verb: string, args: string[]): Record<string, unknown
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -133,6 +133,27 @@ switch (verb) {
                 active_center_x: pixel(args[1] ?? "64", "active center x"),
                 active_center_z: pixel(args[2] ?? "64", "active center z"),
                 active_radius: pixel(args[3] ?? "2", "active radius"),
+            }),
+            "--format",
+            "json",
+        ]);
+        break;
+    }
+    case "resident":
+        if (args.length > 0) fail("workbench: resident does not accept arguments");
+        await run(["inspect", "workbench", "resident.status", "--format", "json"]);
+        break;
+    case "resident-stream": {
+        if (args.length !== 2) fail("workbench: resident-stream requires center x and center z");
+        await run([
+            "inspect",
+            "workbench",
+            "resident.stream",
+            JSON.stringify({
+                world_region_side: 128,
+                active_center_x: pixel(args[0], "active center x"),
+                active_center_z: pixel(args[1], "active center z"),
+                active_radius: 2,
             }),
             "--format",
             "json",
