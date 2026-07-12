@@ -11,6 +11,8 @@ use windows::Win32::Graphics::Dxgi::*;
 use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
 use windows::core::Interface;
 
+use crate::gpu_capture::{CapturedPixels, Readback};
+
 const BUFFER_COUNT: usize = 2;
 const NVIDIA_VENDOR_ID: u32 = 0x10de;
 
@@ -31,6 +33,7 @@ pub struct Renderer {
     fence_event: HANDLE,
     fence_values: [u64; BUFFER_COUNT],
     next_fence_value: u64,
+    capture: Readback,
     adapter_name: String,
     debug_layer: bool,
 }
@@ -112,6 +115,7 @@ impl Renderer {
             unsafe { device.CreateRenderTargetView(&buffer, None, handle) };
             back_buffers.push(buffer);
         }
+        let capture = unsafe { Readback::new(&device, &back_buffers[0]) }?;
 
         let mut allocators = Vec::with_capacity(BUFFER_COUNT);
         for _ in 0..BUFFER_COUNT {
@@ -144,12 +148,17 @@ impl Renderer {
             fence_event,
             fence_values: [0; BUFFER_COUNT],
             next_fence_value: 1,
+            capture,
             adapter_name,
             debug_layer,
         })
     }
 
-    pub unsafe fn render(&mut self, color: [f32; 4]) -> Result<()> {
+    pub unsafe fn render(
+        &mut self,
+        color: [f32; 4],
+        capture: bool,
+    ) -> Result<Option<CapturedPixels>> {
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() } as usize;
         unsafe { self.wait_for_buffer(index)? };
         unsafe { self.allocators[index].Reset() }.context("command allocator reset failed")?;
@@ -170,12 +179,29 @@ impl Renderer {
                 .OMSetRenderTargets(1, Some(&handle), true, None);
             self.command_list
                 .ClearRenderTargetView(handle, &color, None);
-            transition(
-                &self.command_list,
-                &self.back_buffers[index],
-                D3D12_RESOURCE_STATE_RENDER_TARGET,
-                D3D12_RESOURCE_STATE_PRESENT,
-            );
+            if capture {
+                transition(
+                    &self.command_list,
+                    &self.back_buffers[index],
+                    D3D12_RESOURCE_STATE_RENDER_TARGET,
+                    D3D12_RESOURCE_STATE_COPY_SOURCE,
+                );
+                self.capture
+                    .record(&self.command_list, &self.back_buffers[index]);
+                transition(
+                    &self.command_list,
+                    &self.back_buffers[index],
+                    D3D12_RESOURCE_STATE_COPY_SOURCE,
+                    D3D12_RESOURCE_STATE_PRESENT,
+                );
+            } else {
+                transition(
+                    &self.command_list,
+                    &self.back_buffers[index],
+                    D3D12_RESOURCE_STATE_RENDER_TARGET,
+                    D3D12_RESOURCE_STATE_PRESENT,
+                );
+            }
             self.command_list.Close()
         }
         .context("command list close failed")?;
@@ -191,7 +217,11 @@ impl Renderer {
         self.next_fence_value += 1;
         unsafe { self.queue.Signal(&self.fence, signal) }.context("queue signal failed")?;
         self.fence_values[index] = signal;
-        Ok(())
+        if capture {
+            unsafe { self.wait_for_value(signal)? };
+            return unsafe { self.capture.read() }.map(Some);
+        }
+        Ok(None)
     }
 
     pub fn adapter_name(&self) -> &str {

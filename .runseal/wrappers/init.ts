@@ -50,8 +50,11 @@ for (
         "Cargo.lock",
         "Cargo.toml",
         "apps/workbench/Cargo.toml",
+        "apps/workbench/src/capture.rs",
         "apps/workbench/src/main.rs",
         "docs/adr/0003-native-workbench-control-plane.md",
+        "docs/adr/0004-frame-artifact-contract.md",
+        "experiments/0002-deterministic-visual-loop/README.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",
@@ -60,6 +63,7 @@ for (
         ".runseal/hooks/pre-commit",
         ".runseal/wrappers/guard.ts",
         ".runseal/wrappers/gpu-lab.ts",
+        ".runseal/wrappers/visual-loop.ts",
         ".runseal/wrappers/workbench.ts",
     ]
 ) {

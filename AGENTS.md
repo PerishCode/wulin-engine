@@ -115,6 +115,7 @@ contains only files that exist.
 | `docs/adr/0001-reference-platform-and-graphics-api.md` | Accepted reference platform and graphics API decision. |
 | `docs/adr/0002-personal-iteration-suite.md` | Accepted Flavor, Runseal, and Sidecar consumer boundary. |
 | `docs/adr/0003-native-workbench-control-plane.md` | Accepted native window, Sidecar lifecycle, and inspect threading boundary. |
+| `docs/adr/0004-frame-artifact-contract.md` | Accepted D3D12 capture, frame manifest, and generated-artifact boundary. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -127,10 +128,13 @@ contains only files that exist.
 | `experiments/0001-gpu-lab/src/main.rs` | D3D12 compute, measurement, validation, and report implementation. |
 | `experiments/0001-gpu-lab/src/agility_exports.c` | Process exports selecting the pinned Agility SDK. |
 | `experiments/0001-gpu-lab/shaders/fill.hlsl` | Deterministic Experiment 0001 compute workload. |
+| `experiments/0002-deterministic-visual-loop/README.md` | Experiment 0002 hypothesis, capture protocol, evidence, and accepted conclusion. |
 | `apps/workbench/Cargo.toml` | Native workbench package and Windows API feature boundary. |
 | `apps/workbench/build.rs` | Workbench Agility SDK export build and runtime staging. |
 | `apps/workbench/src/main.rs` | Win32 window, main-thread control ownership, and operator-visible runtime state. |
 | `apps/workbench/src/renderer.rs` | D3D12 swap chain, clear/present loop, and explicit GPU synchronization. |
+| `apps/workbench/src/gpu_capture.rs` | D3D12 copy footprint, persistent readback resource, and tight RGBA extraction. |
+| `apps/workbench/src/capture.rs` | PNG encoding, SHA-256, frame manifests, and capture artifact ownership. |
 | `apps/workbench/src/inspect.rs` | Project-owned SidecarRuntime event server and typed control protocol. |
 | `runseal.toml` | Explicit local resources, Deno policy, and repository environment injection. |
 | `flavor.toml` | Consumer-owned code-shape scan scope and rule adjustments. |
@@ -141,6 +145,7 @@ contains only files that exist.
 | `.runseal/wrappers/init.ts` | Stable tool validation and repository hook installation. |
 | `.runseal/wrappers/guard.ts` | Canonical Rust, Flavor, and Sidecar validation workflow. |
 | `.runseal/wrappers/gpu-lab.ts` | Canonical Experiment 0001 bootstrap and execution workflow. |
+| `.runseal/wrappers/visual-loop.ts` | Canonical Experiment 0002 deterministic capture and cleanup workflow. |
 | `.runseal/wrappers/workbench.ts` | Canonical workbench lifecycle and typed inspect workflow. |
 
 ## 5. Core Operational Workflows
@@ -149,11 +154,12 @@ contains only files that exist.
 
 The R0 repository baseline is defined by the core files indexed above. R1 accepted a
 Rust-based native D3D12 GPU laboratory on the single reference platform recorded in ADR
-0001. ADR 0003 accepts the first operator-visible workbench cold start.
+0001. ADR 0003 accepts the first operator-visible workbench cold start. Experiment 0002
+and ADR 0004 accept deterministic renderer-owned frame artifacts.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
-Do not begin scene, ECS, asset, or graphics-pipeline work until the next numbered
-experiment defines and accepts its hypothesis, workload, and criteria.
+Do not begin the spatial calibration scene, ECS, assets, or general graphics architecture
+until the next numbered experiment defines its hypothesis, workload, and criteria.
 
 Canonical commands from the repository root:
 
@@ -162,11 +168,13 @@ runseal :init
 runseal :guard
 runseal :gpu-lab correctness
 runseal :gpu-lab benchmark
+runseal :visual-loop
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24
 runseal :workbench pause
+runseal :workbench capture operator-check
 runseal :workbench resume
 runseal :workbench restart
 runseal :workbench stop
@@ -178,8 +186,8 @@ layer and must report that validation is disabled.
 
 The wrappers use installed stable-channel Flavor, Runseal, and Sidecar CLIs. Sibling
 source checkouts are references, not runtime dependencies. The workbench accepts the
-canonical `--sidecar-stamp` argument and exposes only the typed events recorded in ADR
-0003.
+canonical `--sidecar-stamp` argument and exposes only the typed events recorded in ADRs
+0003 and 0004.
 
 ### 5.2 Experiment lifecycle
 
