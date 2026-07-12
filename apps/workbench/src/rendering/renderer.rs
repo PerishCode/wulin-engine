@@ -1,5 +1,3 @@
-use std::mem::ManuallyDrop;
-
 use anyhow::{Context, Result, bail};
 use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND, WAIT_OBJECT_0};
 use windows::Win32::Graphics::Direct3D::D3D_FEATURE_LEVEL_12_1;
@@ -11,17 +9,19 @@ use windows::Win32::Graphics::Dxgi::*;
 use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
 use windows::core::Interface;
 
+use crate::async_resident::AsyncTransactionReport;
 use crate::load::LoadConfig;
 use crate::resident::StreamReport;
 use crate::scene::SceneState;
 
+use super::async_resident::AsyncResidentRenderer;
+use super::device::{enable_debug_layer, select_reference_adapter, transition};
 use super::gpu_capture::{CapturedPixels, Readback};
-use super::load_renderer::{LoadProbe, LoadRenderer};
-use super::resident_renderer::ResidentRenderer;
+use super::load::{LoadProbe, LoadRenderer};
+use super::resident::ResidentRenderer;
 use super::scene_renderer::SceneRenderer;
 
 const BUFFER_COUNT: usize = 2;
-const NVIDIA_VENDOR_ID: u32 = 0x10de;
 
 unsafe extern "C" {
     fn workbench_link_agility_exports();
@@ -45,6 +45,7 @@ pub struct Renderer {
     scene_renderer: SceneRenderer,
     load_renderer: LoadRenderer,
     resident_renderer: ResidentRenderer,
+    async_resident_renderer: AsyncResidentRenderer,
     adapter_name: String,
     debug_layer: bool,
 }
@@ -147,6 +148,8 @@ impl Renderer {
             unsafe { LoadRenderer::new(&device, timestamp_frequency, width, height) }?;
         let resident_renderer =
             unsafe { ResidentRenderer::new(&device, timestamp_frequency, width, height) }?;
+        let async_resident_renderer =
+            unsafe { AsyncResidentRenderer::new(&device, timestamp_frequency, width, height) }?;
 
         let mut allocators = Vec::with_capacity(BUFFER_COUNT);
         for _ in 0..BUFFER_COUNT {
@@ -184,6 +187,7 @@ impl Renderer {
             scene_renderer,
             load_renderer,
             resident_renderer,
+            async_resident_renderer,
             adapter_name,
             debug_layer,
         })
@@ -205,6 +209,10 @@ impl Renderer {
         unsafe { self.allocators[index].Reset() }.context("command allocator reset failed")?;
         unsafe { self.command_list.Reset(&self.allocators[index], None) }
             .context("command list reset failed")?;
+        unsafe {
+            self.async_resident_renderer
+                .prepare_frame(&self.command_list)
+        };
 
         unsafe {
             transition(
@@ -220,7 +228,15 @@ impl Renderer {
                 .OMSetRenderTargets(1, Some(&handle), true, None);
             self.command_list
                 .ClearRenderTargetView(handle, &color, None);
-            if self.resident_renderer.config().is_some() {
+            if self.async_resident_renderer.config().is_some() {
+                self.async_resident_renderer.record(
+                    &self.command_list,
+                    scene,
+                    [handle, self.scene_renderer.object_id_handle()],
+                    self.scene_renderer.depth_handle(),
+                    probe_load,
+                )?;
+            } else if self.resident_renderer.config().is_some() {
                 self.resident_renderer.record(
                     &self.command_list,
                     scene,
@@ -307,7 +323,9 @@ impl Renderer {
             } else {
                 None
             };
-            let load_probe = if probe_load && self.resident_renderer.config().is_some() {
+            let load_probe = if probe_load && self.async_resident_renderer.config().is_some() {
+                Some(unsafe { self.async_resident_renderer.read_probe() }?)
+            } else if probe_load && self.resident_renderer.config().is_some() {
                 Some(unsafe { self.resident_renderer.read_probe() }?)
             } else if probe_load {
                 Some(unsafe { self.load_renderer.read_probe() }?)
@@ -332,25 +350,65 @@ impl Renderer {
         })
     }
 
-    pub fn configure_load(&mut self, config: LoadConfig) {
+    pub fn configure_load(&mut self, config: LoadConfig) -> Result<()> {
+        self.async_resident_renderer.disable()?;
         self.resident_renderer.disable();
         self.load_renderer.configure(config);
+        Ok(())
     }
 
     pub unsafe fn stream_resident(&mut self, config: LoadConfig) -> Result<()> {
+        self.async_resident_renderer.disable()?;
         self.load_renderer.disable();
         unsafe { self.resident_renderer.prepare_stream(config) }
     }
 
-    pub fn disable_load(&mut self) {
+    pub fn disable_load(&mut self) -> Result<()> {
+        self.async_resident_renderer.disable()?;
         self.load_renderer.disable();
         self.resident_renderer.disable();
+        Ok(())
     }
 
     pub fn load_config(&self) -> Option<LoadConfig> {
-        self.resident_renderer
+        self.async_resident_renderer
             .config()
+            .or_else(|| self.resident_renderer.config())
             .or_else(|| self.load_renderer.config())
+    }
+
+    pub unsafe fn stream_async_resident(
+        &mut self,
+        config: LoadConfig,
+    ) -> Result<AsyncTransactionReport> {
+        self.load_renderer.disable();
+        self.resident_renderer.disable();
+        let release_fence = self.next_fence_value;
+        self.next_fence_value += 1;
+        unsafe {
+            self.async_resident_renderer
+                .schedule(config, &self.queue, &self.fence, release_fence)
+        }
+    }
+
+    pub fn async_resident_status(&self) -> serde_json::Value {
+        self.async_resident_renderer.status_json()
+    }
+
+    pub fn async_resident_config(&self) -> Option<LoadConfig> {
+        self.async_resident_renderer.config()
+    }
+
+    pub fn async_resident_enabled(&self) -> bool {
+        self.async_resident_renderer.is_enabled()
+    }
+
+    pub fn arm_async_copy_gate(&mut self) -> Result<u64> {
+        self.async_resident_renderer.arm_gate()
+    }
+
+    pub unsafe fn release_async_copy_gate(&mut self) -> Result<u64> {
+        unsafe { self.async_resident_renderer.release_gate() }
     }
 
     pub fn resident_config(&self) -> Option<LoadConfig> {
@@ -366,6 +424,7 @@ impl Renderer {
     }
 
     pub unsafe fn wait_idle(&mut self) -> Result<()> {
+        unsafe { self.async_resident_renderer.wait_idle() }?;
         let signal = self.next_fence_value;
         self.next_fence_value += 1;
         unsafe { self.queue.Signal(&self.fence, signal) }.context("queue signal failed")?;
@@ -410,62 +469,5 @@ impl Drop for Renderer {
             let _ = self.wait_idle();
             let _ = CloseHandle(self.fence_event);
         }
-    }
-}
-
-unsafe fn enable_debug_layer() -> Result<()> {
-    let mut debug = None;
-    unsafe { D3D12GetDebugInterface(&mut debug) }.context("D3D12 debug layer is unavailable")?;
-    let debug: ID3D12Debug = debug.context("D3D12 debug interface was empty")?;
-    unsafe { debug.EnableDebugLayer() };
-    Ok(())
-}
-
-unsafe fn select_reference_adapter(factory: &IDXGIFactory6) -> Result<(IDXGIAdapter4, String)> {
-    for index in 0..16 {
-        let adapter = unsafe {
-            factory.EnumAdapterByGpuPreference::<IDXGIAdapter4>(
-                index,
-                DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
-            )
-        };
-        let Ok(adapter) = adapter else {
-            break;
-        };
-        let desc = unsafe { adapter.GetDesc3() }?;
-        if desc.VendorId == NVIDIA_VENDOR_ID {
-            let end = desc
-                .Description
-                .iter()
-                .position(|value| *value == 0)
-                .unwrap_or(desc.Description.len());
-            return Ok((adapter, String::from_utf16_lossy(&desc.Description[..end])));
-        }
-    }
-    bail!("no NVIDIA adapter was found on the reference platform")
-}
-
-unsafe fn transition(
-    command_list: &ID3D12GraphicsCommandList,
-    resource: &ID3D12Resource,
-    before: D3D12_RESOURCE_STATES,
-    after: D3D12_RESOURCE_STATES,
-) {
-    let mut barrier = D3D12_RESOURCE_BARRIER {
-        Type: D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-        Flags: D3D12_RESOURCE_BARRIER_FLAG_NONE,
-        Anonymous: D3D12_RESOURCE_BARRIER_0 {
-            Transition: ManuallyDrop::new(D3D12_RESOURCE_TRANSITION_BARRIER {
-                pResource: ManuallyDrop::new(Some(resource.clone())),
-                Subresource: D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
-                StateBefore: before,
-                StateAfter: after,
-            }),
-        },
-    };
-    unsafe { command_list.ResourceBarrier(std::slice::from_ref(&barrier)) };
-    unsafe {
-        let transition = &mut *barrier.Anonymous.Transition;
-        ManuallyDrop::drop(&mut transition.pResource);
     }
 }

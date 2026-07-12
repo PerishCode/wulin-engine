@@ -11,7 +11,7 @@ use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DE
 use crate::load::{LoadConfig, MAX_VISIBLE_INSTANCES};
 use crate::scene::SceneState;
 
-use super::load_pipeline::{LOAD_CONSTANT_COUNT, LoadPipeline};
+use super::pipeline::{LOAD_CONSTANT_COUNT, LoadPipeline};
 
 const QUERY_COUNT: u32 = 4;
 pub const PROBE_ITERATIONS: u32 = 64;

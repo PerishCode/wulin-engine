@@ -65,7 +65,7 @@ function perceptionPayload(verb: string, args: string[]): Record<string, unknown
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -160,6 +160,38 @@ switch (verb) {
         ]);
         break;
     }
+    case "async":
+        if (args.length > 0) fail("workbench: async does not accept arguments");
+        await run(["inspect", "workbench", "async.status", "--format", "json"]);
+        break;
+    case "async-schedule": {
+        if (args.length !== 2) fail("workbench: async-schedule requires center x and center z");
+        await run([
+            "inspect",
+            "workbench",
+            "async.schedule",
+            JSON.stringify({
+                world_region_side: 128,
+                active_center_x: pixel(args[0], "active center x"),
+                active_center_z: pixel(args[1], "active center z"),
+                active_radius: 2,
+            }),
+            "--format",
+            "json",
+        ]);
+        break;
+    }
+    case "async-gate-arm":
+    case "async-gate-release":
+        if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
+        await run([
+            "inspect",
+            "workbench",
+            verb === "async-gate-arm" ? "async.gate.arm" : "async.gate.release",
+            "--format",
+            "json",
+        ]);
+        break;
     case "camera-set": {
         if (args.length !== 6 && args.length !== 7) {
             fail("workbench: camera-set requires px py pz tx ty tz and optional vertical FOV");

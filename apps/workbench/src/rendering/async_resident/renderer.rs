@@ -1,28 +1,25 @@
 use std::mem::size_of;
-use std::time::Instant;
 
 use anyhow::{Context, Result, bail};
+use serde_json::Value;
 use windows::Win32::Graphics::Direct3D::D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 use windows::Win32::Graphics::Direct3D12::*;
 
+use crate::async_resident::AsyncTransactionReport;
 use crate::load::{LoadConfig, MAX_VISIBLE_INSTANCES};
-use crate::resident::{ACTIVE_MAPPING_BYTES, CACHE_REGION_CAPACITY, REGION_INSTANCE_BYTES};
-use crate::resident::{RegionCache, StreamReport};
 use crate::scene::SceneState;
 
-use super::load_renderer::{LoadProbe, PROBE_ITERATIONS};
-use super::resident_pipeline::{RESIDENT_CONSTANT_COUNT, ResidentPipeline};
-use super::resident_resources::{
-    QUERY_COUNT, create_buffer, create_query_heap, read_values, record_stream_copies, set_viewport,
-    transition, uav_barrier, write_staging,
+use super::pipeline::{ASYNC_CONSTANT_COUNT, AsyncResidentPipeline};
+use super::transfer::{AsyncTransfer, Publication};
+use crate::rendering::load::{LoadProbe, PROBE_ITERATIONS};
+use crate::rendering::resident::{
+    QUERY_COUNT, create_buffer, create_query_heap, read_values, set_viewport, transition,
+    uav_barrier,
 };
 
-pub struct ResidentRenderer {
-    pipeline: ResidentPipeline,
-    instances: ID3D12Resource,
-    active_regions: ID3D12Resource,
-    instance_upload: ID3D12Resource,
-    active_upload: ID3D12Resource,
+pub struct AsyncResidentRenderer {
+    pipeline: AsyncResidentPipeline,
+    transfer: AsyncTransfer,
     visible_instances: ID3D12Resource,
     draw_arguments: ID3D12Resource,
     query_heap: ID3D12QueryHeap,
@@ -31,63 +28,23 @@ pub struct ResidentRenderer {
     timestamp_frequency: u64,
     width: u32,
     height: u32,
-    config: Option<LoadConfig>,
-    cache: RegionCache,
-    pending_stream: Option<PendingStream>,
+    published: Option<PublishedSnapshot>,
 }
 
-struct PendingStream {
-    next_cache: RegionCache,
-    report: StreamReport,
-    copy_slots: Vec<u32>,
-    started_at: Instant,
+struct PublishedSnapshot {
+    config: LoadConfig,
+    active_slots: Vec<u32>,
 }
 
-impl ResidentRenderer {
+impl AsyncResidentRenderer {
     pub unsafe fn new(
         device: &ID3D12Device,
         timestamp_frequency: u64,
         width: u32,
         height: u32,
     ) -> Result<Self> {
-        let pipeline = unsafe { ResidentPipeline::new(device) }?;
-        let instance_buffer_bytes = (CACHE_REGION_CAPACITY * REGION_INSTANCE_BYTES) as u64;
-        let instances = unsafe {
-            create_buffer(
-                device,
-                instance_buffer_bytes,
-                D3D12_HEAP_TYPE_DEFAULT,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                D3D12_RESOURCE_FLAG_NONE,
-            )
-        }?;
-        let active_regions = unsafe {
-            create_buffer(
-                device,
-                ACTIVE_MAPPING_BYTES as u64,
-                D3D12_HEAP_TYPE_DEFAULT,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                D3D12_RESOURCE_FLAG_NONE,
-            )
-        }?;
-        let instance_upload = unsafe {
-            create_buffer(
-                device,
-                instance_buffer_bytes,
-                D3D12_HEAP_TYPE_UPLOAD,
-                D3D12_RESOURCE_STATE_GENERIC_READ,
-                D3D12_RESOURCE_FLAG_NONE,
-            )
-        }?;
-        let active_upload = unsafe {
-            create_buffer(
-                device,
-                ACTIVE_MAPPING_BYTES as u64,
-                D3D12_HEAP_TYPE_UPLOAD,
-                D3D12_RESOURCE_STATE_GENERIC_READ,
-                D3D12_RESOURCE_FLAG_NONE,
-            )
-        }?;
+        let pipeline = unsafe { AsyncResidentPipeline::new(device) }?;
+        let transfer = unsafe { AsyncTransfer::new(device) }?;
         let visible_instances = unsafe {
             create_buffer(
                 device,
@@ -127,10 +84,7 @@ impl ResidentRenderer {
         }?;
         Ok(Self {
             pipeline,
-            instances,
-            active_regions,
-            instance_upload,
-            active_upload,
+            transfer,
             visible_instances,
             draw_arguments,
             query_heap,
@@ -139,68 +93,44 @@ impl ResidentRenderer {
             timestamp_frequency,
             width,
             height,
-            config: None,
-            cache: RegionCache::default(),
-            pending_stream: None,
+            published: None,
         })
     }
 
-    pub unsafe fn prepare_stream(&mut self, config: LoadConfig) -> Result<()> {
-        if self.pending_stream.is_some() {
-            bail!("a resident stream transaction is already pending");
-        }
-        let started_at = Instant::now();
-        let plan = self.cache.plan(config)?;
-        unsafe { write_staging(&self.instance_upload, &self.active_upload, &plan) }?;
-        self.config = Some(config);
-        self.pending_stream = Some(PendingStream {
-            next_cache: plan.next_cache,
-            report: plan.report,
-            copy_slots: plan.uploads.iter().map(|upload| upload.slot).collect(),
-            started_at,
-        });
-        Ok(())
-    }
-
-    pub fn disable(&mut self) {
-        self.config = None;
-        self.pending_stream = None;
-    }
-
-    pub fn config(&self) -> Option<LoadConfig> {
-        self.config
-    }
-
-    pub fn has_pending_stream(&self) -> bool {
-        self.pending_stream.is_some()
-    }
-
-    pub fn complete_stream(&mut self) -> Result<StreamReport> {
-        let pending = self
-            .pending_stream
-            .take()
-            .context("resident stream completed without a pending transaction")?;
-        self.cache = pending.next_cache;
-        let mut report = pending.report;
-        report.transaction_ms = pending.started_at.elapsed().as_secs_f64() * 1_000.0;
-        Ok(report)
-    }
-
-    unsafe fn record_stream(&self, command_list: &ID3D12GraphicsCommandList) {
-        let pending = self
-            .pending_stream
+    pub unsafe fn schedule(
+        &mut self,
+        config: LoadConfig,
+        direct_queue: &ID3D12CommandQueue,
+        direct_fence: &ID3D12Fence,
+        direct_release_fence: u64,
+    ) -> Result<AsyncTransactionReport> {
+        let protected = self
+            .published
             .as_ref()
-            .expect("record_stream requires a pending transaction");
+            .map(|snapshot| snapshot.active_slots.iter().copied().collect())
+            .unwrap_or_default();
         unsafe {
-            record_stream_copies(
-                command_list,
-                &self.instances,
-                &self.active_regions,
-                &self.instance_upload,
-                &self.active_upload,
-                &pending.copy_slots,
+            self.transfer.schedule(
+                config,
+                &protected,
+                direct_queue,
+                direct_fence,
+                direct_release_fence,
             )
-        };
+        }
+    }
+
+    pub unsafe fn prepare_frame(&mut self, command_list: &ID3D12GraphicsCommandList) {
+        if let Some(Publication {
+            config,
+            active_slots,
+        }) = unsafe { self.transfer.poll_publication(command_list) }
+        {
+            self.published = Some(PublishedSnapshot {
+                config,
+                active_slots,
+            });
+        }
     }
 
     pub unsafe fn record(
@@ -211,11 +141,14 @@ impl ResidentRenderer {
         depth_target: D3D12_CPU_DESCRIPTOR_HANDLE,
         probe: bool,
     ) -> Result<()> {
-        let config = self.config.context("resident renderer is not configured")?;
-        if self.pending_stream.is_some() {
-            unsafe { self.record_stream(command_list) };
-        }
-        let constants = resident_constants(scene, config, self.width, self.height);
+        let snapshot = self
+            .published
+            .as_ref()
+            .context("async resident renderer has no published snapshot")?;
+        let constants = async_constants(scene, snapshot, self.width, self.height);
+        let heap = self.transfer.descriptor_heap();
+        let gpu_start = unsafe { heap.GetGPUDescriptorHandleForHeapStart() };
+        unsafe { command_list.SetDescriptorHeaps(&[Some(heap.clone())]) };
         if probe {
             unsafe { command_list.EndQuery(&self.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 0) };
         }
@@ -223,20 +156,18 @@ impl ResidentRenderer {
             command_list.SetComputeRootSignature(&self.pipeline.compute_root);
             command_list.SetComputeRoot32BitConstants(
                 0,
-                RESIDENT_CONSTANT_COUNT,
+                ASYNC_CONSTANT_COUNT,
                 constants.as_ptr().cast(),
                 0,
             );
-            command_list.SetComputeRootShaderResourceView(1, self.instances.GetGPUVirtualAddress());
-            command_list
-                .SetComputeRootShaderResourceView(2, self.active_regions.GetGPUVirtualAddress());
+            command_list.SetComputeRootDescriptorTable(1, gpu_start);
             command_list.SetComputeRootUnorderedAccessView(
-                3,
+                2,
                 self.visible_instances.GetGPUVirtualAddress(),
             );
             command_list
-                .SetComputeRootUnorderedAccessView(4, self.draw_arguments.GetGPUVirtualAddress());
-            let [groups_x, groups_y, groups_z] = config.dispatch();
+                .SetComputeRootUnorderedAccessView(3, self.draw_arguments.GetGPUVirtualAddress());
+            let [groups_x, groups_y, groups_z] = snapshot.config.dispatch();
             let iterations = if probe { PROBE_ITERATIONS } else { 1 };
             for _ in 0..iterations {
                 command_list.SetPipelineState(&self.pipeline.reset);
@@ -278,12 +209,11 @@ impl ResidentRenderer {
             command_list.SetPipelineState(&self.pipeline.graphics);
             command_list.SetGraphicsRoot32BitConstants(
                 0,
-                RESIDENT_CONSTANT_COUNT,
+                ASYNC_CONSTANT_COUNT,
                 constants.as_ptr().cast(),
                 0,
             );
-            command_list
-                .SetGraphicsRootShaderResourceView(1, self.instances.GetGPUVirtualAddress());
+            command_list.SetGraphicsRootDescriptorTable(1, gpu_start);
             command_list.SetGraphicsRootShaderResourceView(
                 2,
                 self.visible_instances.GetGPUVirtualAddress(),
@@ -351,8 +281,8 @@ impl ResidentRenderer {
                     &self.draw_arguments,
                     D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                );
-            }
+                )
+            };
         }
         unsafe {
             transition(
@@ -360,21 +290,22 @@ impl ResidentRenderer {
                 &self.visible_instances,
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            );
-        }
+            )
+        };
         Ok(())
     }
 
     pub unsafe fn read_probe(&self) -> Result<LoadProbe> {
-        let config = self.config.context("resident renderer is not configured")?;
-        let timestamps =
-            unsafe { read_values::<u64>(&self.timestamp_readback, QUERY_COUNT as usize) }?;
+        let config = self
+            .config()
+            .context("async resident mode is not published")?;
+        let timestamps = unsafe { read_values::<u64>(&self.timestamp_readback, 4) }?;
         let arguments = unsafe { read_values::<u32>(&self.argument_readback, 4) }?;
         if arguments[0] != 6 || arguments[2] != 0 || arguments[3] != 0 {
-            bail!("indirect draw arguments are invalid: {arguments:?}");
+            bail!("async indirect draw arguments are invalid: {arguments:?}");
         }
         if arguments[1] > config.candidate_instance_count() {
-            bail!("visible instance count exceeds active candidates");
+            bail!("async visible instance count exceeds active candidates");
         }
         let milliseconds = |start: usize, end: usize| {
             timestamps[end].saturating_sub(timestamps[start]) as f64 * 1_000.0
@@ -395,15 +326,47 @@ impl ResidentRenderer {
             gpu_total_ms: milliseconds(0, 3),
         })
     }
+
+    pub fn arm_gate(&mut self) -> Result<u64> {
+        self.transfer.arm_gate()
+    }
+
+    pub unsafe fn release_gate(&mut self) -> Result<u64> {
+        unsafe { self.transfer.release_gate() }
+    }
+
+    pub fn status_json(&self) -> Value {
+        self.transfer.status_json(self.config())
+    }
+
+    pub fn config(&self) -> Option<LoadConfig> {
+        self.published.as_ref().map(|snapshot| snapshot.config)
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.published.is_some() || self.transfer.has_pending()
+    }
+
+    pub fn disable(&mut self) -> Result<()> {
+        if self.transfer.has_pending() || self.transfer.has_armed_gate() {
+            bail!("cannot disable async resident mode while a transaction or gate is active");
+        }
+        self.published = None;
+        Ok(())
+    }
+
+    pub unsafe fn wait_idle(&mut self) -> Result<()> {
+        unsafe { self.transfer.wait_idle() }
+    }
 }
 
-fn resident_constants(
+fn async_constants(
     scene: &SceneState,
-    config: LoadConfig,
+    snapshot: &PublishedSnapshot,
     width: u32,
     height: u32,
-) -> [u32; RESIDENT_CONSTANT_COUNT as usize] {
-    let mut constants = [0u32; RESIDENT_CONSTANT_COUNT as usize];
+) -> [u32; ASYNC_CONSTANT_COUNT as usize] {
+    let mut constants = [0u32; ASYNC_CONSTANT_COUNT as usize];
     for (destination, value) in constants[..16].iter_mut().zip(
         scene
             .view_projection(width as f32 / height as f32)
@@ -411,7 +374,8 @@ fn resident_constants(
     ) {
         *destination = value.to_bits();
     }
-    constants[16] = config.active_region_count();
+    constants[16] = snapshot.config.active_region_count();
     constants[17] = MAX_VISIBLE_INSTANCES;
+    constants[20..45].copy_from_slice(&snapshot.active_slots);
     constants
 }

@@ -1,0 +1,450 @@
+use std::collections::BTreeSet;
+use std::ptr;
+use std::time::Instant;
+
+use anyhow::{Context, Result, bail};
+use serde_json::{Value, json};
+use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0};
+use windows::Win32::Graphics::Direct3D12::*;
+use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_UNKNOWN;
+use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
+use windows::core::Interface;
+
+use crate::async_resident::{
+    ASYNC_CACHE_CAPACITY, ASYNC_RESIDENT_REVISION, AsyncRegionCache, AsyncTransactionReport,
+};
+use crate::load::{INSTANCES_PER_REGION, LoadConfig};
+use crate::resident::{INSTANCE_RECORD_BYTES, REGION_INSTANCE_BYTES, as_bytes};
+
+use super::super::resident::{create_buffer, transition};
+
+pub struct AsyncTransfer {
+    regions: Vec<ID3D12Resource>,
+    descriptor_heap: ID3D12DescriptorHeap,
+    region_allocation_bytes: u64,
+    upload: ID3D12Resource,
+    release_allocator: ID3D12CommandAllocator,
+    release_list: ID3D12GraphicsCommandList,
+    copy_queue: ID3D12CommandQueue,
+    copy_allocator: ID3D12CommandAllocator,
+    copy_list: ID3D12GraphicsCommandList,
+    copy_fence: ID3D12Fence,
+    copy_event: HANDLE,
+    next_copy_fence: u64,
+    gate_fence: ID3D12Fence,
+    armed_gate: Option<u64>,
+    next_gate_fence: u64,
+    cache: AsyncRegionCache,
+    shader_slots: [bool; ASYNC_CACHE_CAPACITY],
+    pending: Option<PendingTransfer>,
+    last_completed: Option<AsyncTransactionReport>,
+    next_transaction_id: u64,
+}
+
+struct PendingTransfer {
+    next_cache: AsyncRegionCache,
+    active_slots: Vec<u32>,
+    uploaded_slots: Vec<u32>,
+    report: AsyncTransactionReport,
+    started_at: Instant,
+}
+
+pub struct Publication {
+    pub config: LoadConfig,
+    pub active_slots: Vec<u32>,
+}
+
+impl AsyncTransfer {
+    pub unsafe fn new(device: &ID3D12Device) -> Result<Self> {
+        let mut regions = Vec::with_capacity(ASYNC_CACHE_CAPACITY);
+        for _ in 0..ASYNC_CACHE_CAPACITY {
+            regions.push(unsafe {
+                create_buffer(
+                    device,
+                    REGION_INSTANCE_BYTES as u64,
+                    D3D12_HEAP_TYPE_DEFAULT,
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    D3D12_RESOURCE_FLAG_NONE,
+                )
+            }?);
+        }
+        let descriptor_heap = unsafe { create_descriptor_heap(device, &regions) }?;
+        let region_allocation_bytes =
+            unsafe { device.GetResourceAllocationInfo(0, &[regions[0].GetDesc()]) }.SizeInBytes
+                * ASYNC_CACHE_CAPACITY as u64;
+        let upload = unsafe {
+            create_buffer(
+                device,
+                (ASYNC_CACHE_CAPACITY * REGION_INSTANCE_BYTES) as u64,
+                D3D12_HEAP_TYPE_UPLOAD,
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                D3D12_RESOURCE_FLAG_NONE,
+            )
+        }?;
+        let release_allocator =
+            unsafe { device.CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT) }
+                .context("async release allocator creation failed")?;
+        let release_list: ID3D12GraphicsCommandList = unsafe {
+            device.CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, &release_allocator, None)
+        }
+        .context("async release command list creation failed")?;
+        unsafe { release_list.Close() }.context("async release command list close failed")?;
+
+        let copy_queue = unsafe {
+            device.CreateCommandQueue(&D3D12_COMMAND_QUEUE_DESC {
+                Type: D3D12_COMMAND_LIST_TYPE_COPY,
+                Priority: D3D12_COMMAND_QUEUE_PRIORITY_NORMAL.0,
+                Flags: D3D12_COMMAND_QUEUE_FLAG_NONE,
+                NodeMask: 0,
+            })
+        }
+        .context("async copy queue creation failed")?;
+        let copy_allocator = unsafe { device.CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_COPY) }
+            .context("async copy allocator creation failed")?;
+        let copy_list: ID3D12GraphicsCommandList = unsafe {
+            device.CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_COPY, &copy_allocator, None)
+        }
+        .context("async copy command list creation failed")?;
+        unsafe { copy_list.Close() }.context("async copy command list close failed")?;
+        let copy_fence = unsafe { device.CreateFence(0, D3D12_FENCE_FLAG_NONE) }
+            .context("async copy fence creation failed")?;
+        let gate_fence = unsafe { device.CreateFence(0, D3D12_FENCE_FLAG_NONE) }
+            .context("async gate fence creation failed")?;
+        let copy_event = unsafe { CreateEventW(None, false, false, None) }
+            .context("async event creation failed")?;
+
+        Ok(Self {
+            regions,
+            descriptor_heap,
+            region_allocation_bytes,
+            upload,
+            release_allocator,
+            release_list,
+            copy_queue,
+            copy_allocator,
+            copy_list,
+            copy_fence,
+            copy_event,
+            next_copy_fence: 1,
+            gate_fence,
+            armed_gate: None,
+            next_gate_fence: 1,
+            cache: AsyncRegionCache::default(),
+            shader_slots: [false; ASYNC_CACHE_CAPACITY],
+            pending: None,
+            last_completed: None,
+            next_transaction_id: 1,
+        })
+    }
+
+    pub unsafe fn schedule(
+        &mut self,
+        config: LoadConfig,
+        protected_slots: &BTreeSet<u32>,
+        direct_queue: &ID3D12CommandQueue,
+        direct_fence: &ID3D12Fence,
+        direct_release_fence: u64,
+    ) -> Result<AsyncTransactionReport> {
+        if self.pending.is_some() {
+            bail!("stream_busy");
+        }
+        let schedule_start = Instant::now();
+        let generation_start = Instant::now();
+        let plan = self.cache.plan(config, protected_slots)?;
+        let generation_ms = generation_start.elapsed().as_secs_f64() * 1_000.0;
+        unsafe { self.write_uploads(&plan.uploads) }?;
+
+        unsafe { self.release_allocator.Reset() }
+            .context("async release allocator reset failed")?;
+        unsafe { self.release_list.Reset(&self.release_allocator, None) }
+            .context("async release list reset failed")?;
+        for slot in &plan.reused_slots {
+            let index = *slot as usize;
+            if !self.shader_slots[index] {
+                bail!("reused async slot {slot} is not in shader-resource state");
+            }
+            unsafe {
+                transition(
+                    &self.release_list,
+                    &self.regions[index],
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                )
+            };
+            self.shader_slots[index] = false;
+        }
+        unsafe { self.release_list.Close() }.context("async release list close failed")?;
+        let release_list: ID3D12CommandList = self.release_list.cast()?;
+        unsafe {
+            direct_queue.ExecuteCommandLists(&[Some(release_list)]);
+            direct_queue.Signal(direct_fence, direct_release_fence)
+        }
+        .context("async direct release signal failed")?;
+
+        unsafe { self.copy_allocator.Reset() }.context("async copy allocator reset failed")?;
+        unsafe { self.copy_list.Reset(&self.copy_allocator, None) }
+            .context("async copy list reset failed")?;
+        for upload in &plan.uploads {
+            let upload_offset = u64::from(upload.slot) * REGION_INSTANCE_BYTES as u64;
+            unsafe {
+                self.copy_list.CopyBufferRegion(
+                    &self.regions[upload.slot as usize],
+                    0,
+                    &self.upload,
+                    upload_offset,
+                    REGION_INSTANCE_BYTES as u64,
+                )
+            };
+        }
+        unsafe { self.copy_list.Close() }.context("async copy list close failed")?;
+
+        let gate_fence = self.armed_gate;
+        if let Some(value) = gate_fence {
+            unsafe { self.copy_queue.Wait(&self.gate_fence, value) }
+                .context("async copy gate wait failed")?;
+        }
+        unsafe { self.copy_queue.Wait(direct_fence, direct_release_fence) }
+            .context("async copy release wait failed")?;
+        let copy_list: ID3D12CommandList = self.copy_list.cast()?;
+        unsafe { self.copy_queue.ExecuteCommandLists(&[Some(copy_list)]) };
+        let copy_fence = self.next_copy_fence;
+        self.next_copy_fence += 1;
+        unsafe { self.copy_queue.Signal(&self.copy_fence, copy_fence) }
+            .context("async copy signal failed")?;
+
+        let report = AsyncTransactionReport {
+            revision: ASYNC_RESIDENT_REVISION,
+            transaction_id: self.next_transaction_id,
+            config,
+            counts: plan.counts,
+            uploaded_sha256: plan.uploaded_sha256,
+            direct_release_fence,
+            copy_fence,
+            gate_fence,
+            generation_ms,
+            schedule_ms: schedule_start.elapsed().as_secs_f64() * 1_000.0,
+            pending_ms: 0.0,
+        };
+        self.next_transaction_id += 1;
+        self.pending = Some(PendingTransfer {
+            next_cache: plan.next_cache,
+            active_slots: plan.active_slots,
+            uploaded_slots: plan.uploads.iter().map(|upload| upload.slot).collect(),
+            report: report.clone(),
+            started_at: Instant::now(),
+        });
+        Ok(report)
+    }
+
+    pub unsafe fn poll_publication(
+        &mut self,
+        command_list: &ID3D12GraphicsCommandList,
+    ) -> Option<Publication> {
+        let pending = self.pending.as_ref()?;
+        if unsafe { self.copy_fence.GetCompletedValue() } < pending.report.copy_fence {
+            return None;
+        }
+        let mut pending = self.pending.take().expect("pending transfer disappeared");
+        for slot in &pending.uploaded_slots {
+            let index = *slot as usize;
+            unsafe {
+                transition(
+                    command_list,
+                    &self.regions[index],
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                )
+            };
+            self.shader_slots[index] = true;
+        }
+        self.cache = pending.next_cache;
+        pending.report.pending_ms = pending.started_at.elapsed().as_secs_f64() * 1_000.0;
+        self.last_completed = Some(pending.report.clone());
+        Some(Publication {
+            config: pending.report.config,
+            active_slots: pending.active_slots,
+        })
+    }
+
+    pub fn arm_gate(&mut self) -> Result<u64> {
+        if self.pending.is_some() || self.armed_gate.is_some() {
+            bail!("copy gate or stream transaction is already active");
+        }
+        let value = self.next_gate_fence;
+        self.next_gate_fence += 1;
+        self.armed_gate = Some(value);
+        Ok(value)
+    }
+
+    pub unsafe fn release_gate(&mut self) -> Result<u64> {
+        let value = self.armed_gate.context("copy gate is not armed")?;
+        unsafe { self.gate_fence.Signal(value) }.context("copy gate signal failed")?;
+        self.armed_gate = None;
+        Ok(value)
+    }
+
+    pub fn descriptor_heap(&self) -> &ID3D12DescriptorHeap {
+        &self.descriptor_heap
+    }
+
+    pub fn has_pending(&self) -> bool {
+        self.pending.is_some()
+    }
+
+    pub fn has_armed_gate(&self) -> bool {
+        self.armed_gate.is_some()
+    }
+
+    pub fn status_json(&self, published: Option<LoadConfig>) -> Value {
+        let completed_copy_fence = unsafe { self.copy_fence.GetCompletedValue() };
+        let completed_gate_fence = unsafe { self.gate_fence.GetCompletedValue() };
+        let pending = self.pending.as_ref().map(|pending| {
+            let stage = if pending
+                .report
+                .gate_fence
+                .is_some_and(|value| completed_gate_fence < value)
+            {
+                "gated"
+            } else if completed_copy_fence < pending.report.copy_fence {
+                "copying"
+            } else {
+                "ready"
+            };
+            json!({
+                "stage": stage,
+                "report": pending.report,
+                "pendingMs": pending.started_at.elapsed().as_secs_f64() * 1_000.0,
+            })
+        });
+        json!({
+            "revision": ASYNC_RESIDENT_REVISION,
+            "capacity": ASYNC_CACHE_CAPACITY,
+            "descriptorCount": ASYNC_CACHE_CAPACITY,
+            "inFlightCapacity": 1,
+            "regionPayloadBytes": ASYNC_CACHE_CAPACITY * REGION_INSTANCE_BYTES,
+            "defaultHeapAllocationBytes": self.region_allocation_bytes,
+            "uploadArenaBytes": ASYNC_CACHE_CAPACITY * REGION_INSTANCE_BYTES,
+            "published": published,
+            "pending": pending,
+            "lastCompleted": self.last_completed,
+            "gate": {
+                "armedFence": self.armed_gate,
+                "completedFence": completed_gate_fence,
+            },
+            "copy": {
+                "completedFence": completed_copy_fence,
+                "nextFence": self.next_copy_fence,
+            },
+        })
+    }
+
+    pub unsafe fn wait_idle(&mut self) -> Result<()> {
+        if let Some(value) = self.armed_gate.take() {
+            unsafe { self.gate_fence.Signal(value) }
+                .context("async shutdown gate signal failed")?;
+        }
+        let Some(value) = self
+            .pending
+            .as_ref()
+            .map(|pending| pending.report.copy_fence)
+        else {
+            return Ok(());
+        };
+        if unsafe { self.copy_fence.GetCompletedValue() } >= value {
+            return Ok(());
+        }
+        unsafe { self.copy_fence.SetEventOnCompletion(value, self.copy_event) }
+            .context("async copy completion event failed")?;
+        let wait = unsafe { WaitForSingleObject(self.copy_event, INFINITE) };
+        if wait != WAIT_OBJECT_0 {
+            bail!("async copy wait returned {wait:?}");
+        }
+        Ok(())
+    }
+
+    unsafe fn write_uploads(&self, uploads: &[crate::resident::RegionUpload]) -> Result<()> {
+        let mut mapped = ptr::null_mut();
+        unsafe {
+            self.upload.Map(
+                0,
+                Some(&D3D12_RANGE { Begin: 0, End: 0 }),
+                Some(&mut mapped),
+            )
+        }
+        .context("async upload arena map failed")?;
+        for upload in uploads {
+            let offset = upload.slot as usize * REGION_INSTANCE_BYTES;
+            let bytes = as_bytes(&upload.records);
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    bytes.as_ptr(),
+                    mapped.cast::<u8>().add(offset),
+                    bytes.len(),
+                )
+            };
+        }
+        unsafe {
+            self.upload.Unmap(
+                0,
+                Some(&D3D12_RANGE {
+                    Begin: 0,
+                    End: ASYNC_CACHE_CAPACITY * REGION_INSTANCE_BYTES,
+                }),
+            )
+        };
+        Ok(())
+    }
+}
+
+impl Drop for AsyncTransfer {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = self.wait_idle();
+            let _ = CloseHandle(self.copy_event);
+        }
+    }
+}
+
+unsafe fn create_descriptor_heap(
+    device: &ID3D12Device,
+    regions: &[ID3D12Resource],
+) -> Result<ID3D12DescriptorHeap> {
+    let heap: ID3D12DescriptorHeap = unsafe {
+        device.CreateDescriptorHeap(&D3D12_DESCRIPTOR_HEAP_DESC {
+            Type: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+            NumDescriptors: ASYNC_CACHE_CAPACITY as u32,
+            Flags: D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
+            NodeMask: 0,
+        })
+    }
+    .context("async resident descriptor heap creation failed")?;
+    let increment =
+        unsafe { device.GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) }
+            as usize;
+    let start = unsafe { heap.GetCPUDescriptorHandleForHeapStart() };
+    for (index, resource) in regions.iter().enumerate() {
+        let desc = D3D12_SHADER_RESOURCE_VIEW_DESC {
+            Format: DXGI_FORMAT_UNKNOWN,
+            ViewDimension: D3D12_SRV_DIMENSION_BUFFER,
+            Shader4ComponentMapping: D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            Anonymous: D3D12_SHADER_RESOURCE_VIEW_DESC_0 {
+                Buffer: D3D12_BUFFER_SRV {
+                    FirstElement: 0,
+                    NumElements: INSTANCES_PER_REGION,
+                    StructureByteStride: INSTANCE_RECORD_BYTES as u32,
+                    Flags: D3D12_BUFFER_SRV_FLAG_NONE,
+                },
+            },
+        };
+        unsafe {
+            device.CreateShaderResourceView(
+                resource,
+                Some(&desc),
+                D3D12_CPU_DESCRIPTOR_HANDLE {
+                    ptr: start.ptr + index * increment,
+                },
+            )
+        };
+    }
+    Ok(heap)
+}

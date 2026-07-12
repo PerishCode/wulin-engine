@@ -58,6 +58,7 @@ await run("deno check", "deno", [
     ".runseal/wrappers/visual-loop.ts",
     ".runseal/wrappers/workbench.ts",
     ".runseal/wrappers/resident-stream.ts",
+    ".runseal/wrappers/async-region.ts",
 ]);
 await run("flavor", "flavor", ["check", "--root", ".", "--config", "flavor.toml"]);
 await run("sidecar doctor", "sidecar", ["doctor", "--config", "sidecar.toml"]);

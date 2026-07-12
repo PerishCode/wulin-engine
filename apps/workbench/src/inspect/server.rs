@@ -66,6 +66,15 @@ pub enum ControlKind {
         active_radius: u32,
     },
     ResidentStatus,
+    AsyncResidentSchedule {
+        world_region_side: u32,
+        active_center_x: u32,
+        active_center_z: u32,
+        active_radius: u32,
+    },
+    AsyncResidentStatus,
+    AsyncCopyGateArm,
+    AsyncCopyGateRelease,
 }
 
 pub type ControlResult = std::result::Result<Value, ProtocolError>;
@@ -275,6 +284,9 @@ fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
         "load.status" => Ok(ControlKind::LoadStatus),
         "load.probe" => Ok(ControlKind::LoadProbe),
         "resident.status" => Ok(ControlKind::ResidentStatus),
+        "async.status" => Ok(ControlKind::AsyncResidentStatus),
+        "async.gate.arm" => Ok(ControlKind::AsyncCopyGateArm),
+        "async.gate.release" => Ok(ControlKind::AsyncCopyGateRelease),
         "load.configure" => {
             let payload: LoadConfigurePayload =
                 serde_json::from_value(payload).map_err(|error| ProtocolError {
@@ -295,6 +307,19 @@ fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
                     message: error.to_string(),
                 })?;
             Ok(ControlKind::ResidentStream {
+                world_region_side: payload.world_region_side,
+                active_center_x: payload.active_center_x,
+                active_center_z: payload.active_center_z,
+                active_radius: payload.active_radius,
+            })
+        }
+        "async.schedule" => {
+            let payload: LoadConfigurePayload =
+                serde_json::from_value(payload).map_err(|error| ProtocolError {
+                    code: "invalid_payload",
+                    message: error.to_string(),
+                })?;
+            Ok(ControlKind::AsyncResidentSchedule {
                 world_region_side: payload.world_region_side,
                 active_center_x: payload.active_center_x,
                 active_center_z: payload.active_center_z,

@@ -169,7 +169,7 @@ impl RegionCache {
     }
 }
 
-fn active_region_ids(config: LoadConfig) -> Result<Vec<u32>> {
+pub(crate) fn active_region_ids(config: LoadConfig) -> Result<Vec<u32>> {
     let diameter = config.active_radius * 2 + 1;
     let mut regions = Vec::with_capacity((diameter * diameter) as usize);
     for offset_z in 0..diameter {
@@ -185,7 +185,7 @@ fn active_region_ids(config: LoadConfig) -> Result<Vec<u32>> {
     Ok(regions)
 }
 
-fn generate_region(region_id: u32) -> Vec<InstanceRecord> {
+pub(crate) fn generate_region(region_id: u32) -> Vec<InstanceRecord> {
     let region_x = region_id % MAX_REGION_SIDE;
     let region_z = region_id / MAX_REGION_SIDE;
     (0..INSTANCES_PER_REGION)
@@ -215,7 +215,7 @@ fn instance_height(reference: u32) -> f32 {
     0.7 + (value & 1023) as f32 / 1023.0 * 2.3
 }
 
-fn hash_uploads(uploads: &[RegionUpload]) -> String {
+pub(crate) fn hash_uploads(uploads: &[RegionUpload]) -> String {
     let mut hash = Sha256::new();
     for upload in uploads {
         hash.update(upload.slot.to_le_bytes());
