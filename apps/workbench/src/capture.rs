@@ -8,8 +8,8 @@ use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::gpu_capture::CapturedPixels;
 use crate::perception::{self, Evidence, Request};
+use crate::rendering::gpu_capture::CapturedPixels;
 
 const OUTPUT_ROOT: &str = "out/captures";
 
@@ -26,6 +26,7 @@ pub struct FrameContext<'a> {
     pub last_error: Option<&'a str>,
     pub gpu_readback_ms: f64,
     pub spatial: Value,
+    pub workload: Value,
     pub perception: Option<&'a Request>,
 }
 
@@ -42,6 +43,7 @@ struct FrameManifest<'a> {
     state: &'static str,
     clear_color: [f32; 4],
     spatial: Value,
+    workload: Value,
     renderer: RendererManifest<'a>,
     image: ImageManifest,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -193,6 +195,7 @@ pub fn write(
         state: if context.paused { "paused" } else { "running" },
         clear_color: context.clear_color,
         spatial: context.spatial,
+        workload: context.workload,
         renderer: RendererManifest {
             api: "D3D12",
             adapter: context.adapter,

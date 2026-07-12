@@ -65,7 +65,7 @@ function perceptionPayload(verb: string, args: string[]): Record<string, unknown
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -106,6 +106,39 @@ switch (verb) {
         if (args.length > 0) fail("workbench: scene does not accept arguments");
         await run(["inspect", "workbench", "scene.list_objects", "--format", "json"]);
         break;
+    case "load":
+        if (args.length > 0) fail("workbench: load does not accept arguments");
+        await run(["inspect", "workbench", "load.status", "--format", "json"]);
+        break;
+    case "load-disable":
+        if (args.length > 0) fail("workbench: load-disable does not accept arguments");
+        await run(["inspect", "workbench", "load.disable", "--format", "json"]);
+        break;
+    case "load-probe":
+        if (args.length > 0) fail("workbench: load-probe does not accept arguments");
+        await run(["inspect", "workbench", "load.probe", "--format", "json"]);
+        break;
+    case "load-config": {
+        if (args.length < 1 || args.length > 4) {
+            fail(
+                "workbench: load-config requires world side and optional center x, center z, radius",
+            );
+        }
+        await run([
+            "inspect",
+            "workbench",
+            "load.configure",
+            JSON.stringify({
+                world_region_side: pixel(args[0], "world region side"),
+                active_center_x: pixel(args[1] ?? "64", "active center x"),
+                active_center_z: pixel(args[2] ?? "64", "active center z"),
+                active_radius: pixel(args[3] ?? "2", "active radius"),
+            }),
+            "--format",
+            "json",
+        ]);
+        break;
+    }
     case "camera-set": {
         if (args.length !== 6 && args.length !== 7) {
             fail("workbench: camera-set requires px py pz tx ty tz and optional vertical FOV");

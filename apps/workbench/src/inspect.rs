@@ -50,6 +50,15 @@ pub enum ControlKind {
     },
     CameraReset,
     SceneListObjects,
+    LoadConfigure {
+        world_region_side: u32,
+        active_center_x: u32,
+        active_center_z: u32,
+        active_radius: u32,
+    },
+    LoadDisable,
+    LoadStatus,
+    LoadProbe,
 }
 
 pub type ControlResult = std::result::Result<Value, ProtocolError>;
@@ -98,6 +107,15 @@ struct CameraPosePayload {
     position: [f32; 3],
     target: [f32; 3],
     vertical_fov_degrees: f32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LoadConfigurePayload {
+    world_region_side: u32,
+    active_center_x: u32,
+    active_center_z: u32,
+    active_radius: u32,
 }
 
 impl InspectServer {
@@ -246,6 +264,22 @@ fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
         "camera.status" => Ok(ControlKind::CameraStatus),
         "camera.reset" => Ok(ControlKind::CameraReset),
         "scene.list_objects" => Ok(ControlKind::SceneListObjects),
+        "load.disable" => Ok(ControlKind::LoadDisable),
+        "load.status" => Ok(ControlKind::LoadStatus),
+        "load.probe" => Ok(ControlKind::LoadProbe),
+        "load.configure" => {
+            let payload: LoadConfigurePayload =
+                serde_json::from_value(payload).map_err(|error| ProtocolError {
+                    code: "invalid_payload",
+                    message: error.to_string(),
+                })?;
+            Ok(ControlKind::LoadConfigure {
+                world_region_side: payload.world_region_side,
+                active_center_x: payload.active_center_x,
+                active_center_z: payload.active_center_z,
+                active_radius: payload.active_radius,
+            })
+        }
         "camera.set_pose" => {
             let payload: CameraPosePayload =
                 serde_json::from_value(payload).map_err(|error| ProtocolError {

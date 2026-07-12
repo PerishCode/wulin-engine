@@ -3,6 +3,8 @@ use glam::{Mat4, Quat, Vec3};
 use serde::Serialize;
 use serde_json::{Value, json};
 
+use crate::load;
+
 pub const SCENE_REVISION: &str = "calibration-v1";
 pub const NEAR_PLANE_METERS: f32 = 0.1;
 const DEFAULT_FOV_DEGREES: f32 = 60.0;
@@ -25,6 +27,12 @@ pub struct SceneObject {
     pub scale: [f32; 3],
     pub color: [f32; 4],
     pub material: u32,
+}
+
+pub struct SemanticObject {
+    pub name: String,
+    pub kind: String,
+    pub color: [f32; 4],
 }
 
 pub const OBJECTS: [SceneObject; 8] = [
@@ -236,6 +244,24 @@ impl SceneObject {
             Vec3::from_array(self.translation),
         )
     }
+}
+
+pub fn semantic_object(id: u32) -> Option<SemanticObject> {
+    OBJECTS
+        .iter()
+        .find(|object| object.id == id)
+        .map(|object| SemanticObject {
+            name: object.name.into(),
+            kind: object.kind.into(),
+            color: object.color,
+        })
+        .or_else(|| {
+            load::region_semantic(id).map(|region| SemanticObject {
+                name: region.name,
+                kind: region.kind,
+                color: region.color,
+            })
+        })
 }
 
 fn default_camera() -> Camera {

@@ -11,8 +11,9 @@ use windows::Win32::Graphics::Dxgi::Common::{
 };
 use windows::core::PCSTR;
 
-use crate::object_id_target::ObjectIdTarget;
 use crate::scene::{MeshKind, OBJECTS, SceneState};
+
+use super::object_id_target::ObjectIdTarget;
 
 const VERTEX_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/calibration.vs.dxil"));
 const PIXEL_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/calibration.ps.dxil"));
@@ -159,6 +160,14 @@ impl SceneRenderer {
 
     pub fn object_id_resource(&self) -> &ID3D12Resource {
         self.object_ids.resource()
+    }
+
+    pub unsafe fn object_id_handle(&self) -> D3D12_CPU_DESCRIPTOR_HANDLE {
+        unsafe { self.object_ids.handle() }
+    }
+
+    pub unsafe fn depth_handle(&self) -> D3D12_CPU_DESCRIPTOR_HANDLE {
+        unsafe { self.dsv_heap.GetCPUDescriptorHandleForHeapStart() }
     }
 }
 

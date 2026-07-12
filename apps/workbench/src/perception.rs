@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
-use crate::gpu_capture::CapturedPixels;
-use crate::scene::OBJECTS;
+use crate::rendering::gpu_capture::CapturedPixels;
+use crate::scene::semantic_object;
 
 const MAX_SAMPLES: usize = 32;
 
@@ -64,8 +64,8 @@ pub struct AreaEvidence {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectPixels {
     pub id: u32,
-    pub name: Option<&'static str>,
-    pub kind: Option<&'static str>,
+    pub name: Option<String>,
+    pub kind: Option<String>,
     pub pixel_count: usize,
     pub bounds: PixelRegion,
 }
@@ -75,8 +75,8 @@ pub struct ObjectPixels {
 pub struct SampleEvidence {
     pub point: PixelPoint,
     pub id: u32,
-    pub name: Option<&'static str>,
-    pub kind: Option<&'static str>,
+    pub name: Option<String>,
+    pub kind: Option<String>,
 }
 
 #[derive(Default)]
@@ -230,11 +230,11 @@ impl PixelAccumulator {
 }
 
 fn object_pixels(id: u32, pixels: PixelAccumulator) -> ObjectPixels {
-    let object = OBJECTS.iter().find(|object| object.id == id);
+    let object = semantic_object(id);
     ObjectPixels {
         id,
-        name: object.map(|object| object.name),
-        kind: object.map(|object| object.kind),
+        name: object.as_ref().map(|object| object.name.clone()),
+        kind: object.as_ref().map(|object| object.kind.clone()),
         pixel_count: pixels.count,
         bounds: PixelRegion {
             x: pixels.min_x,
@@ -247,12 +247,12 @@ fn object_pixels(id: u32, pixels: PixelAccumulator) -> ObjectPixels {
 
 fn sample(ids: &[u32], frame_width: u32, point: PixelPoint) -> SampleEvidence {
     let id = ids[(point.y * frame_width + point.x) as usize];
-    let object = OBJECTS.iter().find(|object| object.id == id);
+    let object = semantic_object(id);
     SampleEvidence {
         point,
         id,
-        name: object.map(|object| object.name),
-        kind: object.map(|object| object.kind),
+        name: object.as_ref().map(|object| object.name.clone()),
+        kind: object.as_ref().map(|object| object.kind.clone()),
     }
 }
 
@@ -260,9 +260,7 @@ fn diagnostic_color(id: u32) -> [u8; 4] {
     if id == 0 {
         return [0, 0, 0, 255];
     }
-    OBJECTS
-        .iter()
-        .find(|object| object.id == id)
+    semantic_object(id)
         .map(|object| {
             let [red, green, blue, _] = object.color;
             [channel(red), channel(green), channel(blue), 255]

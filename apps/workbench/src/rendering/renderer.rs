@@ -11,9 +11,12 @@ use windows::Win32::Graphics::Dxgi::*;
 use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
 use windows::core::Interface;
 
-use crate::gpu_capture::{CapturedPixels, Readback};
+use crate::load::LoadConfig;
 use crate::scene::SceneState;
-use crate::scene_renderer::SceneRenderer;
+
+use super::gpu_capture::{CapturedPixels, Readback};
+use super::load_renderer::{LoadProbe, LoadRenderer};
+use super::scene_renderer::SceneRenderer;
 
 const BUFFER_COUNT: usize = 2;
 const NVIDIA_VENDOR_ID: u32 = 0x10de;
@@ -38,6 +41,7 @@ pub struct Renderer {
     capture: Readback,
     object_id_capture: Readback,
     scene_renderer: SceneRenderer,
+    load_renderer: LoadRenderer,
     adapter_name: String,
     debug_layer: bool,
 }
@@ -45,6 +49,11 @@ pub struct Renderer {
 pub struct CapturedFrame {
     pub color: CapturedPixels,
     pub object_ids: Option<CapturedPixels>,
+}
+
+pub struct RenderOutcome {
+    pub capture: Option<CapturedFrame>,
+    pub load_probe: Option<LoadProbe>,
 }
 
 impl Renderer {
@@ -75,8 +84,10 @@ impl Renderer {
             Flags: D3D12_COMMAND_QUEUE_FLAG_NONE,
             NodeMask: 0,
         };
-        let queue = unsafe { device.CreateCommandQueue(&queue_desc) }
+        let queue: ID3D12CommandQueue = unsafe { device.CreateCommandQueue(&queue_desc) }
             .context("CreateCommandQueue failed")?;
+        let timestamp_frequency =
+            unsafe { queue.GetTimestampFrequency() }.context("GetTimestampFrequency failed")?;
 
         let swap_desc = DXGI_SWAP_CHAIN_DESC1 {
             Width: width,
@@ -128,6 +139,8 @@ impl Renderer {
         let scene_renderer = unsafe { SceneRenderer::new(&device, width, height) }?;
         let object_id_capture =
             unsafe { Readback::new(&device, scene_renderer.object_id_resource()) }?;
+        let load_renderer =
+            unsafe { LoadRenderer::new(&device, timestamp_frequency, width, height) }?;
 
         let mut allocators = Vec::with_capacity(BUFFER_COUNT);
         for _ in 0..BUFFER_COUNT {
@@ -163,6 +176,7 @@ impl Renderer {
             capture,
             object_id_capture,
             scene_renderer,
+            load_renderer,
             adapter_name,
             debug_layer,
         })
@@ -173,9 +187,11 @@ impl Renderer {
         color: [f32; 4],
         capture: bool,
         capture_object_ids: bool,
+        probe_load: bool,
         scene: &SceneState,
-    ) -> Result<Option<CapturedFrame>> {
+    ) -> Result<RenderOutcome> {
         debug_assert!(!capture_object_ids || capture);
+        debug_assert!(!probe_load || self.load_renderer.config().is_some());
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() } as usize;
         unsafe { self.wait_for_buffer(index)? };
         unsafe { self.allocators[index].Reset() }.context("command allocator reset failed")?;
@@ -196,8 +212,18 @@ impl Renderer {
                 .OMSetRenderTargets(1, Some(&handle), true, None);
             self.command_list
                 .ClearRenderTargetView(handle, &color, None);
-            self.scene_renderer
-                .record(&self.command_list, scene, handle);
+            if self.load_renderer.config().is_some() {
+                self.load_renderer.record(
+                    &self.command_list,
+                    scene,
+                    [handle, self.scene_renderer.object_id_handle()],
+                    self.scene_renderer.depth_handle(),
+                    probe_load,
+                )?;
+            } else {
+                self.scene_renderer
+                    .record(&self.command_list, scene, handle);
+            }
             if capture_object_ids {
                 transition(
                     &self.command_list,
@@ -252,17 +278,45 @@ impl Renderer {
         self.next_fence_value += 1;
         unsafe { self.queue.Signal(&self.fence, signal) }.context("queue signal failed")?;
         self.fence_values[index] = signal;
-        if capture {
+        if capture || probe_load {
             unsafe { self.wait_for_value(signal)? };
-            let color = unsafe { self.capture.read() }?;
-            let object_ids = if capture_object_ids {
-                Some(unsafe { self.object_id_capture.read() }?)
+            let captured_frame = if capture {
+                let color = unsafe { self.capture.read() }?;
+                let object_ids = if capture_object_ids {
+                    Some(unsafe { self.object_id_capture.read() }?)
+                } else {
+                    None
+                };
+                Some(CapturedFrame { color, object_ids })
             } else {
                 None
             };
-            return Ok(Some(CapturedFrame { color, object_ids }));
+            let load_probe = if probe_load {
+                Some(unsafe { self.load_renderer.read_probe() }?)
+            } else {
+                None
+            };
+            return Ok(RenderOutcome {
+                capture: captured_frame,
+                load_probe,
+            });
         }
-        Ok(None)
+        Ok(RenderOutcome {
+            capture: None,
+            load_probe: None,
+        })
+    }
+
+    pub fn configure_load(&mut self, config: LoadConfig) {
+        self.load_renderer.configure(config);
+    }
+
+    pub fn disable_load(&mut self) {
+        self.load_renderer.disable();
+    }
+
+    pub fn load_config(&self) -> Option<LoadConfig> {
+        self.load_renderer.config()
     }
 
     pub fn adapter_name(&self) -> &str {

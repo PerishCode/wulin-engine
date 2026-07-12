@@ -17,6 +17,8 @@ restart 后的原始像素与 PNG 哈希校验。Experiment 0003 已验证 HLSL 
 几何、reverse-Z 深度、相机控制、语义对象查询和跨进程确定性空间帧。
 Experiment 0004 进一步验证了同 draw 的 `R32_UINT` object-ID、区域语义统计、稳定遮挡
 采样以及无需图像识别的像素到对象感知闭环。
+Experiment 0005 已验证 GPU 区域作业、视锥压缩与间接绘制：逻辑实例从约 100 万扩展到
+1,600 万时，活动候选、可见实例和提交形状保持固定。
 
 ## Project model
 
@@ -37,6 +39,7 @@ runseal :gpu-lab benchmark
 runseal :visual-loop
 runseal :spatial-scene
 runseal :object-id
+runseal :region-load
 runseal :workbench start
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24
