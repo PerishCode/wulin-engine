@@ -25,7 +25,9 @@ function channel(value: string, name: string): number {
 }
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
-    console.log("Usage: runseal :workbench <start|status|inspect|color|pause|resume|restart|stop>");
+    console.log(
+        "Usage: runseal :workbench <start|status|inspect|capture|color|pause|resume|restart|stop>",
+    );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
     Deno.exit(0);
@@ -73,6 +75,19 @@ switch (verb) {
             "workbench",
             "workbench.set_clear_color",
             JSON.stringify({ rgba }),
+            "--format",
+            "json",
+        ]);
+        break;
+    }
+    case "capture": {
+        if (args.length > 1) fail("workbench: capture accepts at most one capture id");
+        const id = args[0] ?? "capture";
+        await run([
+            "inspect",
+            "workbench",
+            "workbench.capture",
+            JSON.stringify({ id }),
             "--format",
             "json",
         ]);

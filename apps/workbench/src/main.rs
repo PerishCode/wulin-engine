@@ -1,8 +1,10 @@
+mod capture;
+mod gpu_capture;
 mod inspect;
 mod renderer;
 
 use std::sync::atomic::{AtomicIsize, Ordering};
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -40,7 +42,7 @@ unsafe fn run() -> Result<()> {
 
     unsafe {
         let _ = ShowWindow(hwnd, SW_SHOW);
-        renderer.render(state.clear_color)?;
+        let _ = renderer.render(state.clear_color, false)?;
     }
     state.record_frame();
 
@@ -54,6 +56,7 @@ unsafe fn run() -> Result<()> {
     );
 
     let mut message = MSG::default();
+    let mut pending_capture = None;
     'running: loop {
         while unsafe { PeekMessageW(&mut message, None, 0, 0, PM_REMOVE) }.as_bool() {
             if message.message == WM_QUIT {
@@ -65,19 +68,23 @@ unsafe fn run() -> Result<()> {
             }
         }
 
-        handle_commands(hwnd, &renderer, &mut state, &commands);
-        if state.paused {
+        handle_commands(hwnd, &renderer, &mut state, &commands, &mut pending_capture);
+        let capture_requested = pending_capture.is_some();
+        if state.paused && !capture_requested {
             thread::sleep(Duration::from_millis(8));
             continue;
         }
 
         let frame_start = Instant::now();
-        match unsafe { renderer.render(state.clear_color) } {
-            Ok(()) => state.record_frame_with_duration(frame_start.elapsed()),
-            Err(error) => {
-                state.last_error = Some(format!("{error:#}"));
-                state.paused = true;
-            }
+        match unsafe { renderer.render(state.clear_color, capture_requested) } {
+            Ok(captured) => complete_frame(
+                &renderer,
+                &mut state,
+                &mut pending_capture,
+                captured,
+                frame_start.elapsed(),
+            ),
+            Err(error) => fail_frame(&mut state, &mut pending_capture, error),
         }
     }
 
@@ -86,6 +93,11 @@ unsafe fn run() -> Result<()> {
     unsafe { SetConsoleCtrlHandler(Some(console_ctrl_handler), false) }
         .context("removing console control handler failed")?;
     Ok(())
+}
+
+struct PendingCapture {
+    id: String,
+    response: SyncSender<inspect::ControlResult>,
 }
 
 struct WorkbenchState {
@@ -121,14 +133,66 @@ impl WorkbenchState {
     }
 }
 
+fn complete_frame(
+    renderer: &Renderer,
+    state: &mut WorkbenchState,
+    pending_capture: &mut Option<PendingCapture>,
+    captured: Option<gpu_capture::CapturedPixels>,
+    frame_duration: Duration,
+) {
+    state.record_frame_with_duration(frame_duration);
+    let Some(request) = pending_capture.take() else {
+        return;
+    };
+    let result = captured
+        .context("capture request completed without pixels")
+        .and_then(|pixels| {
+            capture::write(
+                pixels,
+                capture::FrameContext {
+                    capture_id: &request.id,
+                    frame_index: state.frame_index,
+                    clear_color: state.clear_color,
+                    paused: state.paused,
+                    launched_by_sidecar: state.launched_by_sidecar,
+                    adapter: renderer.adapter_name(),
+                    debug_layer: renderer.debug_layer(),
+                    device_removed_reason: unsafe { renderer.device_removed_reason() },
+                    last_error: state.last_error.as_deref(),
+                    gpu_readback_ms: frame_duration.as_secs_f64() * 1_000.0,
+                },
+            )
+        })
+        .map_err(|error| capture_error(state, error));
+    let _ = request.response.send(result);
+}
+
+fn fail_frame(
+    state: &mut WorkbenchState,
+    pending_capture: &mut Option<PendingCapture>,
+    error: anyhow::Error,
+) {
+    let message = format!("{error:#}");
+    state.last_error = Some(message.clone());
+    state.paused = true;
+    if let Some(request) = pending_capture.take() {
+        let _ = request.response.send(Err(ProtocolError {
+            code: "render_failed",
+            message,
+        }));
+    }
+}
+
 fn handle_commands(
     hwnd: HWND,
     renderer: &Renderer,
     state: &mut WorkbenchState,
     commands: &Receiver<ControlCommand>,
+    pending_capture: &mut Option<PendingCapture>,
 ) {
     while let Ok(command) = commands.try_recv() {
-        let result = match command.kind {
+        let ControlCommand { kind, response } = command;
+        let result = match kind {
             ControlKind::Status => status(hwnd, renderer, state),
             ControlKind::SetClearColor(color) => {
                 state.clear_color = color;
@@ -142,8 +206,27 @@ fn handle_commands(
                 state.paused = false;
                 Ok(json!({"paused": false}))
             }
+            ControlKind::Capture(id) => {
+                if pending_capture.is_none() {
+                    *pending_capture = Some(PendingCapture { id, response });
+                    continue;
+                }
+                Err(ProtocolError {
+                    code: "capture_busy",
+                    message: "a capture request is already pending".into(),
+                })
+            }
         };
-        let _ = command.response.send(result);
+        let _ = response.send(result);
+    }
+}
+
+fn capture_error(state: &mut WorkbenchState, error: anyhow::Error) -> ProtocolError {
+    let message = format!("{error:#}");
+    state.last_error = Some(message.clone());
+    ProtocolError {
+        code: "capture_failed",
+        message,
     }
 }
 

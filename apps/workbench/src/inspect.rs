@@ -30,6 +30,7 @@ pub enum ControlKind {
     SetClearColor([f32; 4]),
     Pause,
     Resume,
+    Capture(String),
 }
 
 pub type ControlResult = std::result::Result<Value, ProtocolError>;
@@ -53,6 +54,12 @@ struct EventFrame {
 #[serde(deny_unknown_fields)]
 struct SetClearColorPayload {
     rgba: [f32; 4],
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapturePayload {
+    id: String,
 }
 
 impl InspectServer {
@@ -198,6 +205,27 @@ fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
         "workbench.status" => Ok(ControlKind::Status),
         "workbench.pause" => Ok(ControlKind::Pause),
         "workbench.resume" => Ok(ControlKind::Resume),
+        "workbench.capture" => {
+            let payload: CapturePayload =
+                serde_json::from_value(payload).map_err(|error| ProtocolError {
+                    code: "invalid_payload",
+                    message: error.to_string(),
+                })?;
+            if payload.id.is_empty()
+                || payload.id.len() > 64
+                || !payload
+                    .id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+            {
+                return Err(ProtocolError {
+                    code: "invalid_payload",
+                    message: "capture id must contain 1..=64 ASCII letters, digits, '-' or '_'"
+                        .into(),
+                });
+            }
+            Ok(ControlKind::Capture(payload.id))
+        }
         "workbench.set_clear_color" => {
             let payload: SetClearColorPayload =
                 serde_json::from_value(payload).map_err(|error| ProtocolError {

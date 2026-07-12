@@ -12,7 +12,8 @@
 Agility SDK、Sidecar 生命周期和项目自有 inspect 协议已经形成第一个可见控制闭环。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
-两档 Compute benchmark。`apps/workbench` 目前只进行确定性清屏与呈现，不包含场景系统。
+两档 Compute benchmark。Experiment 0002 已通过同进程重复捕获、可见状态变化和 Sidecar
+restart 后的原始像素与 PNG 哈希校验。`apps/workbench` 目前不包含场景系统。
 
 ## Project model
 
@@ -30,9 +31,11 @@ runseal :init
 runseal :guard
 runseal :gpu-lab correctness
 runseal :gpu-lab benchmark
+runseal :visual-loop
 runseal :workbench start
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24
+runseal :workbench capture operator-check
 runseal :workbench stop
 ```
 
