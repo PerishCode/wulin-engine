@@ -1,0 +1,7 @@
+# R1 has no long-lived runtime topology. Add targets only when a real client,
+# server, asset daemon, or inspection process needs lifecycle ownership.
+
+[project]
+name = "wulin-engine"
+namespace = "dev"
+root = "."

@@ -1,0 +1,14 @@
+[workspace]
+members = ["experiments/0001-gpu-lab"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.94"
+
+[workspace.dependencies]
+anyhow = "1.0.100"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+windows = "=0.62.2"

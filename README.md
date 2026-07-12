@@ -8,11 +8,11 @@
 
 ## Status
 
-当前处于 **R0 repository baseline**：仓库治理、目录所有权、ADR 和实验流程已经建立，
-尚未创建引擎 Workspace 或 GPU 实验代码。
+**R1 technical cold start 已完成**：Rust Workspace、原生 D3D12、HLSL/DXC、固定
+Agility SDK、GPU 时间戳、Enhanced Barriers 和结构化报告已经建立在隔离的 GPU 实验台中。
 
-下一个阶段是 **R1 technical cold start**：使用 Rust、原生 D3D12 和 HLSL/DXC 建立可
-测量的 GPU 实验台，然后执行第一项 GPU Scene 负载实验。
+Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
+两档 Compute benchmark。下一个能力阶段尚未开始。
 
 ## Project model
 
@@ -20,6 +20,20 @@
 - [Architecture decisions](docs/adr/README.md)
 - [Experiment protocol](docs/experiments/README.md)
 - [Agent operating rules](AGENTS.md)
+
+## Developer operations
+
+Stable-channel Flavor, Runseal, and Sidecar provide the repository iteration surface:
+
+```powershell
+runseal :init
+runseal :guard
+runseal :gpu-lab correctness
+runseal :gpu-lab benchmark
+```
+
+`sidecar.toml` intentionally has no lifecycle targets yet. Targets begin only when the
+engine owns real long-lived client, server, asset, or inspection processes.
 
 ## Scope
 

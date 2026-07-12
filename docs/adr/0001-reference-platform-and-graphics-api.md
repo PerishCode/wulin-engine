@@ -23,7 +23,7 @@ abstraction would hide part of the execution model being studied.
 - Use Rust for host implementation.
 - Use native Direct3D 12 directly through Rust bindings; do not introduce a general RHI.
 - Use HLSL compiled to DXIL with DXC.
-- Pin a retail DirectX 12 Agility SDK release during the R1 cold start.
+- Pin DirectX 12 Agility SDK package 1.619.4, SDK version 619, during R1.
 - Do not implement Vulkan, `wgpu`, legacy D3D, alternate-vendor, integrated-GPU, or
   reduced-feature fallback paths during the experimental stages.
 
@@ -42,5 +42,8 @@ backends.
 
 - Local environment inspection on 2026-07-12 confirmed Windows 11, RTX 4070 Ti SUPER,
   Visual Studio 2022, Windows SDK, Rust MSVC, and a current NVIDIA driver.
-- R1 will establish the first executable evidence through the numbered GPU laboratory
-  experiment.
+- R1 establishes executable evidence through the numbered GPU laboratory experiment.
+- Experiment 0001 confirms the application-local Agility Core is loaded from the
+  repository build output and exposes Enhanced Barriers on the reference adapter.
+- Experiment 0001 passes with the D3D12 Debug Layer and GPU-based Validation enabled,
+  with no corruption or error messages.

@@ -1,0 +1,30 @@
+[scan]
+include = [
+  ".runseal/**/*.ts",
+  "apps/*/src/**",
+  "benchmarks/**",
+  "crates/*/src/**",
+  "experiments/*/src/**",
+  "tools/*/src/**",
+]
+exclude = [
+  "**/target/**",
+  ".local/**",
+  "out/**",
+]
+
+[[overrides]]
+match = "experiments/0001-gpu-lab/src/main.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."core/source/too-long"]
+severity = "warning"
+payload = { max_lines = 900 }
+
+[overrides.rules."core/naming/too-many-words"]
+payload = { max_words = 6 }
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Experiment 0001 is an isolated executable proof; its tests remain local until promotion establishes a reusable owner."

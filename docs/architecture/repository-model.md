@@ -2,8 +2,9 @@
 
 ## State
 
-The repository is in the R0 repository-baseline stage. Directories are created only
-when they own real files. R0 does not create placeholder engine modules.
+The repository has completed the R1 technical cold start. The repository baseline and
+GPU laboratory exist, but no engine module has been promoted. Directories are created
+only when they own real files.
 
 ## Dependency direction
 
@@ -40,6 +41,11 @@ contracts, tests, and regression benchmarks.
 | `tests/` | Repository-level integration and end-to-end tests. | A contract crosses module or process boundaries. |
 | `docs/` | Architecture, ADRs, experiment protocols, and contributor references. | Created in R0. |
 | `out/` | Ignored captures, raw reports, logs, and generated output. | Created locally by a tool or experiment. |
+| `.runseal/` | Repository hooks and explicit Deno operator wrappers. | Created when ADR 0002 is accepted. |
+
+Root `runseal.toml`, `flavor.toml`, and `sidecar.toml` are consumer-owned contracts for
+the personal iteration suite. They do not make the tools part of the engine dependency
+graph.
 
 ## Naming
 

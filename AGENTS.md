@@ -82,6 +82,7 @@ scaffolding is discouraged.
 | `tests/` | Repository-level integration and end-to-end tests. Unit tests stay beside their implementation. |
 | `docs/` | Architecture, ADRs, experiment summaries, operational references, and contributor documentation. |
 | `out/` | Disposable local experiment output, captures, reports, and generated artifacts; never a source-of-truth directory. |
+| `.runseal/` | Repository hooks and Deno wrappers for explicit operator workflows. |
 
 Additional conventions:
 
@@ -96,8 +97,8 @@ Additional conventions:
 
 ## 4. Core File Index
 
-The repository is currently in the R0 repository-baseline state. This index
-intentionally contains only files that exist.
+The repository has completed the R1 technical cold start. This index intentionally
+contains only files that exist.
 
 | File | Responsibility |
 | --- | --- |
@@ -112,8 +113,28 @@ intentionally contains only files that exist.
 | `docs/adr/README.md` | ADR naming, status, and maintenance rules. |
 | `docs/adr/0000-template.md` | Required structure for new architecture decision records. |
 | `docs/adr/0001-reference-platform-and-graphics-api.md` | Accepted reference platform and graphics API decision. |
+| `docs/adr/0002-personal-iteration-suite.md` | Accepted Flavor, Runseal, and Sidecar consumer boundary. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
+| `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
+| `Cargo.lock` | Exact dependency resolution for reproducible experiment builds. |
+| `rust-toolchain.toml` | Pinned Rust toolchain and required components. |
+| `experiments/0001-gpu-lab/README.md` | Experiment 0001 hypothesis, protocol, status, results, and reproduction commands. |
+| `experiments/0001-gpu-lab/Cargo.toml` | Isolated GPU laboratory package and Windows API feature set. |
+| `experiments/0001-gpu-lab/build.rs` | DXC shader build and Agility SDK runtime staging. |
+| `experiments/0001-gpu-lab/scripts/bootstrap.ps1` | Pinned, hash-verified Agility SDK acquisition. |
+| `experiments/0001-gpu-lab/src/main.rs` | D3D12 compute, measurement, validation, and report implementation. |
+| `experiments/0001-gpu-lab/src/agility_exports.c` | Process exports selecting the pinned Agility SDK. |
+| `experiments/0001-gpu-lab/shaders/fill.hlsl` | Deterministic Experiment 0001 compute workload. |
+| `runseal.toml` | Explicit local resources, Deno policy, and repository environment injection. |
+| `flavor.toml` | Consumer-owned code-shape scan scope and rule adjustments. |
+| `sidecar.toml` | Local runtime project identity; lifecycle targets are intentionally absent until needed. |
+| `.runseal/deno.json` | Deno compiler and formatter policy for repository wrappers. |
+| `.runseal/deno.lock` | Frozen Deno dependency resolution for repository wrappers. |
+| `.runseal/hooks/pre-commit` | Git pre-commit entrypoint delegating to `runseal :guard`. |
+| `.runseal/wrappers/init.ts` | Stable tool validation and repository hook installation. |
+| `.runseal/wrappers/guard.ts` | Canonical Rust, Flavor, and Sidecar validation workflow. |
+| `.runseal/wrappers/gpu-lab.ts` | Canonical Experiment 0001 bootstrap and execution workflow. |
 
 ## 5. Core Operational Workflows
 
@@ -123,11 +144,26 @@ The R0 repository baseline is defined by the core files indexed above. The accep
 technical cold start is a Rust-based native D3D12 GPU laboratory on the single reference
 platform recorded in ADR 0001.
 
-R1 has not been implemented yet. Do not create broad engine scaffolding as part of that
-work. Start with the smallest executable experiment that establishes device creation,
-shader compilation, validation, timestamps, parameterized workloads, and reproducible
-reports. Add canonical build, run, test, lint, and benchmark commands here when they
-exist and have been verified.
+R1 is accepted in `experiments/0001-gpu-lab`. Do not create broad engine scaffolding or
+begin GPU Scene or graphics-pipeline work until the next numbered experiment defines and
+accepts its hypothesis, workload, and criteria.
+
+Canonical commands from the repository root:
+
+```powershell
+runseal :init
+runseal :guard
+runseal :gpu-lab correctness
+runseal :gpu-lab benchmark
+```
+
+Correctness mode requires the Windows optional capability
+`Tools.Graphics.DirectX~~~~0.0.1.0`. Benchmark mode intentionally runs without the debug
+layer and must report that validation is disabled.
+
+The wrappers use installed stable-channel Flavor, Runseal, and Sidecar CLIs. Sibling
+source checkouts are references, not runtime dependencies. Add Sidecar lifecycle targets
+only for real long-lived processes whose argument parser accepts `--sidecar-stamp`.
 
 ### 5.2 Experiment lifecycle
 
