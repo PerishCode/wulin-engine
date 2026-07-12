@@ -1,0 +1,28 @@
+# Rust and native build output
+/target/
+/out/
+/.cache/
+/.vs/
+
+# Generated shader and native artifacts
+*.dxil
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# GPU captures and crash dumps
+*.rdc
+*.wpix
+*.nv-gpudmp
+*.dmp
+
+# Local logs and reports
+*.log
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
