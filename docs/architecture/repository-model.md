@@ -2,9 +2,9 @@
 
 ## State
 
-The repository has completed the R1 technical cold start. The repository baseline and
-GPU laboratory exist, but no engine module has been promoted. Directories are created
-only when they own real files.
+The repository has completed the native workbench cold start. The repository baseline,
+GPU laboratory, and first production composition root exist, but no reusable engine
+module has been promoted. Directories are created only when they own real files.
 
 ## Dependency direction
 

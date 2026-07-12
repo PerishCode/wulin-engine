@@ -242,6 +242,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "workbench"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "cc",
+ "serde",
+ "serde_json",
+ "windows",
+]
+
+[[package]]
 name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"

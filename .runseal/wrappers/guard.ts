@@ -55,6 +55,7 @@ await run("deno check", "deno", [
     ".runseal/wrappers/init.ts",
     ".runseal/wrappers/guard.ts",
     ".runseal/wrappers/gpu-lab.ts",
+    ".runseal/wrappers/workbench.ts",
 ]);
 await run("flavor", "flavor", ["check", "--root", ".", "--config", "flavor.toml"]);
 await run("sidecar doctor", "sidecar", ["doctor", "--config", "sidecar.toml"]);

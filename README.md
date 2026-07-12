@@ -8,11 +8,11 @@
 
 ## Status
 
-**R1 technical cold start 已完成**：Rust Workspace、原生 D3D12、HLSL/DXC、固定
-Agility SDK、GPU 时间戳、Enhanced Barriers 和结构化报告已经建立在隔离的 GPU 实验台中。
+**Native workbench cold start 已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定
+Agility SDK、Sidecar 生命周期和项目自有 inspect 协议已经形成第一个可见控制闭环。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
-两档 Compute benchmark。下一个能力阶段尚未开始。
+两档 Compute benchmark。`apps/workbench` 目前只进行确定性清屏与呈现，不包含场景系统。
 
 ## Project model
 
@@ -30,10 +30,15 @@ runseal :init
 runseal :guard
 runseal :gpu-lab correctness
 runseal :gpu-lab benchmark
+runseal :workbench start
+runseal :workbench inspect
+runseal :workbench color 0.08 0.42 0.24
+runseal :workbench stop
 ```
 
-`sidecar.toml` intentionally has no lifecycle targets yet. Targets begin only when the
-engine owns real long-lived client, server, asset, or inspection processes.
+`sidecar.toml` owns the native workbench app target. Sidecar starts the process tree,
+waits for renderer and inspect readiness, discovers stamped processes, and closes the
+entire local runtime through one manifest.
 
 ## Scope
 

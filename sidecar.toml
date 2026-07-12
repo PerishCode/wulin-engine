@@ -1,7 +1,16 @@
-# R1 has no long-lived runtime topology. Add targets only when a real client,
-# server, asset daemon, or inspection process needs lifecycle ownership.
-
 [project]
 name = "wulin-engine"
 namespace = "dev"
 root = "."
+
+[app]
+name = "workbench"
+command = "cargo"
+args = ["run", "--locked", "-p", "workbench", "--"]
+cwd = "."
+mode = "dev"
+inspect_socket = "tcp://127.0.0.1:47631"
+
+[app.ready]
+role = "workbench"
+timeout_secs = 120

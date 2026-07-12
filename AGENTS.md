@@ -114,6 +114,7 @@ contains only files that exist.
 | `docs/adr/0000-template.md` | Required structure for new architecture decision records. |
 | `docs/adr/0001-reference-platform-and-graphics-api.md` | Accepted reference platform and graphics API decision. |
 | `docs/adr/0002-personal-iteration-suite.md` | Accepted Flavor, Runseal, and Sidecar consumer boundary. |
+| `docs/adr/0003-native-workbench-control-plane.md` | Accepted native window, Sidecar lifecycle, and inspect threading boundary. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -126,27 +127,33 @@ contains only files that exist.
 | `experiments/0001-gpu-lab/src/main.rs` | D3D12 compute, measurement, validation, and report implementation. |
 | `experiments/0001-gpu-lab/src/agility_exports.c` | Process exports selecting the pinned Agility SDK. |
 | `experiments/0001-gpu-lab/shaders/fill.hlsl` | Deterministic Experiment 0001 compute workload. |
+| `apps/workbench/Cargo.toml` | Native workbench package and Windows API feature boundary. |
+| `apps/workbench/build.rs` | Workbench Agility SDK export build and runtime staging. |
+| `apps/workbench/src/main.rs` | Win32 window, main-thread control ownership, and operator-visible runtime state. |
+| `apps/workbench/src/renderer.rs` | D3D12 swap chain, clear/present loop, and explicit GPU synchronization. |
+| `apps/workbench/src/inspect.rs` | Project-owned SidecarRuntime event server and typed control protocol. |
 | `runseal.toml` | Explicit local resources, Deno policy, and repository environment injection. |
 | `flavor.toml` | Consumer-owned code-shape scan scope and rule adjustments. |
-| `sidecar.toml` | Local runtime project identity; lifecycle targets are intentionally absent until needed. |
+| `sidecar.toml` | Local runtime identity, native workbench app target, readiness, and inspect endpoint. |
 | `.runseal/deno.json` | Deno compiler and formatter policy for repository wrappers. |
 | `.runseal/deno.lock` | Frozen Deno dependency resolution for repository wrappers. |
 | `.runseal/hooks/pre-commit` | Git pre-commit entrypoint delegating to `runseal :guard`. |
 | `.runseal/wrappers/init.ts` | Stable tool validation and repository hook installation. |
 | `.runseal/wrappers/guard.ts` | Canonical Rust, Flavor, and Sidecar validation workflow. |
 | `.runseal/wrappers/gpu-lab.ts` | Canonical Experiment 0001 bootstrap and execution workflow. |
+| `.runseal/wrappers/workbench.ts` | Canonical workbench lifecycle and typed inspect workflow. |
 
 ## 5. Core Operational Workflows
 
 ### 5.1 Cold start
 
-The R0 repository baseline is defined by the core files indexed above. The accepted R1
-technical cold start is a Rust-based native D3D12 GPU laboratory on the single reference
-platform recorded in ADR 0001.
+The R0 repository baseline is defined by the core files indexed above. R1 accepted a
+Rust-based native D3D12 GPU laboratory on the single reference platform recorded in ADR
+0001. ADR 0003 accepts the first operator-visible workbench cold start.
 
-R1 is accepted in `experiments/0001-gpu-lab`. Do not create broad engine scaffolding or
-begin GPU Scene or graphics-pipeline work until the next numbered experiment defines and
-accepts its hypothesis, workload, and criteria.
+The workbench is a composition root, not permission to create broad engine scaffolding.
+Do not begin scene, ECS, asset, or graphics-pipeline work until the next numbered
+experiment defines and accepts its hypothesis, workload, and criteria.
 
 Canonical commands from the repository root:
 
@@ -155,6 +162,14 @@ runseal :init
 runseal :guard
 runseal :gpu-lab correctness
 runseal :gpu-lab benchmark
+runseal :workbench start
+runseal :workbench status
+runseal :workbench inspect
+runseal :workbench color 0.08 0.42 0.24
+runseal :workbench pause
+runseal :workbench resume
+runseal :workbench restart
+runseal :workbench stop
 ```
 
 Correctness mode requires the Windows optional capability
@@ -162,8 +177,9 @@ Correctness mode requires the Windows optional capability
 layer and must report that validation is disabled.
 
 The wrappers use installed stable-channel Flavor, Runseal, and Sidecar CLIs. Sibling
-source checkouts are references, not runtime dependencies. Add Sidecar lifecycle targets
-only for real long-lived processes whose argument parser accepts `--sidecar-stamp`.
+source checkouts are references, not runtime dependencies. The workbench accepts the
+canonical `--sidecar-stamp` argument and exposes only the typed events recorded in ADR
+0003.
 
 ### 5.2 Experiment lifecycle
 
