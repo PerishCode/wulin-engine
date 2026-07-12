@@ -9,6 +9,7 @@ const DEFAULT_DXC: &str = r"C:\Program Files (x86)\Windows Kits\10\bin\10.0.2610
 fn main() {
     println!("cargo:rerun-if-changed=src/agility_exports.c");
     println!("cargo:rerun-if-changed=shaders/calibration.hlsl");
+    println!("cargo:rerun-if-changed=shaders/region_load.hlsl");
     println!("cargo:rerun-if-env-changed=AGILITY_SDK_ROOT");
     println!("cargo:rerun-if-env-changed=DXC");
 
@@ -27,6 +28,38 @@ fn main() {
         "vs_6_6",
         "calibration.vs.dxil",
     );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "region_load.hlsl",
+        "reset_main",
+        "cs_6_6",
+        "region_load.reset.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "region_load.hlsl",
+        "cull_main",
+        "cs_6_6",
+        "region_load.cull.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "region_load.hlsl",
+        "vs_main",
+        "vs_6_6",
+        "region_load.vs.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "region_load.hlsl",
+        "ps_main",
+        "ps_6_6",
+        "region_load.ps.dxil",
+    );
     compile_shader(
         &manifest_dir,
         &out_dir,
@@ -44,6 +77,24 @@ fn compile_shader(
     profile: &str,
     output_name: &str,
 ) {
+    compile_named_shader(
+        manifest_dir,
+        out_dir,
+        "calibration.hlsl",
+        entry,
+        profile,
+        output_name,
+    );
+}
+
+fn compile_named_shader(
+    manifest_dir: &Path,
+    out_dir: &Path,
+    source_name: &str,
+    entry: &str,
+    profile: &str,
+    output_name: &str,
+) {
     let dxc = env::var_os("DXC")
         .map(PathBuf::from)
         .unwrap_or_else(|| DEFAULT_DXC.into());
@@ -53,7 +104,7 @@ fn compile_shader(
             dxc.display()
         );
     }
-    let source = manifest_dir.join("shaders/calibration.hlsl");
+    let source = manifest_dir.join("shaders").join(source_name);
     let output = out_dir.join(output_name);
     let result = Command::new(dxc)
         .args([

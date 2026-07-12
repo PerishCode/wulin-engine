@@ -1,31 +1,23 @@
 mod capture;
-mod gpu_capture;
 mod inspect;
-mod object_id_target;
+mod load;
 mod perception;
-mod renderer;
+mod rendering;
 mod scene;
-mod scene_renderer;
+mod window;
 
-use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use inspect::{ControlCommand, ControlKind, ProtocolError};
-use renderer::Renderer;
+use rendering::Renderer;
 use serde_json::json;
-use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM};
-use windows::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT, SetConsoleCtrlHandler};
-use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows::core::{BOOL, w};
 
-const CLIENT_WIDTH: u32 = 1280;
-const CLIENT_HEIGHT: u32 = 720;
 const DEFAULT_CLEAR_COLOR: [f32; 4] = [0.035, 0.105, 0.14, 1.0];
-static WINDOW_HANDLE: AtomicIsize = AtomicIsize::new(0);
 
 fn main() {
     if let Err(error) = unsafe { run() } {
@@ -35,19 +27,16 @@ fn main() {
 }
 
 unsafe fn run() -> Result<()> {
-    let hwnd = unsafe { create_window()? };
-    WINDOW_HANDLE.store(hwnd.0 as isize, Ordering::Release);
-    unsafe { SetConsoleCtrlHandler(Some(console_ctrl_handler), true) }
-        .context("SetConsoleCtrlHandler failed")?;
-    let mut renderer = unsafe { Renderer::new(hwnd, CLIENT_WIDTH, CLIENT_HEIGHT)? };
+    let hwnd = unsafe { window::create()? };
+    let mut renderer = unsafe { Renderer::new(hwnd, window::WIDTH, window::HEIGHT)? };
     let (inspect, commands) = inspect::InspectServer::start()?;
     let launched_by_sidecar = std::env::args().any(|arg| arg.starts_with("--sidecar-stamp="));
     let mut state = WorkbenchState::new(launched_by_sidecar);
     let mut scene = scene::SceneState::new();
 
     unsafe {
-        let _ = ShowWindow(hwnd, SW_SHOW);
-        let _ = renderer.render(state.clear_color, false, false, &scene)?;
+        window::show(hwnd);
+        let _ = renderer.render(state.clear_color, false, false, false, &scene)?;
     }
     state.record_frame();
 
@@ -62,6 +51,7 @@ unsafe fn run() -> Result<()> {
 
     let mut message = MSG::default();
     let mut pending_capture = None;
+    let mut pending_probe = None;
     'running: loop {
         while unsafe { PeekMessageW(&mut message, None, 0, 0, PM_REMOVE) }.as_bool() {
             if message.message == WM_QUIT {
@@ -75,17 +65,19 @@ unsafe fn run() -> Result<()> {
 
         handle_commands(
             hwnd,
-            &renderer,
+            &mut renderer,
             &mut state,
             &mut scene,
             &commands,
             &mut pending_capture,
+            &mut pending_probe,
         );
         let capture_requested = pending_capture.is_some();
+        let probe_requested = pending_probe.is_some();
         let perception_requested = pending_capture
             .as_ref()
             .is_some_and(|request| request.perception.is_some());
-        if state.paused && !capture_requested {
+        if state.paused && !capture_requested && !probe_requested {
             thread::sleep(Duration::from_millis(8));
             continue;
         }
@@ -96,25 +88,25 @@ unsafe fn run() -> Result<()> {
                 state.clear_color,
                 capture_requested,
                 perception_requested,
+                probe_requested,
                 &scene,
             )
         } {
-            Ok(captured) => complete_frame(
+            Ok(outcome) => complete_frame(
                 &renderer,
                 &mut state,
                 &scene,
                 &mut pending_capture,
-                captured,
+                &mut pending_probe,
+                outcome,
                 frame_start.elapsed(),
             ),
-            Err(error) => fail_frame(&mut state, &mut pending_capture, error),
+            Err(error) => fail_frame(&mut state, &mut pending_capture, &mut pending_probe, error),
         }
     }
 
     unsafe { renderer.wait_idle()? };
-    WINDOW_HANDLE.store(0, Ordering::Release);
-    unsafe { SetConsoleCtrlHandler(Some(console_ctrl_handler), false) }
-        .context("removing console control handler failed")?;
+    unsafe { window::teardown()? };
     Ok(())
 }
 
@@ -163,43 +155,54 @@ fn complete_frame(
     state: &mut WorkbenchState,
     scene: &scene::SceneState,
     pending_capture: &mut Option<PendingCapture>,
-    captured: Option<renderer::CapturedFrame>,
+    pending_probe: &mut Option<SyncSender<inspect::ControlResult>>,
+    outcome: rendering::RenderOutcome,
     frame_duration: Duration,
 ) {
     state.record_frame_with_duration(frame_duration);
-    let Some(request) = pending_capture.take() else {
-        return;
-    };
-    let result = captured
-        .context("capture request completed without pixels")
-        .and_then(|frame| {
-            capture::write(
-                frame.color,
-                frame.object_ids,
-                capture::FrameContext {
-                    capture_id: &request.id,
-                    collection: &request.collection,
-                    frame_index: state.frame_index,
-                    clear_color: state.clear_color,
-                    paused: state.paused,
-                    launched_by_sidecar: state.launched_by_sidecar,
-                    adapter: renderer.adapter_name(),
-                    debug_layer: renderer.debug_layer(),
-                    device_removed_reason: unsafe { renderer.device_removed_reason() },
-                    last_error: state.last_error.as_deref(),
-                    gpu_readback_ms: frame_duration.as_secs_f64() * 1_000.0,
-                    spatial: scene.spatial_json(),
-                    perception: request.perception.as_ref(),
-                },
-            )
-        })
-        .map_err(|error| capture_error(state, error));
-    let _ = request.response.send(result);
+    if let Some(request) = pending_capture.take() {
+        let result = outcome
+            .capture
+            .context("capture request completed without pixels")
+            .and_then(|frame| {
+                capture::write(
+                    frame.color,
+                    frame.object_ids,
+                    capture::FrameContext {
+                        capture_id: &request.id,
+                        collection: &request.collection,
+                        frame_index: state.frame_index,
+                        clear_color: state.clear_color,
+                        paused: state.paused,
+                        launched_by_sidecar: state.launched_by_sidecar,
+                        adapter: renderer.adapter_name(),
+                        debug_layer: renderer.debug_layer(),
+                        device_removed_reason: unsafe { renderer.device_removed_reason() },
+                        last_error: state.last_error.as_deref(),
+                        gpu_readback_ms: frame_duration.as_secs_f64() * 1_000.0,
+                        spatial: scene.spatial_json(),
+                        workload: load_status(renderer),
+                        perception: request.perception.as_ref(),
+                    },
+                )
+            })
+            .map_err(|error| capture_error(state, error));
+        let _ = request.response.send(result);
+    }
+    if let Some(response) = pending_probe.take() {
+        let result = outcome
+            .load_probe
+            .context("load probe completed without GPU evidence")
+            .and_then(|probe| serde_json::to_value(probe).context("load probe encoding failed"))
+            .map_err(|error| capture_error(state, error));
+        let _ = response.send(result);
+    }
 }
 
 fn fail_frame(
     state: &mut WorkbenchState,
     pending_capture: &mut Option<PendingCapture>,
+    pending_probe: &mut Option<SyncSender<inspect::ControlResult>>,
     error: anyhow::Error,
 ) {
     let message = format!("{error:#}");
@@ -208,6 +211,12 @@ fn fail_frame(
     if let Some(request) = pending_capture.take() {
         let _ = request.response.send(Err(ProtocolError {
             code: "render_failed",
+            message: message.clone(),
+        }));
+    }
+    if let Some(response) = pending_probe.take() {
+        let _ = response.send(Err(ProtocolError {
+            code: "render_failed",
             message,
         }));
     }
@@ -215,11 +224,12 @@ fn fail_frame(
 
 fn handle_commands(
     hwnd: HWND,
-    renderer: &Renderer,
+    renderer: &mut Renderer,
     state: &mut WorkbenchState,
     scene: &mut scene::SceneState,
     commands: &Receiver<ControlCommand>,
     pending_capture: &mut Option<PendingCapture>,
+    pending_probe: &mut Option<SyncSender<inspect::ControlResult>>,
 ) {
     while let Ok(command) = commands.try_recv() {
         let ControlCommand { kind, response } = command;
@@ -254,8 +264,48 @@ fn handle_commands(
                     message: error.to_string(),
                 }),
             ControlKind::SceneListObjects => Ok(scene.objects_json()),
+            ControlKind::LoadStatus => Ok(load_status(renderer)),
+            ControlKind::LoadDisable => {
+                renderer.disable_load();
+                Ok(load_status(renderer))
+            }
+            ControlKind::LoadConfigure {
+                world_region_side,
+                active_center_x,
+                active_center_z,
+                active_radius,
+            } => load::LoadConfig::new(
+                world_region_side,
+                active_center_x,
+                active_center_z,
+                active_radius,
+            )
+            .map(|config| {
+                renderer.configure_load(config);
+                load_status(renderer)
+            })
+            .map_err(|error| ProtocolError {
+                code: "invalid_load_config",
+                message: error.to_string(),
+            }),
+            ControlKind::LoadProbe => {
+                if renderer.load_config().is_none() {
+                    Err(ProtocolError {
+                        code: "load_disabled",
+                        message: "load mode must be configured before probing".into(),
+                    })
+                } else if pending_capture.is_none() && pending_probe.is_none() {
+                    *pending_probe = Some(response);
+                    continue;
+                } else {
+                    Err(ProtocolError {
+                        code: "capture_busy",
+                        message: "a capture or probe request is already pending".into(),
+                    })
+                }
+            }
             ControlKind::Capture { id, collection } => {
-                if pending_capture.is_none() {
+                if pending_capture.is_none() && pending_probe.is_none() {
                     *pending_capture = Some(PendingCapture {
                         id,
                         collection,
@@ -274,8 +324,8 @@ fn handle_commands(
                 collection,
                 region,
                 samples,
-            } => match perception::Request::new(region, samples, CLIENT_WIDTH, CLIENT_HEIGHT) {
-                Ok(perception) if pending_capture.is_none() => {
+            } => match perception::Request::new(region, samples, window::WIDTH, window::HEIGHT) {
+                Ok(perception) if pending_capture.is_none() && pending_probe.is_none() => {
                     *pending_capture = Some(PendingCapture {
                         id,
                         collection,
@@ -307,6 +357,13 @@ fn capture_error(state: &mut WorkbenchState, error: anyhow::Error) -> ProtocolEr
     }
 }
 
+fn load_status(renderer: &Renderer) -> serde_json::Value {
+    renderer.load_config().map_or_else(
+        || json!({"mode": "calibration", "load": null}),
+        |config| json!({"mode": "region-load", "load": config.json()}),
+    )
+}
+
 fn status(
     hwnd: HWND,
     renderer: &Renderer,
@@ -326,6 +383,7 @@ fn status(
         "lastFrameMs": state.last_frame_ms,
         "clearColor": state.clear_color,
         "spatial": scene.spatial_json(),
+        "workload": load_status(renderer),
         "window": {
             "handle": format!("0x{:X}", hwnd.0 as usize),
             "width": client.right - client.left,
@@ -352,80 +410,4 @@ fn internal_error(error: windows::core::Error) -> ProtocolError {
         code: "internal_error",
         message: error.to_string(),
     }
-}
-
-unsafe fn create_window() -> Result<HWND> {
-    let module = unsafe { GetModuleHandleW(None) }.context("GetModuleHandleW failed")?;
-    let instance = HINSTANCE(module.0);
-    let class_name = w!("WulinEngineWorkbenchWindow");
-    let window_class = WNDCLASSW {
-        style: CS_HREDRAW | CS_VREDRAW,
-        lpfnWndProc: Some(window_proc),
-        hInstance: instance,
-        hCursor: unsafe { LoadCursorW(None, IDC_ARROW) }.context("LoadCursorW failed")?,
-        lpszClassName: class_name,
-        ..Default::default()
-    };
-    if unsafe { RegisterClassW(&window_class) } == 0 {
-        return Err(windows::core::Error::from_thread()).context("RegisterClassW failed");
-    }
-
-    let style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-    let mut rect = RECT {
-        left: 0,
-        top: 0,
-        right: CLIENT_WIDTH as i32,
-        bottom: CLIENT_HEIGHT as i32,
-    };
-    unsafe { AdjustWindowRect(&mut rect, style, false) }.context("AdjustWindowRect failed")?;
-    unsafe {
-        CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
-            class_name,
-            w!("Wulin Engine Workbench"),
-            style,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            rect.right - rect.left,
-            rect.bottom - rect.top,
-            None,
-            None,
-            Some(instance),
-            None,
-        )
-    }
-    .context("CreateWindowExW failed")
-}
-
-unsafe extern "system" fn window_proc(
-    hwnd: HWND,
-    message: u32,
-    wparam: WPARAM,
-    lparam: LPARAM,
-) -> LRESULT {
-    match message {
-        WM_CLOSE => {
-            let _ = unsafe { DestroyWindow(hwnd) };
-            LRESULT(0)
-        }
-        WM_DESTROY => {
-            unsafe { PostQuitMessage(0) };
-            LRESULT(0)
-        }
-        _ => unsafe { DefWindowProcW(hwnd, message, wparam, lparam) },
-    }
-}
-
-unsafe extern "system" fn console_ctrl_handler(control: u32) -> BOOL {
-    if !matches!(control, CTRL_C_EVENT | CTRL_BREAK_EVENT) {
-        return false.into();
-    }
-    let raw = WINDOW_HANDLE.load(Ordering::Acquire);
-    if raw == 0 {
-        return false.into();
-    }
-    let hwnd = HWND(raw as *mut _);
-    unsafe { PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)) }
-        .is_ok()
-        .into()
 }
