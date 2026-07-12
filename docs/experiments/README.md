@@ -22,8 +22,9 @@ allocation behavior, memory use, visible and submitted work, and synchronization
 
 - Commit the experiment definition, reproducible configurations, implementation, and
   concise result summary.
-- Write bulky raw CSV, captures, logs, crash dumps, and generated binaries under
-  `out/experiments/NNNN-kebab-case/`.
+- Write experiment reports, raw CSV, logs, and generated binaries under
+  `out/experiments/NNNN-kebab-case/`. Renderer-owned captures use the constrained
+  `out/captures/NNNN-kebab-case/` collection contract from ADR 0005.
 - Never treat ignored output as the only source for an accepted conclusion.
 
 ## Outcomes

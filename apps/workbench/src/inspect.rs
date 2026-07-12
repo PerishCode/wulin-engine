@@ -11,6 +11,8 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::perception::{PixelPoint, PixelRegion};
+
 const DEFAULT_ENDPOINT: &str = "tcp://127.0.0.1:47631";
 const MAX_FRAME_BYTES: u64 = 64 * 1024;
 
@@ -33,6 +35,12 @@ pub enum ControlKind {
     Capture {
         id: String,
         collection: String,
+    },
+    PerceptionCapture {
+        id: String,
+        collection: String,
+        region: Option<PixelRegion>,
+        samples: Vec<PixelPoint>,
     },
     CameraStatus,
     CameraSetPose {
@@ -72,6 +80,16 @@ struct SetClearColorPayload {
 struct CapturePayload {
     id: String,
     collection: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PerceptionCapturePayload {
+    id: String,
+    collection: Option<String>,
+    region: Option<PixelRegion>,
+    #[serde(default)]
+    samples: Vec<PixelPoint>,
 }
 
 #[derive(Deserialize)]
@@ -241,6 +259,7 @@ fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
             })
         }
         "workbench.capture" => parse_capture(payload),
+        "perception.capture" => parse_perception_capture(payload),
         "workbench.set_clear_color" => {
             let payload: SetClearColorPayload =
                 serde_json::from_value(payload).map_err(|error| ProtocolError {
@@ -280,6 +299,23 @@ fn parse_capture(value: Value) -> ControlResultKind {
     Ok(ControlKind::Capture {
         id: payload.id,
         collection,
+    })
+}
+
+fn parse_perception_capture(value: Value) -> ControlResultKind {
+    let payload: PerceptionCapturePayload =
+        serde_json::from_value(value).map_err(|error| ProtocolError {
+            code: "invalid_payload",
+            message: error.to_string(),
+        })?;
+    validate_safe_name("capture id", &payload.id)?;
+    let collection = payload.collection.unwrap_or_else(|| "operator".into());
+    validate_safe_name("collection", &collection)?;
+    Ok(ControlKind::PerceptionCapture {
+        id: payload.id,
+        collection,
+        region: payload.region,
+        samples: payload.samples,
     })
 }
 

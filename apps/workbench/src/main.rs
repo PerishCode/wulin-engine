@@ -1,6 +1,8 @@
 mod capture;
 mod gpu_capture;
 mod inspect;
+mod object_id_target;
+mod perception;
 mod renderer;
 mod scene;
 mod scene_renderer;
@@ -45,7 +47,7 @@ unsafe fn run() -> Result<()> {
 
     unsafe {
         let _ = ShowWindow(hwnd, SW_SHOW);
-        let _ = renderer.render(state.clear_color, false, &scene)?;
+        let _ = renderer.render(state.clear_color, false, false, &scene)?;
     }
     state.record_frame();
 
@@ -80,13 +82,23 @@ unsafe fn run() -> Result<()> {
             &mut pending_capture,
         );
         let capture_requested = pending_capture.is_some();
+        let perception_requested = pending_capture
+            .as_ref()
+            .is_some_and(|request| request.perception.is_some());
         if state.paused && !capture_requested {
             thread::sleep(Duration::from_millis(8));
             continue;
         }
 
         let frame_start = Instant::now();
-        match unsafe { renderer.render(state.clear_color, capture_requested, &scene) } {
+        match unsafe {
+            renderer.render(
+                state.clear_color,
+                capture_requested,
+                perception_requested,
+                &scene,
+            )
+        } {
             Ok(captured) => complete_frame(
                 &renderer,
                 &mut state,
@@ -109,6 +121,7 @@ unsafe fn run() -> Result<()> {
 struct PendingCapture {
     id: String,
     collection: String,
+    perception: Option<perception::Request>,
     response: SyncSender<inspect::ControlResult>,
 }
 
@@ -150,7 +163,7 @@ fn complete_frame(
     state: &mut WorkbenchState,
     scene: &scene::SceneState,
     pending_capture: &mut Option<PendingCapture>,
-    captured: Option<gpu_capture::CapturedPixels>,
+    captured: Option<renderer::CapturedFrame>,
     frame_duration: Duration,
 ) {
     state.record_frame_with_duration(frame_duration);
@@ -159,9 +172,10 @@ fn complete_frame(
     };
     let result = captured
         .context("capture request completed without pixels")
-        .and_then(|pixels| {
+        .and_then(|frame| {
             capture::write(
-                pixels,
+                frame.color,
+                frame.object_ids,
                 capture::FrameContext {
                     capture_id: &request.id,
                     collection: &request.collection,
@@ -175,6 +189,7 @@ fn complete_frame(
                     last_error: state.last_error.as_deref(),
                     gpu_readback_ms: frame_duration.as_secs_f64() * 1_000.0,
                     spatial: scene.spatial_json(),
+                    perception: request.perception.as_ref(),
                 },
             )
         })
@@ -244,6 +259,7 @@ fn handle_commands(
                     *pending_capture = Some(PendingCapture {
                         id,
                         collection,
+                        perception: None,
                         response,
                     });
                     continue;
@@ -253,6 +269,30 @@ fn handle_commands(
                     message: "a capture request is already pending".into(),
                 })
             }
+            ControlKind::PerceptionCapture {
+                id,
+                collection,
+                region,
+                samples,
+            } => match perception::Request::new(region, samples, CLIENT_WIDTH, CLIENT_HEIGHT) {
+                Ok(perception) if pending_capture.is_none() => {
+                    *pending_capture = Some(PendingCapture {
+                        id,
+                        collection,
+                        perception: Some(perception),
+                        response,
+                    });
+                    continue;
+                }
+                Ok(_) => Err(ProtocolError {
+                    code: "capture_busy",
+                    message: "a capture request is already pending".into(),
+                }),
+                Err(error) => Err(ProtocolError {
+                    code: "invalid_region",
+                    message: error.to_string(),
+                }),
+            },
         };
         let _ = response.send(result);
     }

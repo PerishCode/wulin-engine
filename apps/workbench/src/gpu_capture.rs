@@ -22,7 +22,7 @@ pub struct CapturedPixels {
     pub row_pitch: u32,
     pub allocation_bytes: u64,
     pub row_copy_ms: f64,
-    pub rgba: Vec<u8>,
+    pub bytes: Vec<u8>,
 }
 
 impl Readback {
@@ -45,7 +45,7 @@ impl Readback {
             );
         }
         if rows != desc.Height || row_size != desc.Width * 4 || total_bytes == 0 {
-            bail!("unexpected R8G8B8A8 capture footprint");
+            bail!("unexpected four-byte texture capture footprint");
         }
 
         let heap = D3D12_HEAP_PROPERTIES {
@@ -131,12 +131,12 @@ impl Readback {
             .context("capture readback map failed")?;
 
         let copy_start = Instant::now();
-        let mut rgba = vec![0u8; tight_size];
+        let mut bytes = vec![0u8; tight_size];
         for row in 0..row_count {
             unsafe {
                 ptr::copy_nonoverlapping(
                     mapped.cast::<u8>().add(row * row_pitch),
-                    rgba.as_mut_ptr().add(row * tight_row_bytes),
+                    bytes.as_mut_ptr().add(row * tight_row_bytes),
                     tight_row_bytes,
                 );
             }
@@ -151,7 +151,7 @@ impl Readback {
             row_pitch: self.layout.Footprint.RowPitch,
             allocation_bytes: self.total_bytes,
             row_copy_ms,
-            rgba,
+            bytes,
         })
     }
 }

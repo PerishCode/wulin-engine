@@ -30,9 +30,42 @@ function finite(value: string, name: string): number {
     return parsed;
 }
 
+function pixel(value: string, name: string): number {
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed < 0) {
+        fail(`workbench: ${name} must be a non-negative integer`);
+    }
+    return parsed;
+}
+
+function perceptionPayload(verb: string, args: string[]): Record<string, unknown> {
+    const hasRegion = verb === "perception-region";
+    if ((!hasRegion && args.length > 1) || (hasRegion && args.length !== 5)) {
+        fail(
+            hasRegion
+                ? "workbench: perception-region requires id x y width height"
+                : "workbench: perception accepts at most one capture id",
+        );
+    }
+    const payload: Record<string, unknown> = {
+        id: args[0] ?? "perception",
+        collection: "operator",
+        samples: [{ x: 0, y: 0 }, { x: 640, y: 360 }],
+    };
+    if (hasRegion) {
+        payload.region = {
+            x: pixel(args[1], "region x"),
+            y: pixel(args[2], "region y"),
+            width: pixel(args[3], "region width"),
+            height: pixel(args[4], "region height"),
+        };
+    }
+    return payload;
+}
+
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|color|camera|camera-set|camera-reset|scene|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -125,6 +158,18 @@ switch (verb) {
             "workbench",
             "workbench.capture",
             JSON.stringify({ id, collection: "operator" }),
+            "--format",
+            "json",
+        ]);
+        break;
+    }
+    case "perception":
+    case "perception-region": {
+        await run([
+            "inspect",
+            "workbench",
+            "perception.capture",
+            JSON.stringify(perceptionPayload(verb, args)),
             "--format",
             "json",
         ]);
