@@ -1,9 +1,9 @@
 # ADR 0004: Frame Artifact Contract
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-07-12
 - Supersedes: None
-- Superseded by: None
+- Superseded by: [ADR 0005](0005-capture-collection-contract.md)
 
 ## Context
 

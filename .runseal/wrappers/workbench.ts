@@ -24,9 +24,15 @@ function channel(value: string, name: string): number {
     return parsed;
 }
 
+function finite(value: string, name: string): number {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) fail(`workbench: ${name} must be a finite number`);
+    return parsed;
+}
+
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|color|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|color|camera|camera-set|camera-reset|scene|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -55,6 +61,37 @@ switch (verb) {
         if (args.length > 0) fail("workbench: inspect does not accept arguments");
         await run(["inspect", "workbench", "workbench.status", "--format", "json"]);
         break;
+    case "camera":
+        if (args.length > 0) fail("workbench: camera does not accept arguments");
+        await run(["inspect", "workbench", "camera.status", "--format", "json"]);
+        break;
+    case "camera-reset":
+        if (args.length > 0) fail("workbench: camera-reset does not accept arguments");
+        await run(["inspect", "workbench", "camera.reset", "--format", "json"]);
+        break;
+    case "scene":
+        if (args.length > 0) fail("workbench: scene does not accept arguments");
+        await run(["inspect", "workbench", "scene.list_objects", "--format", "json"]);
+        break;
+    case "camera-set": {
+        if (args.length !== 6 && args.length !== 7) {
+            fail("workbench: camera-set requires px py pz tx ty tz and optional vertical FOV");
+        }
+        const values = args.map((value, index) => finite(value, `camera value ${index + 1}`));
+        await run([
+            "inspect",
+            "workbench",
+            "camera.set_pose",
+            JSON.stringify({
+                position: values.slice(0, 3),
+                target: values.slice(3, 6),
+                vertical_fov_degrees: values[6] ?? 60,
+            }),
+            "--format",
+            "json",
+        ]);
+        break;
+    }
     case "pause":
     case "resume":
         if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
@@ -87,7 +124,7 @@ switch (verb) {
             "inspect",
             "workbench",
             "workbench.capture",
-            JSON.stringify({ id }),
+            JSON.stringify({ id, collection: "operator" }),
             "--format",
             "json",
         ]);

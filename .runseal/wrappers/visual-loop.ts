@@ -60,7 +60,10 @@ function object(owner: Record<string, unknown>, name: string): Record<string, un
 }
 
 async function capture(id: string): Promise<Record<string, unknown>> {
-    const manifest = await event("workbench.capture", { id });
+    const manifest = await event("workbench.capture", {
+        id,
+        collection: "0002-deterministic-visual-loop",
+    });
     const image = object(manifest, "image");
     const artifacts = object(manifest, "artifacts");
     if (field<number>(image, "width", "number") !== 1280) fail(`${id}: width mismatch`);
@@ -103,7 +106,7 @@ const root = profilePath.replace(/[\\/][^\\/]+$/, "");
 const decoder = new TextDecoder();
 const colorA = { rgba: [0.08, 0.42, 0.24, 1.0] };
 const colorB = { rgba: [0.55, 0.08, 0.16, 1.0] };
-const reportPath = `${root}/out/experiments/0002-deterministic-visual-loop/acceptance.json`;
+const reportPath = `${root}/out/captures/0002-deterministic-visual-loop/acceptance.json`;
 let report: Record<string, unknown> | undefined;
 
 await lifecycle("stop");

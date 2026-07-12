@@ -2,6 +2,8 @@ mod capture;
 mod gpu_capture;
 mod inspect;
 mod renderer;
+mod scene;
+mod scene_renderer;
 
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender};
@@ -39,10 +41,11 @@ unsafe fn run() -> Result<()> {
     let (inspect, commands) = inspect::InspectServer::start()?;
     let launched_by_sidecar = std::env::args().any(|arg| arg.starts_with("--sidecar-stamp="));
     let mut state = WorkbenchState::new(launched_by_sidecar);
+    let mut scene = scene::SceneState::new();
 
     unsafe {
         let _ = ShowWindow(hwnd, SW_SHOW);
-        let _ = renderer.render(state.clear_color, false)?;
+        let _ = renderer.render(state.clear_color, false, &scene)?;
     }
     state.record_frame();
 
@@ -68,7 +71,14 @@ unsafe fn run() -> Result<()> {
             }
         }
 
-        handle_commands(hwnd, &renderer, &mut state, &commands, &mut pending_capture);
+        handle_commands(
+            hwnd,
+            &renderer,
+            &mut state,
+            &mut scene,
+            &commands,
+            &mut pending_capture,
+        );
         let capture_requested = pending_capture.is_some();
         if state.paused && !capture_requested {
             thread::sleep(Duration::from_millis(8));
@@ -76,10 +86,11 @@ unsafe fn run() -> Result<()> {
         }
 
         let frame_start = Instant::now();
-        match unsafe { renderer.render(state.clear_color, capture_requested) } {
+        match unsafe { renderer.render(state.clear_color, capture_requested, &scene) } {
             Ok(captured) => complete_frame(
                 &renderer,
                 &mut state,
+                &scene,
                 &mut pending_capture,
                 captured,
                 frame_start.elapsed(),
@@ -97,6 +108,7 @@ unsafe fn run() -> Result<()> {
 
 struct PendingCapture {
     id: String,
+    collection: String,
     response: SyncSender<inspect::ControlResult>,
 }
 
@@ -136,6 +148,7 @@ impl WorkbenchState {
 fn complete_frame(
     renderer: &Renderer,
     state: &mut WorkbenchState,
+    scene: &scene::SceneState,
     pending_capture: &mut Option<PendingCapture>,
     captured: Option<gpu_capture::CapturedPixels>,
     frame_duration: Duration,
@@ -151,6 +164,7 @@ fn complete_frame(
                 pixels,
                 capture::FrameContext {
                     capture_id: &request.id,
+                    collection: &request.collection,
                     frame_index: state.frame_index,
                     clear_color: state.clear_color,
                     paused: state.paused,
@@ -160,6 +174,7 @@ fn complete_frame(
                     device_removed_reason: unsafe { renderer.device_removed_reason() },
                     last_error: state.last_error.as_deref(),
                     gpu_readback_ms: frame_duration.as_secs_f64() * 1_000.0,
+                    spatial: scene.spatial_json(),
                 },
             )
         })
@@ -187,13 +202,14 @@ fn handle_commands(
     hwnd: HWND,
     renderer: &Renderer,
     state: &mut WorkbenchState,
+    scene: &mut scene::SceneState,
     commands: &Receiver<ControlCommand>,
     pending_capture: &mut Option<PendingCapture>,
 ) {
     while let Ok(command) = commands.try_recv() {
         let ControlCommand { kind, response } = command;
         let result = match kind {
-            ControlKind::Status => status(hwnd, renderer, state),
+            ControlKind::Status => status(hwnd, renderer, state, scene),
             ControlKind::SetClearColor(color) => {
                 state.clear_color = color;
                 Ok(json!({"clearColor": color}))
@@ -206,9 +222,30 @@ fn handle_commands(
                 state.paused = false;
                 Ok(json!({"paused": false}))
             }
-            ControlKind::Capture(id) => {
+            ControlKind::CameraStatus => Ok(scene.camera_json()),
+            ControlKind::CameraReset => {
+                scene.reset_camera();
+                Ok(scene.camera_json())
+            }
+            ControlKind::CameraSetPose {
+                position,
+                target,
+                vertical_fov_degrees,
+            } => scene
+                .set_camera(position, target, vertical_fov_degrees)
+                .map(|_| scene.camera_json())
+                .map_err(|error| ProtocolError {
+                    code: "invalid_camera",
+                    message: error.to_string(),
+                }),
+            ControlKind::SceneListObjects => Ok(scene.objects_json()),
+            ControlKind::Capture { id, collection } => {
                 if pending_capture.is_none() {
-                    *pending_capture = Some(PendingCapture { id, response });
+                    *pending_capture = Some(PendingCapture {
+                        id,
+                        collection,
+                        response,
+                    });
                     continue;
                 }
                 Err(ProtocolError {
@@ -230,7 +267,12 @@ fn capture_error(state: &mut WorkbenchState, error: anyhow::Error) -> ProtocolEr
     }
 }
 
-fn status(hwnd: HWND, renderer: &Renderer, state: &WorkbenchState) -> inspect::ControlResult {
+fn status(
+    hwnd: HWND,
+    renderer: &Renderer,
+    state: &WorkbenchState,
+    scene: &scene::SceneState,
+) -> inspect::ControlResult {
     let mut client = RECT::default();
     unsafe { GetClientRect(hwnd, &mut client) }.map_err(internal_error)?;
     let device_removed_reason = unsafe { renderer.device_removed_reason() };
@@ -243,6 +285,7 @@ fn status(hwnd: HWND, renderer: &Renderer, state: &WorkbenchState) -> inspect::C
         "frameIndex": state.frame_index,
         "lastFrameMs": state.last_frame_ms,
         "clearColor": state.clear_color,
+        "spatial": scene.spatial_json(),
         "window": {
             "handle": format!("0x{:X}", hwnd.0 as usize),
             "width": client.right - client.left,

@@ -4,7 +4,8 @@
 - Owner: PerishCode
 - Created: 2026-07-12
 - Related ADRs: [ADR 0003](../../docs/adr/0003-native-workbench-control-plane.md),
-  [ADR 0004](../../docs/adr/0004-frame-artifact-contract.md)
+  [ADR 0004](../../docs/adr/0004-frame-artifact-contract.md),
+  [ADR 0005](../../docs/adr/0005-capture-collection-contract.md)
 
 ## Hypothesis
 
@@ -33,7 +34,7 @@ continuous rendering, and captures the fixed 1280x720 back buffer under these st
 3. Color A captured again after a Sidecar restart.
 
 Capture IDs are fixed. The experiment overwrites prior generated artifacts under
-`out/experiments/0002-deterministic-visual-loop/` so stale files cannot be mistaken for
+`out/captures/0002-deterministic-visual-loop/` so stale files cannot be mistaken for
 additional evidence.
 
 ## Controlled variables
