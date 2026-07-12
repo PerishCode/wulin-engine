@@ -6,17 +6,18 @@ use windows::Win32::Foundation::RECT;
 use windows::Win32::Graphics::Direct3D::{D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST, ID3DBlob};
 use windows::Win32::Graphics::Direct3D12::*;
 use windows::Win32::Graphics::Dxgi::Common::{
-    DXGI_FORMAT_D32_FLOAT, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R16_UINT,
+    DXGI_FORMAT_D32_FLOAT, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R16_UINT, DXGI_FORMAT_R32_UINT,
     DXGI_FORMAT_R32G32B32_FLOAT, DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC,
 };
 use windows::core::PCSTR;
 
+use crate::object_id_target::ObjectIdTarget;
 use crate::scene::{MeshKind, OBJECTS, SceneState};
 
 const VERTEX_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/calibration.vs.dxil"));
 const PIXEL_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/calibration.ps.dxil"));
 const FRAME_CONSTANT_COUNT: u32 = 16;
-const DRAW_CONSTANT_COUNT: u32 = 21;
+const DRAW_CONSTANT_COUNT: u32 = 22;
 
 pub struct SceneRenderer {
     root_signature: ID3D12RootSignature,
@@ -24,6 +25,7 @@ pub struct SceneRenderer {
     geometry: Geometry,
     _depth: ID3D12Resource,
     dsv_heap: ID3D12DescriptorHeap,
+    object_ids: ObjectIdTarget,
     width: u32,
     height: u32,
 }
@@ -57,12 +59,14 @@ impl SceneRenderer {
         let pipeline = unsafe { create_pipeline(device, &root_signature) }?;
         let geometry = unsafe { Geometry::new(device) }?;
         let (_depth, dsv_heap) = unsafe { create_depth(device, width, height) }?;
+        let object_ids = unsafe { ObjectIdTarget::new(device, width, height) }?;
         Ok(Self {
             root_signature,
             pipeline,
             geometry,
             _depth,
             dsv_heap,
+            object_ids,
             width,
             height,
         })
@@ -75,6 +79,8 @@ impl SceneRenderer {
         render_target: D3D12_CPU_DESCRIPTOR_HANDLE,
     ) {
         let depth_target = unsafe { self.dsv_heap.GetCPUDescriptorHandleForHeapStart() };
+        let object_id_target = unsafe { self.object_ids.handle() };
+        let render_targets = [render_target, object_id_target];
         let viewport = D3D12_VIEWPORT {
             TopLeftX: 0.0,
             TopLeftY: 0.0,
@@ -97,7 +103,13 @@ impl SceneRenderer {
             command_list.SetPipelineState(&self.pipeline);
             command_list.RSSetViewports(&[viewport]);
             command_list.RSSetScissorRects(&[scissor]);
-            command_list.OMSetRenderTargets(1, Some(&render_target), true, Some(&depth_target));
+            command_list.OMSetRenderTargets(
+                2,
+                Some(render_targets.as_ptr()),
+                false,
+                Some(&depth_target),
+            );
+            command_list.ClearRenderTargetView(object_id_target, &[0.0; 4], None);
             command_list.ClearDepthStencilView(depth_target, D3D12_CLEAR_FLAG_DEPTH, 0.0, 0, None);
             command_list.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             command_list.IASetVertexBuffers(0, Some(&[self.geometry.vertex_view]));
@@ -122,6 +134,7 @@ impl SceneRenderer {
                 *destination = value.to_bits();
             }
             constants[20] = object.material;
+            constants[21] = object.id;
             let mesh = match object.mesh {
                 MeshKind::Plane => self.geometry.plane,
                 MeshKind::Cube => self.geometry.cube,
@@ -142,6 +155,10 @@ impl SceneRenderer {
                 );
             }
         }
+    }
+
+    pub fn object_id_resource(&self) -> &ID3D12Resource {
+        self.object_ids.resource()
     }
 }
 
@@ -245,6 +262,7 @@ unsafe fn create_pipeline(
     };
     let mut formats = [DXGI_FORMAT_UNKNOWN; 8];
     formats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    formats[1] = DXGI_FORMAT_R32_UINT;
     let mut desc = D3D12_GRAPHICS_PIPELINE_STATE_DESC {
         pRootSignature: ManuallyDrop::new(Some(root_signature.clone())),
         VS: shader_bytecode(VERTEX_SHADER),
@@ -276,7 +294,7 @@ unsafe fn create_pipeline(
             NumElements: input.len() as u32,
         },
         PrimitiveTopologyType: D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
-        NumRenderTargets: 1,
+        NumRenderTargets: 2,
         RTVFormats: formats,
         DSVFormat: DXGI_FORMAT_D32_FLOAT,
         SampleDesc: DXGI_SAMPLE_DESC {

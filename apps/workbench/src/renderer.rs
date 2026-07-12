@@ -36,9 +36,15 @@ pub struct Renderer {
     fence_values: [u64; BUFFER_COUNT],
     next_fence_value: u64,
     capture: Readback,
+    object_id_capture: Readback,
     scene_renderer: SceneRenderer,
     adapter_name: String,
     debug_layer: bool,
+}
+
+pub struct CapturedFrame {
+    pub color: CapturedPixels,
+    pub object_ids: Option<CapturedPixels>,
 }
 
 impl Renderer {
@@ -120,6 +126,8 @@ impl Renderer {
         }
         let capture = unsafe { Readback::new(&device, &back_buffers[0]) }?;
         let scene_renderer = unsafe { SceneRenderer::new(&device, width, height) }?;
+        let object_id_capture =
+            unsafe { Readback::new(&device, scene_renderer.object_id_resource()) }?;
 
         let mut allocators = Vec::with_capacity(BUFFER_COUNT);
         for _ in 0..BUFFER_COUNT {
@@ -153,6 +161,7 @@ impl Renderer {
             fence_values: [0; BUFFER_COUNT],
             next_fence_value: 1,
             capture,
+            object_id_capture,
             scene_renderer,
             adapter_name,
             debug_layer,
@@ -163,8 +172,10 @@ impl Renderer {
         &mut self,
         color: [f32; 4],
         capture: bool,
+        capture_object_ids: bool,
         scene: &SceneState,
-    ) -> Result<Option<CapturedPixels>> {
+    ) -> Result<Option<CapturedFrame>> {
+        debug_assert!(!capture_object_ids || capture);
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() } as usize;
         unsafe { self.wait_for_buffer(index)? };
         unsafe { self.allocators[index].Reset() }.context("command allocator reset failed")?;
@@ -187,6 +198,22 @@ impl Renderer {
                 .ClearRenderTargetView(handle, &color, None);
             self.scene_renderer
                 .record(&self.command_list, scene, handle);
+            if capture_object_ids {
+                transition(
+                    &self.command_list,
+                    self.scene_renderer.object_id_resource(),
+                    D3D12_RESOURCE_STATE_RENDER_TARGET,
+                    D3D12_RESOURCE_STATE_COPY_SOURCE,
+                );
+                self.object_id_capture
+                    .record(&self.command_list, self.scene_renderer.object_id_resource());
+                transition(
+                    &self.command_list,
+                    self.scene_renderer.object_id_resource(),
+                    D3D12_RESOURCE_STATE_COPY_SOURCE,
+                    D3D12_RESOURCE_STATE_RENDER_TARGET,
+                );
+            }
             if capture {
                 transition(
                     &self.command_list,
@@ -227,7 +254,13 @@ impl Renderer {
         self.fence_values[index] = signal;
         if capture {
             unsafe { self.wait_for_value(signal)? };
-            return unsafe { self.capture.read() }.map(Some);
+            let color = unsafe { self.capture.read() }?;
+            let object_ids = if capture_object_ids {
+                Some(unsafe { self.object_id_capture.read() }?)
+            } else {
+                None
+            };
+            return Ok(Some(CapturedFrame { color, object_ids }));
         }
         Ok(None)
     }

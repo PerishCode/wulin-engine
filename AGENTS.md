@@ -118,6 +118,7 @@ contains only files that exist.
 | `docs/adr/0004-frame-artifact-contract.md` | Superseded initial D3D12 capture and generated-artifact contract. |
 | `docs/adr/0005-capture-collection-contract.md` | Accepted constrained capture collection and artifact ownership contract. |
 | `docs/adr/0006-spatial-and-depth-convention.md` | Accepted coordinate, unit, transform, and reverse-Z convention. |
+| `docs/adr/0007-object-id-perception-contract.md` | Accepted integer object-ID attachment and bounded screen-perception contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -132,14 +133,17 @@ contains only files that exist.
 | `experiments/0001-gpu-lab/shaders/fill.hlsl` | Deterministic Experiment 0001 compute workload. |
 | `experiments/0002-deterministic-visual-loop/README.md` | Experiment 0002 hypothesis, capture protocol, evidence, and accepted conclusion. |
 | `experiments/0003-spatial-calibration-scene/README.md` | Experiment 0003 spatial hypothesis, workload, evidence, and accepted conclusion. |
+| `experiments/0004-object-id-perception/README.md` | Experiment 0004 object-ID hypothesis, bounded-region evidence, and accepted conclusion. |
 | `apps/workbench/Cargo.toml` | Native workbench package and Windows API feature boundary. |
 | `apps/workbench/build.rs` | Workbench Agility SDK staging and pinned DXC shader compilation. |
 | `apps/workbench/shaders/calibration.hlsl` | Procedural calibration scene vertex and pixel shader. |
 | `apps/workbench/src/main.rs` | Win32 window, main-thread control ownership, and operator-visible runtime state. |
 | `apps/workbench/src/renderer.rs` | D3D12 swap chain, clear/present loop, and explicit GPU synchronization. |
-| `apps/workbench/src/gpu_capture.rs` | D3D12 copy footprint, persistent readback resource, and tight RGBA extraction. |
-| `apps/workbench/src/capture.rs` | PNG encoding, SHA-256, frame manifests, and capture artifact ownership. |
+| `apps/workbench/src/gpu_capture.rs` | D3D12 copy footprint, persistent readback resource, and tight four-byte pixel extraction. |
+| `apps/workbench/src/capture.rs` | Color/object-ID artifacts, encoding, hashes, manifests, and capture ownership. |
 | `apps/workbench/src/inspect.rs` | Project-owned SidecarRuntime event server and typed control protocol. |
+| `apps/workbench/src/object_id_target.rs` | Persistent `R32_UINT` semantic render-target resource and descriptor ownership. |
+| `apps/workbench/src/perception.rs` | Pixel-region validation, ID analysis, semantic joins, samples, and diagnostic colors. |
 | `apps/workbench/src/scene.rs` | Calibration scene objects, camera state, transforms, and spatial manifest. |
 | `apps/workbench/src/scene_renderer.rs` | D3D12 graphics PSO, reverse-Z depth target, procedural geometry, and scene draws. |
 | `runseal.toml` | Explicit local resources, Deno policy, and repository environment injection. |
@@ -151,6 +155,7 @@ contains only files that exist.
 | `.runseal/wrappers/init.ts` | Stable tool validation and repository hook installation. |
 | `.runseal/wrappers/guard.ts` | Canonical Rust, Flavor, and Sidecar validation workflow. |
 | `.runseal/wrappers/gpu-lab.ts` | Canonical Experiment 0001 bootstrap and execution workflow. |
+| `.runseal/wrappers/object-id.ts` | Canonical Experiment 0004 object-ID perception and cleanup workflow. |
 | `.runseal/wrappers/visual-loop.ts` | Canonical Experiment 0002 deterministic capture and cleanup workflow. |
 | `.runseal/wrappers/spatial-scene.ts` | Canonical Experiment 0003 spatial rendering and inspection workflow. |
 | `.runseal/wrappers/workbench.ts` | Canonical workbench lifecycle and typed inspect workflow. |
@@ -163,7 +168,8 @@ The R0 repository baseline is defined by the core files indexed above. R1 accept
 Rust-based native D3D12 GPU laboratory on the single reference platform recorded in ADR
 0001. ADR 0003 accepts the first operator-visible workbench cold start. Experiment 0002
 and ADRs 0004-0005 accept deterministic renderer-owned frame artifacts. Experiment 0003
-and ADR 0006 accept the calibration scene's spatial and depth vocabulary.
+and ADR 0006 accept the calibration scene's spatial and depth vocabulary. Experiment
+0004 and ADR 0007 accept deterministic object-ID and bounded screen-region perception.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -178,12 +184,15 @@ runseal :gpu-lab correctness
 runseal :gpu-lab benchmark
 runseal :visual-loop
 runseal :spatial-scene
+runseal :object-id
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24
 runseal :workbench pause
 runseal :workbench capture operator-check
+runseal :workbench perception operator-perception
+runseal :workbench perception-region operator-region 560 240 160 200
 runseal :workbench camera
 runseal :workbench camera-set -9 5 10 0 1 -3 60
 runseal :workbench camera-reset
