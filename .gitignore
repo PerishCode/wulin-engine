@@ -2,6 +2,7 @@
 /target/
 /out/
 /.cache/
+/.local/
 /.vs/
 
 # Generated shader and native artifacts

@@ -82,6 +82,7 @@ scaffolding is discouraged.
 | `tests/` | Repository-level integration and end-to-end tests. Unit tests stay beside their implementation. |
 | `docs/` | Architecture, ADRs, experiment summaries, operational references, and contributor documentation. |
 | `out/` | Disposable local experiment output, captures, reports, and generated artifacts; never a source-of-truth directory. |
+| `.runseal/` | Repository hooks and Deno wrappers for explicit operator workflows. |
 
 Additional conventions:
 
@@ -96,8 +97,8 @@ Additional conventions:
 
 ## 4. Core File Index
 
-The repository is currently in the R0 repository-baseline state. This index
-intentionally contains only files that exist.
+The repository has completed the R1 technical cold start. This index intentionally
+contains only files that exist.
 
 | File | Responsibility |
 | --- | --- |
@@ -112,22 +113,73 @@ intentionally contains only files that exist.
 | `docs/adr/README.md` | ADR naming, status, and maintenance rules. |
 | `docs/adr/0000-template.md` | Required structure for new architecture decision records. |
 | `docs/adr/0001-reference-platform-and-graphics-api.md` | Accepted reference platform and graphics API decision. |
+| `docs/adr/0002-personal-iteration-suite.md` | Accepted Flavor, Runseal, and Sidecar consumer boundary. |
+| `docs/adr/0003-native-workbench-control-plane.md` | Accepted native window, Sidecar lifecycle, and inspect threading boundary. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
+| `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
+| `Cargo.lock` | Exact dependency resolution for reproducible experiment builds. |
+| `rust-toolchain.toml` | Pinned Rust toolchain and required components. |
+| `experiments/0001-gpu-lab/README.md` | Experiment 0001 hypothesis, protocol, status, results, and reproduction commands. |
+| `experiments/0001-gpu-lab/Cargo.toml` | Isolated GPU laboratory package and Windows API feature set. |
+| `experiments/0001-gpu-lab/build.rs` | DXC shader build and Agility SDK runtime staging. |
+| `experiments/0001-gpu-lab/scripts/bootstrap.ps1` | Pinned, hash-verified Agility SDK acquisition. |
+| `experiments/0001-gpu-lab/src/main.rs` | D3D12 compute, measurement, validation, and report implementation. |
+| `experiments/0001-gpu-lab/src/agility_exports.c` | Process exports selecting the pinned Agility SDK. |
+| `experiments/0001-gpu-lab/shaders/fill.hlsl` | Deterministic Experiment 0001 compute workload. |
+| `apps/workbench/Cargo.toml` | Native workbench package and Windows API feature boundary. |
+| `apps/workbench/build.rs` | Workbench Agility SDK export build and runtime staging. |
+| `apps/workbench/src/main.rs` | Win32 window, main-thread control ownership, and operator-visible runtime state. |
+| `apps/workbench/src/renderer.rs` | D3D12 swap chain, clear/present loop, and explicit GPU synchronization. |
+| `apps/workbench/src/inspect.rs` | Project-owned SidecarRuntime event server and typed control protocol. |
+| `runseal.toml` | Explicit local resources, Deno policy, and repository environment injection. |
+| `flavor.toml` | Consumer-owned code-shape scan scope and rule adjustments. |
+| `sidecar.toml` | Local runtime identity, native workbench app target, readiness, and inspect endpoint. |
+| `.runseal/deno.json` | Deno compiler and formatter policy for repository wrappers. |
+| `.runseal/deno.lock` | Frozen Deno dependency resolution for repository wrappers. |
+| `.runseal/hooks/pre-commit` | Git pre-commit entrypoint delegating to `runseal :guard`. |
+| `.runseal/wrappers/init.ts` | Stable tool validation and repository hook installation. |
+| `.runseal/wrappers/guard.ts` | Canonical Rust, Flavor, and Sidecar validation workflow. |
+| `.runseal/wrappers/gpu-lab.ts` | Canonical Experiment 0001 bootstrap and execution workflow. |
+| `.runseal/wrappers/workbench.ts` | Canonical workbench lifecycle and typed inspect workflow. |
 
 ## 5. Core Operational Workflows
 
 ### 5.1 Cold start
 
-The R0 repository baseline is defined by the core files indexed above. The accepted R1
-technical cold start is a Rust-based native D3D12 GPU laboratory on the single reference
-platform recorded in ADR 0001.
+The R0 repository baseline is defined by the core files indexed above. R1 accepted a
+Rust-based native D3D12 GPU laboratory on the single reference platform recorded in ADR
+0001. ADR 0003 accepts the first operator-visible workbench cold start.
 
-R1 has not been implemented yet. Do not create broad engine scaffolding as part of that
-work. Start with the smallest executable experiment that establishes device creation,
-shader compilation, validation, timestamps, parameterized workloads, and reproducible
-reports. Add canonical build, run, test, lint, and benchmark commands here when they
-exist and have been verified.
+The workbench is a composition root, not permission to create broad engine scaffolding.
+Do not begin scene, ECS, asset, or graphics-pipeline work until the next numbered
+experiment defines and accepts its hypothesis, workload, and criteria.
+
+Canonical commands from the repository root:
+
+```powershell
+runseal :init
+runseal :guard
+runseal :gpu-lab correctness
+runseal :gpu-lab benchmark
+runseal :workbench start
+runseal :workbench status
+runseal :workbench inspect
+runseal :workbench color 0.08 0.42 0.24
+runseal :workbench pause
+runseal :workbench resume
+runseal :workbench restart
+runseal :workbench stop
+```
+
+Correctness mode requires the Windows optional capability
+`Tools.Graphics.DirectX~~~~0.0.1.0`. Benchmark mode intentionally runs without the debug
+layer and must report that validation is disabled.
+
+The wrappers use installed stable-channel Flavor, Runseal, and Sidecar CLIs. Sibling
+source checkouts are references, not runtime dependencies. The workbench accepts the
+canonical `--sidecar-stamp` argument and exposes only the typed events recorded in ADR
+0003.
 
 ### 5.2 Experiment lifecycle
 

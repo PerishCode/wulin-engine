@@ -8,11 +8,11 @@
 
 ## Status
 
-当前处于 **R0 repository baseline**：仓库治理、目录所有权、ADR 和实验流程已经建立，
-尚未创建引擎 Workspace 或 GPU 实验代码。
+**Native workbench cold start 已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定
+Agility SDK、Sidecar 生命周期和项目自有 inspect 协议已经形成第一个可见控制闭环。
 
-下一个阶段是 **R1 technical cold start**：使用 Rust、原生 D3D12 和 HLSL/DXC 建立可
-测量的 GPU 实验台，然后执行第一项 GPU Scene 负载实验。
+Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
+两档 Compute benchmark。`apps/workbench` 目前只进行确定性清屏与呈现，不包含场景系统。
 
 ## Project model
 
@@ -20,6 +20,25 @@
 - [Architecture decisions](docs/adr/README.md)
 - [Experiment protocol](docs/experiments/README.md)
 - [Agent operating rules](AGENTS.md)
+
+## Developer operations
+
+Stable-channel Flavor, Runseal, and Sidecar provide the repository iteration surface:
+
+```powershell
+runseal :init
+runseal :guard
+runseal :gpu-lab correctness
+runseal :gpu-lab benchmark
+runseal :workbench start
+runseal :workbench inspect
+runseal :workbench color 0.08 0.42 0.24
+runseal :workbench stop
+```
+
+`sidecar.toml` owns the native workbench app target. Sidecar starts the process tree,
+waits for renderer and inspect readiness, discovers stamped processes, and closes the
+entire local runtime through one manifest.
 
 ## Scope
 

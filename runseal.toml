@@ -1,0 +1,19 @@
+[resources]
+root = ".local"
+
+[deno]
+config = ".runseal/deno.json"
+lock = ".runseal/deno.lock"
+permissions = [
+  "--allow-read=.",
+  "--allow-env=RUNSEAL_PROFILE_PATH",
+  "--allow-run=git,cargo,deno,flavor,sidecar,pwsh,runseal",
+]
+
+[[injections]]
+type = "env"
+
+[injections.vars]
+WULIN_REPO_LOCAL_DIR = "resource://"
+WULIN_REPO_SECRETS_DIR = "resource://secrets"
+WULIN_REPO_TMP_DIR = "resource://tmp"
