@@ -10,6 +10,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/agility_exports.c");
     println!("cargo:rerun-if-changed=shaders/calibration.hlsl");
     println!("cargo:rerun-if-changed=shaders/region_load.hlsl");
+    println!("cargo:rerun-if-changed=shaders/resident_load.hlsl");
     println!("cargo:rerun-if-env-changed=AGILITY_SDK_ROOT");
     println!("cargo:rerun-if-env-changed=DXC");
 
@@ -59,6 +60,38 @@ fn main() {
         "ps_main",
         "ps_6_6",
         "region_load.ps.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "resident_load.hlsl",
+        "reset_main",
+        "cs_6_6",
+        "resident_load.reset.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "resident_load.hlsl",
+        "cull_main",
+        "cs_6_6",
+        "resident_load.cull.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "resident_load.hlsl",
+        "vs_main",
+        "vs_6_6",
+        "resident_load.vs.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "resident_load.hlsl",
+        "ps_main",
+        "ps_6_6",
+        "resident_load.ps.dxil",
     );
     compile_shader(
         &manifest_dir,

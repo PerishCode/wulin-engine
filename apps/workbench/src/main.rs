@@ -3,6 +3,7 @@ mod inspect;
 mod load;
 mod perception;
 mod rendering;
+mod resident;
 mod scene;
 mod window;
 
@@ -50,8 +51,7 @@ unsafe fn run() -> Result<()> {
     );
 
     let mut message = MSG::default();
-    let mut pending_capture = None;
-    let mut pending_probe = None;
+    let mut pending = PendingOperations::default();
     'running: loop {
         while unsafe { PeekMessageW(&mut message, None, 0, 0, PM_REMOVE) }.as_bool() {
             if message.message == WM_QUIT {
@@ -69,15 +69,16 @@ unsafe fn run() -> Result<()> {
             &mut state,
             &mut scene,
             &commands,
-            &mut pending_capture,
-            &mut pending_probe,
+            &mut pending,
         );
-        let capture_requested = pending_capture.is_some();
-        let probe_requested = pending_probe.is_some();
-        let perception_requested = pending_capture
+        let capture_requested = pending.capture.is_some();
+        let probe_requested = pending.probe.is_some();
+        let stream_requested = pending.stream.is_some();
+        let perception_requested = pending
+            .capture
             .as_ref()
             .is_some_and(|request| request.perception.is_some());
-        if state.paused && !capture_requested && !probe_requested {
+        if state.paused && !capture_requested && !probe_requested && !stream_requested {
             thread::sleep(Duration::from_millis(8));
             continue;
         }
@@ -96,12 +97,11 @@ unsafe fn run() -> Result<()> {
                 &renderer,
                 &mut state,
                 &scene,
-                &mut pending_capture,
-                &mut pending_probe,
+                &mut pending,
                 outcome,
                 frame_start.elapsed(),
             ),
-            Err(error) => fail_frame(&mut state, &mut pending_capture, &mut pending_probe, error),
+            Err(error) => fail_frame(&mut state, &mut pending, error),
         }
     }
 
@@ -115,6 +115,19 @@ struct PendingCapture {
     collection: String,
     perception: Option<perception::Request>,
     response: SyncSender<inspect::ControlResult>,
+}
+
+#[derive(Default)]
+struct PendingOperations {
+    capture: Option<PendingCapture>,
+    probe: Option<SyncSender<inspect::ControlResult>>,
+    stream: Option<SyncSender<inspect::ControlResult>>,
+}
+
+impl PendingOperations {
+    fn is_idle(&self) -> bool {
+        self.capture.is_none() && self.probe.is_none() && self.stream.is_none()
+    }
 }
 
 struct WorkbenchState {
@@ -154,13 +167,12 @@ fn complete_frame(
     renderer: &Renderer,
     state: &mut WorkbenchState,
     scene: &scene::SceneState,
-    pending_capture: &mut Option<PendingCapture>,
-    pending_probe: &mut Option<SyncSender<inspect::ControlResult>>,
+    pending: &mut PendingOperations,
     outcome: rendering::RenderOutcome,
     frame_duration: Duration,
 ) {
     state.record_frame_with_duration(frame_duration);
-    if let Some(request) = pending_capture.take() {
+    if let Some(request) = pending.capture.take() {
         let result = outcome
             .capture
             .context("capture request completed without pixels")
@@ -189,7 +201,7 @@ fn complete_frame(
             .map_err(|error| capture_error(state, error));
         let _ = request.response.send(result);
     }
-    if let Some(response) = pending_probe.take() {
+    if let Some(response) = pending.probe.take() {
         let result = outcome
             .load_probe
             .context("load probe completed without GPU evidence")
@@ -197,24 +209,35 @@ fn complete_frame(
             .map_err(|error| capture_error(state, error));
         let _ = response.send(result);
     }
+    if let Some(response) = pending.stream.take() {
+        let result = outcome
+            .resident_stream
+            .context("resident stream completed without transaction evidence")
+            .and_then(|report| {
+                serde_json::to_value(report).context("resident stream encoding failed")
+            })
+            .map_err(|error| capture_error(state, error));
+        let _ = response.send(result);
+    }
 }
 
-fn fail_frame(
-    state: &mut WorkbenchState,
-    pending_capture: &mut Option<PendingCapture>,
-    pending_probe: &mut Option<SyncSender<inspect::ControlResult>>,
-    error: anyhow::Error,
-) {
+fn fail_frame(state: &mut WorkbenchState, pending: &mut PendingOperations, error: anyhow::Error) {
     let message = format!("{error:#}");
     state.last_error = Some(message.clone());
     state.paused = true;
-    if let Some(request) = pending_capture.take() {
+    if let Some(request) = pending.capture.take() {
         let _ = request.response.send(Err(ProtocolError {
             code: "render_failed",
             message: message.clone(),
         }));
     }
-    if let Some(response) = pending_probe.take() {
+    if let Some(response) = pending.probe.take() {
+        let _ = response.send(Err(ProtocolError {
+            code: "render_failed",
+            message: message.clone(),
+        }));
+    }
+    if let Some(response) = pending.stream.take() {
         let _ = response.send(Err(ProtocolError {
             code: "render_failed",
             message,
@@ -228,8 +251,7 @@ fn handle_commands(
     state: &mut WorkbenchState,
     scene: &mut scene::SceneState,
     commands: &Receiver<ControlCommand>,
-    pending_capture: &mut Option<PendingCapture>,
-    pending_probe: &mut Option<SyncSender<inspect::ControlResult>>,
+    pending: &mut PendingOperations,
 ) {
     while let Ok(command) = commands.try_recv() {
         let ControlCommand { kind, response } = command;
@@ -265,6 +287,7 @@ fn handle_commands(
                 }),
             ControlKind::SceneListObjects => Ok(scene.objects_json()),
             ControlKind::LoadStatus => Ok(load_status(renderer)),
+            ControlKind::ResidentStatus => Ok(load_status(renderer)),
             ControlKind::LoadDisable => {
                 renderer.disable_load();
                 Ok(load_status(renderer))
@@ -294,8 +317,8 @@ fn handle_commands(
                         code: "load_disabled",
                         message: "load mode must be configured before probing".into(),
                     })
-                } else if pending_capture.is_none() && pending_probe.is_none() {
-                    *pending_probe = Some(response);
+                } else if pending.is_idle() {
+                    pending.probe = Some(response);
                     continue;
                 } else {
                     Err(ProtocolError {
@@ -304,9 +327,26 @@ fn handle_commands(
                     })
                 }
             }
+            ControlKind::ResidentStream {
+                world_region_side,
+                active_center_x,
+                active_center_z,
+                active_radius,
+            } => match begin_resident_stream(
+                renderer,
+                pending,
+                &response,
+                world_region_side,
+                active_center_x,
+                active_center_z,
+                active_radius,
+            ) {
+                Some(result) => result,
+                None => continue,
+            },
             ControlKind::Capture { id, collection } => {
-                if pending_capture.is_none() && pending_probe.is_none() {
-                    *pending_capture = Some(PendingCapture {
+                if pending.is_idle() {
+                    pending.capture = Some(PendingCapture {
                         id,
                         collection,
                         perception: None,
@@ -325,8 +365,8 @@ fn handle_commands(
                 region,
                 samples,
             } => match perception::Request::new(region, samples, window::WIDTH, window::HEIGHT) {
-                Ok(perception) if pending_capture.is_none() && pending_probe.is_none() => {
-                    *pending_capture = Some(PendingCapture {
+                Ok(perception) if pending.is_idle() => {
+                    pending.capture = Some(PendingCapture {
                         id,
                         collection,
                         perception: Some(perception),
@@ -348,6 +388,47 @@ fn handle_commands(
     }
 }
 
+fn begin_resident_stream(
+    renderer: &mut Renderer,
+    pending: &mut PendingOperations,
+    response: &SyncSender<inspect::ControlResult>,
+    world_region_side: u32,
+    active_center_x: u32,
+    active_center_z: u32,
+    active_radius: u32,
+) -> Option<inspect::ControlResult> {
+    let config = match load::LoadConfig::new(
+        world_region_side,
+        active_center_x,
+        active_center_z,
+        active_radius,
+    ) {
+        Ok(config) => config,
+        Err(error) => {
+            return Some(Err(ProtocolError {
+                code: "invalid_load_config",
+                message: error.to_string(),
+            }));
+        }
+    };
+    if !pending.is_idle() {
+        return Some(Err(ProtocolError {
+            code: "capture_busy",
+            message: "a capture, probe, or stream request is already pending".into(),
+        }));
+    }
+    match unsafe { renderer.stream_resident(config) } {
+        Ok(()) => {
+            pending.stream = Some(response.clone());
+            None
+        }
+        Err(error) => Some(Err(ProtocolError {
+            code: "stream_failed",
+            message: error.to_string(),
+        })),
+    }
+}
+
 fn capture_error(state: &mut WorkbenchState, error: anyhow::Error) -> ProtocolError {
     let message = format!("{error:#}");
     state.last_error = Some(message.clone());
@@ -358,10 +439,13 @@ fn capture_error(state: &mut WorkbenchState, error: anyhow::Error) -> ProtocolEr
 }
 
 fn load_status(renderer: &Renderer) -> serde_json::Value {
-    renderer.load_config().map_or_else(
-        || json!({"mode": "calibration", "load": null}),
-        |config| json!({"mode": "region-load", "load": config.json()}),
-    )
+    if let Some(config) = renderer.resident_config() {
+        json!({"mode": "resident-load", "load": config.json()})
+    } else if let Some(config) = renderer.load_config() {
+        json!({"mode": "region-load", "load": config.json()})
+    } else {
+        json!({"mode": "calibration", "load": null})
+    }
 }
 
 fn status(

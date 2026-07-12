@@ -59,6 +59,13 @@ pub enum ControlKind {
     LoadDisable,
     LoadStatus,
     LoadProbe,
+    ResidentStream {
+        world_region_side: u32,
+        active_center_x: u32,
+        active_center_z: u32,
+        active_radius: u32,
+    },
+    ResidentStatus,
 }
 
 pub type ControlResult = std::result::Result<Value, ProtocolError>;
@@ -267,6 +274,7 @@ fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
         "load.disable" => Ok(ControlKind::LoadDisable),
         "load.status" => Ok(ControlKind::LoadStatus),
         "load.probe" => Ok(ControlKind::LoadProbe),
+        "resident.status" => Ok(ControlKind::ResidentStatus),
         "load.configure" => {
             let payload: LoadConfigurePayload =
                 serde_json::from_value(payload).map_err(|error| ProtocolError {
@@ -274,6 +282,19 @@ fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
                     message: error.to_string(),
                 })?;
             Ok(ControlKind::LoadConfigure {
+                world_region_side: payload.world_region_side,
+                active_center_x: payload.active_center_x,
+                active_center_z: payload.active_center_z,
+                active_radius: payload.active_radius,
+            })
+        }
+        "resident.stream" => {
+            let payload: LoadConfigurePayload =
+                serde_json::from_value(payload).map_err(|error| ProtocolError {
+                    code: "invalid_payload",
+                    message: error.to_string(),
+                })?;
+            Ok(ControlKind::ResidentStream {
                 world_region_side: payload.world_region_side,
                 active_center_x: payload.active_center_x,
                 active_center_z: payload.active_center_z,

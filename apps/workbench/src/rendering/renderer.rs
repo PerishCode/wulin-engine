@@ -12,10 +12,12 @@ use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObj
 use windows::core::Interface;
 
 use crate::load::LoadConfig;
+use crate::resident::StreamReport;
 use crate::scene::SceneState;
 
 use super::gpu_capture::{CapturedPixels, Readback};
 use super::load_renderer::{LoadProbe, LoadRenderer};
+use super::resident_renderer::ResidentRenderer;
 use super::scene_renderer::SceneRenderer;
 
 const BUFFER_COUNT: usize = 2;
@@ -42,6 +44,7 @@ pub struct Renderer {
     object_id_capture: Readback,
     scene_renderer: SceneRenderer,
     load_renderer: LoadRenderer,
+    resident_renderer: ResidentRenderer,
     adapter_name: String,
     debug_layer: bool,
 }
@@ -54,6 +57,7 @@ pub struct CapturedFrame {
 pub struct RenderOutcome {
     pub capture: Option<CapturedFrame>,
     pub load_probe: Option<LoadProbe>,
+    pub resident_stream: Option<StreamReport>,
 }
 
 impl Renderer {
@@ -141,6 +145,8 @@ impl Renderer {
             unsafe { Readback::new(&device, scene_renderer.object_id_resource()) }?;
         let load_renderer =
             unsafe { LoadRenderer::new(&device, timestamp_frequency, width, height) }?;
+        let resident_renderer =
+            unsafe { ResidentRenderer::new(&device, timestamp_frequency, width, height) }?;
 
         let mut allocators = Vec::with_capacity(BUFFER_COUNT);
         for _ in 0..BUFFER_COUNT {
@@ -177,6 +183,7 @@ impl Renderer {
             object_id_capture,
             scene_renderer,
             load_renderer,
+            resident_renderer,
             adapter_name,
             debug_layer,
         })
@@ -191,7 +198,8 @@ impl Renderer {
         scene: &SceneState,
     ) -> Result<RenderOutcome> {
         debug_assert!(!capture_object_ids || capture);
-        debug_assert!(!probe_load || self.load_renderer.config().is_some());
+        debug_assert!(!probe_load || self.load_config().is_some());
+        let stream_resident = self.resident_renderer.has_pending_stream();
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() } as usize;
         unsafe { self.wait_for_buffer(index)? };
         unsafe { self.allocators[index].Reset() }.context("command allocator reset failed")?;
@@ -212,7 +220,15 @@ impl Renderer {
                 .OMSetRenderTargets(1, Some(&handle), true, None);
             self.command_list
                 .ClearRenderTargetView(handle, &color, None);
-            if self.load_renderer.config().is_some() {
+            if self.resident_renderer.config().is_some() {
+                self.resident_renderer.record(
+                    &self.command_list,
+                    scene,
+                    [handle, self.scene_renderer.object_id_handle()],
+                    self.scene_renderer.depth_handle(),
+                    probe_load,
+                )?;
+            } else if self.load_renderer.config().is_some() {
                 self.load_renderer.record(
                     &self.command_list,
                     scene,
@@ -278,7 +294,7 @@ impl Renderer {
         self.next_fence_value += 1;
         unsafe { self.queue.Signal(&self.fence, signal) }.context("queue signal failed")?;
         self.fence_values[index] = signal;
-        if capture || probe_load {
+        if capture || probe_load || stream_resident {
             unsafe { self.wait_for_value(signal)? };
             let captured_frame = if capture {
                 let color = unsafe { self.capture.read() }?;
@@ -291,32 +307,54 @@ impl Renderer {
             } else {
                 None
             };
-            let load_probe = if probe_load {
+            let load_probe = if probe_load && self.resident_renderer.config().is_some() {
+                Some(unsafe { self.resident_renderer.read_probe() }?)
+            } else if probe_load {
                 Some(unsafe { self.load_renderer.read_probe() }?)
+            } else {
+                None
+            };
+            let resident_stream = if stream_resident {
+                Some(self.resident_renderer.complete_stream()?)
             } else {
                 None
             };
             return Ok(RenderOutcome {
                 capture: captured_frame,
                 load_probe,
+                resident_stream,
             });
         }
         Ok(RenderOutcome {
             capture: None,
             load_probe: None,
+            resident_stream: None,
         })
     }
 
     pub fn configure_load(&mut self, config: LoadConfig) {
+        self.resident_renderer.disable();
         self.load_renderer.configure(config);
+    }
+
+    pub unsafe fn stream_resident(&mut self, config: LoadConfig) -> Result<()> {
+        self.load_renderer.disable();
+        unsafe { self.resident_renderer.prepare_stream(config) }
     }
 
     pub fn disable_load(&mut self) {
         self.load_renderer.disable();
+        self.resident_renderer.disable();
     }
 
     pub fn load_config(&self) -> Option<LoadConfig> {
-        self.load_renderer.config()
+        self.resident_renderer
+            .config()
+            .or_else(|| self.load_renderer.config())
+    }
+
+    pub fn resident_config(&self) -> Option<LoadConfig> {
+        self.resident_renderer.config()
     }
 
     pub fn adapter_name(&self) -> &str {
