@@ -12,6 +12,8 @@ use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObj
 use windows::core::Interface;
 
 use crate::gpu_capture::{CapturedPixels, Readback};
+use crate::scene::SceneState;
+use crate::scene_renderer::SceneRenderer;
 
 const BUFFER_COUNT: usize = 2;
 const NVIDIA_VENDOR_ID: u32 = 0x10de;
@@ -34,6 +36,7 @@ pub struct Renderer {
     fence_values: [u64; BUFFER_COUNT],
     next_fence_value: u64,
     capture: Readback,
+    scene_renderer: SceneRenderer,
     adapter_name: String,
     debug_layer: bool,
 }
@@ -116,6 +119,7 @@ impl Renderer {
             back_buffers.push(buffer);
         }
         let capture = unsafe { Readback::new(&device, &back_buffers[0]) }?;
+        let scene_renderer = unsafe { SceneRenderer::new(&device, width, height) }?;
 
         let mut allocators = Vec::with_capacity(BUFFER_COUNT);
         for _ in 0..BUFFER_COUNT {
@@ -149,6 +153,7 @@ impl Renderer {
             fence_values: [0; BUFFER_COUNT],
             next_fence_value: 1,
             capture,
+            scene_renderer,
             adapter_name,
             debug_layer,
         })
@@ -158,6 +163,7 @@ impl Renderer {
         &mut self,
         color: [f32; 4],
         capture: bool,
+        scene: &SceneState,
     ) -> Result<Option<CapturedPixels>> {
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() } as usize;
         unsafe { self.wait_for_buffer(index)? };
@@ -179,6 +185,8 @@ impl Renderer {
                 .OMSetRenderTargets(1, Some(&handle), true, None);
             self.command_list
                 .ClearRenderTargetView(handle, &color, None);
+            self.scene_renderer
+                .record(&self.command_list, scene, handle);
             if capture {
                 transition(
                     &self.command_list,

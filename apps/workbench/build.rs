@@ -1,12 +1,16 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 const AGILITY_PACKAGE_VERSION: &str = "1.619.4";
+const DEFAULT_DXC: &str = r"C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\dxc.exe";
 
 fn main() {
     println!("cargo:rerun-if-changed=src/agility_exports.c");
+    println!("cargo:rerun-if-changed=shaders/calibration.hlsl");
     println!("cargo:rerun-if-env-changed=AGILITY_SDK_ROOT");
+    println!("cargo:rerun-if-env-changed=DXC");
 
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let repo_root = manifest_dir.join("../..").canonicalize().unwrap();
@@ -16,7 +20,64 @@ fn main() {
         .file(manifest_dir.join("src/agility_exports.c"))
         .warnings_into_errors(true)
         .compile("workbench_agility_exports");
+    compile_shader(
+        &manifest_dir,
+        &out_dir,
+        "vs_main",
+        "vs_6_6",
+        "calibration.vs.dxil",
+    );
+    compile_shader(
+        &manifest_dir,
+        &out_dir,
+        "ps_main",
+        "ps_6_6",
+        "calibration.ps.dxil",
+    );
     stage_agility_sdk(&repo_root, &out_dir);
+}
+
+fn compile_shader(
+    manifest_dir: &Path,
+    out_dir: &Path,
+    entry: &str,
+    profile: &str,
+    output_name: &str,
+) {
+    let dxc = env::var_os("DXC")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| DEFAULT_DXC.into());
+    if !dxc.is_file() {
+        panic!(
+            "DXC was not found at {}. Set DXC to an x64 dxc.exe.",
+            dxc.display()
+        );
+    }
+    let source = manifest_dir.join("shaders/calibration.hlsl");
+    let output = out_dir.join(output_name);
+    let result = Command::new(dxc)
+        .args([
+            "-T",
+            profile,
+            "-E",
+            entry,
+            "-HV",
+            "2021",
+            "-O3",
+            "-Qstrip_debug",
+            "-Fo",
+        ])
+        .arg(&output)
+        .arg(&source)
+        .output()
+        .expect("failed to launch DXC");
+    if !result.status.success() {
+        panic!(
+            "DXC failed for {entry}:\n{}\n{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
 }
 
 fn stage_agility_sdk(repo_root: &Path, out_dir: &Path) {

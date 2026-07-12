@@ -30,7 +30,18 @@ pub enum ControlKind {
     SetClearColor([f32; 4]),
     Pause,
     Resume,
-    Capture(String),
+    Capture {
+        id: String,
+        collection: String,
+    },
+    CameraStatus,
+    CameraSetPose {
+        position: [f32; 3],
+        target: [f32; 3],
+        vertical_fov_degrees: f32,
+    },
+    CameraReset,
+    SceneListObjects,
 }
 
 pub type ControlResult = std::result::Result<Value, ProtocolError>;
@@ -60,6 +71,15 @@ struct SetClearColorPayload {
 #[serde(deny_unknown_fields)]
 struct CapturePayload {
     id: String,
+    collection: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CameraPosePayload {
+    position: [f32; 3],
+    target: [f32; 3],
+    vertical_fov_degrees: f32,
 }
 
 impl InspectServer {
@@ -205,27 +225,22 @@ fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
         "workbench.status" => Ok(ControlKind::Status),
         "workbench.pause" => Ok(ControlKind::Pause),
         "workbench.resume" => Ok(ControlKind::Resume),
-        "workbench.capture" => {
-            let payload: CapturePayload =
+        "camera.status" => Ok(ControlKind::CameraStatus),
+        "camera.reset" => Ok(ControlKind::CameraReset),
+        "scene.list_objects" => Ok(ControlKind::SceneListObjects),
+        "camera.set_pose" => {
+            let payload: CameraPosePayload =
                 serde_json::from_value(payload).map_err(|error| ProtocolError {
                     code: "invalid_payload",
                     message: error.to_string(),
                 })?;
-            if payload.id.is_empty()
-                || payload.id.len() > 64
-                || !payload
-                    .id
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-            {
-                return Err(ProtocolError {
-                    code: "invalid_payload",
-                    message: "capture id must contain 1..=64 ASCII letters, digits, '-' or '_'"
-                        .into(),
-                });
-            }
-            Ok(ControlKind::Capture(payload.id))
+            Ok(ControlKind::CameraSetPose {
+                position: payload.position,
+                target: payload.target,
+                vertical_fov_degrees: payload.vertical_fov_degrees,
+            })
         }
+        "workbench.capture" => parse_capture(payload),
         "workbench.set_clear_color" => {
             let payload: SetClearColorPayload =
                 serde_json::from_value(payload).map_err(|error| ProtocolError {
@@ -253,6 +268,38 @@ fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
 }
 
 type ControlResultKind = std::result::Result<ControlKind, ProtocolError>;
+
+fn parse_capture(value: Value) -> ControlResultKind {
+    let payload: CapturePayload = serde_json::from_value(value).map_err(|error| ProtocolError {
+        code: "invalid_payload",
+        message: error.to_string(),
+    })?;
+    validate_safe_name("capture id", &payload.id)?;
+    let collection = payload.collection.unwrap_or_else(|| "operator".into());
+    validate_safe_name("collection", &collection)?;
+    Ok(ControlKind::Capture {
+        id: payload.id,
+        collection,
+    })
+}
+
+fn validate_safe_name(label: &str, value: &str) -> std::result::Result<(), ProtocolError> {
+    if is_safe_name(value) {
+        return Ok(());
+    }
+    Err(ProtocolError {
+        code: "invalid_payload",
+        message: format!("{label} must contain 1..=64 ASCII letters, digits, '-' or '_'"),
+    })
+}
+
+fn is_safe_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
 
 fn write_error(
     stream: &mut TcpStream,

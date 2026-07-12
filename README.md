@@ -8,12 +8,13 @@
 
 ## Status
 
-**Native workbench cold start 已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定
-Agility SDK、Sidecar 生命周期和项目自有 inspect 协议已经形成第一个可见控制闭环。
+**空间校准闭环已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
+Sidecar 生命周期和项目自有 inspect 协议已经形成可重复的可见控制闭环。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
 两档 Compute benchmark。Experiment 0002 已通过同进程重复捕获、可见状态变化和 Sidecar
-restart 后的原始像素与 PNG 哈希校验。`apps/workbench` 目前不包含场景系统。
+restart 后的原始像素与 PNG 哈希校验。Experiment 0003 已验证 HLSL 图形管线、程序化
+几何、reverse-Z 深度、相机控制、语义对象查询和跨进程确定性空间帧。
 
 ## Project model
 
@@ -32,10 +33,13 @@ runseal :guard
 runseal :gpu-lab correctness
 runseal :gpu-lab benchmark
 runseal :visual-loop
+runseal :spatial-scene
 runseal :workbench start
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24
 runseal :workbench capture operator-check
+runseal :workbench camera
+runseal :workbench scene
 runseal :workbench stop
 ```
 

@@ -10,10 +10,11 @@ use sha2::{Digest, Sha256};
 
 use crate::gpu_capture::CapturedPixels;
 
-const OUTPUT_ROOT: &str = "out/experiments/0002-deterministic-visual-loop";
+const OUTPUT_ROOT: &str = "out/captures";
 
 pub struct FrameContext<'a> {
     pub capture_id: &'a str,
+    pub collection: &'a str,
     pub frame_index: u64,
     pub clear_color: [f32; 4],
     pub paused: bool,
@@ -23,6 +24,7 @@ pub struct FrameContext<'a> {
     pub device_removed_reason: Option<String>,
     pub last_error: Option<&'a str>,
     pub gpu_readback_ms: f64,
+    pub spatial: Value,
 }
 
 #[derive(Serialize)]
@@ -30,12 +32,14 @@ pub struct FrameContext<'a> {
 struct FrameManifest<'a> {
     schema_version: u32,
     capture_id: &'a str,
+    collection: &'a str,
     revision: String,
     process_id: u32,
     launched_by_sidecar: bool,
     frame_index: u64,
     state: &'static str,
     clear_color: [f32; 4],
+    spatial: Value,
     renderer: RendererManifest<'a>,
     image: ImageManifest,
     artifacts: ArtifactManifest,
@@ -65,6 +69,8 @@ struct ImageManifest {
     pixel_sha256: String,
     png_byte_count: usize,
     png_sha256: String,
+    reference_pixel_rgba: [u8; 4],
+    different_pixel_count: usize,
 }
 
 #[derive(Serialize)]
@@ -87,7 +93,7 @@ struct TimingManifest {
 
 pub fn write(pixels: CapturedPixels, context: FrameContext<'_>) -> Result<Value> {
     let total_start = Instant::now();
-    let output_root = PathBuf::from(OUTPUT_ROOT);
+    let output_root = PathBuf::from(OUTPUT_ROOT).join(context.collection);
     fs::create_dir_all(&output_root)
         .with_context(|| format!("failed to create {}", output_root.display()))?;
     let png_path = output_root.join(format!("{}.png", context.capture_id));
@@ -95,6 +101,16 @@ pub fn write(pixels: CapturedPixels, context: FrameContext<'_>) -> Result<Value>
 
     let hash_start = Instant::now();
     let pixel_sha256 = sha256(&pixels.rgba);
+    let reference_pixel_rgba = pixels
+        .rgba
+        .get(..4)
+        .and_then(|value| value.try_into().ok())
+        .context("captured frame does not contain a complete reference pixel")?;
+    let different_pixel_count = pixels
+        .rgba
+        .chunks_exact(4)
+        .filter(|pixel| *pixel != reference_pixel_rgba)
+        .count();
     let hash_ms = elapsed_ms(hash_start);
 
     let encode_start = Instant::now();
@@ -110,12 +126,14 @@ pub fn write(pixels: CapturedPixels, context: FrameContext<'_>) -> Result<Value>
     let manifest = FrameManifest {
         schema_version: 1,
         capture_id: context.capture_id,
+        collection: context.collection,
         revision: git_revision(),
         process_id: std::process::id(),
         launched_by_sidecar: context.launched_by_sidecar,
         frame_index: context.frame_index,
         state: if context.paused { "paused" } else { "running" },
         clear_color: context.clear_color,
+        spatial: context.spatial,
         renderer: RendererManifest {
             api: "D3D12",
             adapter: context.adapter,
@@ -133,6 +151,8 @@ pub fn write(pixels: CapturedPixels, context: FrameContext<'_>) -> Result<Value>
             pixel_sha256,
             png_byte_count: png.len(),
             png_sha256,
+            reference_pixel_rgba,
+            different_pixel_count,
         },
         artifacts: ArtifactManifest {
             png: path_text(&png_path),
