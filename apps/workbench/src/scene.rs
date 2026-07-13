@@ -196,7 +196,7 @@ impl SceneState {
     }
 
     pub fn view_projection(&self, aspect: f32) -> Mat4 {
-        camera_view_projection(self.camera, aspect)
+        view_projection(self.camera, aspect)
     }
 
     pub fn calibration_view_projection(&self, aspect: f32) -> Result<Mat4> {
@@ -440,7 +440,7 @@ fn default_camera() -> Camera {
     }
 }
 
-fn camera_view_projection(camera: Camera, aspect: f32) -> Mat4 {
+pub(crate) fn view_projection(camera: Camera, aspect: f32) -> Mat4 {
     let projection = Mat4::perspective_infinite_reverse_rh(
         camera.vertical_fov_degrees.to_radians(),
         aspect,

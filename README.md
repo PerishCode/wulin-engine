@@ -8,7 +8,7 @@
 
 ## Status
 
-**有符号地形存储基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
+**相机相对地形投影基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
 Sidecar 生命周期和项目自有 inspect 协议已经形成可重复的可见控制闭环。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
@@ -59,6 +59,9 @@ local traversal 完全一致，global center 通过 checked integer delta 精确
 Experiment 0023 已将地形源升级为 signed `i64` key 的 V2 pack，并用完整 index hash 作为不可
 伪造的 source namespace；同一全局窗口从 local center 64 重绑到 96 时保留全部 25 个 GPU 槽，
 I/O 与上传均为零，不同 namespace 则严格全 miss。缺块、损坏和不支持模式均在 copy 前回滚。
+Experiment 0024 已将 V2 地形的 camera、位置、LOD 和语义投影到以 `(64,64)` 为中心的固定
+活动窗口；同一 signed window 在 local center 2、64、96、125 下的 view matrix、颜色、
+object-ID、诊断附件和 LOD oracle 均字节一致，同时保留 25 个 canonical slot 且零 I/O/upload。
 
 ## Project model
 
@@ -98,6 +101,7 @@ runseal :global-terrain
 runseal :global-composition
 runseal :global-traversal
 runseal :signed-terrain-storage
+runseal :camera-relative-terrain
 runseal :workbench start
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24

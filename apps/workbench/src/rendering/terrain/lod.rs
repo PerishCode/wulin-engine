@@ -6,6 +6,8 @@ use crate::load::LoadConfig;
 use crate::scene::Camera;
 use crate::terrain::TerrainAssignment;
 
+use super::projection::TerrainProjection;
+
 pub(super) const LOD_REVISION: &str = "gpu-terrain-lod-v1";
 pub(in crate::rendering) const PATCHES_PER_REGION_SIDE: u32 = 4;
 pub(in crate::rendering) const PATCH_CELL_SIDE: u32 = 8;
@@ -135,6 +137,7 @@ pub(super) fn evaluate(
     tiles: &[terrain_format::TerrainTile],
     camera: Camera,
     settings: TerrainLodSettings,
+    projection: TerrainProjection,
 ) -> Result<TerrainLodOracle> {
     ensure!(
         active.len() == tiles.len(),
@@ -150,6 +153,7 @@ pub(super) fn evaluate(
         patch_side,
         camera_patch,
         settings,
+        projection,
     )?;
     let mut lod_counts = [0u32; LOD_LEVEL_COUNT];
     let mut vertices = 0;
@@ -200,6 +204,7 @@ fn build_patches<'a>(
     patch_side: u32,
     camera: [i32; 2],
     settings: TerrainLodSettings,
+    projection: TerrainProjection,
 ) -> Result<Vec<Patch<'a>>> {
     let mut patches = Vec::with_capacity((patch_side * patch_side) as usize);
     for grid_z in 0..patch_side {
@@ -214,8 +219,10 @@ fn build_patches<'a>(
                 assignment.region_id == tile.region_id,
                 "terrain LOD tile does not match active mapping"
             );
-            let region_x = (assignment.region_id % terrain_format::WORLD_REGION_SIDE) as i32;
-            let region_z = (assignment.region_id / terrain_format::WORLD_REGION_SIDE) as i32;
+            let projected_region =
+                projection.region_id(region_index as usize, assignment.region_id)?;
+            let region_x = (projected_region % terrain_format::WORLD_REGION_SIDE) as i32;
+            let region_z = (projected_region / terrain_format::WORLD_REGION_SIDE) as i32;
             let local_x = grid_x % PATCHES_PER_REGION_SIDE;
             let local_z = grid_z % PATCHES_PER_REGION_SIDE;
             let global_x = region_x * PATCHES_PER_REGION_SIDE as i32 + local_x as i32;

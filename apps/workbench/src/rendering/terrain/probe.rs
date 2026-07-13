@@ -3,9 +3,11 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::load::LoadConfig;
-use crate::scene::SceneState;
+use crate::scene::{Camera, SceneState};
 use crate::terrain::{GlobalTerrainConfig, TerrainAssignment, TerrainSourceNamespace};
+use crate::world::RegionCoord;
 
+use super::projection::TerrainProjection;
 use super::{
     LOD_STATS_BYTES, PATCH_GROUP_COUNT, QUERY_COUNT, STATS_BYTES, TERRAIN_REVISION, TerrainRenderer,
 };
@@ -23,6 +25,8 @@ pub struct TerrainProbe {
     payload_sha256: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     global_content: Option<GlobalContentEvidence>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    canonical_projection: Option<CanonicalProjectionEvidence>,
     cpu_edges: terrain_format::EdgeValidation,
     gpu_edges: GpuEdges,
     geometry: TerrainGeometry,
@@ -48,6 +52,33 @@ struct GlobalContentEvidence {
     source_namespace: TerrainSourceNamespace,
     content_sha256: String,
     region_count: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CanonicalProjectionEvidence {
+    revision: &'static str,
+    alias_center: [u32; 2],
+    alias_offset_regions: [i32; 2],
+    alias_offset_meters: [f32; 2],
+    projected_camera: Camera,
+    view_projection_sha256: String,
+    projection_sha256: String,
+    entry_count: usize,
+    semantic_collision_count: usize,
+    mismatch_count: usize,
+    local_region_ids: Vec<u32>,
+    entries: Vec<CanonicalProjectionEntry>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CanonicalProjectionEntry {
+    active_index: u32,
+    global_region: RegionCoord,
+    semantic_region_id: u32,
+    object_id: u32,
+    render_offset_regions: [i32; 2],
 }
 
 impl TerrainProbe {
@@ -159,12 +190,15 @@ impl TerrainRenderer {
                 QUERY_COUNT as usize,
             )
         }?;
+        let projection = TerrainProjection::new(snapshot.config, snapshot.report.source_namespace)?;
+        let projected_camera = projection.camera(scene.camera());
         let lod_oracle = super::lod::evaluate(
             snapshot.config,
             &snapshot.active,
             &snapshot.tiles,
-            scene.camera(),
+            projected_camera,
             self.lod_settings,
+            projection,
         )?;
         let oracle_patches = lod_oracle.geometry.patches;
         let oracle_vertices = lod_oracle.geometry.vertices;
@@ -249,6 +283,18 @@ impl TerrainRenderer {
             .source_namespace
             .map(|namespace| global_content_evidence(namespace, &snapshot.active, &snapshot.tiles))
             .transpose()?;
+        let canonical_projection = projection
+            .is_canonical()
+            .then(|| {
+                canonical_projection_evidence(
+                    projection,
+                    scene,
+                    &snapshot.active,
+                    self.width,
+                    self.height,
+                )
+            })
+            .transpose()?;
         let milliseconds = |start: usize, end: usize| {
             timestamps[end].saturating_sub(timestamps[start]) as f64 * 1_000.0
                 / self.timestamp_frequency as f64
@@ -262,6 +308,7 @@ impl TerrainRenderer {
             active_mapping_sha256: format!("{:x}", mapping_hash.finalize()),
             payload_sha256: format!("{:x}", payload_hash.finalize()),
             global_content,
+            canonical_projection,
             cpu_edges,
             gpu_edges: GpuEdges {
                 neighbor_edges: seams[0],
@@ -323,6 +370,73 @@ impl TerrainRenderer {
             },
         })
     }
+}
+
+fn canonical_projection_evidence(
+    projection: TerrainProjection,
+    scene: &SceneState,
+    active: &[TerrainAssignment],
+    width: u32,
+    height: u32,
+) -> Result<CanonicalProjectionEvidence> {
+    ensure!(
+        projection.is_canonical(),
+        "canonical terrain projection evidence requires a signed source"
+    );
+    let camera = projection.camera(scene.camera());
+    let view_projection =
+        crate::scene::view_projection(camera, width as f32 / height as f32).to_cols_array();
+    let mut view_hash = Sha256::new();
+    crate::world::hash_f32_array(&mut view_hash, view_projection);
+    let mut projection_hash = Sha256::new();
+    let mut semantic_ids = std::collections::BTreeSet::new();
+    let mut mismatch_count = active.len().abs_diff(projection.active_count());
+    let mut entries = Vec::with_capacity(active.len());
+    for (index, assignment) in active.iter().enumerate() {
+        let global = assignment
+            .global_region
+            .context("canonical terrain projection has no signed region")?;
+        let semantic_region_id = projection.region_id(index, assignment.region_id)?;
+        let object_id = crate::load::TERRAIN_OBJECT_ID_BASE
+            .checked_add(semantic_region_id)
+            .and_then(|value| value.checked_add(1))
+            .context("canonical terrain object ID overflowed")?;
+        let render_offset_regions = projection.render_offset(index)?;
+        let semantic_x = (semantic_region_id % crate::load::MAX_REGION_SIDE) as i32 - 64;
+        let semantic_z = (semantic_region_id / crate::load::MAX_REGION_SIDE) as i32 - 64;
+        if [semantic_x, semantic_z] != render_offset_regions {
+            mismatch_count += 1;
+        }
+        semantic_ids.insert(semantic_region_id);
+        projection_hash.update((index as u32).to_le_bytes());
+        projection_hash.update(global.x.to_le_bytes());
+        projection_hash.update(global.z.to_le_bytes());
+        projection_hash.update(semantic_region_id.to_le_bytes());
+        projection_hash.update(object_id.to_le_bytes());
+        projection_hash.update(render_offset_regions[0].to_le_bytes());
+        projection_hash.update(render_offset_regions[1].to_le_bytes());
+        entries.push(CanonicalProjectionEntry {
+            active_index: index as u32,
+            global_region: global,
+            semantic_region_id,
+            object_id,
+            render_offset_regions,
+        });
+    }
+    Ok(CanonicalProjectionEvidence {
+        revision: "camera-relative-terrain-v1",
+        alias_center: projection.alias_center(),
+        alias_offset_regions: projection.alias_offset_regions(),
+        alias_offset_meters: projection.alias_offset_meters(),
+        projected_camera: camera,
+        view_projection_sha256: format!("{:x}", view_hash.finalize()),
+        projection_sha256: format!("{:x}", projection_hash.finalize()),
+        entry_count: entries.len(),
+        semantic_collision_count: entries.len() - semantic_ids.len(),
+        mismatch_count,
+        local_region_ids: active.iter().map(|entry| entry.region_id).collect(),
+        entries,
+    })
 }
 
 fn global_content_evidence(
