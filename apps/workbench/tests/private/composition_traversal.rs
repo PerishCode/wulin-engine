@@ -78,10 +78,14 @@ fn rollover_shifts_at_commit() {
     };
     let mut traversal = CameraTraversal::default();
     traversal.enable(published, true).unwrap();
-    let target = traversal
+    let action = traversal
         .plan(camera(528.0, 0.0), published, None)
         .unwrap()
         .unwrap();
+    let TraversalAction::Schedule { target, prefetch } = action else {
+        panic!("expected a traversal schedule");
+    };
+    assert!(!prefetch);
     traversal
         .mark_published(7, target.config, target.global_config)
         .unwrap();
@@ -91,4 +95,108 @@ fn rollover_shifts_at_commit() {
         Some(RegionCoord::new(far, -far))
     );
     assert_eq!(traversal.rollover.status_json().unwrap()["count"], 1);
+}
+
+#[test]
+fn canonical_motion_predicts_one_adjacent_target() {
+    let far = 1_i64 << 40;
+    let global = GlobalRegionConfig::new(far, -far, far, -far, 2).unwrap();
+    let published = TraversalTarget {
+        config: global.local_config().unwrap(),
+        global_config: Some(global),
+    };
+    let mut traversal = CameraTraversal::default();
+    traversal.enable(published, true).unwrap();
+    traversal.prefetch.enable(true).unwrap();
+    assert!(
+        traversal
+            .plan(camera(0.0, 0.0), published, None)
+            .unwrap()
+            .is_none()
+    );
+    let action = traversal
+        .plan(camera(5.0, 0.0), published, None)
+        .unwrap()
+        .unwrap();
+    let TraversalAction::Schedule { target, prefetch } = action else {
+        panic!("expected a speculative schedule");
+    };
+    assert!(prefetch);
+    assert_eq!(
+        (target.config.active_center_x, target.config.active_center_z),
+        (65, 64)
+    );
+    assert_eq!(
+        target.global_config.unwrap().global_center,
+        RegionCoord::new(far + 1, -far)
+    );
+}
+
+#[test]
+fn crossing_promotes_the_exact_prefetch() {
+    let far = 1_i64 << 40;
+    let global = GlobalRegionConfig::new(far, -far, far, -far, 2).unwrap();
+    let published = TraversalTarget {
+        config: global.local_config().unwrap(),
+        global_config: Some(global),
+    };
+    let mut traversal = CameraTraversal::default();
+    traversal.enable(published, true).unwrap();
+    traversal.prefetch.enable(true).unwrap();
+    traversal.plan(camera(0.0, 0.0), published, None).unwrap();
+    let TraversalAction::Schedule { target, .. } = traversal
+        .plan(camera(5.0, 0.0), published, None)
+        .unwrap()
+        .unwrap()
+    else {
+        panic!("expected a speculative schedule");
+    };
+    let action = traversal
+        .plan(
+            camera(9.0, 0.0),
+            published,
+            Some(PendingTraversal {
+                target,
+                prefetch: true,
+            }),
+        )
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        action,
+        TraversalAction::PromotePrefetch(promoted) if promoted == target
+    ));
+}
+
+#[test]
+fn prefetch_rollover_does_not_commit_the_basis() {
+    let far = 1_i64 << 40;
+    let global = GlobalRegionConfig::new(far - 32, -far, far, -far, 2).unwrap();
+    let published = TraversalTarget {
+        config: global.local_config().unwrap(),
+        global_config: Some(global),
+    };
+    assert_eq!(published.config.active_center_x, 96);
+    let mut traversal = CameraTraversal::default();
+    traversal.enable(published, true).unwrap();
+    traversal.prefetch.enable(true).unwrap();
+    traversal.plan(camera(512.0, 0.0), published, None).unwrap();
+    let TraversalAction::Schedule { target, prefetch } = traversal
+        .plan(camera(517.0, 0.0), published, None)
+        .unwrap()
+        .unwrap()
+    else {
+        panic!("expected a speculative rollover schedule");
+    };
+    assert!(prefetch);
+    assert_eq!(target.config.active_center_x, 64);
+    assert_eq!(
+        target.global_config.unwrap().global_origin,
+        RegionCoord::new(far + 1, -far)
+    );
+    assert_eq!(
+        traversal.basis.unwrap().global_origin,
+        Some(RegionCoord::new(far - 32, -far))
+    );
+    assert_eq!(traversal.rollover.status_json().unwrap()["count"], 0);
 }

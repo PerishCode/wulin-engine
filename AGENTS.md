@@ -141,6 +141,7 @@ contains only files that exist.
 | `docs/adr/0027-camera-relative-terrain-projection.md` | Accepted V2 centered terrain projection, camera translation, frame-local semantics, and signed inverse contract. |
 | `docs/adr/0028-canonical-generated-object-composition.md` | Accepted canonical object source/cache, shared projection, stable-key, semantic inverse, and V2 atomic composition contract. |
 | `docs/adr/0029-canonical-origin-rollover.md` | Accepted canonical-only safe-band rollover, commit-time camera translation, and old-frame retention contract. |
+| `docs/adr/0030-bounded-canonical-traversal-prefetch.md` | Accepted one-target canonical preparation, promotion, stale-work isolation, and bounded cache reuse contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -178,6 +179,7 @@ contains only files that exist.
 | `experiments/0024-camera-relative-terrain/README.md` | Accepted Experiment 0024 V2 centered projection, semantic inversion, alias invariance, holds, and timing evidence. |
 | `experiments/0025-canonical-object-composition/README.md` | Accepted Experiment 0025 canonical object identity, shared projection, V2 composition, source independence, holds, and timing evidence. |
 | `experiments/0026-canonical-origin-rollover/README.md` | Accepted Experiment 0026 safe-band rollover, atomic camera translation, holds, failure recovery, and timing evidence. |
+| `experiments/0027-canonical-traversal-prefetch/README.md` | Accepted Experiment 0027 one-target cache preparation, promotion, stale/failure isolation, rollover, and timing evidence. |
 | `crates/meshlet-catalog/Cargo.toml` | Deterministic static meshlet catalog package and dependency boundary. |
 | `crates/meshlet-catalog/src/lib.rs` | Eight-archetype, three-LOD geometry generation, meshlet partitioning, validation, encoding, and hashing. |
 | `crates/meshlet-catalog/tests/catalog.rs` | Catalog determinism, reducing-LOD, and mesh-shader bound regression contract. |
@@ -251,7 +253,9 @@ contains only files that exist.
 | `apps/workbench/src/rendering/composition/schedule.rs` | Local/global/canonical pair reservation, source selection, stream submission, cancellation, and schedule response owner. |
 | `apps/workbench/src/rendering/composition/state.rs` | Source-bound pair coordinator, transaction state changes, and composition/traversal status projection. |
 | `apps/workbench/src/rendering/composition/traversal.rs` | Local/signed camera mapping, V1 frozen or V2 dynamic basis, single desired slot, blocked failure, and automatic pair scheduling. |
+| `apps/workbench/src/rendering/composition/traversal/control.rs` | Renderer-facing traversal/prefetch enablement, pending promotion, and automatic pair dispatch. |
 | `apps/workbench/src/rendering/composition/traversal/rollover.rs` | Canonical safe-band target derivation, commit event, cumulative delta, and pending camera translation owner. |
+| `apps/workbench/src/rendering/composition/traversal/prefetch.rs` | Canonical motion lookahead, prepared target, promotion, failure isolation, and status evidence. |
 | `apps/workbench/tests/private/composition_traversal.rs` | Private frozen-origin compatibility and canonical rollover policy regressions. |
 | `apps/workbench/tests/private/scene.rs` | Private camera-relative calibration transform regression. |
 | `apps/workbench/src/rendering/device.rs` | Reference adapter selection, debug-layer enablement, and common transitions. |
@@ -343,6 +347,7 @@ contains only files that exist.
 | `.runseal/wrappers/camera-relative-terrain.ts` | Canonical Experiment 0024 alias-extreme projection, LOD, hold, restart, and timing workflow. |
 | `.runseal/wrappers/canonical-object-composition.ts` | Canonical Experiment 0025 generated-object identity, V2 composition, alias, source, hold, failure, restart, and timing workflow. |
 | `.runseal/wrappers/canonical-origin-rollover.ts` | Canonical Experiment 0026 normalization, axis rollover, hold, failure, restart, and release sweep workflow. |
+| `.runseal/wrappers/canonical-traversal-prefetch.ts` | Canonical Experiment 0027 compatibility, lookahead, promotion, stale-work, failure, rollover, and release workflow. |
 | `.runseal/support/cooked-region.ts` | Experiment 0008 structured evidence, pack corruption, hashing, and comparison helpers. |
 | `.runseal/support/composition.ts` | Experiments 0015-0018 stable composition, grounding, contact, LOD, and timing validation support. |
 | `.runseal/support/global-terrain.ts` | Experiment 0020 Sidecar lifecycle, global/local mapping, transaction, capture, and distribution validation helpers. |
@@ -354,6 +359,9 @@ contains only files that exist.
 | `.runseal/support/canonical-origin-rollover.ts` | Experiment 0026 dynamic-basis status, exact target, camera, event, and publication validation helpers. |
 | `.runseal/support/canonical-origin-rollover-evidence.ts` | Experiment 0026 pack fixture, retained stable-seed overlap, capability, and timing evidence helpers. |
 | `.runseal/support/canonical-origin-rollover-scenarios.ts` | Experiment 0026 normalization, boundary, held latest-wins, failure, and disable/catch-up scenario owner. |
+| `.runseal/support/canonical-traversal-prefetch.ts` | Experiment 0027 prefetch setup, status, count, target, and completion evidence helpers. |
+| `.runseal/support/canonical-traversal-prefetch-evidence.ts` | Experiment 0027 control/prepared release sweeps, timing distributions, probes, and captures. |
+| `.runseal/support/canonical-traversal-prefetch-scenarios.ts` | Experiment 0027 direction, promotion, stale-work, failure, rollover, and disable scenario owner. |
 | `.runseal/support/traversal.ts` | Experiment 0018 bounded status, region mapping, and logical revisit evidence helpers. |
 | `.runseal/support/workbench/composition.ts` | Local/global composition workbench CLI validation and typed Sidecar dispatch. |
 | `.runseal/support/workbench/terrain.ts` | Terrain-specific workbench CLI argument validation and typed Sidecar event dispatch. |
@@ -492,6 +500,13 @@ Resident canonical entries survive rebinding, three independent holds expose onl
 old coordinate frame, and failures cannot mutate basis or camera. This accepts bounded
 continuous coordinate rollover, not prefetch, authored objects, persistent public IDs,
 collision, navigation, networking, or a general floating-origin framework.
+Experiment 0027 and ADR 0030 accept one adjacent canonical traversal prefetch. Camera
+motion inside a fixed four-meter boundary band may run the existing matched transaction,
+retain its immutable cache population, and discard speculative active mappings. A
+completed target makes later demand 25/0; an in-flight exact target promotes without
+early publication. Stale and failed work cannot block or publish demand, and the bound
+remains one transaction plus one latest target. This does not accept general path
+prediction, authored objects, collision, navigation, or networking.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -529,6 +544,7 @@ runseal :signed-terrain-storage
 runseal :camera-relative-terrain
 runseal :canonical-object-composition
 runseal :canonical-origin-rollover
+runseal :canonical-traversal-prefetch
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
@@ -589,6 +605,8 @@ runseal :workbench composition-enable
 runseal :workbench composition-disable
 runseal :workbench composition-traversal-enable
 runseal :workbench composition-traversal-disable
+runseal :workbench composition-prefetch-enable
+runseal :workbench composition-prefetch-disable
 runseal :workbench composition-order terrain-first
 runseal :workbench composition-fixture arbitrary-q8
 runseal :workbench load-probe

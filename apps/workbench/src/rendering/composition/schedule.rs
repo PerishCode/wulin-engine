@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use crate::address::GlobalRegionConfig;
 use crate::load::LoadConfig;
 
-use super::{COMPOSITION_REVISION, PendingPairInput, Renderer, fixture};
+use super::{COMPOSITION_REVISION, PairPurpose, PendingPairInput, Renderer, fixture};
 
 impl Renderer {
     pub unsafe fn schedule_composition(&mut self, config: LoadConfig) -> Result<Value> {
@@ -12,14 +12,14 @@ impl Renderer {
             !self.composition.traversal.is_enabled(),
             "camera traversal owns composition scheduling"
         );
-        unsafe { self.schedule_composition_pair(config, None, false) }
+        unsafe { self.schedule_composition_pair(config, None, PairPurpose::Manual) }
     }
 
     pub(super) unsafe fn schedule_composition_pair(
         &mut self,
         config: LoadConfig,
         global_config: Option<GlobalRegionConfig>,
-        camera_driven: bool,
+        purpose: PairPurpose,
     ) -> Result<Value> {
         ensure!(self.composition.pending.is_none(), "composition_pair_busy");
         ensure!(
@@ -78,7 +78,7 @@ impl Renderer {
             fixture,
             terrain_transaction_id,
             instance_transaction_id,
-            camera_driven,
+            purpose,
         });
         if let Err(error) =
             unsafe { fixture::submit_generated_instances(self, instance_reservation, fixture) }
@@ -97,8 +97,11 @@ impl Renderer {
             "fixture": fixture,
             "terrainTransactionId": terrain_transaction_id,
             "instanceTransactionId": instance_transaction_id,
-            "cameraDriven": camera_driven,
+            "cameraDriven": purpose.camera_driven(),
         });
+        if purpose.prefetch() {
+            response["prefetch"] = json!(true);
+        }
         if let Some(global) = global_config {
             response["globalConfig"] = json!(global);
         }

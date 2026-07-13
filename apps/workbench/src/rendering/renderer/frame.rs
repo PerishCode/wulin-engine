@@ -51,7 +51,7 @@ impl Renderer {
             if let Some(report) =
                 unsafe { self.terrain_renderer.prepare_frame(&self.command_list) }?
             {
-                self.terrain_streamer.mark_published(&report)?;
+                self.terrain_streamer.mark_completed(&report)?;
             }
         }
         if let Some(delta) = self.take_composition_camera_shift() {

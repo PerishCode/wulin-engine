@@ -6,7 +6,7 @@ use crate::load::LoadConfig;
 use crate::resident::active_region_ids;
 use crate::world::RegionCoord;
 
-use super::Renderer;
+use super::{PairPurpose, Renderer};
 
 impl Renderer {
     pub unsafe fn schedule_global_composition(
@@ -17,7 +17,13 @@ impl Renderer {
             !self.composition.traversal.is_enabled(),
             "camera traversal owns composition scheduling"
         );
-        unsafe { self.schedule_composition_pair(config.local_config()?, Some(config), false) }
+        unsafe {
+            self.schedule_composition_pair(
+                config.local_config()?,
+                Some(config),
+                PairPurpose::Manual,
+            )
+        }
     }
 }
 

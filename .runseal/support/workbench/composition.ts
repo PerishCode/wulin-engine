@@ -72,6 +72,8 @@ export async function dispatchComposition(
         case "composition-disable":
         case "composition-traversal-enable":
         case "composition-traversal-disable":
+        case "composition-prefetch-enable":
+        case "composition-prefetch-disable":
             if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
             await run(["inspect", "workbench", verb.replaceAll("-", "."), "--format", "json"]);
             return true;

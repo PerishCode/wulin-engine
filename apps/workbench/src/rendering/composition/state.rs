@@ -36,7 +36,7 @@ impl CompositionCoordinator {
             terrain: HalfState::InFlight,
             instance: HalfState::InFlight,
             failure: None,
-            camera_driven: input.camera_driven,
+            purpose: input.purpose,
             started_at: Instant::now(),
         });
         token
@@ -73,9 +73,12 @@ impl CompositionCoordinator {
                 "terrainStage": value.terrain,
                 "instanceStage": value.instance,
                 "failure": value.failure,
-                "cameraDriven": value.camera_driven,
+                "cameraDriven": value.purpose.camera_driven(),
                 "pendingMs": value.started_at.elapsed().as_secs_f64() * 1_000.0,
             });
+            if value.purpose.prefetch() {
+                pending["prefetch"] = json!(true);
+            }
             if let Some(global) = value.global_config {
                 pending["globalConfig"] = json!(global);
             }
