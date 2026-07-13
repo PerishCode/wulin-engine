@@ -121,6 +121,7 @@ contains only files that exist.
 | `docs/adr/0007-object-id-perception-contract.md` | Accepted integer object-ID attachment and bounded screen-perception contract. |
 | `docs/adr/0008-region-addressed-gpu-work.md` | Accepted region-addressed candidate generation, GPU compaction, and indirect work contract. |
 | `docs/adr/0009-resident-region-storage.md` | Accepted bounded default-heap region cache, active mapping, and transactional publication contract. |
+| `docs/adr/0010-asynchronous-region-publication.md` | Accepted copy-queue ordering, immutable publication, protected slots, and bounded backpressure contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -138,27 +139,39 @@ contains only files that exist.
 | `experiments/0004-object-id-perception/README.md` | Experiment 0004 object-ID hypothesis, bounded-region evidence, and accepted conclusion. |
 | `experiments/0005-gpu-region-compaction/README.md` | Experiment 0005 logical-world scaling workload, distributions, and accepted conclusion. |
 | `experiments/0006-resident-region-streaming/README.md` | Experiment 0006 resident cache movement workload, transfer evidence, and accepted conclusion. |
+| `experiments/0007-async-region-publication/README.md` | Experiment 0007 held-copy frame-continuity workload, evidence, and accepted conclusion. |
 | `apps/workbench/Cargo.toml` | Native workbench package and Windows API feature boundary. |
 | `apps/workbench/build.rs` | Workbench Agility SDK staging and pinned DXC shader compilation. |
 | `apps/workbench/shaders/calibration.hlsl` | Procedural calibration scene vertex and pixel shader. |
 | `apps/workbench/shaders/region_load.hlsl` | Procedural region reset, cull/compact, indirect draw, and semantic-ID shaders. |
 | `apps/workbench/shaders/resident_load.hlsl` | Persistent instance compaction, indirect rendering, and semantic-ID shaders. |
-| `apps/workbench/src/main.rs` | Workbench composition, main-thread controls, frame dispatch, and operator-visible state. |
+| `apps/workbench/shaders/async_resident.hlsl` | Descriptor-indexed per-slot compaction, indirect rendering, and semantic-ID shaders. |
+| `apps/workbench/src/main.rs` | Workbench composition, Win32/frame loop, pending frame operations, and error propagation. |
 | `apps/workbench/src/capture.rs` | Color/object-ID artifacts, encoding, hashes, manifests, and capture ownership. |
-| `apps/workbench/src/inspect.rs` | Project-owned SidecarRuntime event server and typed control protocol. |
+| `apps/workbench/src/inspect/mod.rs` | Workbench control-plane module boundary and narrow exports. |
+| `apps/workbench/src/inspect/server.rs` | Project-owned SidecarRuntime event server and typed wire protocol. |
+| `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch, workload status, and stream transaction entrypoints. |
 | `apps/workbench/src/load.rs` | Region address space, load configuration, workload counts, and procedural semantics. |
 | `apps/workbench/src/resident.rs` | Resident cache planning, deterministic records, LRU eviction, and stream reports. |
+| `apps/workbench/src/async_resident.rs` | Protected 50-slot cache planning and asynchronous transaction reports. |
 | `apps/workbench/src/perception.rs` | Pixel-region validation, ID analysis, semantic joins, samples, and diagnostic colors. |
 | `apps/workbench/src/scene.rs` | Calibration scene objects, camera state, transforms, and spatial manifest. |
 | `apps/workbench/src/window.rs` | Win32 window class, native handle, and console shutdown lifecycle. |
 | `apps/workbench/src/rendering/mod.rs` | Workbench rendering subsystem boundary and narrow application exports. |
 | `apps/workbench/src/rendering/renderer.rs` | D3D12 swap chain, clear/present loop, mode dispatch, and GPU synchronization. |
+| `apps/workbench/src/rendering/device.rs` | Reference adapter selection, debug-layer enablement, and common transitions. |
 | `apps/workbench/src/rendering/gpu_capture.rs` | D3D12 copy footprint, persistent readback, and tight four-byte pixel extraction. |
-| `apps/workbench/src/rendering/load_pipeline.rs` | Compute/graphics root signatures, PSOs, and indirect command signature. |
-| `apps/workbench/src/rendering/load_renderer.rs` | GPU compaction resources, barriers, indirect recording, timestamp probes, and readback. |
-| `apps/workbench/src/rendering/resident_pipeline.rs` | Resident compute/graphics root signatures, PSOs, and indirect command signature. |
-| `apps/workbench/src/rendering/resident_renderer.rs` | Resident mode state, command recording, transactional completion, and GPU probes. |
-| `apps/workbench/src/rendering/resident_resources.rs` | Resident default/upload resources, stream copies, barriers, and readback helpers. |
+| `apps/workbench/src/rendering/load/pipeline.rs` | Procedural load root signatures, PSOs, and indirect command signature. |
+| `apps/workbench/src/rendering/load/renderer.rs` | Procedural GPU compaction, indirect recording, timestamp probes, and readback. |
+| `apps/workbench/src/rendering/load/mod.rs` | Procedural load rendering ownership boundary and narrow exports. |
+| `apps/workbench/src/rendering/resident/pipeline.rs` | Synchronous resident root signatures, PSOs, and indirect command signature. |
+| `apps/workbench/src/rendering/resident/renderer.rs` | Synchronous resident state, command recording, completion, and GPU probes. |
+| `apps/workbench/src/rendering/resident/resources.rs` | Shared resident resources, stream copies, barriers, viewport, and readback helpers. |
+| `apps/workbench/src/rendering/resident/mod.rs` | Synchronous resident rendering ownership boundary and shared exports. |
+| `apps/workbench/src/rendering/async_resident/pipeline.rs` | Descriptor-table asynchronous resident compute and graphics pipelines. |
+| `apps/workbench/src/rendering/async_resident/renderer.rs` | Immutable async snapshot publication, rendering, and GPU probes. |
+| `apps/workbench/src/rendering/async_resident/transfer.rs` | Copy queue, fences, gate, upload arena, slot states, and transaction lifecycle. |
+| `apps/workbench/src/rendering/async_resident/mod.rs` | Asynchronous resident rendering ownership boundary and narrow export. |
 | `apps/workbench/src/rendering/object_id_target.rs` | Persistent `R32_UINT` semantic render-target resource and descriptor ownership. |
 | `apps/workbench/src/rendering/scene_renderer.rs` | Calibration graphics PSO, reverse-Z depth, procedural geometry, and scene draws. |
 | `runseal.toml` | Explicit local resources, Deno policy, and repository environment injection. |
@@ -173,6 +186,7 @@ contains only files that exist.
 | `.runseal/wrappers/object-id.ts` | Canonical Experiment 0004 object-ID perception and cleanup workflow. |
 | `.runseal/wrappers/region-load.ts` | Canonical Experiment 0005 region scaling distributions and visual regression workflow. |
 | `.runseal/wrappers/resident-stream.ts` | Canonical Experiment 0006 movement, eviction, restart, and resident evidence workflow. |
+| `.runseal/wrappers/async-region.ts` | Canonical Experiment 0007 held-copy, publication, eviction, restart, and evidence workflow. |
 | `.runseal/wrappers/visual-loop.ts` | Canonical Experiment 0002 deterministic capture and cleanup workflow. |
 | `.runseal/wrappers/spatial-scene.ts` | Canonical Experiment 0003 spatial rendering and inspection workflow. |
 | `.runseal/wrappers/workbench.ts` | Canonical workbench lifecycle and typed inspect workflow. |
@@ -190,7 +204,9 @@ and ADR 0006 accept the calibration scene's spatial and depth vocabulary. Experi
 Experiment 0005 and ADR 0008 accept region-addressed GPU compaction and bounded indirect
 submission independent of total logical world extent. Experiment 0006 and ADR 0009
 accept bounded default-heap region residency, active-slot indirection, incremental
-uploads, deterministic eviction, and transactional cache publication.
+uploads, deterministic eviction, and transactional cache publication. Experiment 0007
+and ADR 0010 accept dedicated copy-queue transfer, immutable frame-boundary publication,
+protected active slots, and explicit bounded backpressure.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -208,6 +224,7 @@ runseal :spatial-scene
 runseal :object-id
 runseal :region-load
 runseal :resident-stream
+runseal :async-region
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
@@ -223,6 +240,10 @@ runseal :workbench scene
 runseal :workbench load-config 128
 runseal :workbench resident
 runseal :workbench resident-stream 64 64
+runseal :workbench async
+runseal :workbench async-schedule 64 64
+runseal :workbench async-gate-arm
+runseal :workbench async-gate-release
 runseal :workbench load-probe
 runseal :workbench load-disable
 runseal :workbench resume

@@ -10,7 +10,7 @@ use crate::resident::{
     ACTIVE_MAPPING_BYTES, CACHE_REGION_CAPACITY, REGION_INSTANCE_BYTES, StreamPlan, as_bytes,
 };
 
-pub(super) const QUERY_COUNT: u32 = 4;
+pub(in crate::rendering) const QUERY_COUNT: u32 = 4;
 
 pub(super) unsafe fn write_staging(
     instance_upload: &ID3D12Resource,
@@ -123,7 +123,9 @@ pub(super) unsafe fn record_stream_copies(
     }
 }
 
-pub(super) unsafe fn create_query_heap(device: &ID3D12Device) -> Result<ID3D12QueryHeap> {
+pub(in crate::rendering) unsafe fn create_query_heap(
+    device: &ID3D12Device,
+) -> Result<ID3D12QueryHeap> {
     let desc = D3D12_QUERY_HEAP_DESC {
         Type: D3D12_QUERY_HEAP_TYPE_TIMESTAMP,
         Count: QUERY_COUNT,
@@ -135,7 +137,7 @@ pub(super) unsafe fn create_query_heap(device: &ID3D12Device) -> Result<ID3D12Qu
     heap.context("resident query heap creation returned no heap")
 }
 
-pub(super) unsafe fn create_buffer(
+pub(in crate::rendering) unsafe fn create_buffer(
     device: &ID3D12Device,
     size: u64,
     heap_type: D3D12_HEAP_TYPE,
@@ -176,7 +178,7 @@ pub(super) unsafe fn create_buffer(
     resource.context("resident buffer allocation returned no resource")
 }
 
-pub(super) unsafe fn read_values<T: Copy>(
+pub(in crate::rendering) unsafe fn read_values<T: Copy>(
     resource: &ID3D12Resource,
     count: usize,
 ) -> Result<Vec<T>> {
@@ -197,7 +199,7 @@ pub(super) unsafe fn read_values<T: Copy>(
     Ok(values)
 }
 
-pub(super) unsafe fn transition(
+pub(in crate::rendering) unsafe fn transition(
     command_list: &ID3D12GraphicsCommandList,
     resource: &ID3D12Resource,
     before: D3D12_RESOURCE_STATES,
@@ -222,7 +224,7 @@ pub(super) unsafe fn transition(
     }
 }
 
-pub(super) unsafe fn uav_barrier(
+pub(in crate::rendering) unsafe fn uav_barrier(
     command_list: &ID3D12GraphicsCommandList,
     resource: &ID3D12Resource,
 ) {
@@ -242,7 +244,7 @@ pub(super) unsafe fn uav_barrier(
     }
 }
 
-pub(super) unsafe fn set_viewport(
+pub(in crate::rendering) unsafe fn set_viewport(
     command_list: &ID3D12GraphicsCommandList,
     width: u32,
     height: u32,
