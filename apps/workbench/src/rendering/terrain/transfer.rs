@@ -11,8 +11,8 @@ use windows::core::Interface;
 
 use crate::load::LoadConfig;
 use crate::terrain::{
-    TERRAIN_STREAM_REVISION, TerrainAssignment, TerrainIoMetrics, TerrainReservationReport,
-    TerrainTransactionReport, TerrainUpload,
+    GlobalTerrainConfig, TERRAIN_STREAM_REVISION, TerrainAssignment, TerrainIoMetrics,
+    TerrainReservationReport, TerrainTransactionReport, TerrainUpload,
 };
 
 use super::super::resident::{create_buffer, transition};
@@ -170,12 +170,29 @@ impl TerrainTransfer {
             bail!("terrain_stream_busy");
         }
         let layout = self.cache.plan(config, protected)?;
+        self.reserve_layout(layout)
+    }
+
+    pub fn reserve_global(
+        &mut self,
+        config: GlobalTerrainConfig,
+        protected: &BTreeSet<u32>,
+    ) -> Result<TerrainReservationReport> {
+        if self.reservation.is_some() || self.pending.is_some() {
+            bail!("terrain_stream_busy");
+        }
+        let layout = self.cache.plan_global(config, protected)?;
+        self.reserve_layout(layout)
+    }
+
+    fn reserve_layout(&mut self, layout: LayoutPlan) -> Result<TerrainReservationReport> {
         let transaction_id = self.next_transaction_id;
         self.next_transaction_id += 1;
         let report = TerrainReservationReport {
             revision: TERRAIN_STREAM_REVISION,
             transaction_id,
-            config,
+            config: layout.config,
+            global_config: layout.global_config,
             counts: layout.counts,
             assignments: layout.assignments.clone(),
         };
@@ -223,7 +240,9 @@ impl TerrainTransfer {
         );
         for (assignment, upload) in reservation.layout.assignments.iter().zip(&uploads) {
             ensure!(
-                assignment.slot == upload.slot && assignment.region_id == upload.region_id,
+                assignment.slot == upload.slot
+                    && assignment.region_id == upload.region_id
+                    && assignment.global_region == upload.global_region,
                 "terrain upload assignment mismatch"
             );
             ensure!(
@@ -298,6 +317,10 @@ impl TerrainTransfer {
         for upload in &uploads {
             hash.update(upload.slot.to_le_bytes());
             hash.update(upload.region_id.to_le_bytes());
+            if let Some(global) = upload.global_region {
+                hash.update(global.x.to_le_bytes());
+                hash.update(global.z.to_le_bytes());
+            }
             hash.update(upload.payload.as_slice());
             hash.update(upload.sha256.as_bytes());
             next_tiles[upload.slot as usize] = Some(upload.tile.clone());
@@ -306,6 +329,7 @@ impl TerrainTransfer {
             revision: TERRAIN_STREAM_REVISION,
             transaction_id,
             config: reservation.layout.config,
+            global_config: reservation.layout.global_config,
             counts: reservation.layout.counts,
             uploaded_sha256: format!("{:x}", hash.finalize()),
             direct_release_fence,

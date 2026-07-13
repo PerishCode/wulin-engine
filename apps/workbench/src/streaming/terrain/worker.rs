@@ -145,6 +145,7 @@ fn read_request(
         uploads.push(TerrainUpload {
             slot: assignment.slot,
             region_id: assignment.region_id,
+            global_region: assignment.global_region,
             payload: read.payload,
             tile: read.tile,
             sha256: read.sha256,

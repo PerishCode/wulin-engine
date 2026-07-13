@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 
 use crate::load::LoadConfig;
 use crate::scene::SceneState;
-use crate::terrain::TerrainAssignment;
+use crate::terrain::{GlobalTerrainConfig, TerrainAssignment};
 
 use super::{
     LOD_STATS_BYTES, PATCH_GROUP_COUNT, QUERY_COUNT, STATS_BYTES, TERRAIN_REVISION, TerrainRenderer,
@@ -15,6 +15,8 @@ use super::{
 pub struct TerrainProbe {
     revision: &'static str,
     config: LoadConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global_addressing: Option<GlobalAddressEvidence>,
     generation: u64,
     active_mapping: Vec<TerrainAssignment>,
     active_mapping_sha256: String,
@@ -26,6 +28,16 @@ pub struct TerrainProbe {
     resources: TerrainResources,
     timing: TerrainTiming,
     lod: TerrainLodEvidence,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GlobalAddressEvidence {
+    config: GlobalTerrainConfig,
+    mapping_sha256: String,
+    entry_count: usize,
+    duplicate_global_count: usize,
+    mismatch_count: usize,
 }
 
 impl TerrainProbe {
@@ -214,6 +226,10 @@ impl TerrainRenderer {
             mapping_hash.update(entry.slot.to_le_bytes());
             mapping_hash.update(entry.region_id.to_le_bytes());
         }
+        let global_addressing = snapshot
+            .global_config
+            .map(|config| global_evidence(config, &snapshot.active))
+            .transpose()?;
         let mut payload_hash = Sha256::new();
         for tile in &snapshot.tiles {
             payload_hash.update(terrain_format::encode_tile(tile)?);
@@ -225,6 +241,7 @@ impl TerrainRenderer {
         Ok(TerrainProbe {
             revision: TERRAIN_REVISION,
             config: snapshot.config,
+            global_addressing,
             generation: snapshot.generation,
             active_mapping: snapshot.active.clone(),
             active_mapping_sha256: format!("{:x}", mapping_hash.finalize()),
@@ -290,4 +307,36 @@ impl TerrainRenderer {
             },
         })
     }
+}
+
+fn global_evidence(
+    config: GlobalTerrainConfig,
+    active: &[TerrainAssignment],
+) -> Result<GlobalAddressEvidence> {
+    let expected = config.addressed_regions()?;
+    let mut mapping_hash = Sha256::new();
+    let mut globals = std::collections::BTreeSet::new();
+    let mut mismatch_count = 0;
+    for (index, assignment) in active.iter().enumerate() {
+        let global = assignment
+            .global_region
+            .context("global terrain assignment has no signed key")?;
+        mapping_hash.update(global.x.to_le_bytes());
+        mapping_hash.update(global.z.to_le_bytes());
+        mapping_hash.update(assignment.region_id.to_le_bytes());
+        if expected.get(index).is_none_or(|region| {
+            region.global_region != global || region.local_region_id != assignment.region_id
+        }) {
+            mismatch_count += 1;
+        }
+        globals.insert(global);
+    }
+    mismatch_count += expected.len().abs_diff(active.len());
+    Ok(GlobalAddressEvidence {
+        config,
+        mapping_sha256: format!("{:x}", mapping_hash.finalize()),
+        entry_count: active.len(),
+        duplicate_global_count: active.len() - globals.len(),
+        mismatch_count,
+    })
 }

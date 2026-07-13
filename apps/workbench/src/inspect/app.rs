@@ -111,6 +111,7 @@ pub(crate) fn handle_commands(
             | ControlKind::TerrainLodConfigure { .. }
             | ControlKind::TerrainLodEnable
             | ControlKind::TerrainLodDisable
+            | ControlKind::TerrainGlobalSchedule { .. }
             | ControlKind::TerrainSchedule { .. }) => {
                 super::terrain_control::dispatch(renderer, terrain)
             }

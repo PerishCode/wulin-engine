@@ -15,8 +15,8 @@ use windows::core::Interface;
 use crate::load::LoadConfig;
 use crate::scene::SceneState;
 use crate::terrain::{
-    TerrainAssignment, TerrainIoMetrics, TerrainReservationReport, TerrainTransactionReport,
-    TerrainUpload,
+    GlobalTerrainConfig, TerrainAssignment, TerrainIoMetrics, TerrainReservationReport,
+    TerrainTransactionReport, TerrainUpload,
 };
 
 use self::pipeline::{TERRAIN_CONSTANT_COUNT, TerrainPipeline};
@@ -56,6 +56,7 @@ pub struct TerrainRenderer {
 
 struct PublishedTerrain {
     config: LoadConfig,
+    global_config: Option<GlobalTerrainConfig>,
     active: Vec<TerrainAssignment>,
     tiles: Vec<terrain_format::TerrainTile>,
     generation: u64,
@@ -179,6 +180,23 @@ impl TerrainRenderer {
         self.transfer.reserve(config, &protected)
     }
 
+    pub fn reserve_global(
+        &mut self,
+        config: GlobalTerrainConfig,
+    ) -> Result<TerrainReservationReport> {
+        let protected = self
+            .published
+            .iter()
+            .flat_map(|value| value.active.iter().map(|entry| entry.slot))
+            .chain(
+                self.staged
+                    .iter()
+                    .flat_map(|value| value.active.iter().map(|entry| entry.slot)),
+            )
+            .collect();
+        self.transfer.reserve_global(config, &protected)
+    }
+
     pub fn cancel(&mut self, transaction_id: u64) -> Result<()> {
         self.transfer.cancel(transaction_id)
     }
@@ -229,6 +247,7 @@ impl TerrainRenderer {
         self.generation += 1;
         self.published = Some(PublishedTerrain {
             config: report.config,
+            global_config: report.global_config,
             active,
             tiles,
             generation: self.generation,
