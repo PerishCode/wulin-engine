@@ -28,3 +28,12 @@ payload = { max_words = 6 }
 [overrides.rules."rust/tests/in-source"]
 enabled = false
 reason = "Experiment 0001 is an isolated executable proof; its tests remain local until promotion establishes a reusable owner."
+
+[[overrides]]
+match = ".runseal/wrappers"
+kind = "dir"
+priority = 10
+
+[overrides.rules."core/fs/too-many-children"]
+payload = { max_children = 11 }
+reason = "Runseal resolves named repository wrappers from one flat directory; each child is an explicit operator entrypoint."

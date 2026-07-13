@@ -65,7 +65,7 @@ function perceptionPayload(verb: string, args: string[]): Record<string, unknown
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -188,6 +188,49 @@ switch (verb) {
             "inspect",
             "workbench",
             verb === "async-gate-arm" ? "async.gate.arm" : "async.gate.release",
+            "--format",
+            "json",
+        ]);
+        break;
+    case "cooked":
+        if (args.length > 0) fail("workbench: cooked does not accept arguments");
+        await run(["inspect", "workbench", "cooked.status", "--format", "json"]);
+        break;
+    case "cooked-open":
+        if (args.length !== 1) fail("workbench: cooked-open requires a repository-relative pack");
+        await run([
+            "inspect",
+            "workbench",
+            "cooked.open",
+            JSON.stringify({ path: args[0] }),
+            "--format",
+            "json",
+        ]);
+        break;
+    case "cooked-schedule": {
+        if (args.length !== 2) fail("workbench: cooked-schedule requires center x and center z");
+        await run([
+            "inspect",
+            "workbench",
+            "cooked.schedule",
+            JSON.stringify({
+                world_region_side: 128,
+                active_center_x: pixel(args[0], "active center x"),
+                active_center_z: pixel(args[1], "active center z"),
+                active_radius: 2,
+            }),
+            "--format",
+            "json",
+        ]);
+        break;
+    }
+    case "cooked-gate-arm":
+    case "cooked-gate-release":
+        if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
+        await run([
+            "inspect",
+            "workbench",
+            verb === "cooked-gate-arm" ? "cooked.gate.arm" : "cooked.gate.release",
             "--format",
             "json",
         ]);

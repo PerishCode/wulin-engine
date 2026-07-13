@@ -10,6 +10,7 @@ use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObj
 use windows::core::Interface;
 
 use crate::async_resident::AsyncTransactionReport;
+use crate::cooked::CookedStreamer;
 use crate::load::LoadConfig;
 use crate::resident::StreamReport;
 use crate::scene::SceneState;
@@ -29,23 +30,24 @@ unsafe extern "C" {
 
 pub struct Renderer {
     device: ID3D12Device,
-    queue: ID3D12CommandQueue,
+    pub(super) queue: ID3D12CommandQueue,
     swap_chain: IDXGISwapChain3,
     rtv_heap: ID3D12DescriptorHeap,
     rtv_increment: usize,
     back_buffers: Vec<ID3D12Resource>,
     allocators: Vec<ID3D12CommandAllocator>,
     command_list: ID3D12GraphicsCommandList,
-    fence: ID3D12Fence,
+    pub(super) fence: ID3D12Fence,
     fence_event: HANDLE,
     fence_values: [u64; BUFFER_COUNT],
-    next_fence_value: u64,
+    pub(super) next_fence_value: u64,
     capture: Readback,
     object_id_capture: Readback,
     scene_renderer: SceneRenderer,
-    load_renderer: LoadRenderer,
-    resident_renderer: ResidentRenderer,
-    async_resident_renderer: AsyncResidentRenderer,
+    pub(super) load_renderer: LoadRenderer,
+    pub(super) resident_renderer: ResidentRenderer,
+    pub(super) cooked_streamer: CookedStreamer,
+    pub(super) async_resident_renderer: AsyncResidentRenderer,
     adapter_name: String,
     debug_layer: bool,
 }
@@ -187,6 +189,7 @@ impl Renderer {
             scene_renderer,
             load_renderer,
             resident_renderer,
+            cooked_streamer: CookedStreamer::default(),
             async_resident_renderer,
             adapter_name,
             debug_layer,
@@ -203,16 +206,22 @@ impl Renderer {
     ) -> Result<RenderOutcome> {
         debug_assert!(!capture_object_ids || capture);
         debug_assert!(!probe_load || self.load_config().is_some());
+        unsafe { self.poll_cooked_completion()? };
         let stream_resident = self.resident_renderer.has_pending_stream();
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() } as usize;
         unsafe { self.wait_for_buffer(index)? };
         unsafe { self.allocators[index].Reset() }.context("command allocator reset failed")?;
         unsafe { self.command_list.Reset(&self.allocators[index], None) }
             .context("command list reset failed")?;
-        unsafe {
+        let publication = unsafe {
             self.async_resident_renderer
                 .prepare_frame(&self.command_list)
         };
+        if let Some(report) = publication.as_ref()
+            && self.cooked_streamer.has_pending()
+        {
+            self.cooked_streamer.mark_published(report)?;
+        }
 
         unsafe {
             transition(
