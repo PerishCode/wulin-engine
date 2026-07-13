@@ -6,7 +6,7 @@ use meshlet_catalog::Catalog;
 use serde::Serialize;
 
 use crate::load::LoadConfig;
-use crate::resident::{active_region_ids, generate_region};
+use crate::resident::{InstanceRecord, active_region_ids, generate_region};
 use crate::scene::SceneState;
 
 use super::renderer::SkeletalSettings;
@@ -29,6 +29,12 @@ pub struct WorkloadCounts {
     pub observed_archetype_mask: u32,
 }
 
+pub struct GroundingInput<'a> {
+    pub numerators: Option<&'a [i32]>,
+    pub denominator: u32,
+    pub instance_records: Option<&'a [Vec<InstanceRecord>]>,
+}
+
 pub fn evaluate(
     catalog: &Catalog,
     settings: SkeletalSettings,
@@ -36,7 +42,7 @@ pub fn evaluate(
     scene: &SceneState,
     width: u32,
     height: u32,
-    ground_numerators: Option<&[i32]>,
+    grounding: GroundingInput<'_>,
 ) -> Result<WorkloadCounts> {
     let matrix = scene.view_projection(width as f32 / height as f32);
     let mut counts = WorkloadCounts {
@@ -56,11 +62,19 @@ pub fn evaluate(
     };
     let mut shared_poses = BTreeSet::new();
     for (active_index, region_id) in active_region_ids(config)?.into_iter().enumerate() {
-        for (local_index, instance) in generate_region(region_id).into_iter().enumerate() {
+        let generated;
+        let records = if let Some(records) = grounding.instance_records {
+            &records[active_index]
+        } else {
+            generated = generate_region(region_id);
+            &generated
+        };
+        for (local_index, instance) in records.iter().enumerate() {
             let logical_index =
                 active_index * crate::load::INSTANCES_PER_REGION as usize + local_index;
-            let ground =
-                ground_numerators.map_or(0.0, |values| values[logical_index] as f32 / 512.0);
+            let ground = grounding.numerators.map_or(0.0, |values| {
+                values[logical_index] as f32 / grounding.denominator as f32
+            });
             let center =
                 Vec3::from_array(instance.position) + Vec3::Y * (ground + instance.height * 0.5);
             let clip = matrix * Vec4::new(center.x, center.y, center.z, 1.0);

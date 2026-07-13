@@ -67,6 +67,7 @@ pub struct SkeletalFrame<'a> {
     pub background_color: [f32; 4],
     pub probe: bool,
     pub terrain_slots: Option<&'a [u32]>,
+    pub grounding_mode: u32,
     pub clear_depth_semantic: bool,
 }
 
@@ -167,7 +168,12 @@ impl SkeletalSceneRenderer {
         command_list: &ID3D12GraphicsCommandList,
         frame: SkeletalFrame<'_>,
     ) -> Result<()> {
-        let constants = self.constants(frame.scene, frame.snapshot, frame.terrain_slots);
+        let constants = self.constants(
+            frame.scene,
+            frame.snapshot,
+            frame.terrain_slots,
+            frame.grounding_mode,
+        );
         let gpu_start = unsafe { self.resources.heap.GetGPUDescriptorHandleForHeapStart() };
         unsafe {
             command_list.SetDescriptorHeaps(&[Some(self.resources.heap.clone())]);
@@ -448,6 +454,7 @@ impl SkeletalSceneRenderer {
         scene: &SceneState,
         snapshot: &PublishedSnapshot,
         terrain_slots: Option<&[u32]>,
+        grounding_mode: u32,
     ) -> [u32; SKELETAL_CONSTANT_COUNT as usize] {
         let mut constants = [0u32; SKELETAL_CONSTANT_COUNT as usize];
         for (destination, value) in constants[..16].iter_mut().zip(
@@ -472,7 +479,7 @@ impl SkeletalSceneRenderer {
         constants[52] = u32::from(self.settings.unique_poses);
         constants[53] = MAX_SKELETAL_VISIBLE;
         constants[54] = MAX_SHARED_POSES;
-        constants[55] = u32::from(terrain_slots.is_some());
+        constants[55] = grounding_mode;
         constants
     }
 }

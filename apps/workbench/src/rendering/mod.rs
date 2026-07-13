@@ -10,4 +10,5 @@ mod renderer;
 mod resident;
 mod terrain;
 
+pub use composition::CompositionFixture;
 pub use renderer::{RenderOutcome, Renderer};

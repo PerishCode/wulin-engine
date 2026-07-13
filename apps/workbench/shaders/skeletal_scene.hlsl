@@ -103,6 +103,28 @@ int terrain_height(uint slot, uint x, uint z)
     return int(value << 16u) >> 16;
 }
 
+int terrain_ground_q16(uint slot, InstanceRecord instance)
+{
+    int region_x = int(instance.region_id % 128u);
+    int region_z = int(instance.region_id / 128u);
+    float minimum_x = float((region_x - 64) * 16 - 8);
+    float minimum_z = float((region_z - 64) * 16 - 8);
+    uint x_q9 = uint(clamp(int(round((instance.position.x - minimum_x) * 512.0)), 0, 8192));
+    uint z_q9 = uint(clamp(int(round((instance.position.z - minimum_z) * 512.0)), 0, 8192));
+    uint cell_x = min(x_q9 >> 8u, 31u);
+    uint cell_z = min(z_q9 >> 8u, 31u);
+    uint u = x_q9 - cell_x * 256u;
+    uint v = z_q9 - cell_z * 256u;
+    uint sum = u + v;
+    int h00 = terrain_height(slot, cell_x, cell_z);
+    int h10 = terrain_height(slot, cell_x + 1u, cell_z);
+    int h01 = terrain_height(slot, cell_x, cell_z + 1u);
+    int h11 = terrain_height(slot, cell_x + 1u, cell_z + 1u);
+    return sum <= 256u
+        ? h00 * int(256u - sum) + h10 * int(u) + h01 * int(v)
+        : h10 * int(256u - v) + h01 * int(256u - u) + h11 * int(sum - 256u);
+}
+
 uint pose_phase(uint stable_key)
 {
     uint phase_count = animation_shape.z;
@@ -155,12 +177,21 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     if (pose_shape.w != 0)
     {
         uint terrain_slot = (packed_slots >> 6u) & 63u;
-        uint cell_x = local_index % 32u;
-        uint cell_z = local_index / 32u;
-        int numerator = terrain_height(terrain_slot, cell_x + 1u, cell_z)
-            + terrain_height(terrain_slot, cell_x, cell_z + 1u);
-        ground_numerators_out[logical_index] = numerator;
-        ground = float(numerator) / 512.0;
+        int ground_value;
+        if (pose_shape.w == 1u)
+        {
+            uint cell_x = local_index % 32u;
+            uint cell_z = local_index / 32u;
+            ground_value = terrain_height(terrain_slot, cell_x + 1u, cell_z)
+                + terrain_height(terrain_slot, cell_x, cell_z + 1u);
+            ground = float(ground_value) / 512.0;
+        }
+        else
+        {
+            ground_value = terrain_ground_q16(terrain_slot, instance);
+            ground = float(ground_value) / 65536.0;
+        }
+        ground_numerators_out[logical_index] = ground_value;
     }
     float3 center = instance.position + float3(0.0, ground + instance.height * 0.5, 0.0);
     float4 clip = mul(view_projection, float4(center, 1.0));
@@ -424,9 +455,10 @@ void ms_main(
     uint slot = visible.physical_index / INSTANCES_PER_REGION;
     uint local_index = visible.physical_index % INSTANCES_PER_REGION;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
-    float ground = pose_shape.w != 0
-        ? float(ground_numerators_in[visible.reserved]) / 512.0
-        : 0.0;
+    float ground = pose_shape.w == 0u
+        ? 0.0
+        : float(ground_numerators_in[visible.reserved])
+            / (pose_shape.w == 1u ? 512.0 : 65536.0);
     float angle = float((visible.stable_key * 747796405u) & 65535u) * 6.28318530718 / 65536.0;
     float sine;
     float cosine;

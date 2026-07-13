@@ -87,6 +87,8 @@ pub struct ProbeInput<'a> {
     pub snapshot: &'a PublishedSnapshot,
     pub scene: &'a SceneState,
     pub ground_numerators: Option<&'a [i32]>,
+    pub ground_denominator: u32,
+    pub instance_records: Option<&'a [Vec<crate::resident::InstanceRecord>]>,
 }
 
 pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
@@ -117,7 +119,11 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
         input.scene,
         input.width,
         input.height,
-        input.ground_numerators,
+        oracle::GroundingInput {
+            numerators: input.ground_numerators,
+            denominator: input.ground_denominator,
+            instance_records: input.instance_records,
+        },
     )?;
     if gpu != cpu_oracle {
         bail!("skeletal GPU counters {gpu:?} differ from CPU oracle {cpu_oracle:?}");

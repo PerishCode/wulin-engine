@@ -6,15 +6,16 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use windows::Win32::Graphics::Direct3D12::ID3D12GraphicsCommandList;
 
-use crate::async_resident::AsyncReservationReport;
 use crate::load::LoadConfig;
-use crate::resident::{RegionUpload, active_region_ids, generate_region};
+use crate::resident::active_region_ids;
 
 use super::renderer::Renderer;
 use super::terrain::control::TerrainPollOutcome;
 
+mod fixture;
 mod probe;
 
+pub use fixture::CompositionFixture;
 pub use probe::CompositionProbe;
 
 const COMPOSITION_REVISION: &str = "atomic-terrain-object-composition-v1";
@@ -39,6 +40,7 @@ enum HalfState {
 struct PendingPair {
     token: u64,
     config: LoadConfig,
+    fixture: CompositionFixture,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
     terrain: HalfState,
@@ -52,6 +54,7 @@ struct PendingPair {
 struct PublishedPair {
     token: u64,
     config: LoadConfig,
+    fixture: CompositionFixture,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
     publication_count: u64,
@@ -67,6 +70,7 @@ struct PublishedPair {
 pub(super) struct CompositionCoordinator {
     enabled: bool,
     order: CompositionOrder,
+    fixture: CompositionFixture,
     next_token: u64,
     publication_count: u64,
     pending: Option<PendingPair>,
@@ -79,6 +83,7 @@ impl Default for CompositionCoordinator {
         Self {
             enabled: false,
             order: CompositionOrder::default(),
+            fixture: CompositionFixture::default(),
             next_token: 1,
             publication_count: 0,
             pending: None,
@@ -96,6 +101,7 @@ impl CompositionCoordinator {
     fn begin(
         &mut self,
         config: LoadConfig,
+        fixture: CompositionFixture,
         terrain_transaction_id: u64,
         instance_transaction_id: u64,
     ) -> u64 {
@@ -104,6 +110,7 @@ impl CompositionCoordinator {
         self.pending = Some(PendingPair {
             token,
             config,
+            fixture,
             terrain_transaction_id,
             instance_transaction_id,
             terrain: HalfState::InFlight,
@@ -139,6 +146,7 @@ impl CompositionCoordinator {
             json!({
                 "token": value.token,
                 "config": value.config,
+                "fixture": value.fixture,
                 "terrainTransactionId": value.terrain_transaction_id,
                 "instanceTransactionId": value.instance_transaction_id,
                 "terrainStage": value.terrain,
@@ -151,6 +159,7 @@ impl CompositionCoordinator {
             "revision": COMPOSITION_REVISION,
             "enabled": self.enabled,
             "order": self.order,
+            "fixture": self.fixture,
             "nextToken": self.next_token,
             "pending": pending,
             "published": self.published,
@@ -185,10 +194,16 @@ impl Renderer {
             return Err(error);
         }
 
-        let token = self
-            .composition
-            .begin(config, terrain_transaction_id, instance_transaction_id);
-        if let Err(error) = unsafe { self.submit_generated_instances(instance_reservation) } {
+        let fixture = self.composition.fixture;
+        let token = self.composition.begin(
+            config,
+            fixture,
+            terrain_transaction_id,
+            instance_transaction_id,
+        );
+        if let Err(error) =
+            unsafe { fixture::submit_generated_instances(self, instance_reservation, fixture) }
+        {
             self.composition.fail_half(
                 false,
                 instance_transaction_id,
@@ -200,38 +215,10 @@ impl Renderer {
             "revision": COMPOSITION_REVISION,
             "token": token,
             "config": config,
+            "fixture": fixture,
             "terrainTransactionId": terrain_transaction_id,
             "instanceTransactionId": instance_transaction_id,
         }))
-    }
-
-    unsafe fn submit_generated_instances(
-        &mut self,
-        reservation: AsyncReservationReport,
-    ) -> Result<()> {
-        let started = Instant::now();
-        let uploads = reservation
-            .assignments
-            .iter()
-            .map(|assignment| RegionUpload {
-                slot: assignment.slot,
-                records: generate_region(assignment.region_id),
-            })
-            .collect();
-        let generation_ms = started.elapsed().as_secs_f64() * 1_000.0;
-        let release_fence = self.next_fence_value;
-        self.next_fence_value += 1;
-        unsafe {
-            self.async_resident_renderer.submit_generated(
-                reservation.transaction_id,
-                uploads,
-                generation_ms,
-                &self.queue,
-                &self.fence,
-                release_fence,
-            )
-        }?;
-        Ok(())
     }
 
     pub fn composition_status(&self) -> Value {
@@ -246,12 +233,34 @@ impl Renderer {
         self.composition.order
     }
 
+    pub(in crate::rendering) fn composition_grounding_mode(&self) -> u32 {
+        self.composition
+            .published
+            .as_ref()
+            .map_or(CompositionFixture::CellCenter.grounding_mode(), |pair| {
+                pair.fixture.grounding_mode()
+            })
+    }
+
     pub fn set_composition_order(&mut self, terrain_first: bool) {
         self.composition.order = if terrain_first {
             CompositionOrder::TerrainFirst
         } else {
             CompositionOrder::ObjectFirst
         };
+    }
+
+    pub fn set_composition_fixture(&mut self, fixture: CompositionFixture) -> Result<()> {
+        ensure!(self.composition.pending.is_none(), "composition_pair_busy");
+        ensure!(
+            self.composition
+                .published
+                .as_ref()
+                .is_none_or(|published| published.fixture == fixture),
+            "composition fixture change requires restart"
+        );
+        self.composition.fixture = fixture;
+        Ok(())
     }
 
     pub fn enable_composition(&mut self) -> Result<()> {
@@ -384,6 +393,7 @@ impl Renderer {
         self.composition.published = Some(PublishedPair {
             token: pending.token,
             config: pending.config,
+            fixture: pending.fixture,
             terrain_transaction_id: pending.terrain_transaction_id,
             instance_transaction_id: pending.instance_transaction_id,
             publication_count: self.composition.publication_count,
@@ -466,6 +476,7 @@ impl Renderer {
         self.composition.last_failure = Some(json!({
             "token": pending.token,
             "config": pending.config,
+            "fixture": pending.fixture,
             "terrainTransactionId": pending.terrain_transaction_id,
             "instanceTransactionId": pending.instance_transaction_id,
             "terrainStage": pending.terrain,

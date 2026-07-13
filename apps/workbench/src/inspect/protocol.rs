@@ -127,6 +127,9 @@ pub enum ControlKind {
     CompositionOrder {
         terrain_first: bool,
     },
+    CompositionFixture {
+        arbitrary_q8: bool,
+    },
 }
 
 pub type ControlResult = std::result::Result<Value, ProtocolError>;
@@ -217,12 +220,6 @@ struct TerrainLodPayload {
     forced_lod: Option<u32>,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CompositionOrderPayload {
-    order: String,
-}
-
 pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
     match verb {
         "workbench.status" => Ok(ControlKind::Status),
@@ -270,7 +267,8 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "composition.status" => Ok(ControlKind::CompositionStatus),
         "composition.enable" => Ok(ControlKind::CompositionEnable),
         "composition.disable" => Ok(ControlKind::CompositionDisable),
-        "composition.order" => parse_composition_order(payload),
+        "composition.order" => super::composition_control::parse_order(payload),
+        "composition.fixture" => super::composition_control::parse_fixture(payload),
         "terrain.open" => parse_terrain(payload),
         "cooked.open" => parse_cooked(payload),
         "load.configure" => parse_load(payload, LoadTarget::Procedural),
@@ -392,21 +390,6 @@ fn parse_terrain_lod(value: Value) -> ParsedControl {
         middle_patch_radius: payload.middle_patch_radius,
         forced_lod: payload.forced_lod,
     })
-}
-
-fn parse_composition_order(value: Value) -> ParsedControl {
-    let payload: CompositionOrderPayload = decode(value)?;
-    let terrain_first = match payload.order.as_str() {
-        "terrain-first" => true,
-        "object-first" => false,
-        _ => {
-            return Err(ProtocolError {
-                code: "invalid_payload",
-                message: "order must be terrain-first or object-first".into(),
-            });
-        }
-    };
-    Ok(ControlKind::CompositionOrder { terrain_first })
 }
 
 fn parse_camera(value: Value) -> ParsedControl {

@@ -9,9 +9,11 @@ GPU streamed terrain. `crates/region-format`, its offline writer under
 Experiment 0012 and ADR 0015 accept workbench-owned hierarchy, invalidation, query, and
 stable compaction contracts. Experiment 0013 and ADR 0016 promote the independent
 `crates/terrain-format` and `tools/terrain-cooker` owners while terrain streaming, GPU
-expansion, and probes remain workbench-owned. Other engine systems remain workbench-owned
-until an experiment establishes a reusable boundary. Directories are created only when
-they own real files.
+expansion, and probes remain workbench-owned. Experiments 0015-0016 and ADRs 0018-0019
+accept atomic terrain/object publication and exact arbitrary-position GPU sampling but
+keep composition workbench-owned. Other engine systems remain workbench-owned until an
+experiment establishes a reusable boundary. Directories are created only when they own
+real files.
 
 ## Dependency direction
 
