@@ -9,7 +9,7 @@ use windows::core::Interface;
 use crate::scene::SceneState;
 
 use super::super::device::transition;
-use super::super::meshlet_scene::MeshletFrame;
+use super::super::meshlet_scene::{MeshletFrame, SkeletalFrame};
 use super::{CapturedFrame, RenderOutcome, Renderer};
 
 impl Renderer {
@@ -54,7 +54,22 @@ impl Renderer {
                 .OMSetRenderTargets(1, Some(&handle), true, None);
             self.command_list
                 .ClearRenderTargetView(handle, &color, None);
-            if self.meshlet_scene_renderer.is_enabled() {
+            if self.skeletal_scene_renderer.is_enabled() {
+                let snapshot = self
+                    .async_resident_renderer
+                    .snapshot()
+                    .context("skeletal scene has no published resident snapshot")?;
+                self.skeletal_scene_renderer.record(
+                    &self.command_list,
+                    SkeletalFrame {
+                        snapshot,
+                        scene,
+                        render_targets: [handle, self.scene_renderer.object_id_handle()],
+                        depth_target: self.scene_renderer.depth_handle(),
+                        probe: probe_load,
+                    },
+                )?;
+            } else if self.meshlet_scene_renderer.is_enabled() {
                 let snapshot = self
                     .async_resident_renderer
                     .snapshot()
@@ -174,7 +189,19 @@ impl Renderer {
             } else {
                 None
             };
-            let load_probe = if probe_load && self.meshlet_scene_renderer.is_enabled() {
+            let skeletal_probe = if probe_load && self.skeletal_scene_renderer.is_enabled() {
+                let snapshot = self
+                    .async_resident_renderer
+                    .snapshot()
+                    .context("skeletal probe has no published resident snapshot")?;
+                Some(unsafe { self.skeletal_scene_renderer.read_probe(snapshot, scene) }?)
+            } else {
+                None
+            };
+            let load_probe = if probe_load
+                && (self.meshlet_scene_renderer.is_enabled()
+                    || self.skeletal_scene_renderer.is_enabled())
+            {
                 None
             } else if probe_load && self.async_resident_renderer.config().is_some() {
                 Some(unsafe { self.async_resident_renderer.read_probe() }?)
@@ -194,6 +221,7 @@ impl Renderer {
                 capture: captured_frame,
                 load_probe,
                 meshlet_probe,
+                skeletal_probe,
                 resident_stream,
             });
         }
@@ -201,6 +229,7 @@ impl Renderer {
             capture: None,
             load_probe: None,
             meshlet_probe: None,
+            skeletal_probe: None,
             resident_stream: None,
         })
     }

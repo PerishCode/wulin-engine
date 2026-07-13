@@ -124,6 +124,7 @@ contains only files that exist.
 | `docs/adr/0010-asynchronous-region-publication.md` | Accepted copy-queue ordering, immutable publication, protected slots, and bounded backpressure contract. |
 | `docs/adr/0011-cooked-region-storage.md` | Accepted canonical pack, bounded background I/O, reservation, and rollback contract. |
 | `docs/adr/0012-gpu-meshlet-scene-execution.md` | Accepted meshlet catalog, GPU cull/LOD, bounded indirect mesh execution, and capability contract. |
+| `docs/adr/0013-gpu-skeletal-crowd-execution.md` | Accepted GPU pose reuse, bounded hierarchy evaluation, meshlet skinning, and fixed submission contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -144,9 +145,15 @@ contains only files that exist.
 | `experiments/0007-async-region-publication/README.md` | Experiment 0007 held-copy frame-continuity workload, evidence, and accepted conclusion. |
 | `experiments/0008-cooked-region-io/README.md` | Experiment 0008 cooked format, bounded background I/O, failure rollback, and accepted evidence. |
 | `experiments/0009-gpu-meshlet-scene/README.md` | Accepted Experiment 0009 real meshlet geometry, GPU LOD, oracle, sweep, and indirect-dispatch evidence. |
+| `experiments/0010-gpu-skeletal-crowds/README.md` | Accepted Experiment 0010 GPU pose reuse, hierarchy, skinning, oracle, visual, and release timing evidence. |
 | `crates/meshlet-catalog/Cargo.toml` | Deterministic static meshlet catalog package and dependency boundary. |
 | `crates/meshlet-catalog/src/lib.rs` | Eight-archetype, three-LOD geometry generation, meshlet partitioning, validation, encoding, and hashing. |
 | `crates/meshlet-catalog/tests/catalog.rs` | Catalog determinism, reducing-LOD, and mesh-shader bound regression contract. |
+| `crates/animation-catalog/Cargo.toml` | Deterministic skeletal fixture package and dependency boundary. |
+| `crates/animation-catalog/src/lib.rs` | Animation catalog encoding, validation, hashing, and CPU pose evaluation contract. |
+| `crates/animation-catalog/src/affine.rs` | Explicit row-major affine composition, transforms, encoding, and pose variation. |
+| `crates/animation-catalog/src/builder.rs` | Deterministic hierarchy, bind data, clip samples, and packed skin-stream generation. |
+| `crates/animation-catalog/tests/catalog.rs` | Hierarchy, skin influence, pose evaluation, and deterministic catalog regressions. |
 | `crates/region-format/Cargo.toml` | Canonical region-format package boundary and reusable dependencies. |
 | `crates/region-format/src/lib.rs` | Versioned pack writer/reader, explicit record codec, index validation, and chunk verification. |
 | `crates/region-format/tests/pack.rs` | Canonical round-trip and malformed metadata/payload rejection contract. |
@@ -159,6 +166,7 @@ contains only files that exist.
 | `apps/workbench/shaders/resident_load.hlsl` | Persistent instance compaction, indirect rendering, and semantic-ID shaders. |
 | `apps/workbench/shaders/async_resident.hlsl` | Descriptor-indexed per-slot compaction, indirect rendering, and semantic-ID shaders. |
 | `apps/workbench/shaders/meshlet_scene.hlsl` | GPU object culling, LOD, visible compaction, amplification, mesh emission, and semantic-ID shaders. |
+| `apps/workbench/shaders/skeletal_scene.hlsl` | GPU animation classification, pose compaction/evaluation, four-weight meshlet skinning, and semantic-ID shaders. |
 | `apps/workbench/src/main.rs` | Workbench composition, Win32/frame loop, pending frame operations, and error propagation. |
 | `apps/workbench/src/capture.rs` | Color/object-ID artifacts, encoding, hashes, manifests, and capture ownership. |
 | `apps/workbench/src/inspect/mod.rs` | Workbench control-plane module boundary and narrow exports. |
@@ -197,6 +205,12 @@ contains only files that exist.
 | `apps/workbench/src/rendering/meshlet_scene/renderer.rs` | Meshlet mode configuration, command recording, GPU probe decoding, and status. |
 | `apps/workbench/src/rendering/meshlet_scene/oracle.rs` | Deterministic CPU workload oracle for GPU aggregate validation. |
 | `apps/workbench/src/rendering/meshlet_scene/mod.rs` | GPU meshlet scene ownership boundary and narrow exports. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/mod.rs` | Skeletal crowd rendering boundary and narrow exports. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/oracle.rs` | Deterministic CPU aggregate oracle for skeletal workload validation. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/pipeline.rs` | Skeletal compute and mesh root signature, PSOs, and indirect command signatures. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/probe.rs` | Skeletal counters, timestamp decoding, palette samples, and oracle comparison. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/renderer.rs` | Skeletal mode controls, fixed command recording, resource transitions, and status. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/resources.rs` | Animation uploads, bounded pose/palette resources, descriptors, queries, and readbacks. |
 | `apps/workbench/src/rendering/cooked.rs` | Cooked I/O completion, reservation cancellation, and GPU submission orchestration. |
 | `apps/workbench/src/rendering/calibration/object_id_target.rs` | Persistent `R32_UINT` semantic render-target resource and descriptor ownership. |
 | `apps/workbench/src/rendering/calibration/scene_renderer.rs` | Calibration graphics PSO, reverse-Z depth, procedural geometry, and scene draws. |
@@ -204,6 +218,7 @@ contains only files that exist.
 | `runseal.toml` | Explicit local resources, Deno policy, and repository environment injection. |
 | `flavor.toml` | Consumer-owned code-shape scan scope and rule adjustments. |
 | `sidecar.toml` | Local runtime identity, native workbench app target, readiness, and inspect endpoint. |
+| `sidecar.benchmark.toml` | Release workbench identity and isolated benchmark Sidecar namespace. |
 | `.runseal/deno.json` | Deno compiler and formatter policy for repository wrappers. |
 | `.runseal/deno.lock` | Frozen Deno dependency resolution for repository wrappers. |
 | `.runseal/hooks/pre-commit` | Git pre-commit entrypoint delegating to `runseal :guard`. |
@@ -217,6 +232,8 @@ contains only files that exist.
 | `.runseal/wrappers/cooked-region.ts` | Canonical Experiment 0008 recook, held-I/O, incremental reads, corruption, restart, and evidence workflow. |
 | `.runseal/wrappers/meshlet-scene.ts` | Canonical Experiment 0009 meshlet catalog, GPU oracle, visual, sweep, movement, and restart evidence workflow. |
 | `.runseal/support/cooked-region.ts` | Experiment 0008 structured evidence, pack corruption, hashing, and comparison helpers. |
+| `.runseal/wrappers/skeletal-crowds.ts` | Canonical Experiment 0010 debug correctness, release timing, sweep, visual, movement, and restart workflow. |
+| `.runseal/support/skeletal-crowds.ts` | Experiment 0010 structured validation, environment capture, fixtures, and distribution helpers. |
 | `.runseal/wrappers/visual-loop.ts` | Canonical Experiment 0002 deterministic capture and cleanup workflow. |
 | `.runseal/wrappers/spatial-scene.ts` | Canonical Experiment 0003 spatial rendering and inspection workflow. |
 | `.runseal/wrappers/workbench.ts` | Canonical workbench lifecycle and typed inspect workflow. |
@@ -244,6 +261,10 @@ Experiment 0009 and ADR 0012 accept a deterministic bounded meshlet catalog, GPU
 culling and LOD selection, amplification and mesh shader execution, exact validation
 against a CPU oracle, and one indirect mesh dispatch whose CPU submission shape is
 independent of logical-world extent and emitted geometry count.
+Experiment 0010 and ADR 0013 accept GPU animated-object classification, shared and unique
+pose compaction, bounded 128-bone hierarchy evaluation, four-weight meshlet skinning,
+and a fixed five-stage submission independent of visible character, pose, bone, and
+geometry counts.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -264,6 +285,7 @@ runseal :resident-stream
 runseal :async-region
 runseal :cooked-region
 runseal :meshlet-scene
+runseal :skeletal-crowds
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
@@ -302,6 +324,10 @@ runseal :workbench stop
 Correctness mode requires the Windows optional capability
 `Tools.Graphics.DirectX~~~~0.0.1.0`. Benchmark mode intentionally runs without the debug
 layer and must report that validation is disabled.
+
+`sidecar.toml` is the interactive debug-layer workbench contract.
+`sidecar.benchmark.toml` is the release measurement contract and uses a separate Sidecar
+namespace; canonical experiment wrappers must stop and verify both namespaces.
 
 The wrappers use installed stable-channel Flavor, Runseal, and Sidecar CLIs. Sibling
 source checkouts are references, not runtime dependencies. The workbench accepts the

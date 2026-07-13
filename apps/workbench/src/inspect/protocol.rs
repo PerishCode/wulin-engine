@@ -70,6 +70,17 @@ pub enum ControlKind {
     },
     MeshletEnable,
     MeshletDisable,
+    SkeletalStatus,
+    SkeletalConfigure {
+        animated_percent: u32,
+        bone_count: u32,
+        phase_count: u32,
+        time_tick: u32,
+        unique_poses: bool,
+        forced_lod: Option<u32>,
+    },
+    SkeletalEnable,
+    SkeletalDisable,
 }
 
 pub type ControlResult = std::result::Result<Value, ProtocolError>;
@@ -134,6 +145,17 @@ struct MeshletPayload {
     forced_lod: Option<u32>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SkeletalPayload {
+    animated_percent: u32,
+    bone_count: u32,
+    phase_count: u32,
+    time_tick: u32,
+    unique_poses: bool,
+    forced_lod: Option<u32>,
+}
+
 pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
     match verb {
         "workbench.status" => Ok(ControlKind::Status),
@@ -156,6 +178,10 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "meshlet.enable" => Ok(ControlKind::MeshletEnable),
         "meshlet.disable" => Ok(ControlKind::MeshletDisable),
         "meshlet.configure" => parse_meshlet(payload),
+        "skeletal.status" => Ok(ControlKind::SkeletalStatus),
+        "skeletal.enable" => Ok(ControlKind::SkeletalEnable),
+        "skeletal.disable" => Ok(ControlKind::SkeletalDisable),
+        "skeletal.configure" => parse_skeletal(payload),
         "cooked.open" => parse_cooked(payload),
         "load.configure" => parse_load(payload, LoadTarget::Procedural),
         "resident.stream" => parse_load(payload, LoadTarget::Resident),
@@ -219,6 +245,18 @@ fn parse_meshlet(value: Value) -> ParsedControl {
     let payload: MeshletPayload = decode(value)?;
     Ok(ControlKind::MeshletConfigure {
         archetype_mask: payload.archetype_mask,
+        forced_lod: payload.forced_lod,
+    })
+}
+
+fn parse_skeletal(value: Value) -> ParsedControl {
+    let payload: SkeletalPayload = decode(value)?;
+    Ok(ControlKind::SkeletalConfigure {
+        animated_percent: payload.animated_percent,
+        bone_count: payload.bone_count,
+        phase_count: payload.phase_count,
+        time_tick: payload.time_tick,
+        unique_poses: payload.unique_poses,
         forced_lod: payload.forced_lod,
     })
 }

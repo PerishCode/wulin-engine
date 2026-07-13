@@ -1,0 +1,466 @@
+static const uint REGION_SLOT_CAPACITY = 50;
+static const uint INSTANCES_PER_REGION = 1024;
+static const uint REGION_OBJECT_ID_BASE = 65536;
+static const uint MAX_BONES = 128;
+static const uint MAX_POSE_KEYS = 512;
+static const uint POSE_WORDS = MAX_POSE_KEYS / 32;
+static const uint COUNTER_DWORDS = 20;
+
+struct InstanceRecord
+{
+    float3 position;
+    float height;
+    uint region_id;
+};
+
+struct VisibleObject
+{
+    uint physical_index;
+    uint archetype;
+    uint lod;
+    uint stable_key;
+    uint pose_slot;
+    uint reserved;
+};
+
+struct LodDescriptor
+{
+    uint meshlet_offset;
+    uint meshlet_count;
+    uint vertex_count;
+    uint primitive_count;
+};
+
+struct MeshletDescriptor
+{
+    uint vertex_offset;
+    uint vertex_count;
+    uint primitive_offset;
+    uint primitive_count;
+};
+
+struct BoneMeta
+{
+    uint parent;
+    uint depth;
+    float3 local_translation;
+    float reserved;
+};
+
+struct AffineTransform
+{
+    float4 row0;
+    float4 row1;
+    float4 row2;
+};
+
+struct SkinBinding
+{
+    uint indices;
+    uint weights;
+};
+
+cbuffer SkeletalSceneConstants : register(b0)
+{
+    column_major float4x4 view_projection;
+    uint4 load_shape;
+    uint4 active_slot_groups[7];
+    uint4 animation_shape;
+    uint4 pose_shape;
+};
+
+StructuredBuffer<InstanceRecord> region_instances[REGION_SLOT_CAPACITY] : register(t0);
+StructuredBuffer<float4> catalog_vertices : register(t51);
+StructuredBuffer<MeshletDescriptor> catalog_meshlets : register(t52);
+StructuredBuffer<uint> catalog_meshlet_vertices : register(t53);
+StructuredBuffer<uint> catalog_primitives : register(t54);
+StructuredBuffer<LodDescriptor> catalog_lods : register(t55);
+StructuredBuffer<BoneMeta> catalog_bones : register(t56);
+StructuredBuffer<AffineTransform> catalog_inverse_bind : register(t57);
+StructuredBuffer<AffineTransform> catalog_samples : register(t58);
+StructuredBuffer<SkinBinding> catalog_skin : register(t59);
+StructuredBuffer<VisibleObject> draw_objects : register(t50);
+StructuredBuffer<AffineTransform> palette_in : register(t62);
+
+RWStructuredBuffer<VisibleObject> visible_objects : register(u0);
+RWByteAddressBuffer indirect_and_counters : register(u1);
+RWStructuredBuffer<uint> animated_visible_indices : register(u2);
+RWByteAddressBuffer pose_bitset : register(u3);
+RWStructuredBuffer<uint> active_pose_keys : register(u4);
+RWStructuredBuffer<AffineTransform> palette_out : register(u5);
+RWByteAddressBuffer validation_sample : register(u6);
+
+uint pose_phase(uint stable_key)
+{
+    uint phase_count = animation_shape.z;
+    uint bucket = ((stable_key >> 3) + animation_shape.w) % phase_count;
+    return bucket * (64u / phase_count);
+}
+
+[numthreads(64, 1, 1)]
+void reset_main(uint group_thread : SV_GroupIndex)
+{
+    if (group_thread < COUNTER_DWORDS)
+    {
+        indirect_and_counters.Store(group_thread * 4, 0);
+    }
+    if (group_thread < POSE_WORDS)
+    {
+        pose_bitset.Store(group_thread * 4, 0);
+    }
+    if (group_thread < 56)
+    {
+        validation_sample.Store(group_thread * 4, 0);
+    }
+    GroupMemoryBarrierWithGroupSync();
+    if (group_thread == 0)
+    {
+        indirect_and_counters.Store(4, 1);
+        indirect_and_counters.Store(8, 1);
+        indirect_and_counters.Store(60, 1);
+        indirect_and_counters.Store(64, 1);
+    }
+}
+
+[numthreads(256, 1, 1)]
+void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
+{
+    if (group_id.x >= load_shape.x)
+    {
+        return;
+    }
+    uint local_index = group_id.y * 256 + group_thread;
+    if (local_index >= INSTANCES_PER_REGION)
+    {
+        return;
+    }
+    uint slot = active_slot_groups[group_id.x / 4][group_id.x % 4];
+    InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
+    float3 center = instance.position + float3(0.0, instance.height * 0.5, 0.0);
+    float4 clip = mul(view_projection, float4(center, 1.0));
+    bool in_frustum = clip.w > 0.0
+        && abs(clip.x) <= clip.w
+        && abs(clip.y) <= clip.w
+        && clip.z >= 0.0
+        && clip.z <= clip.w;
+    uint stable_key = instance.region_id * INSTANCES_PER_REGION + local_index;
+    uint archetype = stable_key & 7u;
+    if (!in_frustum || (load_shape.z & (1u << archetype)) == 0)
+    {
+        indirect_and_counters.InterlockedAdd(16, 1);
+        return;
+    }
+
+    uint lod = clip.w < 42.0 ? 0u : (clip.w < 70.0 ? 1u : 2u);
+    if (load_shape.w < 3u)
+    {
+        lod = load_shape.w;
+    }
+    LodDescriptor descriptor = catalog_lods[archetype * 3u + lod];
+    uint visible_index;
+    indirect_and_counters.InterlockedAdd(0, 1, visible_index);
+    indirect_and_counters.InterlockedAdd(12, 1);
+    indirect_and_counters.InterlockedAdd(28 + lod * 4, 1);
+    indirect_and_counters.InterlockedAdd(40, descriptor.meshlet_count);
+    indirect_and_counters.InterlockedAdd(44, descriptor.vertex_count);
+    indirect_and_counters.InterlockedAdd(48, descriptor.primitive_count);
+    indirect_and_counters.InterlockedOr(52, 1u << archetype);
+
+    bool animated = stable_key % 100u < animation_shape.x;
+    uint pose_slot = 0xffffffffu;
+    if (animated)
+    {
+        uint animated_index;
+        indirect_and_counters.InterlockedAdd(20, 1, animated_index);
+        indirect_and_counters.InterlockedAdd(76, descriptor.vertex_count * 4u);
+        animated_visible_indices[animated_index] = visible_index;
+        if (pose_shape.x != 0)
+        {
+            pose_slot = animated_index;
+            indirect_and_counters.InterlockedAdd(56, 1);
+            indirect_and_counters.InterlockedAdd(68, 1);
+        }
+        else
+        {
+            pose_slot = archetype * 64u + pose_phase(stable_key);
+            uint ignored;
+            pose_bitset.InterlockedOr((pose_slot / 32u) * 4u, 1u << (pose_slot % 32u), ignored);
+        }
+    }
+    else
+    {
+        indirect_and_counters.InterlockedAdd(24, 1);
+    }
+
+    if (visible_index >= load_shape.y)
+    {
+        indirect_and_counters.InterlockedAdd(72, 1);
+        return;
+    }
+    VisibleObject visible;
+    visible.physical_index = slot * INSTANCES_PER_REGION + local_index;
+    visible.archetype = archetype;
+    visible.lod = lod;
+    visible.stable_key = stable_key;
+    visible.pose_slot = pose_slot;
+    visible.reserved = 0;
+    visible_objects[visible_index] = visible;
+}
+
+[numthreads(256, 1, 1)]
+void compact_main(uint group_thread : SV_GroupIndex)
+{
+    if (pose_shape.x != 0)
+    {
+        return;
+    }
+    for (uint key = group_thread; key < MAX_POSE_KEYS; key += 256)
+    {
+        uint word = pose_bitset.Load((key / 32u) * 4u);
+        if ((word & (1u << (key % 32u))) != 0)
+        {
+            uint active_index;
+            indirect_and_counters.InterlockedAdd(68, 1, active_index);
+            indirect_and_counters.InterlockedAdd(56, 1);
+            active_pose_keys[active_index] = key;
+        }
+    }
+}
+
+AffineTransform compose_affine(AffineTransform parent, AffineTransform child)
+{
+    AffineTransform result;
+    result.row0 = float4(
+        dot(parent.row0.xyz, float3(child.row0.x, child.row1.x, child.row2.x)),
+        dot(parent.row0.xyz, float3(child.row0.y, child.row1.y, child.row2.y)),
+        dot(parent.row0.xyz, float3(child.row0.z, child.row1.z, child.row2.z)),
+        dot(parent.row0.xyz, float3(child.row0.w, child.row1.w, child.row2.w)) + parent.row0.w
+    );
+    result.row1 = float4(
+        dot(parent.row1.xyz, float3(child.row0.x, child.row1.x, child.row2.x)),
+        dot(parent.row1.xyz, float3(child.row0.y, child.row1.y, child.row2.y)),
+        dot(parent.row1.xyz, float3(child.row0.z, child.row1.z, child.row2.z)),
+        dot(parent.row1.xyz, float3(child.row0.w, child.row1.w, child.row2.w)) + parent.row1.w
+    );
+    result.row2 = float4(
+        dot(parent.row2.xyz, float3(child.row0.x, child.row1.x, child.row2.x)),
+        dot(parent.row2.xyz, float3(child.row0.y, child.row1.y, child.row2.y)),
+        dot(parent.row2.xyz, float3(child.row0.z, child.row1.z, child.row2.z)),
+        dot(parent.row2.xyz, float3(child.row0.w, child.row1.w, child.row2.w)) + parent.row2.w
+    );
+    return result;
+}
+
+float centered_byte(uint value)
+{
+    return float(value & 255u) / 255.0 - 0.5;
+}
+
+AffineTransform apply_variant(AffineTransform local, uint seed, uint bone)
+{
+    if (seed == 0)
+    {
+        return local;
+    }
+    uint first = seed * 747796405u + bone * 2891336453u;
+    uint rotated = (first << 13u) | (first >> 19u);
+    uint second = rotated * 2246822519u;
+    local.row0.w += centered_byte(first) * 0.012;
+    local.row2.w += centered_byte(second) * 0.012;
+    return local;
+}
+
+groupshared AffineTransform pose_globals[MAX_BONES];
+
+[numthreads(128, 1, 1)]
+void pose_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
+{
+    uint pose_slot;
+    uint clip;
+    uint phase;
+    uint variant;
+    if (pose_shape.x != 0)
+    {
+        uint visible_index = animated_visible_indices[group_id.x];
+        VisibleObject visible = visible_objects[visible_index];
+        pose_slot = group_id.x;
+        clip = visible.archetype;
+        phase = pose_phase(visible.stable_key);
+        variant = visible.stable_key;
+    }
+    else
+    {
+        uint key = active_pose_keys[group_id.x];
+        pose_slot = key;
+        clip = key / 64u;
+        phase = key % 64u;
+        variant = 0;
+    }
+
+    uint bone_count = animation_shape.y;
+    BoneMeta bone;
+    AffineTransform local;
+    if (group_thread < bone_count)
+    {
+        bone = catalog_bones[group_thread];
+        uint sample_index = (clip * 64u + phase) * MAX_BONES + group_thread;
+        local = apply_variant(catalog_samples[sample_index], variant, group_thread);
+    }
+    [unroll]
+    for (uint depth = 0; depth < 8; depth++)
+    {
+        if (group_thread < bone_count && bone.depth == depth)
+        {
+            if (bone.parent == 0xffffffffu)
+            {
+                pose_globals[group_thread] = local;
+            }
+            else
+            {
+                pose_globals[group_thread] = compose_affine(pose_globals[bone.parent], local);
+            }
+        }
+        GroupMemoryBarrierWithGroupSync();
+    }
+    if (group_thread < bone_count)
+    {
+        AffineTransform skin = compose_affine(
+            pose_globals[group_thread],
+            catalog_inverse_bind[group_thread]
+        );
+        palette_out[pose_slot * MAX_BONES + group_thread] = skin;
+        if (group_id.x == 0 && group_thread < 4)
+        {
+            uint base = 32u + group_thread * 48u;
+            validation_sample.Store4(base, asuint(skin.row0));
+            validation_sample.Store4(base + 16u, asuint(skin.row1));
+            validation_sample.Store4(base + 32u, asuint(skin.row2));
+        }
+    }
+    if (group_id.x == 0 && group_thread == 0)
+    {
+        validation_sample.Store(0, clip);
+        validation_sample.Store(4, phase);
+        validation_sample.Store(8, bone_count);
+        validation_sample.Store(12, variant);
+        validation_sample.Store(16, pose_slot);
+    }
+}
+
+struct MeshPayload
+{
+    uint visible_index;
+    uint meshlet_offset;
+};
+
+groupshared MeshPayload amplification_payload;
+
+[numthreads(1, 1, 1)]
+void as_main(uint3 group_id : SV_GroupID)
+{
+    VisibleObject visible = draw_objects[group_id.x];
+    LodDescriptor descriptor = catalog_lods[visible.archetype * 3u + visible.lod];
+    amplification_payload.visible_index = group_id.x;
+    amplification_payload.meshlet_offset = descriptor.meshlet_offset;
+    DispatchMesh(descriptor.meshlet_count, 1, 1, amplification_payload);
+}
+
+struct MeshVertexOutput
+{
+    float4 position : SV_POSITION;
+    nointerpolation float3 color : COLOR0;
+    nointerpolation uint object_id : TEXCOORD0;
+};
+
+float3 transform_point(AffineTransform transform, float3 local_position)
+{
+    float4 homogeneous = float4(local_position, 1.0);
+    return float3(
+        dot(transform.row0, homogeneous),
+        dot(transform.row1, homogeneous),
+        dot(transform.row2, homogeneous)
+    );
+}
+
+[outputtopology("triangle")]
+[numthreads(64, 1, 1)]
+void ms_main(
+    uint group_thread : SV_GroupIndex,
+    uint3 group_id : SV_GroupID,
+    in payload MeshPayload payload,
+    out vertices MeshVertexOutput output_vertices[64],
+    out indices uint3 output_triangles[126])
+{
+    VisibleObject visible = draw_objects[payload.visible_index];
+    MeshletDescriptor meshlet = catalog_meshlets[payload.meshlet_offset + group_id.x];
+    SetMeshOutputCounts(meshlet.vertex_count, meshlet.primitive_count);
+
+    uint slot = visible.physical_index / INSTANCES_PER_REGION;
+    uint local_index = visible.physical_index % INSTANCES_PER_REGION;
+    InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
+    float angle = float((visible.stable_key * 747796405u) & 65535u) * 6.28318530718 / 65536.0;
+    float sine;
+    float cosine;
+    sincos(angle, sine, cosine);
+    if (group_thread < meshlet.vertex_count)
+    {
+        uint vertex_index = catalog_meshlet_vertices[meshlet.vertex_offset + group_thread];
+        float3 local = catalog_vertices[vertex_index].xyz;
+        local.y *= instance.height;
+        if (visible.pose_slot != 0xffffffffu)
+        {
+            SkinBinding binding = catalog_skin[vertex_index];
+            float3 skinned = 0.0;
+            [unroll]
+            for (uint influence = 0; influence < 4; influence++)
+            {
+                uint bone = ((binding.indices >> (influence * 8u)) & 255u) % animation_shape.y;
+                float weight = float((binding.weights >> (influence * 8u)) & 255u) / 255.0;
+                skinned += transform_point(
+                    palette_in[visible.pose_slot * MAX_BONES + bone],
+                    local
+                ) * weight;
+            }
+            local = skinned;
+        }
+        float3 rotated = float3(
+            local.x * cosine - local.z * sine,
+            local.y,
+            local.x * sine + local.z * cosine
+        );
+        float3 colors[8] = {
+            float3(0.91, 0.24, 0.18), float3(0.12, 0.68, 0.36),
+            float3(0.16, 0.42, 0.92), float3(0.92, 0.66, 0.12),
+            float3(0.68, 0.24, 0.82), float3(0.08, 0.72, 0.76),
+            float3(0.88, 0.38, 0.58), float3(0.52, 0.72, 0.14)
+        };
+        MeshVertexOutput output;
+        output.position = mul(view_projection, float4(instance.position + rotated, 1.0));
+        output.color = colors[visible.archetype] * (1.0 - 0.12 * visible.lod);
+        output.object_id = REGION_OBJECT_ID_BASE + instance.region_id + 1;
+        output_vertices[group_thread] = output;
+    }
+    for (uint primitive_index = group_thread; primitive_index < meshlet.primitive_count; primitive_index += 64)
+    {
+        uint primitive = catalog_primitives[meshlet.primitive_offset + primitive_index];
+        output_triangles[primitive_index] = uint3(
+            primitive & 0xffu,
+            (primitive >> 8) & 0xffu,
+            (primitive >> 16) & 0xffu
+        );
+    }
+}
+
+struct MeshPixelOutput
+{
+    float4 color : SV_TARGET0;
+    uint object_id : SV_TARGET1;
+};
+
+MeshPixelOutput ps_main(MeshVertexOutput input)
+{
+    MeshPixelOutput output;
+    output.color = float4(input.color, 1.0);
+    output.object_id = input.object_id;
+    return output;
+}

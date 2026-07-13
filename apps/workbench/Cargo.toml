@@ -9,6 +9,7 @@ build = "build.rs"
 
 [dependencies]
 anyhow.workspace = true
+animation-catalog.workspace = true
 glam.workspace = true
 meshlet-catalog.workspace = true
 png.workspace = true

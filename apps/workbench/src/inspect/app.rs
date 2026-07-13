@@ -113,6 +113,39 @@ pub(crate) fn handle_commands(
                 renderer.disable_meshlet_scene();
                 Ok(renderer.meshlet_scene_status())
             }
+            ControlKind::SkeletalStatus => Ok(renderer.skeletal_scene_status()),
+            ControlKind::SkeletalConfigure {
+                animated_percent,
+                bone_count,
+                phase_count,
+                time_tick,
+                unique_poses,
+                forced_lod,
+            } => renderer
+                .configure_skeletal_scene(
+                    animated_percent,
+                    bone_count,
+                    phase_count,
+                    time_tick,
+                    unique_poses,
+                    forced_lod,
+                )
+                .map(|()| renderer.skeletal_scene_status())
+                .map_err(|error| ProtocolError {
+                    code: "invalid_skeletal_config",
+                    message: error.to_string(),
+                }),
+            ControlKind::SkeletalEnable => renderer
+                .enable_skeletal_scene()
+                .map(|()| renderer.skeletal_scene_status())
+                .map_err(|error| ProtocolError {
+                    code: "skeletal_unavailable",
+                    message: error.to_string(),
+                }),
+            ControlKind::SkeletalDisable => {
+                renderer.disable_skeletal_scene();
+                Ok(renderer.skeletal_scene_status())
+            }
             ControlKind::LoadDisable => renderer
                 .disable_load()
                 .map(|()| load_status(renderer))
@@ -358,6 +391,7 @@ pub(crate) fn load_status(renderer: &Renderer) -> serde_json::Value {
             "async": renderer.async_resident_status(),
             "cooked": renderer.cooked_status(),
             "meshlet": renderer.meshlet_scene_status(),
+            "skeletal": renderer.skeletal_scene_status(),
         })
     } else if let Some(config) = renderer.resident_config() {
         json!({"mode": "resident-load", "load": config.json()})

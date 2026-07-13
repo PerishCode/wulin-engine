@@ -205,8 +205,13 @@ fn complete_frame(
     }
     if let Some(response) = pending.probe.take() {
         let result = outcome
-            .meshlet_probe
-            .map(|probe| serde_json::to_value(probe).context("meshlet probe encoding failed"))
+            .skeletal_probe
+            .map(|probe| serde_json::to_value(probe).context("skeletal probe encoding failed"))
+            .or_else(|| {
+                outcome.meshlet_probe.map(|probe| {
+                    serde_json::to_value(probe).context("meshlet probe encoding failed")
+                })
+            })
             .or_else(|| {
                 outcome
                     .load_probe
