@@ -132,6 +132,14 @@ pub fn dispatch(renderer: &mut Renderer, kind: ControlKind) -> ControlResult {
             renderer.disable_composition_traversal();
             Ok(renderer.composition_status())
         }
+        ControlKind::CompositionPrefetchEnable => renderer
+            .enable_composition_prefetch()
+            .map(|()| renderer.composition_status())
+            .map_err(stream_error),
+        ControlKind::CompositionPrefetchDisable => renderer
+            .disable_composition_prefetch()
+            .map(|()| renderer.composition_status())
+            .map_err(stream_error),
         ControlKind::CompositionOrder { terrain_first } => {
             renderer.set_composition_order(terrain_first);
             Ok(renderer.composition_status())

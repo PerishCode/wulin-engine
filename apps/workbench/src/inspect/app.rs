@@ -122,6 +122,8 @@ pub(crate) fn handle_commands(
             | ControlKind::CompositionDisable
             | ControlKind::CompositionTraversalEnable
             | ControlKind::CompositionTraversalDisable
+            | ControlKind::CompositionPrefetchEnable
+            | ControlKind::CompositionPrefetchDisable
             | ControlKind::CompositionOrder { .. }
             | ControlKind::CompositionFixture { .. }) => {
                 super::composition_control::dispatch(renderer, composition)

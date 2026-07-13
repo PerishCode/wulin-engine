@@ -1,3 +1,5 @@
+mod control;
+mod prefetch;
 mod rollover;
 #[cfg(test)]
 #[path = "../../../tests/private/composition_traversal.rs"]
@@ -12,7 +14,7 @@ use crate::load::{LoadConfig, MAX_REGION_SIDE};
 use crate::scene::Camera;
 use crate::world::RegionCoord;
 
-use super::super::renderer::Renderer;
+use prefetch::PrefetchState;
 use rollover::{RolloverPolicy, RolloverState};
 
 const TRAVERSAL_REVISION: &str = "camera-region-traversal-v1";
@@ -32,8 +34,22 @@ struct TraversalBasis {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct TraversalTarget {
-    config: LoadConfig,
-    global_config: Option<GlobalRegionConfig>,
+    pub(super) config: LoadConfig,
+    pub(super) global_config: Option<GlobalRegionConfig>,
+}
+
+#[derive(Clone, Copy)]
+struct PendingTraversal {
+    target: TraversalTarget,
+    prefetch: bool,
+}
+
+enum TraversalAction {
+    Schedule {
+        target: TraversalTarget,
+        prefetch: bool,
+    },
+    PromotePrefetch(TraversalTarget),
 }
 
 #[derive(Clone, Serialize)]
@@ -72,6 +88,7 @@ pub(super) struct CameraTraversal {
     last_published: Option<ScheduledTarget>,
     last_failure: Option<BlockedTarget>,
     rollover: RolloverState,
+    prefetch: PrefetchState,
 }
 
 impl CameraTraversal {
@@ -102,14 +119,15 @@ impl CameraTraversal {
         self.queued = None;
         self.blocked = None;
         self.rollover.deactivate();
+        self.prefetch.disable();
     }
 
-    pub(super) fn plan(
+    fn plan(
         &mut self,
         camera: Camera,
         published: TraversalTarget,
-        pending: Option<TraversalTarget>,
-    ) -> Result<Option<TraversalTarget>> {
+        pending: Option<PendingTraversal>,
+    ) -> Result<Option<TraversalAction>> {
         if !self.enabled {
             return Ok(None);
         }
@@ -119,6 +137,7 @@ impl CameraTraversal {
             "published composition changed the traversal basis"
         );
         let desired = basis.camera_target(map_camera(camera, &basis)?)?;
+        let prefetch = self.prefetch.observe(camera, basis, published, desired)?;
         if self.desired != Some(desired) {
             self.desired = Some(desired);
             self.desired_change_count += 1;
@@ -132,7 +151,13 @@ impl CameraTraversal {
         }
 
         if let Some(pending) = pending {
-            self.replace_queued((desired != pending).then_some(desired));
+            if pending.prefetch && desired == pending.target {
+                self.replace_queued(None);
+                return Ok(Some(TraversalAction::PromotePrefetch(desired)));
+            }
+            self.replace_queued(
+                (desired != published && desired != pending.target).then_some(desired),
+            );
             return Ok(None);
         }
         self.queued = None;
@@ -142,9 +167,15 @@ impl CameraTraversal {
                 .as_ref()
                 .is_some_and(|blocked| blocked.target() == desired)
         {
-            return Ok(None);
+            return Ok(prefetch.map(|target| TraversalAction::Schedule {
+                target,
+                prefetch: true,
+            }));
         }
-        Ok(Some(desired))
+        Ok(Some(TraversalAction::Schedule {
+            target: desired,
+            prefetch: false,
+        }))
     }
 
     pub(super) fn mark_scheduled(&mut self, token: u64, target: TraversalTarget) {
@@ -172,6 +203,7 @@ impl CameraTraversal {
         self.commit_rollover(token, target)?;
         self.automatic_publication_count += 1;
         self.last_published = Some(ScheduledTarget::new(token, target));
+        self.prefetch.mark_published(target);
         if self
             .blocked
             .as_ref()
@@ -180,6 +212,27 @@ impl CameraTraversal {
             self.blocked = None;
         }
         Ok(())
+    }
+
+    pub(super) fn mark_prefetch_scheduled(&mut self, token: u64, target: TraversalTarget) {
+        self.prefetch.mark_scheduled(token, target);
+    }
+
+    pub(super) fn mark_prefetch_completed(
+        &mut self,
+        token: u64,
+        target: TraversalTarget,
+        evidence: Value,
+    ) {
+        self.prefetch.mark_completed(token, target, evidence);
+    }
+
+    pub(super) fn mark_prefetch_promoted(&mut self, target: TraversalTarget) {
+        self.prefetch.mark_promoted(target);
+    }
+
+    pub(super) fn mark_prefetch_failed(&mut self, target: TraversalTarget, message: String) {
+        self.prefetch.mark_failed(target, message);
     }
 
     pub(super) fn mark_failed(
@@ -222,6 +275,9 @@ impl CameraTraversal {
         });
         if let Some(rollover) = self.rollover.status_json() {
             value["rollover"] = rollover;
+        }
+        if let Some(prefetch) = self.prefetch.status_json() {
+            value["prefetch"] = prefetch;
         }
         value
     }
@@ -345,6 +401,13 @@ impl ScheduledTarget {
             global_config: target.global_config,
         }
     }
+
+    fn target(&self) -> TraversalTarget {
+        TraversalTarget {
+            config: self.config,
+            global_config: self.global_config,
+        }
+    }
 }
 
 impl BlockedTarget {
@@ -361,91 +424,6 @@ impl BlockedTarget {
             config: self.config,
             global_config: self.global_config,
         }
-    }
-}
-
-impl Renderer {
-    pub fn enable_composition_traversal(&mut self) -> Result<()> {
-        ensure!(
-            self.composition.enabled,
-            "camera traversal requires composition mode"
-        );
-        ensure!(self.composition.pending.is_none(), "composition_pair_busy");
-        let published = self
-            .composition
-            .published
-            .as_ref()
-            .context("camera traversal requires a published pair")?;
-        let canonical_rollover = published.terrain_source_namespace.is_some();
-        ensure!(
-            canonical_rollover == published.object_source_namespace.is_some(),
-            "composition source halves disagree on canonical traversal mode"
-        );
-        self.composition.traversal.enable(
-            TraversalTarget {
-                config: published.config,
-                global_config: published.global_config,
-            },
-            canonical_rollover,
-        )
-    }
-
-    pub fn disable_composition_traversal(&mut self) {
-        self.composition.traversal.disable();
-    }
-
-    pub(in crate::rendering) fn take_composition_camera_shift(&mut self) -> Option<[i32; 2]> {
-        self.composition.traversal.take_camera_delta()
-    }
-
-    pub(in crate::rendering) unsafe fn drive_composition_traversal(
-        &mut self,
-        camera: Camera,
-    ) -> Result<()> {
-        if !self.composition.traversal.is_enabled() {
-            return Ok(());
-        }
-        let published_pair = self
-            .composition
-            .published
-            .as_ref()
-            .context("enabled camera traversal has no published pair")?;
-        let published = TraversalTarget {
-            config: published_pair.config,
-            global_config: published_pair.global_config,
-        };
-        let pending = self
-            .composition
-            .pending
-            .as_ref()
-            .map(|value| TraversalTarget {
-                config: value.config,
-                global_config: value.global_config,
-            });
-        let Some(target) = self
-            .composition
-            .traversal
-            .plan(camera, published, pending)?
-        else {
-            return Ok(());
-        };
-        self.composition.traversal.mark_attempted();
-        match unsafe { self.schedule_composition_pair(target.config, target.global_config, true) } {
-            Ok(value) => {
-                let token = value["token"]
-                    .as_u64()
-                    .expect("composition schedule response omitted token");
-                self.composition.traversal.mark_scheduled(token, target);
-            }
-            Err(error) => {
-                self.composition.traversal.mark_failed(
-                    target.config,
-                    target.global_config,
-                    format!("{error:#}"),
-                );
-            }
-        }
-        Ok(())
     }
 }
 

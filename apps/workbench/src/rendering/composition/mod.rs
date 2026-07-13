@@ -23,6 +23,8 @@ mod schedule;
 mod state;
 mod traversal;
 
+use traversal::TraversalTarget;
+
 pub use fixture::CompositionFixture;
 pub use probe::CompositionProbe;
 
@@ -45,6 +47,23 @@ enum HalfState {
     Discarded,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PairPurpose {
+    Manual,
+    Traversal,
+    Prefetch,
+}
+
+impl PairPurpose {
+    fn camera_driven(self) -> bool {
+        self != Self::Manual
+    }
+
+    fn prefetch(self) -> bool {
+        self == Self::Prefetch
+    }
+}
+
 struct PendingPair {
     token: u64,
     config: LoadConfig,
@@ -57,7 +76,7 @@ struct PendingPair {
     terrain: HalfState,
     instance: HalfState,
     failure: Option<String>,
-    camera_driven: bool,
+    purpose: PairPurpose,
     started_at: Instant,
 }
 
@@ -69,7 +88,7 @@ struct PendingPairInput {
     fixture: CompositionFixture,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
-    camera_driven: bool,
+    purpose: PairPurpose,
 }
 
 #[derive(Clone, Serialize)]
@@ -249,6 +268,36 @@ impl Renderer {
             .pending
             .take()
             .expect("ready composition pair disappeared");
+        if pending.purpose.prefetch() {
+            let instance_report = self
+                .async_resident_renderer
+                .discard_staged()
+                .context("prefetch instance stage disappeared")?;
+            let terrain_report = self
+                .terrain_renderer
+                .discard_staged()
+                .context("prefetch terrain stage disappeared")?;
+            ensure!(
+                instance_report.transaction_id == pending.instance_transaction_id
+                    && terrain_report.transaction_id == pending.terrain_transaction_id,
+                "composition prepared the wrong transactions"
+            );
+            self.terrain_streamer.mark_completed(&terrain_report)?;
+            self.composition.traversal.mark_prefetch_completed(
+                pending.token,
+                TraversalTarget {
+                    config: pending.config,
+                    global_config: pending.global_config,
+                },
+                json!({
+                    "terrain": terrain_report,
+                    "objects": instance_report,
+                    "preparationMs": pending.started_at.elapsed().as_secs_f64() * 1_000.0,
+                }),
+            );
+            self.composition.last_failure = None;
+            return Ok(());
+        }
         let instance_slots = self
             .async_resident_renderer
             .staged_active_slots()
@@ -292,7 +341,7 @@ impl Renderer {
                 && terrain_report.transaction_id == pending.terrain_transaction_id,
             "composition committed the wrong transactions"
         );
-        self.terrain_streamer.mark_published(&terrain_report)?;
+        self.terrain_streamer.mark_completed(&terrain_report)?;
         self.composition.publication_count += 1;
         self.composition.published = Some(PublishedPair {
             token: pending.token,
@@ -313,9 +362,9 @@ impl Renderer {
             global_regions,
             global_mapping_sha256,
             publication_ms: pending.started_at.elapsed().as_secs_f64() * 1_000.0,
-            camera_driven: pending.camera_driven,
+            camera_driven: pending.purpose.camera_driven(),
         });
-        if pending.camera_driven {
+        if pending.purpose == PairPurpose::Traversal {
             self.composition.traversal.mark_published(
                 pending.token,
                 pending.config,
@@ -404,7 +453,7 @@ impl Renderer {
             .pending
             .take()
             .expect("failed composition pair disappeared");
-        if pending.camera_driven {
+        if pending.purpose == PairPurpose::Traversal {
             self.composition.traversal.mark_failed(
                 pending.config,
                 pending.global_config,
@@ -412,6 +461,17 @@ impl Renderer {
                     .failure
                     .clone()
                     .unwrap_or_else(|| "composition pair failed".into()),
+            );
+        } else if pending.purpose.prefetch() {
+            self.composition.traversal.mark_prefetch_failed(
+                TraversalTarget {
+                    config: pending.config,
+                    global_config: pending.global_config,
+                },
+                pending
+                    .failure
+                    .clone()
+                    .unwrap_or_else(|| "composition prefetch failed".into()),
             );
         }
         self.composition.last_failure = Some(json!({

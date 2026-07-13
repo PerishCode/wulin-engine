@@ -35,7 +35,7 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 29 }
+payload = { max_children = 30 }
 reason = "Runseal resolves named repository wrappers from one flat directory; each child is an explicit operator entrypoint."
 
 [[overrides]]
@@ -44,7 +44,7 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 16 }
+payload = { max_children = 19 }
 reason = "Runseal experiment helpers remain flat, named support owners shared by canonical wrappers."
 
 [[overrides]]

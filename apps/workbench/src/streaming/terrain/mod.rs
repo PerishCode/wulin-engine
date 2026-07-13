@@ -291,14 +291,14 @@ impl TerrainStreamer {
         Ok(())
     }
 
-    pub fn mark_published(&mut self, report: &TerrainTransactionReport) -> Result<()> {
+    pub fn mark_completed(&mut self, report: &TerrainTransactionReport) -> Result<()> {
         let pending = self
             .pending
             .take()
-            .context("terrain publication has no request")?;
+            .context("terrain completion has no request")?;
         ensure!(
             pending.transaction_id == report.transaction_id,
-            "terrain publication transaction mismatch"
+            "terrain completion transaction mismatch"
         );
         self.last_completed = Some(serde_json::to_value(report)?);
         self.last_failure = None;

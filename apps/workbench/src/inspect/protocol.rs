@@ -145,6 +145,8 @@ pub enum ControlKind {
     CompositionDisable,
     CompositionTraversalEnable,
     CompositionTraversalDisable,
+    CompositionPrefetchEnable,
+    CompositionPrefetchDisable,
     CompositionOrder {
         terrain_first: bool,
     },
@@ -295,6 +297,8 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "composition.disable" => Ok(ControlKind::CompositionDisable),
         "composition.traversal.enable" => Ok(ControlKind::CompositionTraversalEnable),
         "composition.traversal.disable" => Ok(ControlKind::CompositionTraversalDisable),
+        "composition.prefetch.enable" => Ok(ControlKind::CompositionPrefetchEnable),
+        "composition.prefetch.disable" => Ok(ControlKind::CompositionPrefetchDisable),
         "composition.order" => super::composition_control::parse_order(payload),
         "composition.fixture" => super::composition_control::parse_fixture(payload),
         "composition.global.schedule" => super::composition_control::parse_global(payload),
