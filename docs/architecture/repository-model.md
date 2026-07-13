@@ -2,11 +2,11 @@
 
 ## State
 
-The repository has completed the native workbench cold start through cooked region I/O.
-The first reusable engine module, `crates/region-format`, and its offline writer under
-`tools/region-cooker` are promoted by Experiment 0008 and ADR 0011. Other engine systems
-remain workbench-owned until an experiment establishes a reusable boundary. Directories
-are created only when they own real files.
+The repository has completed the native workbench cold start through real GPU meshlet
+scene execution. `crates/region-format`, its offline writer under `tools/region-cooker`,
+and `crates/meshlet-catalog` are promoted by Experiments 0008-0009 and ADRs 0011-0012.
+Other engine systems remain workbench-owned until an experiment establishes a reusable
+boundary. Directories are created only when they own real files.
 
 ## Dependency direction
 

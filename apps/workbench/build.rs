@@ -12,6 +12,7 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders/region_load.hlsl");
     println!("cargo:rerun-if-changed=shaders/resident_load.hlsl");
     println!("cargo:rerun-if-changed=shaders/async_resident.hlsl");
+    println!("cargo:rerun-if-changed=shaders/meshlet_scene.hlsl");
     println!("cargo:rerun-if-env-changed=AGILITY_SDK_ROOT");
     println!("cargo:rerun-if-env-changed=DXC");
 
@@ -125,6 +126,46 @@ fn main() {
         "ps_main",
         "ps_6_6",
         "async_resident.ps.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "meshlet_scene.hlsl",
+        "reset_main",
+        "cs_6_6",
+        "meshlet_scene.reset.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "meshlet_scene.hlsl",
+        "cull_main",
+        "cs_6_6",
+        "meshlet_scene.cull.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "meshlet_scene.hlsl",
+        "as_main",
+        "as_6_6",
+        "meshlet_scene.as.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "meshlet_scene.hlsl",
+        "ms_main",
+        "ms_6_6",
+        "meshlet_scene.ms.dxil",
+    );
+    compile_named_shader(
+        &manifest_dir,
+        &out_dir,
+        "meshlet_scene.hlsl",
+        "ps_main",
+        "ps_6_6",
+        "meshlet_scene.ps.dxil",
     );
     compile_shader(
         &manifest_dir,

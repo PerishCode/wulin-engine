@@ -11,7 +11,7 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::perception::{PixelPoint, PixelRegion};
+use super::protocol::{ControlKind, ControlResult, parse_control};
 
 const DEFAULT_ENDPOINT: &str = "tcp://127.0.0.1:47631";
 const MAX_FRAME_BYTES: u64 = 64 * 1024;
@@ -27,76 +27,6 @@ pub struct ControlCommand {
     pub response: SyncSender<ControlResult>,
 }
 
-pub enum ControlKind {
-    Status,
-    SetClearColor([f32; 4]),
-    Pause,
-    Resume,
-    Capture {
-        id: String,
-        collection: String,
-    },
-    PerceptionCapture {
-        id: String,
-        collection: String,
-        region: Option<PixelRegion>,
-        samples: Vec<PixelPoint>,
-    },
-    CameraStatus,
-    CameraSetPose {
-        position: [f32; 3],
-        target: [f32; 3],
-        vertical_fov_degrees: f32,
-    },
-    CameraReset,
-    SceneListObjects,
-    LoadConfigure {
-        world_region_side: u32,
-        active_center_x: u32,
-        active_center_z: u32,
-        active_radius: u32,
-    },
-    LoadDisable,
-    LoadStatus,
-    LoadProbe,
-    ResidentStream {
-        world_region_side: u32,
-        active_center_x: u32,
-        active_center_z: u32,
-        active_radius: u32,
-    },
-    ResidentStatus,
-    AsyncResidentSchedule {
-        world_region_side: u32,
-        active_center_x: u32,
-        active_center_z: u32,
-        active_radius: u32,
-    },
-    AsyncResidentStatus,
-    AsyncCopyGateArm,
-    AsyncCopyGateRelease,
-    CookedOpen {
-        path: String,
-    },
-    CookedSchedule {
-        world_region_side: u32,
-        active_center_x: u32,
-        active_center_z: u32,
-        active_radius: u32,
-    },
-    CookedStatus,
-    CookedIoGateArm,
-    CookedIoGateRelease,
-}
-
-pub type ControlResult = std::result::Result<Value, ProtocolError>;
-
-#[derive(Debug)]
-pub struct ProtocolError {
-    pub code: &'static str,
-    pub message: String,
-}
-
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EventFrame {
@@ -104,52 +34,6 @@ struct EventFrame {
     id: String,
     verb: String,
     payload: Value,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct SetClearColorPayload {
-    rgba: [f32; 4],
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CapturePayload {
-    id: String,
-    collection: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PerceptionCapturePayload {
-    id: String,
-    collection: Option<String>,
-    region: Option<PixelRegion>,
-    #[serde(default)]
-    samples: Vec<PixelPoint>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CameraPosePayload {
-    position: [f32; 3],
-    target: [f32; 3],
-    vertical_fov_degrees: f32,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct LoadConfigurePayload {
-    world_region_side: u32,
-    active_center_x: u32,
-    active_center_z: u32,
-    active_radius: u32,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CookedOpenPayload {
-    path: String,
 }
 
 impl InspectServer {
@@ -252,6 +136,13 @@ fn handle_connection(mut stream: TcpStream, commands: &SyncSender<ControlCommand
             return;
         }
     };
+    let response_timeout = match &kind {
+        ControlKind::Capture { .. } | ControlKind::PerceptionCapture { .. } => {
+            Duration::from_secs(15)
+        }
+        ControlKind::LoadProbe => Duration::from_secs(10),
+        _ => Duration::from_secs(4),
+    };
     let (response_tx, response_rx) = mpsc::sync_channel(1);
     if commands
         .send(ControlCommand {
@@ -269,7 +160,7 @@ fn handle_connection(mut stream: TcpStream, commands: &SyncSender<ControlCommand
         return;
     }
 
-    match response_rx.recv_timeout(Duration::from_secs(4)) {
+    match response_rx.recv_timeout(response_timeout) {
         Ok(Ok(payload)) => {
             let _ = write_frame(
                 &mut stream,
@@ -284,179 +175,13 @@ fn handle_connection(mut stream: TcpStream, commands: &SyncSender<ControlCommand
                 &mut stream,
                 &frame.id,
                 "timeout",
-                "workbench control loop did not respond".into(),
+                format!(
+                    "workbench control loop did not respond within {} ms",
+                    response_timeout.as_millis()
+                ),
             );
         }
     }
-}
-
-fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
-    match verb {
-        "workbench.status" => Ok(ControlKind::Status),
-        "workbench.pause" => Ok(ControlKind::Pause),
-        "workbench.resume" => Ok(ControlKind::Resume),
-        "camera.status" => Ok(ControlKind::CameraStatus),
-        "camera.reset" => Ok(ControlKind::CameraReset),
-        "scene.list_objects" => Ok(ControlKind::SceneListObjects),
-        "load.disable" => Ok(ControlKind::LoadDisable),
-        "load.status" => Ok(ControlKind::LoadStatus),
-        "load.probe" => Ok(ControlKind::LoadProbe),
-        "resident.status" => Ok(ControlKind::ResidentStatus),
-        "async.status" => Ok(ControlKind::AsyncResidentStatus),
-        "async.gate.arm" => Ok(ControlKind::AsyncCopyGateArm),
-        "async.gate.release" => Ok(ControlKind::AsyncCopyGateRelease),
-        "cooked.status" => Ok(ControlKind::CookedStatus),
-        "cooked.gate.arm" => Ok(ControlKind::CookedIoGateArm),
-        "cooked.gate.release" => Ok(ControlKind::CookedIoGateRelease),
-        "cooked.open" => {
-            let payload: CookedOpenPayload =
-                serde_json::from_value(payload).map_err(|error| ProtocolError {
-                    code: "invalid_payload",
-                    message: error.to_string(),
-                })?;
-            Ok(ControlKind::CookedOpen { path: payload.path })
-        }
-        "load.configure" => {
-            let payload: LoadConfigurePayload =
-                serde_json::from_value(payload).map_err(|error| ProtocolError {
-                    code: "invalid_payload",
-                    message: error.to_string(),
-                })?;
-            Ok(ControlKind::LoadConfigure {
-                world_region_side: payload.world_region_side,
-                active_center_x: payload.active_center_x,
-                active_center_z: payload.active_center_z,
-                active_radius: payload.active_radius,
-            })
-        }
-        "resident.stream" => {
-            let payload: LoadConfigurePayload =
-                serde_json::from_value(payload).map_err(|error| ProtocolError {
-                    code: "invalid_payload",
-                    message: error.to_string(),
-                })?;
-            Ok(ControlKind::ResidentStream {
-                world_region_side: payload.world_region_side,
-                active_center_x: payload.active_center_x,
-                active_center_z: payload.active_center_z,
-                active_radius: payload.active_radius,
-            })
-        }
-        "async.schedule" => {
-            let payload: LoadConfigurePayload =
-                serde_json::from_value(payload).map_err(|error| ProtocolError {
-                    code: "invalid_payload",
-                    message: error.to_string(),
-                })?;
-            Ok(ControlKind::AsyncResidentSchedule {
-                world_region_side: payload.world_region_side,
-                active_center_x: payload.active_center_x,
-                active_center_z: payload.active_center_z,
-                active_radius: payload.active_radius,
-            })
-        }
-        "cooked.schedule" => {
-            let payload: LoadConfigurePayload =
-                serde_json::from_value(payload).map_err(|error| ProtocolError {
-                    code: "invalid_payload",
-                    message: error.to_string(),
-                })?;
-            Ok(ControlKind::CookedSchedule {
-                world_region_side: payload.world_region_side,
-                active_center_x: payload.active_center_x,
-                active_center_z: payload.active_center_z,
-                active_radius: payload.active_radius,
-            })
-        }
-        "camera.set_pose" => {
-            let payload: CameraPosePayload =
-                serde_json::from_value(payload).map_err(|error| ProtocolError {
-                    code: "invalid_payload",
-                    message: error.to_string(),
-                })?;
-            Ok(ControlKind::CameraSetPose {
-                position: payload.position,
-                target: payload.target,
-                vertical_fov_degrees: payload.vertical_fov_degrees,
-            })
-        }
-        "workbench.capture" => parse_capture(payload),
-        "perception.capture" => parse_perception_capture(payload),
-        "workbench.set_clear_color" => {
-            let payload: SetClearColorPayload =
-                serde_json::from_value(payload).map_err(|error| ProtocolError {
-                    code: "invalid_payload",
-                    message: error.to_string(),
-                })?;
-            if payload.rgba.iter().any(|value| !value.is_finite())
-                || payload
-                    .rgba
-                    .iter()
-                    .any(|value| !(0.0..=1.0).contains(value))
-            {
-                return Err(ProtocolError {
-                    code: "invalid_payload",
-                    message: "rgba values must be finite numbers in the range 0..=1".into(),
-                });
-            }
-            Ok(ControlKind::SetClearColor(payload.rgba))
-        }
-        _ => Err(ProtocolError {
-            code: "unknown_event",
-            message: format!("unsupported event {verb:?}"),
-        }),
-    }
-}
-
-type ControlResultKind = std::result::Result<ControlKind, ProtocolError>;
-
-fn parse_capture(value: Value) -> ControlResultKind {
-    let payload: CapturePayload = serde_json::from_value(value).map_err(|error| ProtocolError {
-        code: "invalid_payload",
-        message: error.to_string(),
-    })?;
-    validate_safe_name("capture id", &payload.id)?;
-    let collection = payload.collection.unwrap_or_else(|| "operator".into());
-    validate_safe_name("collection", &collection)?;
-    Ok(ControlKind::Capture {
-        id: payload.id,
-        collection,
-    })
-}
-
-fn parse_perception_capture(value: Value) -> ControlResultKind {
-    let payload: PerceptionCapturePayload =
-        serde_json::from_value(value).map_err(|error| ProtocolError {
-            code: "invalid_payload",
-            message: error.to_string(),
-        })?;
-    validate_safe_name("capture id", &payload.id)?;
-    let collection = payload.collection.unwrap_or_else(|| "operator".into());
-    validate_safe_name("collection", &collection)?;
-    Ok(ControlKind::PerceptionCapture {
-        id: payload.id,
-        collection,
-        region: payload.region,
-        samples: payload.samples,
-    })
-}
-
-fn validate_safe_name(label: &str, value: &str) -> std::result::Result<(), ProtocolError> {
-    if is_safe_name(value) {
-        return Ok(());
-    }
-    Err(ProtocolError {
-        code: "invalid_payload",
-        message: format!("{label} must contain 1..=64 ASCII letters, digits, '-' or '_'"),
-    })
-}
-
-fn is_safe_name(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
 }
 
 fn write_error(

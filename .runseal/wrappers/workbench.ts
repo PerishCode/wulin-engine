@@ -65,7 +65,7 @@ function perceptionPayload(verb: string, args: string[]): Record<string, unknown
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -235,6 +235,38 @@ switch (verb) {
             "json",
         ]);
         break;
+    case "meshlet":
+        if (args.length > 0) fail("workbench: meshlet does not accept arguments");
+        await run(["inspect", "workbench", "meshlet.status", "--format", "json"]);
+        break;
+    case "meshlet-enable":
+    case "meshlet-disable":
+        if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
+        await run([
+            "inspect",
+            "workbench",
+            verb === "meshlet-enable" ? "meshlet.enable" : "meshlet.disable",
+            "--format",
+            "json",
+        ]);
+        break;
+    case "meshlet-config": {
+        if (args.length > 2) fail("workbench: meshlet-config accepts mask and forced LOD");
+        const forced = args[1] ?? "auto";
+        const forcedLod = forced === "auto" ? null : pixel(forced, "forced LOD");
+        await run([
+            "inspect",
+            "workbench",
+            "meshlet.configure",
+            JSON.stringify({
+                archetype_mask: pixel(args[0] ?? "255", "archetype mask"),
+                forced_lod: forcedLod,
+            }),
+            "--format",
+            "json",
+        ]);
+        break;
+    }
     case "camera-set": {
         if (args.length !== 6 && args.length !== 7) {
             fail("workbench: camera-set requires px py pz tx ty tz and optional vertical FOV");

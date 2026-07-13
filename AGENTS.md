@@ -123,6 +123,7 @@ contains only files that exist.
 | `docs/adr/0009-resident-region-storage.md` | Accepted bounded default-heap region cache, active mapping, and transactional publication contract. |
 | `docs/adr/0010-asynchronous-region-publication.md` | Accepted copy-queue ordering, immutable publication, protected slots, and bounded backpressure contract. |
 | `docs/adr/0011-cooked-region-storage.md` | Accepted canonical pack, bounded background I/O, reservation, and rollback contract. |
+| `docs/adr/0012-gpu-meshlet-scene-execution.md` | Accepted meshlet catalog, GPU cull/LOD, bounded indirect mesh execution, and capability contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -142,6 +143,10 @@ contains only files that exist.
 | `experiments/0006-resident-region-streaming/README.md` | Experiment 0006 resident cache movement workload, transfer evidence, and accepted conclusion. |
 | `experiments/0007-async-region-publication/README.md` | Experiment 0007 held-copy frame-continuity workload, evidence, and accepted conclusion. |
 | `experiments/0008-cooked-region-io/README.md` | Experiment 0008 cooked format, bounded background I/O, failure rollback, and accepted evidence. |
+| `experiments/0009-gpu-meshlet-scene/README.md` | Accepted Experiment 0009 real meshlet geometry, GPU LOD, oracle, sweep, and indirect-dispatch evidence. |
+| `crates/meshlet-catalog/Cargo.toml` | Deterministic static meshlet catalog package and dependency boundary. |
+| `crates/meshlet-catalog/src/lib.rs` | Eight-archetype, three-LOD geometry generation, meshlet partitioning, validation, encoding, and hashing. |
+| `crates/meshlet-catalog/tests/catalog.rs` | Catalog determinism, reducing-LOD, and mesh-shader bound regression contract. |
 | `crates/region-format/Cargo.toml` | Canonical region-format package boundary and reusable dependencies. |
 | `crates/region-format/src/lib.rs` | Versioned pack writer/reader, explicit record codec, index validation, and chunk verification. |
 | `crates/region-format/tests/pack.rs` | Canonical round-trip and malformed metadata/payload rejection contract. |
@@ -153,10 +158,12 @@ contains only files that exist.
 | `apps/workbench/shaders/region_load.hlsl` | Procedural region reset, cull/compact, indirect draw, and semantic-ID shaders. |
 | `apps/workbench/shaders/resident_load.hlsl` | Persistent instance compaction, indirect rendering, and semantic-ID shaders. |
 | `apps/workbench/shaders/async_resident.hlsl` | Descriptor-indexed per-slot compaction, indirect rendering, and semantic-ID shaders. |
+| `apps/workbench/shaders/meshlet_scene.hlsl` | GPU object culling, LOD, visible compaction, amplification, mesh emission, and semantic-ID shaders. |
 | `apps/workbench/src/main.rs` | Workbench composition, Win32/frame loop, pending frame operations, and error propagation. |
 | `apps/workbench/src/capture.rs` | Color/object-ID artifacts, encoding, hashes, manifests, and capture ownership. |
 | `apps/workbench/src/inspect/mod.rs` | Workbench control-plane module boundary and narrow exports. |
-| `apps/workbench/src/inspect/server.rs` | Project-owned SidecarRuntime event server and typed wire protocol. |
+| `apps/workbench/src/inspect/server.rs` | Project-owned SidecarRuntime transport, event framing, and response delivery. |
+| `apps/workbench/src/inspect/protocol.rs` | Typed workbench control vocabulary, payload decoding, and protocol errors. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch, workload status, and stream transaction entrypoints. |
 | `apps/workbench/src/load.rs` | Region address space, load configuration, workload counts, and procedural semantics. |
 | `apps/workbench/src/resident.rs` | Resident cache planning, deterministic records, LRU eviction, and stream reports. |
@@ -168,7 +175,8 @@ contains only files that exist.
 | `apps/workbench/src/scene.rs` | Calibration scene objects, camera state, transforms, and spatial manifest. |
 | `apps/workbench/src/window.rs` | Win32 window class, native handle, and console shutdown lifecycle. |
 | `apps/workbench/src/rendering/mod.rs` | Workbench rendering subsystem boundary and narrow application exports. |
-| `apps/workbench/src/rendering/renderer.rs` | D3D12 swap chain, clear/present loop, mode dispatch, and GPU synchronization. |
+| `apps/workbench/src/rendering/renderer/mod.rs` | D3D12 device, swap-chain resources, mode controls, and GPU synchronization ownership. |
+| `apps/workbench/src/rendering/renderer/frame.rs` | Per-frame mode dispatch, capture, present, and probe submission path. |
 | `apps/workbench/src/rendering/device.rs` | Reference adapter selection, debug-layer enablement, and common transitions. |
 | `apps/workbench/src/rendering/gpu_capture.rs` | D3D12 copy footprint, persistent readback, and tight four-byte pixel extraction. |
 | `apps/workbench/src/rendering/load/pipeline.rs` | Procedural load root signatures, PSOs, and indirect command signature. |
@@ -184,9 +192,15 @@ contains only files that exist.
 | `apps/workbench/src/rendering/async_resident/transfer/status.rs` | Asynchronous reservation, copy, gate, and publication status projection. |
 | `apps/workbench/src/rendering/async_resident/resources.rs` | Asynchronous region descriptor heap and per-slot SRV construction. |
 | `apps/workbench/src/rendering/async_resident/mod.rs` | Asynchronous resident rendering ownership boundary and narrow export. |
+| `apps/workbench/src/rendering/meshlet_scene/pipeline.rs` | Meshlet compute/graphics root signatures, PSOs, and indirect mesh command signature. |
+| `apps/workbench/src/rendering/meshlet_scene/resources.rs` | Immutable catalog upload, bounded execution buffers, counters, timestamps, and readback. |
+| `apps/workbench/src/rendering/meshlet_scene/renderer.rs` | Meshlet mode configuration, command recording, GPU probe decoding, and status. |
+| `apps/workbench/src/rendering/meshlet_scene/oracle.rs` | Deterministic CPU workload oracle for GPU aggregate validation. |
+| `apps/workbench/src/rendering/meshlet_scene/mod.rs` | GPU meshlet scene ownership boundary and narrow exports. |
 | `apps/workbench/src/rendering/cooked.rs` | Cooked I/O completion, reservation cancellation, and GPU submission orchestration. |
-| `apps/workbench/src/rendering/object_id_target.rs` | Persistent `R32_UINT` semantic render-target resource and descriptor ownership. |
-| `apps/workbench/src/rendering/scene_renderer.rs` | Calibration graphics PSO, reverse-Z depth, procedural geometry, and scene draws. |
+| `apps/workbench/src/rendering/calibration/object_id_target.rs` | Persistent `R32_UINT` semantic render-target resource and descriptor ownership. |
+| `apps/workbench/src/rendering/calibration/scene_renderer.rs` | Calibration graphics PSO, reverse-Z depth, procedural geometry, and scene draws. |
+| `apps/workbench/src/rendering/calibration/mod.rs` | Calibration rendering ownership boundary and narrow scene-renderer export. |
 | `runseal.toml` | Explicit local resources, Deno policy, and repository environment injection. |
 | `flavor.toml` | Consumer-owned code-shape scan scope and rule adjustments. |
 | `sidecar.toml` | Local runtime identity, native workbench app target, readiness, and inspect endpoint. |
@@ -201,6 +215,7 @@ contains only files that exist.
 | `.runseal/wrappers/resident-stream.ts` | Canonical Experiment 0006 movement, eviction, restart, and resident evidence workflow. |
 | `.runseal/wrappers/async-region.ts` | Canonical Experiment 0007 held-copy, publication, eviction, restart, and evidence workflow. |
 | `.runseal/wrappers/cooked-region.ts` | Canonical Experiment 0008 recook, held-I/O, incremental reads, corruption, restart, and evidence workflow. |
+| `.runseal/wrappers/meshlet-scene.ts` | Canonical Experiment 0009 meshlet catalog, GPU oracle, visual, sweep, movement, and restart evidence workflow. |
 | `.runseal/support/cooked-region.ts` | Experiment 0008 structured evidence, pack corruption, hashing, and comparison helpers. |
 | `.runseal/wrappers/visual-loop.ts` | Canonical Experiment 0002 deterministic capture and cleanup workflow. |
 | `.runseal/wrappers/spatial-scene.ts` | Canonical Experiment 0003 spatial rendering and inspection workflow. |
@@ -225,6 +240,10 @@ protected active slots, and explicit bounded backpressure. Experiment 0008 and A
 accept a versioned canonical region pack, offline-only writing, indexed on-demand chunk
 validation, one bounded background worker, cache reservation before materialization, and
 pre-copy rollback on I/O failure.
+Experiment 0009 and ADR 0012 accept a deterministic bounded meshlet catalog, GPU object
+culling and LOD selection, amplification and mesh shader execution, exact validation
+against a CPU oracle, and one indirect mesh dispatch whose CPU submission shape is
+independent of logical-world extent and emitted geometry count.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -244,6 +263,7 @@ runseal :region-load
 runseal :resident-stream
 runseal :async-region
 runseal :cooked-region
+runseal :meshlet-scene
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
@@ -268,6 +288,10 @@ runseal :workbench cooked-open out/cooked/0008-cooked-region-io/regions-a.wlr
 runseal :workbench cooked-schedule 64 64
 runseal :workbench cooked-gate-arm
 runseal :workbench cooked-gate-release
+runseal :workbench meshlet
+runseal :workbench meshlet-config 255
+runseal :workbench meshlet-enable
+runseal :workbench meshlet-disable
 runseal :workbench load-probe
 runseal :workbench load-disable
 runseal :workbench resume

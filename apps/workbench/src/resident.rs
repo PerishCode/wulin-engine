@@ -172,8 +172,8 @@ pub(crate) fn active_region_ids(config: LoadConfig) -> Result<Vec<u32>> {
             regions.push(z * MAX_REGION_SIDE + x);
         }
     }
-    if regions.len() != ACTIVE_REGION_CAPACITY {
-        anyhow::bail!("resident mode requires exactly {ACTIVE_REGION_CAPACITY} active regions");
+    if regions.len() > ACTIVE_REGION_CAPACITY {
+        anyhow::bail!("resident mode supports at most {ACTIVE_REGION_CAPACITY} active regions");
     }
     Ok(regions)
 }
