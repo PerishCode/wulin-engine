@@ -15,6 +15,7 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders/meshlet_scene.hlsl");
     println!("cargo:rerun-if-changed=shaders/skeletal_scene.hlsl");
     println!("cargo:rerun-if-changed=shaders/surface_resolve.hlsl");
+    println!("cargo:rerun-if-changed=shaders/occlusion.hlsl");
     println!("cargo:rerun-if-env-changed=AGILITY_SDK_ROOT");
     println!("cargo:rerun-if-env-changed=DXC");
 
@@ -184,6 +185,22 @@ fn main() {
             "skeletal_scene.hlsl",
             entry,
             profile,
+            output,
+        );
+    }
+    for (entry, output) in [
+        ("occlusion_classify_main", "occlusion.classify.dxil"),
+        ("occlusion_prefix_main", "occlusion.prefix.dxil"),
+        ("occlusion_scatter_main", "occlusion.scatter.dxil"),
+        ("hiz_mip0_main", "occlusion.mip0.dxil"),
+        ("hiz_reduce_main", "occlusion.reduce.dxil"),
+    ] {
+        compile_named_shader(
+            &manifest_dir,
+            &out_dir,
+            "occlusion.hlsl",
+            entry,
+            "cs_6_6",
             output,
         );
     }

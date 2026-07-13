@@ -18,7 +18,7 @@ use crate::resident::ACTIVE_REGION_CAPACITY;
 
 pub const COUNTER_BYTES: u64 = 80;
 pub const SAMPLE_BYTES: u64 = 224;
-pub const QUERY_COUNT: u32 = 6;
+pub const QUERY_COUNT: u32 = 8;
 pub const MAX_SHARED_POSES: u32 = 512;
 pub const MAX_SKELETAL_VISIBLE: u32 = ACTIVE_REGION_CAPACITY as u32 * INSTANCES_PER_REGION;
 pub const PALETTE_BYTES: u64 = MAX_SKELETAL_VISIBLE as u64 * BONE_COUNT as u64 * 48;

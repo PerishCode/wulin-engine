@@ -3,11 +3,13 @@
 ## State
 
 The repository has completed the native workbench cold start through bounded GPU
-surface visibility resolve. `crates/region-format`, its offline writer under
+conservative occlusion. `crates/region-format`, its offline writer under
 `tools/region-cooker`, `crates/meshlet-catalog`, `crates/animation-catalog`, and
 `crates/surface-catalog` are promoted by Experiments 0008-0011 and ADRs 0011-0014.
-Other engine systems remain workbench-owned until an experiment establishes a reusable
-boundary. Directories are created only when they own real files.
+Experiment 0012 and ADR 0015 accept workbench-owned hierarchy, invalidation, query, and
+stable compaction contracts without creating a new reusable crate. Other engine systems
+remain workbench-owned until an experiment establishes a reusable boundary. Directories
+are created only when they own real files.
 
 ## Dependency direction
 

@@ -153,6 +153,13 @@ pub(crate) fn handle_commands(
             } => super::surface_control::configure(renderer, material_count, mip_level),
             ControlKind::SurfaceEnable => super::surface_control::enable(renderer),
             ControlKind::SurfaceDisable => super::surface_control::disable(renderer),
+            ControlKind::SurfaceOcclusionEnable => {
+                super::surface_control::enable_occlusion(renderer)
+            }
+            ControlKind::SurfaceOcclusionDisable => {
+                super::surface_control::disable_occlusion(renderer)
+            }
+            ControlKind::SurfaceOcclusionReset => super::surface_control::reset_occlusion(renderer),
             ControlKind::LoadDisable => renderer
                 .disable_load()
                 .map(|()| load_status(renderer))

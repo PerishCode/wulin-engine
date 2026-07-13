@@ -106,7 +106,7 @@ async function configureSurface(args: string[]): Promise<void> {
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|occlusion-enable|occlusion-disable|occlusion-reset|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -346,6 +346,18 @@ switch (verb) {
         await configureSurface(args);
         break;
     }
+    case "occlusion-enable":
+    case "occlusion-disable":
+    case "occlusion-reset":
+        if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
+        await run([
+            "inspect",
+            "workbench",
+            `surface.occlusion.${verb.replace("occlusion-", "")}`,
+            "--format",
+            "json",
+        ]);
+        break;
     case "camera-set": {
         if (args.length !== 6 && args.length !== 7) {
             fail("workbench: camera-set requires px py pz tx ty tz and optional vertical FOV");

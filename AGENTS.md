@@ -126,6 +126,7 @@ contains only files that exist.
 | `docs/adr/0012-gpu-meshlet-scene-execution.md` | Accepted meshlet catalog, GPU cull/LOD, bounded indirect mesh execution, and capability contract. |
 | `docs/adr/0013-gpu-skeletal-crowd-execution.md` | Accepted GPU pose reuse, bounded hierarchy evaluation, meshlet skinning, and fixed submission contract. |
 | `docs/adr/0014-gpu-surface-visibility-resolve.md` | Accepted compact visibility, deterministic fragment winner, surface reconstruction, and fixed-screen resolve contract. |
+| `docs/adr/0015-gpu-conservative-occlusion.md` | Accepted reverse-Z hierarchy, exact invalidation, conservative query, and stable GPU compaction contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -148,6 +149,7 @@ contains only files that exist.
 | `experiments/0009-gpu-meshlet-scene/README.md` | Accepted Experiment 0009 real meshlet geometry, GPU LOD, oracle, sweep, and indirect-dispatch evidence. |
 | `experiments/0010-gpu-skeletal-crowds/README.md` | Accepted Experiment 0010 GPU pose reuse, hierarchy, skinning, oracle, visual, and release timing evidence. |
 | `experiments/0011-gpu-surface-resolve/README.md` | Accepted Experiment 0011 visibility payload, exact surface oracle, sweep, visual, and release timing evidence. |
+| `experiments/0012-gpu-conservative-occlusion/README.md` | Accepted Experiment 0012 hierarchy, bound proof, stable compaction, exact-output, invalidation, and work-elimination evidence. |
 | `crates/meshlet-catalog/Cargo.toml` | Deterministic static meshlet catalog package and dependency boundary. |
 | `crates/meshlet-catalog/src/lib.rs` | Eight-archetype, three-LOD geometry generation, meshlet partitioning, validation, encoding, and hashing. |
 | `crates/meshlet-catalog/tests/catalog.rs` | Catalog determinism, reducing-LOD, and mesh-shader bound regression contract. |
@@ -173,13 +175,14 @@ contains only files that exist.
 | `apps/workbench/shaders/meshlet_scene.hlsl` | GPU object culling, LOD, visible compaction, amplification, mesh emission, and semantic-ID shaders. |
 | `apps/workbench/shaders/skeletal_scene.hlsl` | GPU animation classification, pose compaction/evaluation, four-weight meshlet skinning, and semantic-ID shaders. |
 | `apps/workbench/shaders/surface_resolve.hlsl` | Deterministic visibility winner, compact payload emission, skeletal surface reconstruction, material resolve, and samples. |
+| `apps/workbench/shaders/occlusion.hlsl` | Conservative hierarchy query, fixed classify/prefix/stable-scatter compaction, and reverse-Z mip construction. |
 | `apps/workbench/src/main.rs` | Workbench composition, Win32/frame loop, pending frame operations, and error propagation. |
 | `apps/workbench/src/capture.rs` | Color/object-ID artifacts, encoding, hashes, manifests, and capture ownership. |
 | `apps/workbench/src/inspect/mod.rs` | Workbench control-plane module boundary and narrow exports. |
 | `apps/workbench/src/inspect/server.rs` | Project-owned SidecarRuntime transport, event framing, and response delivery. |
 | `apps/workbench/src/inspect/protocol.rs` | Typed workbench control vocabulary, payload decoding, and protocol errors. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch, workload status, and stream transaction entrypoints. |
-| `apps/workbench/src/inspect/surface_control.rs` | Typed surface mode, material-count, mip, and probe control dispatch. |
+| `apps/workbench/src/inspect/surface_control.rs` | Typed surface, material, mip, occlusion history, and probe control dispatch. |
 | `apps/workbench/src/load.rs` | Region address space, load configuration, workload counts, and procedural semantics. |
 | `apps/workbench/src/resident.rs` | Resident cache planning, deterministic records, LRU eviction, and stream reports. |
 | `apps/workbench/src/streaming/mod.rs` | Workbench streaming ownership boundary and narrow module exports. |
@@ -220,13 +223,18 @@ contains only files that exist.
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/resources.rs` | Animation uploads, bounded pose/palette resources, descriptors, queries, and readbacks. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface_bridge.rs` | Narrow skeletal resource and command-recording bridge consumed by surface resolve. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/mod.rs` | Surface visibility and resolve ownership boundary with narrow exports. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/occlusion/mod.rs` | Bounded hierarchy, filtered-list, counters, stable-prefix, and probe-readback resource ownership. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/occlusion/oracle.rs` | Exhaustive fixture-bound proof and CPU conservative-query aggregate oracle. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/occlusion/probe.rs` | Hierarchy, candidate mask, stable order, aggregate, and CPU-oracle evidence decoding. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/oracle.rs` | CPU reconstruction of payloads, skinning, surface attributes, material texels, and laboratory lighting. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/pipeline.rs` | Narrow surface root signatures, visibility mesh PSO, resolve PSO, and indirect command signature. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/probe.rs` | Surface counters, samples, hashes, timing decode, and oracle comparison. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/renderer.rs` | Surface mode controls, visibility and resolve recording, transitions, capture, and status. |
-| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources.rs` | Surface catalog, candidate map, statistics, sample, timestamp, and readback resource ownership. |
-| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/targets.rs` | Visibility, deterministic winner, resolved color, depth, and semantic target ownership. |
-| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/upload.rs` | Immutable surface buffer and texture-array upload helpers. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/renderer/recording.rs` | Occlusion, indirect visibility, resolve, hierarchy, probe-copy, and state-transition command recording. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/mod.rs` | Surface catalog, candidate map, statistics, sample, timestamp, and readback resource ownership. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/descriptors.rs` | Surface SRV/UAV descriptor layout and shader-visible heap construction. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/targets.rs` | Visibility, deterministic winner, resolved color, depth, and semantic target ownership. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/upload.rs` | Immutable surface buffer and texture-array upload helpers. |
 | `apps/workbench/src/rendering/cooked.rs` | Cooked I/O completion, reservation cancellation, and GPU submission orchestration. |
 | `apps/workbench/src/rendering/calibration/object_id_target.rs` | Persistent `R32_UINT` semantic render-target resource and descriptor ownership. |
 | `apps/workbench/src/rendering/calibration/scene_renderer.rs` | Calibration graphics PSO, reverse-Z depth, procedural geometry, and scene draws. |
@@ -252,6 +260,8 @@ contains only files that exist.
 | `.runseal/support/skeletal-crowds.ts` | Experiment 0010 structured validation, environment capture, fixtures, and distribution helpers. |
 | `.runseal/wrappers/surface-resolve.ts` | Canonical Experiment 0011 debug correctness, release timing, surface sweeps, determinism, movement, and restart workflow. |
 | `.runseal/support/surface-resolve.ts` | Experiment 0011 payload, sample oracle, artifact, environment, and distribution validation helpers. |
+| `.runseal/wrappers/occlusion.ts` | Canonical Experiment 0012 hierarchy, invalidation, stable compaction, sweep, timing, movement, and restart workflow. |
+| `.runseal/support/occlusion.ts` | Experiment 0012 fixed submission, hierarchy, order, oracle, resource, and evidence validation helpers. |
 | `.runseal/wrappers/visual-loop.ts` | Canonical Experiment 0002 deterministic capture and cleanup workflow. |
 | `.runseal/wrappers/spatial-scene.ts` | Canonical Experiment 0003 spatial rendering and inspection workflow. |
 | `.runseal/wrappers/workbench.ts` | Canonical workbench lifecycle and typed inspect workflow. |
@@ -287,6 +297,11 @@ Experiment 0011 and ADR 0014 accept candidate-addressed compact visibility, a
 rasterizer-ordered deterministic equal-depth winner, exact skinned surface
 reconstruction, and one fixed-screen resolve dispatch independent of geometry, pose,
 material, and occupancy counts.
+Experiment 0012 and ADR 0015 accept a prior-compatible reverse-Z minimum hierarchy,
+exhaustively proven fixture bounds, full-signature history invalidation, fixed
+100/1/100-group stable GPU compaction, and one filtered indirect visibility dispatch.
+This accepts exact work elimination; ROV-path total timing is not a promoted performance
+claim.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -309,6 +324,7 @@ runseal :cooked-region
 runseal :meshlet-scene
 runseal :skeletal-crowds
 runseal :surface-resolve
+runseal :occlusion
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
@@ -341,6 +357,9 @@ runseal :workbench surface
 runseal :workbench surface-config 64 0
 runseal :workbench surface-enable
 runseal :workbench surface-disable
+runseal :workbench occlusion-enable
+runseal :workbench occlusion-disable
+runseal :workbench occlusion-reset
 runseal :workbench load-probe
 runseal :workbench load-disable
 runseal :workbench resume

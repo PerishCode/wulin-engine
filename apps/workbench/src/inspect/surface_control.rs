@@ -30,3 +30,18 @@ pub fn disable(renderer: &mut Renderer) -> ControlResult {
     renderer.disable_surface();
     Ok(renderer.surface_status())
 }
+
+pub fn enable_occlusion(renderer: &mut Renderer) -> ControlResult {
+    renderer.enable_surface_occlusion();
+    Ok(renderer.surface_status())
+}
+
+pub fn disable_occlusion(renderer: &mut Renderer) -> ControlResult {
+    renderer.disable_surface_occlusion();
+    Ok(renderer.surface_status())
+}
+
+pub fn reset_occlusion(renderer: &mut Renderer) -> ControlResult {
+    renderer.reset_surface_occlusion();
+    Ok(renderer.surface_status())
+}

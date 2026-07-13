@@ -372,6 +372,18 @@ impl Renderer {
         self.skeletal_scene_renderer.surface_status_json()
     }
 
+    pub fn enable_surface_occlusion(&mut self) {
+        self.skeletal_scene_renderer.enable_surface_occlusion();
+    }
+
+    pub fn disable_surface_occlusion(&mut self) {
+        self.skeletal_scene_renderer.disable_surface_occlusion();
+    }
+
+    pub fn reset_surface_occlusion(&mut self) {
+        self.skeletal_scene_renderer.reset_surface_occlusion();
+    }
+
     pub fn arm_async_copy_gate(&mut self) -> Result<u64> {
         self.async_resident_renderer.arm_gate()
     }

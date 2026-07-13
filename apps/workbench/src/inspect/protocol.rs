@@ -88,6 +88,9 @@ pub enum ControlKind {
     },
     SurfaceEnable,
     SurfaceDisable,
+    SurfaceOcclusionEnable,
+    SurfaceOcclusionDisable,
+    SurfaceOcclusionReset,
 }
 
 pub type ControlResult = std::result::Result<Value, ProtocolError>;
@@ -200,6 +203,9 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "surface.enable" => Ok(ControlKind::SurfaceEnable),
         "surface.disable" => Ok(ControlKind::SurfaceDisable),
         "surface.configure" => parse_surface(payload),
+        "surface.occlusion.enable" => Ok(ControlKind::SurfaceOcclusionEnable),
+        "surface.occlusion.disable" => Ok(ControlKind::SurfaceOcclusionDisable),
+        "surface.occlusion.reset" => Ok(ControlKind::SurfaceOcclusionReset),
         "cooked.open" => parse_cooked(payload),
         "load.configure" => parse_load(payload, LoadTarget::Procedural),
         "resident.stream" => parse_load(payload, LoadTarget::Resident),

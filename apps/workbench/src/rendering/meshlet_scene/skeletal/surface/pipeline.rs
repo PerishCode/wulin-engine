@@ -16,13 +16,26 @@ const AMPLIFICATION_SHADER: &[u8] =
 const MESH_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/surface_resolve.ms.dxil"));
 const PIXEL_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/surface_resolve.ps.dxil"));
 const SHADE_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/surface_resolve.shade.dxil"));
+const OCCLUSION_CLASSIFY_SHADER: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/occlusion.classify.dxil"));
+const OCCLUSION_PREFIX_SHADER: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/occlusion.prefix.dxil"));
+const OCCLUSION_SCATTER_SHADER: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/occlusion.scatter.dxil"));
+const HIZ_MIP0_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/occlusion.mip0.dxil"));
+const HIZ_REDUCE_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/occlusion.reduce.dxil"));
 
-pub const SURFACE_CONSTANT_COUNT: u32 = 28;
+pub const SURFACE_CONSTANT_COUNT: u32 = 44;
 
 pub struct SurfacePipeline {
     pub root: ID3D12RootSignature,
     pub visibility: ID3D12PipelineState,
     pub shade: ID3D12PipelineState,
+    pub occlusion_classify: ID3D12PipelineState,
+    pub occlusion_prefix: ID3D12PipelineState,
+    pub occlusion_scatter: ID3D12PipelineState,
+    pub hiz_mip0: ID3D12PipelineState,
+    pub hiz_reduce: ID3D12PipelineState,
     pub mesh_signature: ID3D12CommandSignature,
 }
 
@@ -31,11 +44,24 @@ impl SurfacePipeline {
         let root = unsafe { create_root(device) }?;
         let visibility = unsafe { create_mesh_pipeline(device, &root) }?;
         let shade = unsafe { create_compute_pipeline(device, &root, SHADE_SHADER) }?;
+        let occlusion_classify =
+            unsafe { create_compute_pipeline(device, &root, OCCLUSION_CLASSIFY_SHADER) }?;
+        let occlusion_prefix =
+            unsafe { create_compute_pipeline(device, &root, OCCLUSION_PREFIX_SHADER) }?;
+        let occlusion_scatter =
+            unsafe { create_compute_pipeline(device, &root, OCCLUSION_SCATTER_SHADER) }?;
+        let hiz_mip0 = unsafe { create_compute_pipeline(device, &root, HIZ_MIP0_SHADER) }?;
+        let hiz_reduce = unsafe { create_compute_pipeline(device, &root, HIZ_REDUCE_SHADER) }?;
         let mesh_signature = unsafe { create_mesh_signature(device) }?;
         Ok(Self {
             root,
             visibility,
             shade,
+            occlusion_classify,
+            occlusion_prefix,
+            occlusion_scatter,
+            hiz_mip0,
+            hiz_reduce,
             mesh_signature,
         })
     }
@@ -45,10 +71,17 @@ unsafe fn create_root(device: &ID3D12Device) -> Result<ID3D12RootSignature> {
     let ranges = [
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 50, 0, 0),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 50, 50),
+        descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 60, 61),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 62, 60),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 6, 63, 68),
+        descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 69, 79),
+        descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 70, 95),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 4, 7, 74),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 11, 78),
+        descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 2, 12, 80),
+        descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 11, 14, 82),
+        descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 25, 93),
+        descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 26, 94),
     ];
     let parameters = [
         constants_parameter(0, SURFACE_CONSTANT_COUNT),
