@@ -107,6 +107,14 @@ pub enum ControlKind {
     TerrainIoGateRelease,
     TerrainCopyGateArm,
     TerrainCopyGateRelease,
+    TerrainLodStatus,
+    TerrainLodConfigure {
+        near_patch_radius: u32,
+        middle_patch_radius: u32,
+        forced_lod: Option<u32>,
+    },
+    TerrainLodEnable,
+    TerrainLodDisable,
 }
 
 pub type ControlResult = std::result::Result<Value, ProtocolError>;
@@ -189,6 +197,14 @@ struct SurfacePayload {
     mip_level: u32,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TerrainLodPayload {
+    near_patch_radius: u32,
+    middle_patch_radius: u32,
+    forced_lod: Option<u32>,
+}
+
 pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
     match verb {
         "workbench.status" => Ok(ControlKind::Status),
@@ -229,6 +245,10 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "terrain.io_gate.release" => Ok(ControlKind::TerrainIoGateRelease),
         "terrain.copy_gate.arm" => Ok(ControlKind::TerrainCopyGateArm),
         "terrain.copy_gate.release" => Ok(ControlKind::TerrainCopyGateRelease),
+        "terrain.lod.status" => Ok(ControlKind::TerrainLodStatus),
+        "terrain.lod.enable" => Ok(ControlKind::TerrainLodEnable),
+        "terrain.lod.disable" => Ok(ControlKind::TerrainLodDisable),
+        "terrain.lod.configure" => parse_terrain_lod(payload),
         "terrain.open" => parse_terrain(payload),
         "cooked.open" => parse_cooked(payload),
         "load.configure" => parse_load(payload, LoadTarget::Procedural),
@@ -333,6 +353,15 @@ fn parse_cooked(value: Value) -> ParsedControl {
 fn parse_terrain(value: Value) -> ParsedControl {
     let payload: CookedPayload = decode(value)?;
     Ok(ControlKind::TerrainOpen { path: payload.path })
+}
+
+fn parse_terrain_lod(value: Value) -> ParsedControl {
+    let payload: TerrainLodPayload = decode(value)?;
+    Ok(ControlKind::TerrainLodConfigure {
+        near_patch_radius: payload.near_patch_radius,
+        middle_patch_radius: payload.middle_patch_radius,
+        forced_lod: payload.forced_lod,
+    })
 }
 
 fn parse_camera(value: Value) -> ParsedControl {

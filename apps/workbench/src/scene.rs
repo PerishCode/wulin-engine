@@ -200,6 +200,10 @@ impl SceneState {
         projection * view
     }
 
+    pub fn camera(&self) -> Camera {
+        self.camera
+    }
+
     pub fn camera_json(&self) -> Value {
         serde_json::to_value(self.camera).expect("camera serialization should not fail")
     }

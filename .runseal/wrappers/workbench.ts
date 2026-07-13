@@ -1,3 +1,5 @@
+import { dispatchTerrain } from "../support/workbench-terrain.ts";
+
 function fail(message: string): never {
     console.error(message);
     Deno.exit(1);
@@ -106,7 +108,7 @@ async function configureSurface(args: string[]): Promise<void> {
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|occlusion-enable|occlusion-disable|occlusion-reset|terrain|terrain-open|terrain-schedule|terrain-enable|terrain-disable|terrain-io-gate-arm|terrain-io-gate-release|terrain-copy-gate-arm|terrain-copy-gate-release|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|occlusion-enable|occlusion-disable|occlusion-reset|terrain|terrain-open|terrain-schedule|terrain-enable|terrain-disable|terrain-lod|terrain-lod-config|terrain-lod-enable|terrain-lod-disable|terrain-io-gate-arm|terrain-io-gate-release|terrain-copy-gate-arm|terrain-copy-gate-release|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -119,6 +121,8 @@ if (!profilePath) {
 }
 const root = profilePath.replace(/[\\/][^\\/]+$/, "");
 const [verb, ...args] = Deno.args;
+
+if (await dispatchTerrain(verb, args, run)) Deno.exit(0);
 
 switch (verb) {
     case "start":
@@ -276,66 +280,6 @@ switch (verb) {
             "json",
         ]);
         break;
-    case "terrain":
-        if (args.length > 0) fail("workbench: terrain does not accept arguments");
-        await run(["inspect", "workbench", "terrain.status", "--format", "json"]);
-        break;
-    case "terrain-open":
-        if (args.length !== 1) fail("workbench: terrain-open requires a repository-relative pack");
-        await run([
-            "inspect",
-            "workbench",
-            "terrain.open",
-            JSON.stringify({ path: args[0] }),
-            "--format",
-            "json",
-        ]);
-        break;
-    case "terrain-schedule": {
-        if (args.length < 2 || args.length > 3) {
-            fail("workbench: terrain-schedule requires center x, center z, and optional radius");
-        }
-        await run([
-            "inspect",
-            "workbench",
-            "terrain.schedule",
-            JSON.stringify({
-                world_region_side: 128,
-                active_center_x: pixel(args[0], "active center x"),
-                active_center_z: pixel(args[1], "active center z"),
-                active_radius: pixel(args[2] ?? "2", "active radius"),
-            }),
-            "--format",
-            "json",
-        ]);
-        break;
-    }
-    case "terrain-enable":
-    case "terrain-disable":
-        if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
-        await run([
-            "inspect",
-            "workbench",
-            verb === "terrain-enable" ? "terrain.enable" : "terrain.disable",
-            "--format",
-            "json",
-        ]);
-        break;
-    case "terrain-io-gate-arm":
-    case "terrain-io-gate-release":
-    case "terrain-copy-gate-arm":
-    case "terrain-copy-gate-release": {
-        if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
-        const [kind, action] = verb.replace("terrain-", "").split("-gate-");
-        await run([
-            "inspect",
-            "workbench",
-            `terrain.${kind}_gate.${action}`,
-            "--format",
-            "json",
-        ]);
-        break;
-    }
     case "meshlet":
         if (args.length > 0) fail("workbench: meshlet does not accept arguments");
         await run(["inspect", "workbench", "meshlet.status", "--format", "json"]);

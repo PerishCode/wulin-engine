@@ -97,6 +97,10 @@ pub(crate) fn handle_commands(
             | ControlKind::TerrainIoGateRelease
             | ControlKind::TerrainCopyGateArm
             | ControlKind::TerrainCopyGateRelease
+            | ControlKind::TerrainLodStatus
+            | ControlKind::TerrainLodConfigure { .. }
+            | ControlKind::TerrainLodEnable
+            | ControlKind::TerrainLodDisable
             | ControlKind::TerrainSchedule { .. }) => {
                 super::terrain_control::dispatch(renderer, terrain)
             }

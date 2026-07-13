@@ -50,6 +50,29 @@ impl Renderer {
         self.terrain_renderer.config()
     }
 
+    pub fn terrain_lod_status(&self) -> serde_json::Value {
+        serde_json::to_value(self.terrain_renderer.lod_settings())
+            .expect("terrain LOD settings should serialize")
+    }
+
+    pub fn configure_terrain_lod(
+        &mut self,
+        near_patch_radius: u32,
+        middle_patch_radius: u32,
+        forced_lod: Option<u32>,
+    ) -> Result<()> {
+        self.terrain_renderer
+            .configure_lod(near_patch_radius, middle_patch_radius, forced_lod)
+    }
+
+    pub fn enable_terrain_lod(&mut self) {
+        self.terrain_renderer.enable_lod();
+    }
+
+    pub fn disable_terrain_lod(&mut self) {
+        self.terrain_renderer.disable_lod();
+    }
+
     pub fn arm_terrain_io_gate(&mut self) -> Result<u64> {
         self.terrain_streamer.arm_gate()
     }
