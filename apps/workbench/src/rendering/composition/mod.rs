@@ -113,6 +113,7 @@ impl Renderer {
             !self.cooked_streamer.has_pending(),
             "cooked stream is active"
         );
+        self.terrain_streamer.ensure_composition_source()?;
 
         let terrain_reservation = match global_config {
             Some(global) => self.terrain_renderer.reserve_global(global)?,

@@ -16,7 +16,7 @@ use crate::load::LoadConfig;
 use crate::scene::SceneState;
 use crate::terrain::{
     GlobalTerrainConfig, TerrainAssignment, TerrainIoMetrics, TerrainReservationReport,
-    TerrainTransactionReport, TerrainUpload,
+    TerrainSourceNamespace, TerrainTransactionReport, TerrainUpload,
 };
 
 use self::pipeline::{TERRAIN_CONSTANT_COUNT, TerrainPipeline};
@@ -195,6 +195,25 @@ impl TerrainRenderer {
             )
             .collect();
         self.transfer.reserve_global(config, &protected)
+    }
+
+    pub fn reserve_canonical_global(
+        &mut self,
+        config: GlobalTerrainConfig,
+        source_namespace: TerrainSourceNamespace,
+    ) -> Result<TerrainReservationReport> {
+        let protected = self
+            .published
+            .iter()
+            .flat_map(|value| value.active.iter().map(|entry| entry.slot))
+            .chain(
+                self.staged
+                    .iter()
+                    .flat_map(|value| value.active.iter().map(|entry| entry.slot)),
+            )
+            .collect();
+        self.transfer
+            .reserve_canonical_global(config, source_namespace, &protected)
     }
 
     pub fn cancel(&mut self, transaction_id: u64) -> Result<()> {

@@ -12,7 +12,7 @@ use windows::core::Interface;
 use crate::load::LoadConfig;
 use crate::terrain::{
     GlobalTerrainConfig, TERRAIN_STREAM_REVISION, TerrainAssignment, TerrainIoMetrics,
-    TerrainReservationReport, TerrainTransactionReport, TerrainUpload,
+    TerrainReservationReport, TerrainSourceNamespace, TerrainTransactionReport, TerrainUpload,
 };
 
 use super::super::resident::{create_buffer, transition};
@@ -185,6 +185,21 @@ impl TerrainTransfer {
         self.reserve_layout(layout)
     }
 
+    pub fn reserve_canonical_global(
+        &mut self,
+        config: GlobalTerrainConfig,
+        source_namespace: TerrainSourceNamespace,
+        protected: &BTreeSet<u32>,
+    ) -> Result<TerrainReservationReport> {
+        if self.reservation.is_some() || self.pending.is_some() {
+            bail!("terrain_stream_busy");
+        }
+        let layout = self
+            .cache
+            .plan_canonical_global(config, source_namespace, protected)?;
+        self.reserve_layout(layout)
+    }
+
     fn reserve_layout(&mut self, layout: LayoutPlan) -> Result<TerrainReservationReport> {
         let transaction_id = self.next_transaction_id;
         self.next_transaction_id += 1;
@@ -193,6 +208,7 @@ impl TerrainTransfer {
             transaction_id,
             config: layout.config,
             global_config: layout.global_config,
+            source_namespace: layout.source_namespace,
             counts: layout.counts,
             assignments: layout.assignments.clone(),
         };
@@ -330,6 +346,7 @@ impl TerrainTransfer {
             transaction_id,
             config: reservation.layout.config,
             global_config: reservation.layout.global_config,
+            source_namespace: reservation.layout.source_namespace,
             counts: reservation.layout.counts,
             uploaded_sha256: format!("{:x}", hash.finalize()),
             direct_release_fence,
@@ -381,9 +398,11 @@ impl TerrainTransfer {
             .active
             .iter()
             .map(|entry| {
-                pending.next_tiles[entry.slot as usize]
+                let mut tile = pending.next_tiles[entry.slot as usize]
                     .clone()
-                    .expect("active terrain tile missing")
+                    .expect("active terrain tile missing");
+                tile.region_id = entry.region_id;
+                tile
             })
             .collect();
         self.cache = pending.next_cache;

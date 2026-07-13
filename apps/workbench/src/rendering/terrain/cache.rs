@@ -4,6 +4,7 @@ use anyhow::{Context, Result, ensure};
 
 use crate::load::LoadConfig;
 use crate::resident::active_region_ids;
+use crate::terrain::TerrainSourceNamespace;
 use crate::terrain::{AddressedRegion, GlobalTerrainConfig, TerrainAssignment, TerrainPlanCounts};
 
 pub(super) const TERRAIN_CACHE_CAPACITY: usize = 50;
@@ -16,9 +17,15 @@ pub(super) struct TerrainCache {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct CacheKey {
-    global_region: Option<crate::world::RegionCoord>,
-    local_region_id: u32,
+enum CacheKey {
+    Aliased {
+        global_region: Option<crate::world::RegionCoord>,
+        local_region_id: u32,
+    },
+    Canonical {
+        source_namespace: TerrainSourceNamespace,
+        global_region: crate::world::RegionCoord,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -36,6 +43,7 @@ struct DesiredRegion {
 pub(super) struct LayoutPlan {
     pub config: LoadConfig,
     pub global_config: Option<GlobalTerrainConfig>,
+    pub source_namespace: Option<TerrainSourceNamespace>,
     pub next_cache: TerrainCache,
     pub assignments: Vec<TerrainAssignment>,
     pub active: Vec<TerrainAssignment>,
@@ -58,7 +66,7 @@ impl TerrainCache {
             .into_iter()
             .map(legacy_region)
             .collect::<Vec<_>>();
-        self.plan_regions(config, None, desired, protected)
+        self.plan_regions(config, None, None, desired, protected)
     }
 
     pub fn plan_global(
@@ -70,15 +78,37 @@ impl TerrainCache {
         let desired = config
             .addressed_regions()?
             .into_iter()
-            .map(global_region)
+            .map(aliased_global_region)
             .collect::<Vec<_>>();
-        self.plan_regions(local, Some(config), desired, protected)
+        self.plan_regions(local, Some(config), None, desired, protected)
+    }
+
+    pub fn plan_canonical_global(
+        &self,
+        config: GlobalTerrainConfig,
+        source_namespace: TerrainSourceNamespace,
+        protected: &BTreeSet<u32>,
+    ) -> Result<LayoutPlan> {
+        let local = config.local_config()?;
+        let desired = config
+            .addressed_regions()?
+            .into_iter()
+            .map(|region| canonical_global_region(region, source_namespace))
+            .collect::<Vec<_>>();
+        self.plan_regions(
+            local,
+            Some(config),
+            Some(source_namespace),
+            desired,
+            protected,
+        )
     }
 
     fn plan_regions(
         &self,
         config: LoadConfig,
         global_config: Option<GlobalTerrainConfig>,
+        source_namespace: Option<TerrainSourceNamespace>,
         desired: Vec<DesiredRegion>,
         protected: &BTreeSet<u32>,
     ) -> Result<LayoutPlan> {
@@ -148,6 +178,7 @@ impl TerrainCache {
         Ok(LayoutPlan {
             config,
             global_config,
+            source_namespace,
             next_cache: next,
             assignments: assignments.clone(),
             active,
@@ -173,7 +204,7 @@ impl TerrainCache {
 
 fn legacy_region(local_region_id: u32) -> DesiredRegion {
     DesiredRegion {
-        key: CacheKey {
+        key: CacheKey::Aliased {
             global_region: None,
             local_region_id,
         },
@@ -185,11 +216,28 @@ fn legacy_region(local_region_id: u32) -> DesiredRegion {
     }
 }
 
-fn global_region(region: AddressedRegion) -> DesiredRegion {
+fn aliased_global_region(region: AddressedRegion) -> DesiredRegion {
     DesiredRegion {
-        key: CacheKey {
+        key: CacheKey::Aliased {
             global_region: Some(region.global_region),
             local_region_id: region.local_region_id,
+        },
+        assignment: TerrainAssignment {
+            slot: 0,
+            region_id: region.local_region_id,
+            global_region: Some(region.global_region),
+        },
+    }
+}
+
+fn canonical_global_region(
+    region: AddressedRegion,
+    source_namespace: TerrainSourceNamespace,
+) -> DesiredRegion {
+    DesiredRegion {
+        key: CacheKey::Canonical {
+            source_namespace,
+            global_region: region.global_region,
         },
         assignment: TerrainAssignment {
             slot: 0,
@@ -260,5 +308,59 @@ mod tests {
         assert_eq!(revisit.counts.retained_region_count, 25);
         assert_eq!(revisit.counts.uploaded_region_count, 0);
         assert_eq!(revisit.counts.payload_bytes, 0);
+    }
+
+    #[test]
+    fn canonical_rebind_retains_slots() {
+        let source = TerrainSourceNamespace([7; 32]);
+        let far = 1_i64 << 40;
+        let first_config = GlobalTerrainConfig::new(far, -far, far, -far, 2).unwrap();
+        let first = TerrainCache::default()
+            .plan_canonical_global(first_config, source, &BTreeSet::new())
+            .unwrap();
+        let shifted_config = GlobalTerrainConfig::new(far - 32, -far, far, -far, 2).unwrap();
+        let shifted = first
+            .next_cache
+            .plan_canonical_global(shifted_config, source, &active_slots(&first))
+            .unwrap();
+        assert_eq!(shifted.counts.retained_region_count, 25);
+        assert_eq!(shifted.counts.uploaded_region_count, 0);
+        assert_eq!(shifted.counts.resident_region_count, 25);
+        assert_ne!(
+            first
+                .active
+                .iter()
+                .map(|entry| entry.region_id)
+                .collect::<Vec<_>>(),
+            shifted
+                .active
+                .iter()
+                .map(|entry| entry.region_id)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            first
+                .active
+                .iter()
+                .map(|entry| (entry.global_region, entry.slot))
+                .collect::<Vec<_>>(),
+            shifted
+                .active
+                .iter()
+                .map(|entry| (entry.global_region, entry.slot))
+                .collect::<Vec<_>>()
+        );
+
+        let changed_source = shifted
+            .next_cache
+            .plan_canonical_global(
+                first_config,
+                TerrainSourceNamespace([8; 32]),
+                &BTreeSet::new(),
+            )
+            .unwrap();
+        assert_eq!(changed_source.counts.retained_region_count, 0);
+        assert_eq!(changed_source.counts.uploaded_region_count, 25);
+        assert_eq!(changed_source.counts.resident_region_count, 50);
     }
 }

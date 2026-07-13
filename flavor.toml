@@ -35,8 +35,17 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 25 }
+payload = { max_children = 26 }
 reason = "Runseal resolves named repository wrappers from one flat directory; each child is an explicit operator entrypoint."
+
+[[overrides]]
+match = ".runseal/support"
+kind = "dir"
+priority = 10
+
+[overrides.rules."core/fs/too-many-children"]
+payload = { max_children = 11 }
+reason = "Runseal experiment helpers remain flat, named support owners shared by canonical wrappers."
 
 [[overrides]]
 match = "apps/workbench/src/rendering"
@@ -109,6 +118,26 @@ priority = 10
 [overrides.rules."rust/tests/in-source"]
 enabled = false
 reason = "Terrain cache identity tests require private slot state to prove signed keys cannot false-hit local aliases."
+
+[[overrides]]
+match = "apps/workbench/src/rendering/terrain/transfer.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."core/source/too-long"]
+severity = "warning"
+payload = { max_lines = 550 }
+reason = "The dedicated terrain copy queue keeps reservation, upload, fence, gate, and publication lifecycle in one explicit owner."
+
+[[overrides]]
+match = "crates/terrain-format/src/global.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."core/source/too-long"]
+severity = "warning"
+payload = { max_lines = 550 }
+reason = "Terrain V2 keeps its signed metadata, exact reader, canonical writer, and validation invariants in one format owner."
 
 [[overrides]]
 match = "apps/workbench/src/rendering/terrain"
