@@ -8,7 +8,7 @@
 
 ## Status
 
-**GPU 流式地形闭环已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
+**相机驱动流式与全局坐标基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
 Sidecar 生命周期和项目自有 inspect 协议已经形成可重复的可见控制闭环。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
@@ -44,6 +44,9 @@ Experiments 0014-0017 已依次验证 GPU patch LOD、精确跨 LOD 边投影、
 任意位置精确 grounding，以及“全分辨率物理地面 + 可见 LOD 近似”的接触误差合同。
 Experiment 0018 进一步让 camera 直接驱动区域中心：仅允许一个在途 pair 和一个 latest-wins
 目标，held I/O、连续跨区、teleport、失败、disable/catch-up 与 restart 均不暴露半新半旧快照。
+Experiment 0019 已将全局 XZ 表示为 signed 64-bit region 与半开局部坐标，并在转换为 GPU
+`f32` 前完成整数 region 差值；±2^40 region anchor 与 ±4 region rebase 保持颜色、PNG、
+object-ID 和诊断附件字节一致，25,600 点精确 oracle 零差异。
 
 ## Project model
 
@@ -78,6 +81,7 @@ runseal :composition
 runseal :terrain-sampling
 runseal :lod-composition
 runseal :region-traversal
+runseal :global-space
 runseal :workbench start
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24
@@ -85,6 +89,8 @@ runseal :workbench capture operator-check
 runseal :workbench perception operator-perception
 runseal :workbench camera
 runseal :workbench scene
+runseal :workbench world
+runseal :workbench world-probe
 runseal :workbench stop
 ```
 

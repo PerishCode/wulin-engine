@@ -7,6 +7,7 @@ mod resident;
 mod scene;
 mod streaming;
 mod window;
+mod world;
 
 pub(crate) use streaming::{async_resident, cooked, terrain};
 

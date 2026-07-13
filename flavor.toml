@@ -35,7 +35,7 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 21 }
+payload = { max_children = 22 }
 reason = "Runseal resolves named repository wrappers from one flat directory; each child is an explicit operator entrypoint."
 
 [[overrides]]
@@ -46,6 +46,33 @@ priority = 10
 [overrides.rules."core/fs/too-many-children"]
 payload = { max_children = 12 }
 reason = "Rendering is the workbench composition boundary; each child is an accepted renderer or shared D3D12 owner with its own module boundary."
+
+[[overrides]]
+match = "apps/workbench/src"
+kind = "dir"
+priority = 10
+
+[overrides.rules."core/fs/too-many-children"]
+payload = { max_children = 11 }
+reason = "The workbench composition root keeps the accepted scene and signed world-coordinate owners explicit while Experiment 0019 validates their boundary."
+
+[[overrides]]
+match = "apps/workbench/src/scene.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "The calibration transform regression exercises private scene constants and stays beside its implementation as required for repository unit tests."
+
+[[overrides]]
+match = "apps/workbench/src/world.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Split-coordinate unit tests exercise private normalization and transaction invariants without promoting a public binary-crate test seam."
 
 [[overrides]]
 match = "apps/workbench/src/rendering/terrain"

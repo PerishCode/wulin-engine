@@ -18,7 +18,7 @@ use super::object_id_target::ObjectIdTarget;
 const VERTEX_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/calibration.vs.dxil"));
 const PIXEL_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/calibration.ps.dxil"));
 const FRAME_CONSTANT_COUNT: u32 = 16;
-const DRAW_CONSTANT_COUNT: u32 = 22;
+const DRAW_CONSTANT_COUNT: u32 = 25;
 
 pub struct SceneRenderer {
     root_signature: ID3D12RootSignature,
@@ -78,7 +78,7 @@ impl SceneRenderer {
         command_list: &ID3D12GraphicsCommandList,
         scene: &SceneState,
         render_target: D3D12_CPU_DESCRIPTOR_HANDLE,
-    ) {
+    ) -> Result<()> {
         let depth_target = unsafe { self.dsv_heap.GetCPUDescriptorHandleForHeapStart() };
         let object_id_target = unsafe { self.object_ids.handle() };
         let render_targets = [render_target, object_id_target];
@@ -97,7 +97,7 @@ impl SceneRenderer {
             bottom: self.height as i32,
         };
         let view_projection = scene
-            .view_projection(self.width as f32 / self.height as f32)
+            .calibration_view_projection(self.width as f32 / self.height as f32)?
             .to_cols_array();
         unsafe {
             command_list.SetGraphicsRootSignature(&self.root_signature);
@@ -127,15 +127,21 @@ impl SceneRenderer {
             let mut constants = [0u32; DRAW_CONSTANT_COUNT as usize];
             for (destination, value) in constants[..16]
                 .iter_mut()
-                .zip(object.model_matrix().to_cols_array())
+                .zip(scene.calibration_model_matrix(object)?.to_cols_array())
             {
                 *destination = value.to_bits();
             }
             for (destination, value) in constants[16..20].iter_mut().zip(object.color) {
                 *destination = value.to_bits();
             }
-            constants[20] = object.material;
-            constants[21] = object.id;
+            for (destination, value) in constants[20..23]
+                .iter_mut()
+                .zip(scene.calibration_semantic_offset(object)?)
+            {
+                *destination = value.to_bits();
+            }
+            constants[23] = object.material;
+            constants[24] = object.id;
             let mesh = match object.mesh {
                 MeshKind::Plane => self.geometry.plane,
                 MeshKind::Cube => self.geometry.cube,
@@ -156,6 +162,7 @@ impl SceneRenderer {
                 );
             }
         }
+        Ok(())
     }
 
     pub fn object_id_resource(&self) -> &ID3D12Resource {

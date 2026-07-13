@@ -5,6 +5,7 @@ mod server;
 mod status;
 mod surface_control;
 mod terrain_control;
+mod world_control;
 
 pub(crate) use app::handle_commands;
 pub use protocol::{ControlResult, ProtocolError};

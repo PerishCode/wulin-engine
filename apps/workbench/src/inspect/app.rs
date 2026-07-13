@@ -45,13 +45,23 @@ pub(crate) fn handle_commands(
                 target,
                 vertical_fov_degrees,
             } => scene
-                .set_camera(position, target, vertical_fov_degrees)
+                .set_camera(
+                    position,
+                    target,
+                    vertical_fov_degrees,
+                    renderer.calibration_mode_active(),
+                )
                 .map(|_| scene.camera_json())
                 .map_err(|error| ProtocolError {
                     code: "invalid_camera",
                     message: error.to_string(),
                 }),
             ControlKind::SceneListObjects => Ok(scene.objects_json()),
+            world @ (ControlKind::WorldStatus
+            | ControlKind::WorldRelocate { .. }
+            | ControlKind::WorldRebase { .. }
+            | ControlKind::WorldReset
+            | ControlKind::WorldProbe) => super::world_control::dispatch(renderer, scene, world),
             ControlKind::LoadStatus | ControlKind::ResidentStatus => Ok(load_status(renderer)),
             ControlKind::AsyncResidentStatus => Ok(renderer.async_resident_status()),
             ControlKind::AsyncCopyGateArm => renderer
