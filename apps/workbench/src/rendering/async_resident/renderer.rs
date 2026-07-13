@@ -1,12 +1,13 @@
 use std::mem::size_of;
 
 use anyhow::{Context, Result, bail};
-use serde_json::Value;
 use windows::Win32::Graphics::Direct3D::D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 use windows::Win32::Graphics::Direct3D12::*;
 
 use crate::address::GlobalRegionConfig;
-use crate::async_resident::{AsyncReservationReport, AsyncTransactionReport, PayloadPreparation};
+use crate::async_resident::{
+    AsyncReservationReport, AsyncTransactionReport, ObjectSourceNamespace, PayloadPreparation,
+};
 use crate::load::{LoadConfig, MAX_VISIBLE_INSTANCES};
 use crate::resident::RegionUpload;
 use crate::scene::SceneState;
@@ -18,8 +19,10 @@ use crate::rendering::resident::{
     QUERY_COUNT, create_buffer, create_query_heap, read_values, set_viewport, transition,
     uav_barrier,
 };
+use crate::rendering::terrain::TerrainProjection;
 
 mod global;
+mod status;
 
 pub struct AsyncResidentRenderer {
     pipeline: AsyncResidentPipeline,
@@ -39,7 +42,14 @@ pub struct AsyncResidentRenderer {
 pub(in crate::rendering) struct PublishedSnapshot {
     pub config: LoadConfig,
     pub global_config: Option<GlobalRegionConfig>,
+    pub object_source_namespace: Option<ObjectSourceNamespace>,
     pub active_slots: Vec<u32>,
+}
+
+impl PublishedSnapshot {
+    pub(in crate::rendering) fn projection(&self) -> Result<TerrainProjection> {
+        TerrainProjection::for_objects(self.config, self.object_source_namespace)
+    }
 }
 
 impl AsyncResidentRenderer {
@@ -210,9 +220,11 @@ impl AsyncResidentRenderer {
             report,
         } = self.staged.take()?;
         let global_config = report.global_config;
+        let object_source_namespace = report.object_source_namespace;
         self.published = Some(PublishedSnapshot {
             config,
             global_config,
+            object_source_namespace,
             active_slots,
         });
         Some(report)
@@ -244,7 +256,7 @@ impl AsyncResidentRenderer {
             .published
             .as_ref()
             .context("async resident renderer has no published snapshot")?;
-        let constants = async_constants(scene, snapshot, self.width, self.height);
+        let constants = async_constants(scene, snapshot, self.width, self.height)?;
         let heap = self.transfer.descriptor_heap();
         let gpu_start = unsafe { heap.GetGPUDescriptorHandleForHeapStart() };
         unsafe { command_list.SetDescriptorHeaps(&[Some(heap.clone())]) };
@@ -425,58 +437,6 @@ impl AsyncResidentRenderer {
             gpu_total_ms: milliseconds(0, 3),
         })
     }
-
-    pub fn arm_gate(&mut self) -> Result<u64> {
-        self.transfer.arm_gate()
-    }
-
-    pub unsafe fn release_gate(&mut self) -> Result<u64> {
-        unsafe { self.transfer.release_gate() }
-    }
-
-    pub fn status_json(&self) -> Value {
-        self.transfer.status_json(self.config())
-    }
-
-    pub fn config(&self) -> Option<LoadConfig> {
-        self.published.as_ref().map(|snapshot| snapshot.config)
-    }
-
-    pub(in crate::rendering) fn snapshot(&self) -> Option<&PublishedSnapshot> {
-        self.published.as_ref()
-    }
-
-    pub(in crate::rendering) fn descriptor_heap(&self) -> &ID3D12DescriptorHeap {
-        self.transfer.descriptor_heap()
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        self.published.is_some() || self.transfer.has_pending()
-    }
-
-    pub fn disable(&mut self) -> Result<()> {
-        if self.transfer.has_pending() || self.transfer.has_armed_gate() || self.staged.is_some() {
-            bail!("cannot disable async resident mode while a transaction or gate is active");
-        }
-        self.published = None;
-        Ok(())
-    }
-
-    pub unsafe fn wait_idle(&mut self) -> Result<()> {
-        unsafe { self.transfer.wait_idle() }
-    }
-
-    fn protected_slots(&self) -> std::collections::BTreeSet<u32> {
-        self.published
-            .iter()
-            .flat_map(|snapshot| snapshot.active_slots.iter().copied())
-            .chain(
-                self.staged
-                    .iter()
-                    .flat_map(|publication| publication.active_slots.iter().copied()),
-            )
-            .collect()
-    }
 }
 
 fn async_constants(
@@ -484,17 +444,25 @@ fn async_constants(
     snapshot: &PublishedSnapshot,
     width: u32,
     height: u32,
-) -> [u32; ASYNC_CONSTANT_COUNT as usize] {
+) -> Result<[u32; ASYNC_CONSTANT_COUNT as usize]> {
     let mut constants = [0u32; ASYNC_CONSTANT_COUNT as usize];
-    for (destination, value) in constants[..16].iter_mut().zip(
-        scene
-            .view_projection(width as f32 / height as f32)
-            .to_cols_array(),
-    ) {
+    let projection = snapshot.projection()?;
+    let camera = projection.camera(scene.camera());
+    for (destination, value) in constants[..16]
+        .iter_mut()
+        .zip(crate::scene::view_projection(camera, width as f32 / height as f32).to_cols_array())
+    {
         *destination = value.to_bits();
     }
     constants[16] = snapshot.config.active_region_count();
     constants[17] = MAX_VISIBLE_INSTANCES;
-    constants[20..20 + snapshot.active_slots.len()].copy_from_slice(&snapshot.active_slots);
-    constants
+    for (index, slot) in snapshot.active_slots.iter().copied().enumerate() {
+        let semantic_region = if projection.is_canonical() {
+            projection.region_id(index, 0)?
+        } else {
+            0
+        };
+        constants[20 + index] = slot | (semantic_region << 6);
+    }
+    Ok(constants)
 }

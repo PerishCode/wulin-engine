@@ -8,7 +8,7 @@
 
 ## Status
 
-**相机相对地形投影基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
+**规范生成对象原子组合基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
 Sidecar 生命周期和项目自有 inspect 协议已经形成可重复的可见控制闭环。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
@@ -62,6 +62,10 @@ I/O 与上传均为零，不同 namespace 则严格全 miss。缺块、损坏和
 Experiment 0024 已将 V2 地形的 camera、位置、LOD 和语义投影到以 `(64,64)` 为中心的固定
 活动窗口；同一 signed window 在 local center 2、64、96、125 下的 view matrix、颜色、
 object-ID、诊断附件和 LOD oracle 均字节一致，同时保留 25 个 canonical slot 且零 I/O/upload。
+Experiment 0025 已用独立 object source、signed region cache key、region-local payload 与 stable
+seed 将生成对象接入同一 camera-relative projection，并恢复 V2 地形/对象原子组合；固定窗口
+alias 对两套缓存均为 25/0，相邻窗口均为 20/5，terrain source 切换不会使对象误失效，三类
+hold、损坏回滚、语义反查、骨骼 CPU/GPU oracle 与完整附件均通过。
 
 ## Project model
 
@@ -102,6 +106,7 @@ runseal :global-composition
 runseal :global-traversal
 runseal :signed-terrain-storage
 runseal :camera-relative-terrain
+runseal :canonical-object-composition
 runseal :workbench start
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24

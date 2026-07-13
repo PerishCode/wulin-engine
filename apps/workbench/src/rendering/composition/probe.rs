@@ -5,6 +5,9 @@ use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+use crate::async_resident::{ObjectSourceNamespace, canonical_stable_seed};
+use crate::world::RegionCoord;
+
 use super::super::meshlet_scene::SkeletalProbe;
 use super::super::renderer::Renderer;
 use super::super::terrain::TerrainProbe;
@@ -18,6 +21,8 @@ pub struct CompositionProbe {
     revision: &'static str,
     order: CompositionOrder,
     pair: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    canonical_objects: Option<CanonicalObjectEvidence>,
     grounding: GroundingProbe,
     contact: ContactProbe,
     terrain: TerrainProbe,
@@ -26,6 +31,31 @@ pub struct CompositionProbe {
     fixed_terrain_dispatches: u32,
     fixed_skeletal_dispatches: u32,
     timing: CompositionTiming,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CanonicalObjectEvidence {
+    revision: &'static str,
+    source_namespace: ObjectSourceNamespace,
+    entry_count: usize,
+    semantic_collision_count: usize,
+    stable_seed_collision_count: usize,
+    mismatch_count: usize,
+    content_sha256: String,
+    stable_seed_sha256: String,
+    entries: Vec<CanonicalObjectEntry>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CanonicalObjectEntry {
+    active_index: u32,
+    global_region: RegionCoord,
+    semantic_region_id: u32,
+    object_id: u32,
+    stable_seed: u32,
+    render_offset_regions: [i32; 2],
 }
 
 #[derive(Serialize)]
@@ -131,6 +161,18 @@ impl Renderer {
             .as_ref()
             .context("composition probe has no published pair")?
             .fixture;
+        let projection = self.terrain_renderer.projection()?;
+        let object_projection = snapshot.projection()?;
+        ensure!(
+            projection.is_canonical() == object_projection.is_canonical(),
+            "composition terrain and object projection modes differ"
+        );
+        if let Some(source) = snapshot.object_source_namespace {
+            ensure!(
+                source == fixture.object_source_namespace(),
+                "composition object source does not match its fixture"
+            );
+        }
 
         let candidate_count = snapshot.config.candidate_instance_count() as usize;
         let gpu = unsafe {
@@ -145,16 +187,35 @@ impl Renderer {
             diagonal: 0,
             second: 0,
         };
-        for (assignment, tile) in assignments.iter().zip(tiles) {
+        for (active_index, (assignment, tile)) in assignments.iter().zip(tiles).enumerate() {
             ensure!(
                 assignment.region_id == tile.region_id,
                 "composition terrain tile does not match its logical mapping"
             );
-            let region_records = fixture::generate_fixture_region(assignment.region_id, fixture);
+            let region_records = match (snapshot.object_source_namespace, assignment.global_region)
+            {
+                (Some(source), Some(global)) => fixture::generate_canonical_fixture_region(
+                    global,
+                    canonical_stable_seed(source, global),
+                    fixture,
+                ),
+                (None, _) => fixture::generate_fixture_region(assignment.region_id, fixture),
+                (Some(_), None) => {
+                    anyhow::bail!("canonical object mapping has no signed region")
+                }
+            };
             for (local_index, record) in region_records.iter().enumerate() {
-                position_digest.update(record.position[0].to_bits().to_le_bytes());
-                position_digest.update(record.position[2].to_bits().to_le_bytes());
-                let (ground, triangle) = fixture::sample_ground(tile, local_index, fixture);
+                let position = projection.position(active_index, record.position)?;
+                position_digest.update(position[0].to_bits().to_le_bytes());
+                position_digest.update(position[2].to_bits().to_le_bytes());
+                let (ground, triangle) = fixture::sample_ground(
+                    tile,
+                    local_index,
+                    fixture,
+                    snapshot
+                        .object_source_namespace
+                        .and(assignment.global_region),
+                );
                 cpu.push(ground);
                 match triangle {
                     TriangleClass::First => triangles.first += 1,
@@ -193,7 +254,7 @@ impl Renderer {
             mismatch_count == 0,
             "composition GPU ground numerators differ from the CPU oracle"
         );
-        let boundaries = boundary_probe(assignments, &records, &cpu, fixture);
+        let boundaries = boundary_probe(assignments, &records, &cpu, fixture, projection)?;
         ensure!(
             boundaries.position_mismatch_count == 0 && boundaries.ground_mismatch_count == 0,
             "composition boundary samples diverged"
@@ -207,6 +268,10 @@ impl Renderer {
         };
         let minimum_numerator = gpu.iter().copied().min().unwrap_or(0);
         let maximum_numerator = gpu.iter().copied().max().unwrap_or(0);
+        let canonical_objects = snapshot
+            .object_source_namespace
+            .map(|source| canonical_object_evidence(source, assignments, &records, projection))
+            .transpose()?;
         let terrain = unsafe { self.terrain_renderer.read_probe(scene) }?;
         let skeletal = unsafe {
             self.skeletal_scene_renderer.read_grounded_probe(
@@ -217,15 +282,16 @@ impl Renderer {
                 &records,
             )
         }?;
-        let contact = contact::evaluate(
+        let contact = contact::evaluate(contact::ContactInput {
             assignments,
             tiles,
-            &records,
-            &cpu,
-            fixture.ground_denominator(),
+            records: &records,
+            exact_ground: &cpu,
+            ground_denominator: fixture.ground_denominator(),
             scene,
-            self.terrain_renderer.lod_settings(),
-        )?;
+            settings: self.terrain_renderer.lod_settings(),
+            projection,
+        })?;
         let mesh_read_count = skeletal.visible_count();
         let skeletal_timing = skeletal.gpu_timing();
         let terrain_total_ms = terrain.total_gpu_ms();
@@ -233,6 +299,7 @@ impl Renderer {
             revision: COMPOSITION_REVISION,
             order: self.composition.order,
             pair: self.composition.status_json(),
+            canonical_objects,
             grounding: GroundingProbe {
                 fixture,
                 grounding_mode: fixture.grounding_mode(),
@@ -273,26 +340,92 @@ impl Renderer {
     }
 }
 
+fn canonical_object_evidence(
+    source_namespace: ObjectSourceNamespace,
+    assignments: &[crate::terrain::TerrainAssignment],
+    records: &[Vec<crate::resident::InstanceRecord>],
+    projection: super::super::terrain::TerrainProjection,
+) -> Result<CanonicalObjectEvidence> {
+    ensure!(
+        projection.is_canonical() && assignments.len() == records.len(),
+        "canonical object evidence requires one projected payload per region"
+    );
+    let mut content_hash = Sha256::new();
+    let mut seed_hash = Sha256::new();
+    let mut semantic_ids = std::collections::BTreeSet::new();
+    let mut stable_seeds = std::collections::BTreeSet::new();
+    let mut mismatch_count = 0;
+    let mut entries = Vec::with_capacity(assignments.len());
+    for (index, (assignment, region_records)) in assignments.iter().zip(records).enumerate() {
+        let global = assignment
+            .global_region
+            .context("canonical object assignment has no signed region")?;
+        let stable_seed = canonical_stable_seed(source_namespace, global);
+        let semantic_region_id = projection.region_id(index, assignment.region_id)?;
+        let object_id = crate::load::REGION_OBJECT_ID_BASE
+            .checked_add(semantic_region_id)
+            .and_then(|value| value.checked_add(1))
+            .context("canonical object ID overflowed")?;
+        let render_offset_regions = projection.render_offset(index)?;
+        mismatch_count += region_records
+            .iter()
+            .filter(|record| record.region_id != stable_seed)
+            .count();
+        semantic_ids.insert(semantic_region_id);
+        stable_seeds.insert(stable_seed);
+        content_hash.update(source_namespace.as_bytes());
+        content_hash.update(global.x.to_le_bytes());
+        content_hash.update(global.z.to_le_bytes());
+        content_hash.update(stable_seed.to_le_bytes());
+        content_hash.update(crate::resident::as_bytes(region_records));
+        seed_hash.update(stable_seed.to_le_bytes());
+        entries.push(CanonicalObjectEntry {
+            active_index: index as u32,
+            global_region: global,
+            semantic_region_id,
+            object_id,
+            stable_seed,
+            render_offset_regions,
+        });
+    }
+    Ok(CanonicalObjectEvidence {
+        revision: "canonical-generated-object-v1",
+        source_namespace,
+        entry_count: entries.len(),
+        semantic_collision_count: entries.len() - semantic_ids.len(),
+        stable_seed_collision_count: entries.len() - stable_seeds.len(),
+        mismatch_count,
+        content_sha256: format!("{:x}", content_hash.finalize()),
+        stable_seed_sha256: format!("{:x}", seed_hash.finalize()),
+        entries,
+    })
+}
+
 fn boundary_probe(
     assignments: &[crate::terrain::TerrainAssignment],
     records: &[Vec<crate::resident::InstanceRecord>],
     ground: &[i32],
     fixture: CompositionFixture,
-) -> BoundaryProbe {
+    projection: super::super::terrain::TerrainProjection,
+) -> Result<BoundaryProbe> {
     if fixture == CompositionFixture::CellCenter {
-        return BoundaryProbe {
+        return Ok(BoundaryProbe {
             logical_neighbor_edges: 0,
             pair_comparisons: 0,
             position_mismatch_count: 0,
             ground_mismatch_count: 0,
             first_mismatch: None,
-        };
+        });
     }
     let active = assignments
         .iter()
         .enumerate()
-        .map(|(index, assignment)| (assignment.region_id, index))
-        .collect::<BTreeMap<_, _>>();
+        .map(|(index, assignment)| {
+            projection
+                .region_id(index, assignment.region_id)
+                .map(|region_id| (region_id, index))
+        })
+        .collect::<Result<BTreeMap<_, _>>>()?;
     let mut result = BoundaryProbe {
         logical_neighbor_edges: 0,
         pair_comparisons: 0,
@@ -301,10 +434,11 @@ fn boundary_probe(
         first_mismatch: None,
     };
     for (first_index, assignment) in assignments.iter().enumerate() {
-        let region_x = assignment.region_id % crate::load::MAX_REGION_SIDE;
+        let region_id = projection.region_id(first_index, assignment.region_id)?;
+        let region_x = region_id % crate::load::MAX_REGION_SIDE;
         for (second_region_id, x_edge) in [
-            (assignment.region_id + 1, true),
-            (assignment.region_id + crate::load::MAX_REGION_SIDE, false),
+            (region_id + 1, true),
+            (region_id + crate::load::MAX_REGION_SIDE, false),
         ] {
             if x_edge && region_x + 1 >= crate::load::MAX_REGION_SIDE {
                 continue;
@@ -322,11 +456,12 @@ fn boundary_probe(
                 } else {
                     (31 * terrain_format::CELL_SIDE + along, along)
                 };
-                let first_record = records[first_index][first_local];
-                let second_record = records[second_index][second_local];
-                let position_matches = first_record.position[0].to_bits()
-                    == second_record.position[0].to_bits()
-                    && first_record.position[2].to_bits() == second_record.position[2].to_bits();
+                let first_position =
+                    projection.position(first_index, records[first_index][first_local].position)?;
+                let second_position = projection
+                    .position(second_index, records[second_index][second_local].position)?;
+                let position_matches = first_position[0].to_bits() == second_position[0].to_bits()
+                    && first_position[2].to_bits() == second_position[2].to_bits();
                 let first_ground =
                     ground[first_index * crate::load::INSTANCES_PER_REGION as usize + first_local];
                 let second_ground = ground
@@ -338,7 +473,7 @@ fn boundary_probe(
                     && (!position_matches || first_ground != second_ground)
                 {
                     result.first_mismatch = Some(BoundaryMismatch {
-                        first_region_id: assignment.region_id,
+                        first_region_id: region_id,
                         second_region_id,
                         first_local_index: first_local as u32,
                         second_local_index: second_local as u32,
@@ -350,5 +485,5 @@ fn boundary_probe(
             }
         }
     }
-    result
+    Ok(result)
 }

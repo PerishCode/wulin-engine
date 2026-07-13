@@ -100,6 +100,13 @@ impl Renderer {
         if self.async_resident_renderer.config().is_none() {
             bail!("meshlet scene requires a published async resident snapshot");
         }
+        if self
+            .async_resident_renderer
+            .object_source_namespace()
+            .is_some()
+        {
+            bail!("canonical generated objects require atomic composition mode");
+        }
         self.disable_composition();
         self.skeletal_scene_renderer.disable();
         self.terrain_renderer.disable();
@@ -138,6 +145,13 @@ impl Renderer {
         if self.async_resident_renderer.config().is_none() {
             bail!("skeletal scene requires a published async resident snapshot");
         }
+        if self
+            .async_resident_renderer
+            .object_source_namespace()
+            .is_some()
+        {
+            bail!("canonical generated objects require atomic composition mode");
+        }
         self.disable_composition();
         self.meshlet_scene_renderer.disable();
         self.terrain_renderer.disable();
@@ -164,6 +178,13 @@ impl Renderer {
     pub fn enable_surface(&mut self) -> Result<()> {
         if self.async_resident_renderer.config().is_none() {
             bail!("surface resolve requires a published async resident snapshot");
+        }
+        if self
+            .async_resident_renderer
+            .object_source_namespace()
+            .is_some()
+        {
+            bail!("canonical generated objects require atomic composition mode");
         }
         self.disable_composition();
         self.meshlet_scene_renderer.disable();

@@ -82,6 +82,7 @@ impl Renderer {
                     .snapshot()
                     .context("composition has no resident snapshot")?;
                 let grounding_mode = self.composition_grounding_mode();
+                let projection = self.terrain_renderer.projection()?;
                 match self.composition_order() {
                     CompositionOrder::TerrainFirst => {
                         self.terrain_renderer.record(
@@ -106,6 +107,7 @@ impl Renderer {
                                 probe: probe_load,
                                 terrain_slots: Some(&terrain_slots),
                                 grounding_mode,
+                                projection,
                                 clear_depth_semantic: false,
                             },
                         )?;
@@ -123,6 +125,7 @@ impl Renderer {
                                 probe: probe_load,
                                 terrain_slots: Some(&terrain_slots),
                                 grounding_mode,
+                                projection,
                                 clear_depth_semantic: true,
                             },
                         )?;
@@ -154,6 +157,7 @@ impl Renderer {
                     .async_resident_renderer
                     .snapshot()
                     .context("skeletal scene has no published resident snapshot")?;
+                let projection = snapshot.projection()?;
                 self.skeletal_scene_renderer.record(
                     &self.command_list,
                     SkeletalFrame {
@@ -166,6 +170,7 @@ impl Renderer {
                         probe: probe_load,
                         terrain_slots: None,
                         grounding_mode: 0,
+                        projection,
                         clear_depth_semantic: true,
                     },
                 )?;

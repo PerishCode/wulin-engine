@@ -199,7 +199,11 @@ pub(crate) fn generate_region(region_id: u32) -> Vec<InstanceRecord> {
         .collect()
 }
 
-fn instance_height(reference: u32) -> f32 {
+pub(crate) fn canonical_stable_key(region_seed: u32, local_index: u32) -> u32 {
+    region_seed ^ local_index.wrapping_mul(747_796_405)
+}
+
+pub(crate) fn instance_height(reference: u32) -> f32 {
     let mut value = reference
         .wrapping_mul(747_796_405)
         .wrapping_add(2_891_336_453);

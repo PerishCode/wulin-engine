@@ -21,28 +21,22 @@ impl CompositionCoordinator {
         self.pending.is_some()
     }
 
-    pub(super) fn begin(
-        &mut self,
-        config: LoadConfig,
-        global_config: Option<GlobalRegionConfig>,
-        fixture: CompositionFixture,
-        terrain_transaction_id: u64,
-        instance_transaction_id: u64,
-        camera_driven: bool,
-    ) -> u64 {
+    pub(super) fn begin(&mut self, input: PendingPairInput) -> u64 {
         let token = self.next_token;
         self.next_token += 1;
         self.pending = Some(PendingPair {
             token,
-            config,
-            global_config,
-            fixture,
-            terrain_transaction_id,
-            instance_transaction_id,
+            config: input.config,
+            global_config: input.global_config,
+            terrain_source_namespace: input.terrain_source_namespace,
+            object_source_namespace: input.object_source_namespace,
+            fixture: input.fixture,
+            terrain_transaction_id: input.terrain_transaction_id,
+            instance_transaction_id: input.instance_transaction_id,
             terrain: HalfState::InFlight,
             instance: HalfState::InFlight,
             failure: None,
-            camera_driven,
+            camera_driven: input.camera_driven,
             started_at: Instant::now(),
         });
         token
@@ -84,6 +78,12 @@ impl CompositionCoordinator {
             });
             if let Some(global) = value.global_config {
                 pending["globalConfig"] = json!(global);
+            }
+            if let Some(source) = value.terrain_source_namespace {
+                pending["terrainSourceNamespace"] = json!(source);
+            }
+            if let Some(source) = value.object_source_namespace {
+                pending["objectSourceNamespace"] = json!(source);
             }
             pending
         });

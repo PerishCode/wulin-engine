@@ -9,7 +9,7 @@ use crate::scene::SceneState;
 use crate::terrain::TerrainAssignment;
 
 use super::super::terrain::{
-    PATCH_CELL_SIDE, PATCHES_PER_REGION_SIDE, TerrainLodSettings, selected_lod,
+    PATCH_CELL_SIDE, PATCHES_PER_REGION_SIDE, TerrainLodSettings, TerrainProjection, selected_lod,
 };
 
 const Q18_DENOMINATOR: u32 = 262_144;
@@ -55,15 +55,28 @@ struct ContactExceedance {
     residual_q18: i32,
 }
 
-pub(super) fn evaluate(
-    assignments: &[TerrainAssignment],
-    tiles: &[terrain_format::TerrainTile],
-    records: &[Vec<InstanceRecord>],
-    exact_ground: &[i32],
-    ground_denominator: u32,
-    scene: &SceneState,
-    settings: TerrainLodSettings,
-) -> Result<ContactProbe> {
+pub(super) struct ContactInput<'a> {
+    pub assignments: &'a [TerrainAssignment],
+    pub tiles: &'a [terrain_format::TerrainTile],
+    pub records: &'a [Vec<InstanceRecord>],
+    pub exact_ground: &'a [i32],
+    pub ground_denominator: u32,
+    pub scene: &'a SceneState,
+    pub settings: TerrainLodSettings,
+    pub projection: TerrainProjection,
+}
+
+pub(super) fn evaluate(input: ContactInput<'_>) -> Result<ContactProbe> {
+    let ContactInput {
+        assignments,
+        tiles,
+        records,
+        exact_ground,
+        ground_denominator,
+        scene,
+        settings,
+        projection,
+    } = input;
     ensure!(
         assignments.len() == tiles.len() && assignments.len() == records.len(),
         "composition contact snapshot shape mismatch"
@@ -78,8 +91,8 @@ pub(super) fn evaluate(
         "composition contact ground denominator is incompatible with Q18"
     );
     let ground_scale = (Q18_DENOMINATOR / ground_denominator) as i32;
-    let active_patches = active_patch_set(assignments);
-    let camera = scene.camera();
+    let active_patches = active_patch_set(assignments, projection)?;
+    let camera = projection.camera(scene.camera());
     let mut selected_hash = Sha256::new();
     let mut residual_hash = Sha256::new();
     let mut lod_counts = [0; 3];
@@ -99,16 +112,12 @@ pub(super) fn evaluate(
             assignment.region_id == tile.region_id,
             "composition contact tile mapping mismatch"
         );
+        let region_id = projection.region_id(active_index, assignment.region_id)?;
         for (local_index, record) in region_records.iter().enumerate() {
-            let q8 = position_q8(record, assignment.region_id)?;
-            let (selected_q18, owner_lod) = selected_surface_q18(
-                tile,
-                assignment.region_id,
-                q8,
-                &active_patches,
-                camera,
-                settings,
-            );
+            let position = projection.position(active_index, record.position)?;
+            let q8 = position_q8(position, region_id)?;
+            let (selected_q18, owner_lod) =
+                selected_surface_q18(tile, region_id, q8, &active_patches, camera, settings);
             let logical_index =
                 active_index * crate::load::INSTANCES_PER_REGION as usize + local_index;
             let exact_q18 = exact_ground[logical_index] * ground_scale;
@@ -127,7 +136,7 @@ pub(super) fn evaluate(
             if residual.unsigned_abs() > CONTACT_THRESHOLD_NUMERATOR {
                 exceedance_count += 1;
                 first_exceedance.get_or_insert(ContactExceedance {
-                    region_id: assignment.region_id,
+                    region_id,
                     local_index: local_index as u32,
                     owner_patch_lod: owner_lod,
                     exact_ground_q18: exact_q18,
@@ -170,11 +179,15 @@ pub(super) fn evaluate(
     })
 }
 
-fn active_patch_set(assignments: &[TerrainAssignment]) -> BTreeSet<(i32, i32)> {
+fn active_patch_set(
+    assignments: &[TerrainAssignment],
+    projection: TerrainProjection,
+) -> Result<BTreeSet<(i32, i32)>> {
     let mut patches = BTreeSet::new();
-    for assignment in assignments {
-        let region_x = (assignment.region_id % terrain_format::WORLD_REGION_SIDE) as i32;
-        let region_z = (assignment.region_id / terrain_format::WORLD_REGION_SIDE) as i32;
+    for (index, assignment) in assignments.iter().enumerate() {
+        let region_id = projection.region_id(index, assignment.region_id)?;
+        let region_x = (region_id % terrain_format::WORLD_REGION_SIDE) as i32;
+        let region_z = (region_id / terrain_format::WORLD_REGION_SIDE) as i32;
         for patch_z in 0..PATCHES_PER_REGION_SIDE {
             for patch_x in 0..PATCHES_PER_REGION_SIDE {
                 patches.insert((
@@ -184,10 +197,10 @@ fn active_patch_set(assignments: &[TerrainAssignment]) -> BTreeSet<(i32, i32)> {
             }
         }
     }
-    patches
+    Ok(patches)
 }
 
-fn position_q8(record: &InstanceRecord, region_id: u32) -> Result<[u32; 2]> {
+fn position_q8(position: [f32; 3], region_id: u32) -> Result<[u32; 2]> {
     let region_x = (region_id % terrain_format::WORLD_REGION_SIDE) as i32;
     let region_z = (region_id / terrain_format::WORLD_REGION_SIDE) as i32;
     let minimum_x = ((region_x - 64) * 16 - 8) as f32;
@@ -205,8 +218,8 @@ fn position_q8(record: &InstanceRecord, region_id: u32) -> Result<[u32; 2]> {
         Ok(q8 as u32)
     };
     Ok([
-        convert(record.position[0], minimum_x)?,
-        convert(record.position[2], minimum_z)?,
+        convert(position[0], minimum_x)?,
+        convert(position[2], minimum_z)?,
     ])
 }
 

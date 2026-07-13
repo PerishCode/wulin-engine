@@ -11,6 +11,10 @@ use crate::world::RegionCoord;
 pub const ASYNC_RESIDENT_REVISION: &str = "async-resident-v1";
 pub const ASYNC_CACHE_CAPACITY: usize = 50;
 
+mod canonical;
+
+pub use canonical::{ObjectSourceNamespace, canonical_stable_seed};
+
 #[derive(Clone)]
 pub struct AsyncRegionCache {
     slots: [Option<CacheEntry>; ASYNC_CACHE_CAPACITY],
@@ -24,9 +28,16 @@ struct CacheEntry {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct CacheKey {
-    global_region: Option<RegionCoord>,
-    local_region_id: u32,
+enum CacheKey {
+    Local(u32),
+    LegacyGlobal {
+        global_region: RegionCoord,
+        local_region_id: u32,
+    },
+    CanonicalGlobal {
+        source_namespace: ObjectSourceNamespace,
+        global_region: RegionCoord,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -48,6 +59,7 @@ impl Default for AsyncRegionCache {
 pub struct AsyncLayoutPlan {
     pub config: LoadConfig,
     pub global_config: Option<GlobalRegionConfig>,
+    pub object_source_namespace: Option<ObjectSourceNamespace>,
     pub next_cache: AsyncRegionCache,
     pub assignments: Vec<RegionAssignment>,
     pub active_slots: Vec<u32>,
@@ -68,6 +80,8 @@ pub struct RegionAssignment {
     pub region_id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub global_region: Option<RegionCoord>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stable_seed: Option<u32>,
 }
 
 #[derive(Clone, Copy, Serialize)]
@@ -90,6 +104,8 @@ pub struct AsyncTransactionReport {
     pub config: LoadConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub global_config: Option<GlobalRegionConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub object_source_namespace: Option<ObjectSourceNamespace>,
     #[serde(flatten)]
     pub counts: AsyncPlanCounts,
     pub uploaded_sha256: String,
@@ -111,6 +127,8 @@ pub struct AsyncReservationReport {
     pub config: LoadConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub global_config: Option<GlobalRegionConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub object_source_namespace: Option<ObjectSourceNamespace>,
     #[serde(flatten)]
     pub counts: AsyncPlanCounts,
     pub assignments: Vec<RegionAssignment>,
@@ -151,7 +169,7 @@ impl AsyncRegionCache {
             .into_iter()
             .map(local_region)
             .collect();
-        self.plan_layout_ordered(config, None, desired, protected_slots, false)
+        self.plan_layout_ordered(config, None, None, desired, protected_slots, false)
     }
 
     pub fn plan_composition_layout(
@@ -163,7 +181,7 @@ impl AsyncRegionCache {
             .into_iter()
             .map(local_region)
             .collect();
-        self.plan_layout_ordered(config, None, desired, protected_slots, true)
+        self.plan_layout_ordered(config, None, None, desired, protected_slots, true)
     }
 
     pub fn plan_global_composition_layout(
@@ -177,13 +195,49 @@ impl AsyncRegionCache {
             .into_iter()
             .map(global_region)
             .collect();
-        self.plan_layout_ordered(local, Some(config), desired, protected_slots, true)
+        self.plan_layout_ordered(local, Some(config), None, desired, protected_slots, true)
+    }
+
+    pub fn plan_canonical_layout(
+        &self,
+        config: GlobalRegionConfig,
+        source_namespace: ObjectSourceNamespace,
+        protected_slots: &BTreeSet<u32>,
+    ) -> Result<AsyncLayoutPlan> {
+        let local = config.local_config()?;
+        let desired = config
+            .addressed_regions()?
+            .into_iter()
+            .map(|region| canonical::desired(region, source_namespace))
+            .collect::<Vec<_>>();
+        let unique_seeds = desired
+            .iter()
+            .map(|region| {
+                region
+                    .assignment
+                    .stable_seed
+                    .expect("canonical seed is absent")
+            })
+            .collect::<BTreeSet<_>>();
+        ensure!(
+            unique_seeds.len() == desired.len(),
+            "canonical object stable seeds collide inside the active window"
+        );
+        self.plan_layout_ordered(
+            local,
+            Some(config),
+            Some(source_namespace),
+            desired,
+            protected_slots,
+            true,
+        )
     }
 
     fn plan_layout_ordered(
         &self,
         config: LoadConfig,
         global_config: Option<GlobalRegionConfig>,
+        object_source_namespace: Option<ObjectSourceNamespace>,
         desired: Vec<DesiredRegion>,
         protected_slots: &BTreeSet<u32>,
         high_slots_first: bool,
@@ -264,6 +318,7 @@ impl AsyncRegionCache {
         Ok(AsyncLayoutPlan {
             config,
             global_config,
+            object_source_namespace,
             next_cache: next,
             assignments,
             active_slots,
@@ -281,28 +336,27 @@ impl AsyncRegionCache {
 
 fn local_region(region_id: u32) -> DesiredRegion {
     DesiredRegion {
-        key: CacheKey {
-            global_region: None,
-            local_region_id: region_id,
-        },
+        key: CacheKey::Local(region_id),
         assignment: RegionAssignment {
             slot: 0,
             region_id,
             global_region: None,
+            stable_seed: None,
         },
     }
 }
 
 fn global_region(region: AddressedRegion) -> DesiredRegion {
     DesiredRegion {
-        key: CacheKey {
-            global_region: Some(region.global_region),
+        key: CacheKey::LegacyGlobal {
+            global_region: region.global_region,
             local_region_id: region.local_region_id,
         },
         assignment: RegionAssignment {
             slot: 0,
             region_id: region.local_region_id,
             global_region: Some(region.global_region),
+            stable_seed: None,
         },
     }
 }
@@ -324,10 +378,9 @@ impl AsyncLayoutPlan {
                 "async region payload has an invalid record count"
             );
             ensure!(
-                upload
-                    .records
-                    .iter()
-                    .all(|record| record.region_id == assignment.region_id),
+                upload.records.iter().all(|record| {
+                    record.region_id == assignment.stable_seed.unwrap_or(assignment.region_id)
+                }),
                 "async payload region does not match the cache reservation"
             );
         }
@@ -392,5 +445,40 @@ mod tests {
         assert_eq!(revisit.counts.retained_region_count, 25);
         assert_eq!(revisit.counts.uploaded_region_count, 0);
         assert_eq!(revisit.counts.instance_bytes, 0);
+    }
+
+    #[test]
+    fn canonical_alias_rebind_hits() {
+        let far = 1_i64 << 40;
+        let source = ObjectSourceNamespace::from_revision("canonical-object-test-v1");
+        let base = GlobalRegionConfig::new(far, -far, far, -far, 2).unwrap();
+        let first = AsyncRegionCache::default()
+            .plan_canonical_layout(base, source, &BTreeSet::new())
+            .unwrap();
+        let alias = GlobalRegionConfig::new(far - 32, -far, far, -far, 2).unwrap();
+        let rebound = first
+            .next_cache
+            .plan_canonical_layout(alias, source, &protected(&first))
+            .unwrap();
+        assert_eq!(rebound.counts.retained_region_count, 25);
+        assert_eq!(rebound.counts.uploaded_region_count, 0);
+        assert!(rebound.assignments.is_empty());
+    }
+
+    #[test]
+    fn canonical_source_change_misses() {
+        let config = GlobalRegionConfig::new(0, 0, 0, 0, 2).unwrap();
+        let first_source = ObjectSourceNamespace::from_revision("canonical-object-test-v1");
+        let second_source = ObjectSourceNamespace::from_revision("canonical-object-test-v2");
+        let first = AsyncRegionCache::default()
+            .plan_canonical_layout(config, first_source, &BTreeSet::new())
+            .unwrap();
+        let second = first
+            .next_cache
+            .plan_canonical_layout(config, second_source, &protected(&first))
+            .unwrap();
+        assert_eq!(second.counts.retained_region_count, 0);
+        assert_eq!(second.counts.uploaded_region_count, 25);
+        assert_eq!(second.counts.resident_region_count, 50);
     }
 }
