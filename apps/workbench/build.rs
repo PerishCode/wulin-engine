@@ -13,6 +13,7 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders/resident_load.hlsl");
     println!("cargo:rerun-if-changed=shaders/async_resident.hlsl");
     println!("cargo:rerun-if-changed=shaders/meshlet_scene.hlsl");
+    println!("cargo:rerun-if-changed=shaders/skeletal_scene.hlsl");
     println!("cargo:rerun-if-env-changed=AGILITY_SDK_ROOT");
     println!("cargo:rerun-if-env-changed=DXC");
 
@@ -167,6 +168,24 @@ fn main() {
         "ps_6_6",
         "meshlet_scene.ps.dxil",
     );
+    for (entry, profile, output) in [
+        ("reset_main", "cs_6_6", "skeletal_scene.reset.dxil"),
+        ("cull_main", "cs_6_6", "skeletal_scene.cull.dxil"),
+        ("compact_main", "cs_6_6", "skeletal_scene.compact.dxil"),
+        ("pose_main", "cs_6_6", "skeletal_scene.pose.dxil"),
+        ("as_main", "as_6_6", "skeletal_scene.as.dxil"),
+        ("ms_main", "ms_6_6", "skeletal_scene.ms.dxil"),
+        ("ps_main", "ps_6_6", "skeletal_scene.ps.dxil"),
+    ] {
+        compile_named_shader(
+            &manifest_dir,
+            &out_dir,
+            "skeletal_scene.hlsl",
+            entry,
+            profile,
+            output,
+        );
+    }
     compile_shader(
         &manifest_dir,
         &out_dir,

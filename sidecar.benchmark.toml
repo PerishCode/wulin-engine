@@ -1,0 +1,16 @@
+[project]
+name = "wulin-engine"
+namespace = "benchmark"
+root = "."
+
+[app]
+name = "workbench"
+command = "cargo"
+args = ["run", "--locked", "--release", "-p", "workbench", "--"]
+cwd = "."
+mode = "benchmark"
+inspect_socket = "tcp://127.0.0.1:47631"
+
+[app.ready]
+role = "workbench"
+timeout_secs = 120

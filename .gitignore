@@ -3,6 +3,7 @@
 /out/
 /.cache/
 /.local/
+/.task/
 /.vs/
 
 # Generated shader and native artifacts

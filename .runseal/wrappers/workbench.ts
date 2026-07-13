@@ -63,9 +63,35 @@ function perceptionPayload(verb: string, args: string[]): Record<string, unknown
     return payload;
 }
 
+async function configureSkeletal(args: string[]): Promise<void> {
+    if (args.length > 6) {
+        fail("workbench: skeletal-config accepts animated bones phases tick mode LOD");
+    }
+    const mode = args[4] ?? "shared";
+    if (mode !== "shared" && mode !== "unique") {
+        fail("workbench: skeletal mode must be shared or unique");
+    }
+    const forced = args[5] ?? "auto";
+    await run([
+        "inspect",
+        "workbench",
+        "skeletal.configure",
+        JSON.stringify({
+            animated_percent: pixel(args[0] ?? "100", "animated percent"),
+            bone_count: pixel(args[1] ?? "64", "bone count"),
+            phase_count: pixel(args[2] ?? "64", "phase count"),
+            time_tick: pixel(args[3] ?? "0", "time tick"),
+            unique_poses: mode === "unique",
+            forced_lod: forced === "auto" ? null : pixel(forced, "forced LOD"),
+        }),
+        "--format",
+        "json",
+    ]);
+}
+
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -265,6 +291,25 @@ switch (verb) {
             "--format",
             "json",
         ]);
+        break;
+    }
+    case "skeletal":
+        if (args.length > 0) fail("workbench: skeletal does not accept arguments");
+        await run(["inspect", "workbench", "skeletal.status", "--format", "json"]);
+        break;
+    case "skeletal-enable":
+    case "skeletal-disable":
+        if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
+        await run([
+            "inspect",
+            "workbench",
+            verb === "skeletal-enable" ? "skeletal.enable" : "skeletal.disable",
+            "--format",
+            "json",
+        ]);
+        break;
+    case "skeletal-config": {
+        await configureSkeletal(args);
         break;
     }
     case "camera-set": {

@@ -21,7 +21,9 @@ use super::device::{
 };
 use super::gpu_capture::{CapturedPixels, Readback};
 use super::load::{LoadProbe, LoadRenderer};
-use super::meshlet_scene::{MeshletProbe, MeshletSceneRenderer};
+use super::meshlet_scene::{
+    MeshletProbe, MeshletSceneRenderer, SkeletalProbe, SkeletalSceneRenderer, SkeletalSettings,
+};
 use super::resident::ResidentRenderer;
 
 mod frame;
@@ -53,6 +55,7 @@ pub struct Renderer {
     pub(super) cooked_streamer: CookedStreamer,
     pub(super) async_resident_renderer: AsyncResidentRenderer,
     meshlet_scene_renderer: MeshletSceneRenderer,
+    skeletal_scene_renderer: SkeletalSceneRenderer,
     adapter_name: String,
     debug_layer: bool,
     capabilities: DeviceCapabilities,
@@ -67,6 +70,7 @@ pub struct RenderOutcome {
     pub capture: Option<CapturedFrame>,
     pub load_probe: Option<LoadProbe>,
     pub meshlet_probe: Option<MeshletProbe>,
+    pub skeletal_probe: Option<SkeletalProbe>,
     pub resident_stream: Option<StreamReport>,
 }
 
@@ -163,6 +167,16 @@ impl Renderer {
         let meshlet_scene_renderer = unsafe {
             MeshletSceneRenderer::new(&device, &queue, timestamp_frequency, width, height)
         }?;
+        let skeletal_scene_renderer = unsafe {
+            SkeletalSceneRenderer::new(
+                &device,
+                &queue,
+                async_resident_renderer.descriptor_heap(),
+                timestamp_frequency,
+                width,
+                height,
+            )
+        }?;
 
         let mut allocators = Vec::with_capacity(BUFFER_COUNT);
         for _ in 0..BUFFER_COUNT {
@@ -203,6 +217,7 @@ impl Renderer {
             cooked_streamer: CookedStreamer::default(),
             async_resident_renderer,
             meshlet_scene_renderer,
+            skeletal_scene_renderer,
             adapter_name,
             debug_layer,
             capabilities,
@@ -211,6 +226,7 @@ impl Renderer {
 
     pub fn configure_load(&mut self, config: LoadConfig) -> Result<()> {
         self.meshlet_scene_renderer.disable();
+        self.skeletal_scene_renderer.disable();
         self.async_resident_renderer.disable()?;
         self.resident_renderer.disable();
         self.load_renderer.configure(config);
@@ -219,6 +235,7 @@ impl Renderer {
 
     pub unsafe fn stream_resident(&mut self, config: LoadConfig) -> Result<()> {
         self.meshlet_scene_renderer.disable();
+        self.skeletal_scene_renderer.disable();
         self.async_resident_renderer.disable()?;
         self.load_renderer.disable();
         unsafe { self.resident_renderer.prepare_stream(config) }
@@ -226,6 +243,7 @@ impl Renderer {
 
     pub fn disable_load(&mut self) -> Result<()> {
         self.meshlet_scene_renderer.disable();
+        self.skeletal_scene_renderer.disable();
         self.async_resident_renderer.disable()?;
         self.load_renderer.disable();
         self.resident_renderer.disable();
@@ -278,6 +296,7 @@ impl Renderer {
         if self.async_resident_renderer.config().is_none() {
             bail!("meshlet scene requires a published async resident snapshot");
         }
+        self.skeletal_scene_renderer.disable();
         self.meshlet_scene_renderer.enable();
         Ok(())
     }
@@ -288,6 +307,42 @@ impl Renderer {
 
     pub fn meshlet_scene_status(&self) -> serde_json::Value {
         self.meshlet_scene_renderer.status_json()
+    }
+
+    pub fn configure_skeletal_scene(
+        &mut self,
+        animated_percent: u32,
+        bone_count: u32,
+        phase_count: u32,
+        time_tick: u32,
+        unique_poses: bool,
+        forced_lod: Option<u32>,
+    ) -> Result<()> {
+        self.skeletal_scene_renderer.configure(SkeletalSettings {
+            animated_percent,
+            bone_count,
+            phase_count,
+            time_tick,
+            unique_poses,
+            forced_lod,
+        })
+    }
+
+    pub fn enable_skeletal_scene(&mut self) -> Result<()> {
+        if self.async_resident_renderer.config().is_none() {
+            bail!("skeletal scene requires a published async resident snapshot");
+        }
+        self.meshlet_scene_renderer.disable();
+        self.skeletal_scene_renderer.enable();
+        Ok(())
+    }
+
+    pub fn disable_skeletal_scene(&mut self) {
+        self.skeletal_scene_renderer.disable();
+    }
+
+    pub fn skeletal_scene_status(&self) -> serde_json::Value {
+        self.skeletal_scene_renderer.status_json()
     }
 
     pub fn arm_async_copy_gate(&mut self) -> Result<u64> {
