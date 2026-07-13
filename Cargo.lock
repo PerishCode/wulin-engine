@@ -198,6 +198,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "region-cooker"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "region-format",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "region-format"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -410,6 +429,7 @@ dependencies = [
  "cc",
  "glam",
  "png",
+ "region-format",
  "serde",
  "serde_json",
  "sha2",

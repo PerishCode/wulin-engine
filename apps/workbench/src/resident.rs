@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::mem::size_of;
 
 use anyhow::{Context, Result};
+pub use region_format::InstanceRecord;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -13,14 +14,6 @@ pub const ACTIVE_REGION_CAPACITY: usize = 25;
 pub const INSTANCE_RECORD_BYTES: usize = size_of::<InstanceRecord>();
 pub const REGION_INSTANCE_BYTES: usize = INSTANCES_PER_REGION as usize * INSTANCE_RECORD_BYTES;
 pub const ACTIVE_MAPPING_BYTES: usize = ACTIVE_REGION_CAPACITY * size_of::<ActiveRegion>();
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct InstanceRecord {
-    pub position: [f32; 3],
-    pub height: f32,
-    pub region_id: u32,
-}
 
 #[repr(C)]
 #[derive(Clone, Copy)]

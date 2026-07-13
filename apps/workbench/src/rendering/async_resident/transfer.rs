@@ -3,20 +3,22 @@ use std::ptr;
 use std::time::Instant;
 
 use anyhow::{Context, Result, bail};
-use serde_json::{Value, json};
 use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0};
 use windows::Win32::Graphics::Direct3D12::*;
-use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_UNKNOWN;
 use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
 use windows::core::Interface;
 
 use crate::async_resident::{
-    ASYNC_CACHE_CAPACITY, ASYNC_RESIDENT_REVISION, AsyncRegionCache, AsyncTransactionReport,
+    ASYNC_CACHE_CAPACITY, ASYNC_RESIDENT_REVISION, AsyncLayoutPlan, AsyncRegionCache,
+    AsyncReservationReport, AsyncTransactionReport, PayloadPreparation,
 };
-use crate::load::{INSTANCES_PER_REGION, LoadConfig};
-use crate::resident::{INSTANCE_RECORD_BYTES, REGION_INSTANCE_BYTES, as_bytes};
+use crate::load::LoadConfig;
+use crate::resident::{REGION_INSTANCE_BYTES, RegionUpload, as_bytes};
 
 use super::super::resident::{create_buffer, transition};
+use super::resources::create_descriptor_heap;
+
+mod status;
 
 pub struct AsyncTransfer {
     regions: Vec<ID3D12Resource>,
@@ -35,10 +37,17 @@ pub struct AsyncTransfer {
     armed_gate: Option<u64>,
     next_gate_fence: u64,
     cache: AsyncRegionCache,
+    reservation: Option<ReservedTransfer>,
     shader_slots: [bool; ASYNC_CACHE_CAPACITY],
     pending: Option<PendingTransfer>,
     last_completed: Option<AsyncTransactionReport>,
     next_transaction_id: u64,
+}
+
+struct ReservedTransfer {
+    transaction_id: u64,
+    layout: AsyncLayoutPlan,
+    started_at: Instant,
 }
 
 struct PendingTransfer {
@@ -52,6 +61,7 @@ struct PendingTransfer {
 pub struct Publication {
     pub config: LoadConfig,
     pub active_slots: Vec<u32>,
+    pub report: AsyncTransactionReport,
 }
 
 impl AsyncTransfer {
@@ -130,6 +140,7 @@ impl AsyncTransfer {
             armed_gate: None,
             next_gate_fence: 1,
             cache: AsyncRegionCache::default(),
+            reservation: None,
             shader_slots: [false; ASYNC_CACHE_CAPACITY],
             pending: None,
             last_completed: None,
@@ -145,20 +156,91 @@ impl AsyncTransfer {
         direct_fence: &ID3D12Fence,
         direct_release_fence: u64,
     ) -> Result<AsyncTransactionReport> {
-        if self.pending.is_some() {
+        let reservation = self.reserve(config, protected_slots)?;
+        let generation_start = Instant::now();
+        let uploads = reservation
+            .assignments
+            .iter()
+            .map(|assignment| RegionUpload {
+                slot: assignment.slot,
+                records: crate::resident::generate_region(assignment.region_id),
+            })
+            .collect();
+        let generation_ms = generation_start.elapsed().as_secs_f64() * 1_000.0;
+        unsafe {
+            self.submit(
+                reservation.transaction_id,
+                uploads,
+                PayloadPreparation::generated(generation_ms),
+                direct_queue,
+                direct_fence,
+                direct_release_fence,
+            )
+        }
+    }
+
+    pub fn reserve(
+        &mut self,
+        config: LoadConfig,
+        protected_slots: &BTreeSet<u32>,
+    ) -> Result<AsyncReservationReport> {
+        if self.reservation.is_some() || self.pending.is_some() {
             bail!("stream_busy");
         }
-        let schedule_start = Instant::now();
-        let generation_start = Instant::now();
-        let plan = self.cache.plan(config, protected_slots)?;
-        let generation_ms = generation_start.elapsed().as_secs_f64() * 1_000.0;
+        let layout = self.cache.plan_layout(config, protected_slots)?;
+        let transaction_id = self.next_transaction_id;
+        self.next_transaction_id += 1;
+        let report = AsyncReservationReport {
+            revision: ASYNC_RESIDENT_REVISION,
+            transaction_id,
+            config,
+            counts: layout.counts,
+            assignments: layout.assignments.clone(),
+        };
+        self.reservation = Some(ReservedTransfer {
+            transaction_id,
+            layout,
+            started_at: Instant::now(),
+        });
+        Ok(report)
+    }
+
+    pub fn cancel_reservation(&mut self, transaction_id: u64) -> Result<()> {
+        let reservation = self
+            .reservation
+            .as_ref()
+            .context("async transfer has no cache reservation")?;
+        ensure_transaction(reservation.transaction_id, transaction_id)?;
+        self.reservation = None;
+        Ok(())
+    }
+
+    pub unsafe fn submit(
+        &mut self,
+        transaction_id: u64,
+        uploads: Vec<RegionUpload>,
+        preparation: PayloadPreparation,
+        direct_queue: &ID3D12CommandQueue,
+        direct_fence: &ID3D12Fence,
+        direct_release_fence: u64,
+    ) -> Result<AsyncTransactionReport> {
+        let reservation = self
+            .reservation
+            .as_ref()
+            .context("async transfer has no cache reservation")?;
+        ensure_transaction(reservation.transaction_id, transaction_id)?;
+        let reservation = self
+            .reservation
+            .take()
+            .expect("async reservation disappeared");
+        let plan = reservation.layout.materialize(uploads)?;
         unsafe { self.write_uploads(&plan.uploads) }?;
 
         unsafe { self.release_allocator.Reset() }
             .context("async release allocator reset failed")?;
         unsafe { self.release_list.Reset(&self.release_allocator, None) }
             .context("async release list reset failed")?;
-        for slot in &plan.reused_slots {
+        for slot in &plan.layout.reused_slots {
             let index = *slot as usize;
             if !self.shader_slots[index] {
                 bail!("reused async slot {slot} is not in shader-resource state");
@@ -214,24 +296,25 @@ impl AsyncTransfer {
 
         let report = AsyncTransactionReport {
             revision: ASYNC_RESIDENT_REVISION,
-            transaction_id: self.next_transaction_id,
-            config,
-            counts: plan.counts,
+            transaction_id,
+            config: plan.layout.config,
+            counts: plan.layout.counts,
             uploaded_sha256: plan.uploaded_sha256,
             direct_release_fence,
             copy_fence,
             gate_fence,
-            generation_ms,
-            schedule_ms: schedule_start.elapsed().as_secs_f64() * 1_000.0,
+            payload_source: preparation.source,
+            payload_preparation_ms: preparation.total_ms,
+            generation_ms: preparation.generation_ms,
+            schedule_ms: reservation.started_at.elapsed().as_secs_f64() * 1_000.0,
             pending_ms: 0.0,
         };
-        self.next_transaction_id += 1;
         self.pending = Some(PendingTransfer {
-            next_cache: plan.next_cache,
-            active_slots: plan.active_slots,
+            next_cache: plan.layout.next_cache,
+            active_slots: plan.layout.active_slots,
             uploaded_slots: plan.uploads.iter().map(|upload| upload.slot).collect(),
             report: report.clone(),
-            started_at: Instant::now(),
+            started_at: reservation.started_at,
         });
         Ok(report)
     }
@@ -263,11 +346,12 @@ impl AsyncTransfer {
         Some(Publication {
             config: pending.report.config,
             active_slots: pending.active_slots,
+            report: pending.report,
         })
     }
 
     pub fn arm_gate(&mut self) -> Result<u64> {
-        if self.pending.is_some() || self.armed_gate.is_some() {
+        if self.reservation.is_some() || self.pending.is_some() || self.armed_gate.is_some() {
             bail!("copy gate or stream transaction is already active");
         }
         let value = self.next_gate_fence;
@@ -288,54 +372,11 @@ impl AsyncTransfer {
     }
 
     pub fn has_pending(&self) -> bool {
-        self.pending.is_some()
+        self.reservation.is_some() || self.pending.is_some()
     }
 
     pub fn has_armed_gate(&self) -> bool {
         self.armed_gate.is_some()
-    }
-
-    pub fn status_json(&self, published: Option<LoadConfig>) -> Value {
-        let completed_copy_fence = unsafe { self.copy_fence.GetCompletedValue() };
-        let completed_gate_fence = unsafe { self.gate_fence.GetCompletedValue() };
-        let pending = self.pending.as_ref().map(|pending| {
-            let stage = if pending
-                .report
-                .gate_fence
-                .is_some_and(|value| completed_gate_fence < value)
-            {
-                "gated"
-            } else if completed_copy_fence < pending.report.copy_fence {
-                "copying"
-            } else {
-                "ready"
-            };
-            json!({
-                "stage": stage,
-                "report": pending.report,
-                "pendingMs": pending.started_at.elapsed().as_secs_f64() * 1_000.0,
-            })
-        });
-        json!({
-            "revision": ASYNC_RESIDENT_REVISION,
-            "capacity": ASYNC_CACHE_CAPACITY,
-            "descriptorCount": ASYNC_CACHE_CAPACITY,
-            "inFlightCapacity": 1,
-            "regionPayloadBytes": ASYNC_CACHE_CAPACITY * REGION_INSTANCE_BYTES,
-            "defaultHeapAllocationBytes": self.region_allocation_bytes,
-            "uploadArenaBytes": ASYNC_CACHE_CAPACITY * REGION_INSTANCE_BYTES,
-            "published": published,
-            "pending": pending,
-            "lastCompleted": self.last_completed,
-            "gate": {
-                "armedFence": self.armed_gate,
-                "completedFence": completed_gate_fence,
-            },
-            "copy": {
-                "completedFence": completed_copy_fence,
-                "nextFence": self.next_copy_fence,
-            },
-        })
     }
 
     pub unsafe fn wait_idle(&mut self) -> Result<()> {
@@ -405,46 +446,9 @@ impl Drop for AsyncTransfer {
     }
 }
 
-unsafe fn create_descriptor_heap(
-    device: &ID3D12Device,
-    regions: &[ID3D12Resource],
-) -> Result<ID3D12DescriptorHeap> {
-    let heap: ID3D12DescriptorHeap = unsafe {
-        device.CreateDescriptorHeap(&D3D12_DESCRIPTOR_HEAP_DESC {
-            Type: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors: ASYNC_CACHE_CAPACITY as u32,
-            Flags: D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
-            NodeMask: 0,
-        })
+fn ensure_transaction(actual: u64, requested: u64) -> Result<()> {
+    if actual != requested {
+        bail!("async reservation {actual} does not match transaction {requested}");
     }
-    .context("async resident descriptor heap creation failed")?;
-    let increment =
-        unsafe { device.GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) }
-            as usize;
-    let start = unsafe { heap.GetCPUDescriptorHandleForHeapStart() };
-    for (index, resource) in regions.iter().enumerate() {
-        let desc = D3D12_SHADER_RESOURCE_VIEW_DESC {
-            Format: DXGI_FORMAT_UNKNOWN,
-            ViewDimension: D3D12_SRV_DIMENSION_BUFFER,
-            Shader4ComponentMapping: D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
-            Anonymous: D3D12_SHADER_RESOURCE_VIEW_DESC_0 {
-                Buffer: D3D12_BUFFER_SRV {
-                    FirstElement: 0,
-                    NumElements: INSTANCES_PER_REGION,
-                    StructureByteStride: INSTANCE_RECORD_BYTES as u32,
-                    Flags: D3D12_BUFFER_SRV_FLAG_NONE,
-                },
-            },
-        };
-        unsafe {
-            device.CreateShaderResourceView(
-                resource,
-                Some(&desc),
-                D3D12_CPU_DESCRIPTOR_HANDLE {
-                    ptr: start.ptr + index * increment,
-                },
-            )
-        };
-    }
-    Ok(heap)
+    Ok(())
 }

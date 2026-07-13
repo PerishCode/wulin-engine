@@ -75,6 +75,18 @@ pub enum ControlKind {
     AsyncResidentStatus,
     AsyncCopyGateArm,
     AsyncCopyGateRelease,
+    CookedOpen {
+        path: String,
+    },
+    CookedSchedule {
+        world_region_side: u32,
+        active_center_x: u32,
+        active_center_z: u32,
+        active_radius: u32,
+    },
+    CookedStatus,
+    CookedIoGateArm,
+    CookedIoGateRelease,
 }
 
 pub type ControlResult = std::result::Result<Value, ProtocolError>;
@@ -132,6 +144,12 @@ struct LoadConfigurePayload {
     active_center_x: u32,
     active_center_z: u32,
     active_radius: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CookedOpenPayload {
+    path: String,
 }
 
 impl InspectServer {
@@ -287,6 +305,17 @@ fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
         "async.status" => Ok(ControlKind::AsyncResidentStatus),
         "async.gate.arm" => Ok(ControlKind::AsyncCopyGateArm),
         "async.gate.release" => Ok(ControlKind::AsyncCopyGateRelease),
+        "cooked.status" => Ok(ControlKind::CookedStatus),
+        "cooked.gate.arm" => Ok(ControlKind::CookedIoGateArm),
+        "cooked.gate.release" => Ok(ControlKind::CookedIoGateRelease),
+        "cooked.open" => {
+            let payload: CookedOpenPayload =
+                serde_json::from_value(payload).map_err(|error| ProtocolError {
+                    code: "invalid_payload",
+                    message: error.to_string(),
+                })?;
+            Ok(ControlKind::CookedOpen { path: payload.path })
+        }
         "load.configure" => {
             let payload: LoadConfigurePayload =
                 serde_json::from_value(payload).map_err(|error| ProtocolError {
@@ -320,6 +349,19 @@ fn parse_control(verb: &str, payload: Value) -> ControlResultKind {
                     message: error.to_string(),
                 })?;
             Ok(ControlKind::AsyncResidentSchedule {
+                world_region_side: payload.world_region_side,
+                active_center_x: payload.active_center_x,
+                active_center_z: payload.active_center_z,
+                active_radius: payload.active_radius,
+            })
+        }
+        "cooked.schedule" => {
+            let payload: LoadConfigurePayload =
+                serde_json::from_value(payload).map_err(|error| ProtocolError {
+                    code: "invalid_payload",
+                    message: error.to_string(),
+                })?;
+            Ok(ControlKind::CookedSchedule {
                 world_region_side: payload.world_region_side,
                 active_center_x: payload.active_center_x,
                 active_center_z: payload.active_center_z,

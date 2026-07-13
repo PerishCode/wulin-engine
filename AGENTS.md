@@ -122,6 +122,7 @@ contains only files that exist.
 | `docs/adr/0008-region-addressed-gpu-work.md` | Accepted region-addressed candidate generation, GPU compaction, and indirect work contract. |
 | `docs/adr/0009-resident-region-storage.md` | Accepted bounded default-heap region cache, active mapping, and transactional publication contract. |
 | `docs/adr/0010-asynchronous-region-publication.md` | Accepted copy-queue ordering, immutable publication, protected slots, and bounded backpressure contract. |
+| `docs/adr/0011-cooked-region-storage.md` | Accepted canonical pack, bounded background I/O, reservation, and rollback contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -140,6 +141,12 @@ contains only files that exist.
 | `experiments/0005-gpu-region-compaction/README.md` | Experiment 0005 logical-world scaling workload, distributions, and accepted conclusion. |
 | `experiments/0006-resident-region-streaming/README.md` | Experiment 0006 resident cache movement workload, transfer evidence, and accepted conclusion. |
 | `experiments/0007-async-region-publication/README.md` | Experiment 0007 held-copy frame-continuity workload, evidence, and accepted conclusion. |
+| `experiments/0008-cooked-region-io/README.md` | Experiment 0008 cooked format, bounded background I/O, failure rollback, and accepted evidence. |
+| `crates/region-format/Cargo.toml` | Canonical region-format package boundary and reusable dependencies. |
+| `crates/region-format/src/lib.rs` | Versioned pack writer/reader, explicit record codec, index validation, and chunk verification. |
+| `crates/region-format/tests/pack.rs` | Canonical round-trip and malformed metadata/payload rejection contract. |
+| `tools/region-cooker/Cargo.toml` | Offline deterministic region-cooker package boundary. |
+| `tools/region-cooker/src/main.rs` | Canonical sparse Experiment 0008 pack generation and manifest output. |
 | `apps/workbench/Cargo.toml` | Native workbench package and Windows API feature boundary. |
 | `apps/workbench/build.rs` | Workbench Agility SDK staging and pinned DXC shader compilation. |
 | `apps/workbench/shaders/calibration.hlsl` | Procedural calibration scene vertex and pixel shader. |
@@ -153,7 +160,10 @@ contains only files that exist.
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch, workload status, and stream transaction entrypoints. |
 | `apps/workbench/src/load.rs` | Region address space, load configuration, workload counts, and procedural semantics. |
 | `apps/workbench/src/resident.rs` | Resident cache planning, deterministic records, LRU eviction, and stream reports. |
-| `apps/workbench/src/async_resident.rs` | Protected 50-slot cache planning and asynchronous transaction reports. |
+| `apps/workbench/src/streaming/mod.rs` | Workbench streaming ownership boundary and narrow module exports. |
+| `apps/workbench/src/streaming/async_resident.rs` | Protected 50-slot reservation planning, payload materialization, and transaction reports. |
+| `apps/workbench/src/streaming/cooked/mod.rs` | Cooked pack controller, bounded transaction status, gate, and failure rollback evidence. |
+| `apps/workbench/src/streaming/cooked/worker.rs` | Single background pack reader, bounded channels, chunk verification, and I/O metrics. |
 | `apps/workbench/src/perception.rs` | Pixel-region validation, ID analysis, semantic joins, samples, and diagnostic colors. |
 | `apps/workbench/src/scene.rs` | Calibration scene objects, camera state, transforms, and spatial manifest. |
 | `apps/workbench/src/window.rs` | Win32 window class, native handle, and console shutdown lifecycle. |
@@ -171,7 +181,10 @@ contains only files that exist.
 | `apps/workbench/src/rendering/async_resident/pipeline.rs` | Descriptor-table asynchronous resident compute and graphics pipelines. |
 | `apps/workbench/src/rendering/async_resident/renderer.rs` | Immutable async snapshot publication, rendering, and GPU probes. |
 | `apps/workbench/src/rendering/async_resident/transfer.rs` | Copy queue, fences, gate, upload arena, slot states, and transaction lifecycle. |
+| `apps/workbench/src/rendering/async_resident/transfer/status.rs` | Asynchronous reservation, copy, gate, and publication status projection. |
+| `apps/workbench/src/rendering/async_resident/resources.rs` | Asynchronous region descriptor heap and per-slot SRV construction. |
 | `apps/workbench/src/rendering/async_resident/mod.rs` | Asynchronous resident rendering ownership boundary and narrow export. |
+| `apps/workbench/src/rendering/cooked.rs` | Cooked I/O completion, reservation cancellation, and GPU submission orchestration. |
 | `apps/workbench/src/rendering/object_id_target.rs` | Persistent `R32_UINT` semantic render-target resource and descriptor ownership. |
 | `apps/workbench/src/rendering/scene_renderer.rs` | Calibration graphics PSO, reverse-Z depth, procedural geometry, and scene draws. |
 | `runseal.toml` | Explicit local resources, Deno policy, and repository environment injection. |
@@ -187,6 +200,8 @@ contains only files that exist.
 | `.runseal/wrappers/region-load.ts` | Canonical Experiment 0005 region scaling distributions and visual regression workflow. |
 | `.runseal/wrappers/resident-stream.ts` | Canonical Experiment 0006 movement, eviction, restart, and resident evidence workflow. |
 | `.runseal/wrappers/async-region.ts` | Canonical Experiment 0007 held-copy, publication, eviction, restart, and evidence workflow. |
+| `.runseal/wrappers/cooked-region.ts` | Canonical Experiment 0008 recook, held-I/O, incremental reads, corruption, restart, and evidence workflow. |
+| `.runseal/support/cooked-region.ts` | Experiment 0008 structured evidence, pack corruption, hashing, and comparison helpers. |
 | `.runseal/wrappers/visual-loop.ts` | Canonical Experiment 0002 deterministic capture and cleanup workflow. |
 | `.runseal/wrappers/spatial-scene.ts` | Canonical Experiment 0003 spatial rendering and inspection workflow. |
 | `.runseal/wrappers/workbench.ts` | Canonical workbench lifecycle and typed inspect workflow. |
@@ -206,7 +221,10 @@ submission independent of total logical world extent. Experiment 0006 and ADR 00
 accept bounded default-heap region residency, active-slot indirection, incremental
 uploads, deterministic eviction, and transactional cache publication. Experiment 0007
 and ADR 0010 accept dedicated copy-queue transfer, immutable frame-boundary publication,
-protected active slots, and explicit bounded backpressure.
+protected active slots, and explicit bounded backpressure. Experiment 0008 and ADR 0011
+accept a versioned canonical region pack, offline-only writing, indexed on-demand chunk
+validation, one bounded background worker, cache reservation before materialization, and
+pre-copy rollback on I/O failure.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -225,6 +243,7 @@ runseal :object-id
 runseal :region-load
 runseal :resident-stream
 runseal :async-region
+runseal :cooked-region
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
@@ -244,6 +263,11 @@ runseal :workbench async
 runseal :workbench async-schedule 64 64
 runseal :workbench async-gate-arm
 runseal :workbench async-gate-release
+runseal :workbench cooked
+runseal :workbench cooked-open out/cooked/0008-cooked-region-io/regions-a.wlr
+runseal :workbench cooked-schedule 64 64
+runseal :workbench cooked-gate-arm
+runseal :workbench cooked-gate-release
 runseal :workbench load-probe
 runseal :workbench load-disable
 runseal :workbench resume

@@ -2,10 +2,11 @@
 
 ## State
 
-The repository has completed the native workbench cold start and deterministic frame
-artifact experiment. The repository baseline, GPU laboratory, and first production
-composition root exist, but no reusable engine module has been promoted. Directories are
-created only when they own real files.
+The repository has completed the native workbench cold start through cooked region I/O.
+The first reusable engine module, `crates/region-format`, and its offline writer under
+`tools/region-cooker` are promoted by Experiment 0008 and ADR 0011. Other engine systems
+remain workbench-owned until an experiment establishes a reusable boundary. Directories
+are created only when they own real files.
 
 ## Dependency direction
 

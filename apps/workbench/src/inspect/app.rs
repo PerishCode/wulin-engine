@@ -1,3 +1,4 @@
+use std::path::{Component, Path, PathBuf};
 use std::sync::mpsc::{Receiver, SyncSender};
 
 use serde_json::json;
@@ -62,6 +63,28 @@ pub(crate) fn handle_commands(
                     message: error.to_string(),
                 }),
             ControlKind::AsyncCopyGateRelease => unsafe { renderer.release_async_copy_gate() }
+                .map(|fence| json!({"gateFence": fence}))
+                .map_err(|error| ProtocolError {
+                    code: "gate_failed",
+                    message: error.to_string(),
+                }),
+            ControlKind::CookedStatus => Ok(renderer.cooked_status()),
+            ControlKind::CookedOpen { path } => validate_cooked_path(&path)
+                .and_then(|path| renderer.open_cooked_pack(path))
+                .and_then(|metadata| serde_json::to_value(metadata).map_err(Into::into))
+                .map_err(|error| ProtocolError {
+                    code: "pack_open_failed",
+                    message: error.to_string(),
+                }),
+            ControlKind::CookedIoGateArm => renderer
+                .arm_cooked_io_gate()
+                .map(|fence| json!({"gateFence": fence}))
+                .map_err(|error| ProtocolError {
+                    code: "gate_failed",
+                    message: error.to_string(),
+                }),
+            ControlKind::CookedIoGateRelease => renderer
+                .release_cooked_io_gate()
                 .map(|fence| json!({"gateFence": fence}))
                 .map_err(|error| ProtocolError {
                     code: "gate_failed",
@@ -133,6 +156,18 @@ pub(crate) fn handle_commands(
                 active_center_z,
                 active_radius,
             } => begin_async_stream(
+                renderer,
+                world_region_side,
+                active_center_x,
+                active_center_z,
+                active_radius,
+            ),
+            ControlKind::CookedSchedule {
+                world_region_side,
+                active_center_x,
+                active_center_z,
+                active_radius,
+            } => begin_cooked_stream(
                 renderer,
                 world_region_side,
                 active_center_x,
@@ -258,12 +293,47 @@ fn begin_async_stream(
     })
 }
 
+fn begin_cooked_stream(
+    renderer: &mut Renderer,
+    world_region_side: u32,
+    active_center_x: u32,
+    active_center_z: u32,
+    active_radius: u32,
+) -> ControlResult {
+    let config = load::LoadConfig::new(
+        world_region_side,
+        active_center_x,
+        active_center_z,
+        active_radius,
+    )
+    .map_err(|error| ProtocolError {
+        code: "invalid_load_config",
+        message: error.to_string(),
+    })?;
+    let report = renderer.stream_cooked_resident(config).map_err(|error| {
+        let message = error.to_string();
+        ProtocolError {
+            code: if message.contains("stream_busy") {
+                "stream_busy"
+            } else {
+                "stream_failed"
+            },
+            message,
+        }
+    })?;
+    serde_json::to_value(report).map_err(|error| ProtocolError {
+        code: "stream_failed",
+        message: error.to_string(),
+    })
+}
+
 pub(crate) fn load_status(renderer: &Renderer) -> serde_json::Value {
     if renderer.async_resident_enabled() {
         json!({
             "mode": "async-resident-load",
             "load": renderer.async_resident_config().map(|config| config.json()),
             "async": renderer.async_resident_status(),
+            "cooked": renderer.cooked_status(),
         })
     } else if let Some(config) = renderer.resident_config() {
         json!({"mode": "resident-load", "load": config.json()})
@@ -272,6 +342,31 @@ pub(crate) fn load_status(renderer: &Renderer) -> serde_json::Value {
     } else {
         json!({"mode": "calibration", "load": null})
     }
+}
+
+fn validate_cooked_path(value: &str) -> anyhow::Result<PathBuf> {
+    let path = Path::new(value);
+    anyhow::ensure!(
+        !path.is_absolute(),
+        "cooked pack path must be repository-relative"
+    );
+    anyhow::ensure!(
+        path.components()
+            .all(|component| matches!(component, Component::Normal(_))),
+        "cooked pack path contains an invalid component"
+    );
+    let components = path.components().collect::<Vec<_>>();
+    anyhow::ensure!(
+        components.len() >= 3
+            && components[0].as_os_str() == "out"
+            && components[1].as_os_str() == "cooked",
+        "cooked pack path must be under out/cooked"
+    );
+    anyhow::ensure!(
+        path.extension().is_some_and(|extension| extension == "wlr"),
+        "cooked pack must use the .wlr extension"
+    );
+    Ok(path.to_path_buf())
 }
 
 fn status(

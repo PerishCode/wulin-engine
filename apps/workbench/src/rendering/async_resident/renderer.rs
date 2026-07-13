@@ -5,8 +5,9 @@ use serde_json::Value;
 use windows::Win32::Graphics::Direct3D::D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 use windows::Win32::Graphics::Direct3D12::*;
 
-use crate::async_resident::AsyncTransactionReport;
+use crate::async_resident::{AsyncReservationReport, AsyncTransactionReport, PayloadPreparation};
 use crate::load::{LoadConfig, MAX_VISIBLE_INSTANCES};
+use crate::resident::RegionUpload;
 use crate::scene::SceneState;
 
 use super::pipeline::{ASYNC_CONSTANT_COUNT, AsyncResidentPipeline};
@@ -104,11 +105,7 @@ impl AsyncResidentRenderer {
         direct_fence: &ID3D12Fence,
         direct_release_fence: u64,
     ) -> Result<AsyncTransactionReport> {
-        let protected = self
-            .published
-            .as_ref()
-            .map(|snapshot| snapshot.active_slots.iter().copied().collect())
-            .unwrap_or_default();
+        let protected = self.protected_slots();
         unsafe {
             self.transfer.schedule(
                 config,
@@ -120,17 +117,52 @@ impl AsyncResidentRenderer {
         }
     }
 
-    pub unsafe fn prepare_frame(&mut self, command_list: &ID3D12GraphicsCommandList) {
+    pub fn reserve(&mut self, config: LoadConfig) -> Result<AsyncReservationReport> {
+        self.transfer.reserve(config, &self.protected_slots())
+    }
+
+    pub fn cancel_reservation(&mut self, transaction_id: u64) -> Result<()> {
+        self.transfer.cancel_reservation(transaction_id)
+    }
+
+    pub unsafe fn submit(
+        &mut self,
+        transaction_id: u64,
+        uploads: Vec<RegionUpload>,
+        preparation_ms: f64,
+        direct_queue: &ID3D12CommandQueue,
+        direct_fence: &ID3D12Fence,
+        direct_release_fence: u64,
+    ) -> Result<AsyncTransactionReport> {
+        unsafe {
+            self.transfer.submit(
+                transaction_id,
+                uploads,
+                PayloadPreparation::cooked(preparation_ms),
+                direct_queue,
+                direct_fence,
+                direct_release_fence,
+            )
+        }
+    }
+
+    pub unsafe fn prepare_frame(
+        &mut self,
+        command_list: &ID3D12GraphicsCommandList,
+    ) -> Option<AsyncTransactionReport> {
         if let Some(Publication {
             config,
             active_slots,
+            report,
         }) = unsafe { self.transfer.poll_publication(command_list) }
         {
             self.published = Some(PublishedSnapshot {
                 config,
                 active_slots,
             });
+            return Some(report);
         }
+        None
     }
 
     pub unsafe fn record(
@@ -357,6 +389,13 @@ impl AsyncResidentRenderer {
 
     pub unsafe fn wait_idle(&mut self) -> Result<()> {
         unsafe { self.transfer.wait_idle() }
+    }
+
+    fn protected_slots(&self) -> std::collections::BTreeSet<u32> {
+        self.published
+            .as_ref()
+            .map(|snapshot| snapshot.active_slots.iter().copied().collect())
+            .unwrap_or_default()
     }
 }
 

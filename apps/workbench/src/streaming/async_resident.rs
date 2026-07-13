@@ -1,12 +1,10 @@
 use std::collections::BTreeSet;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 
 use crate::load::LoadConfig;
-use crate::resident::{
-    REGION_INSTANCE_BYTES, RegionUpload, active_region_ids, generate_region, hash_uploads,
-};
+use crate::resident::{REGION_INSTANCE_BYTES, RegionUpload, active_region_ids, hash_uploads};
 
 pub const ASYNC_RESIDENT_REVISION: &str = "async-resident-v1";
 pub const ASYNC_CACHE_CAPACITY: usize = 50;
@@ -32,13 +30,27 @@ impl Default for AsyncRegionCache {
     }
 }
 
-pub struct AsyncStreamPlan {
+#[derive(Clone)]
+pub struct AsyncLayoutPlan {
+    pub config: LoadConfig,
     pub next_cache: AsyncRegionCache,
-    pub uploads: Vec<RegionUpload>,
+    pub assignments: Vec<RegionAssignment>,
     pub active_slots: Vec<u32>,
     pub reused_slots: Vec<u32>,
     pub counts: AsyncPlanCounts,
+}
+
+pub struct AsyncStreamPlan {
+    pub layout: AsyncLayoutPlan,
+    pub uploads: Vec<RegionUpload>,
     pub uploaded_sha256: String,
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegionAssignment {
+    pub slot: u32,
+    pub region_id: u32,
 }
 
 #[derive(Clone, Copy, Serialize)]
@@ -65,17 +77,55 @@ pub struct AsyncTransactionReport {
     pub direct_release_fence: u64,
     pub copy_fence: u64,
     pub gate_fence: Option<u64>,
+    pub payload_source: &'static str,
+    pub payload_preparation_ms: f64,
     pub generation_ms: f64,
     pub schedule_ms: f64,
     pub pending_ms: f64,
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AsyncReservationReport {
+    pub revision: &'static str,
+    pub transaction_id: u64,
+    pub config: LoadConfig,
+    #[serde(flatten)]
+    pub counts: AsyncPlanCounts,
+    pub assignments: Vec<RegionAssignment>,
+}
+
+#[derive(Clone, Copy)]
+pub struct PayloadPreparation {
+    pub source: &'static str,
+    pub total_ms: f64,
+    pub generation_ms: f64,
+}
+
+impl PayloadPreparation {
+    pub fn generated(generation_ms: f64) -> Self {
+        Self {
+            source: "generated",
+            total_ms: generation_ms,
+            generation_ms,
+        }
+    }
+
+    pub fn cooked(total_ms: f64) -> Self {
+        Self {
+            source: "cooked-pack",
+            total_ms,
+            generation_ms: 0.0,
+        }
+    }
+}
+
 impl AsyncRegionCache {
-    pub fn plan(
+    pub fn plan_layout(
         &self,
         config: LoadConfig,
         protected_slots: &BTreeSet<u32>,
-    ) -> Result<AsyncStreamPlan> {
+    ) -> Result<AsyncLayoutPlan> {
         let desired = active_region_ids(config)?;
         let desired_set = desired.iter().copied().collect::<BTreeSet<_>>();
         let mut next = self.clone();
@@ -88,7 +138,7 @@ impl AsyncRegionCache {
             }
         }
 
-        let mut uploads = Vec::new();
+        let mut assignments = Vec::new();
         let mut reused_slots = Vec::new();
         let mut evicted = 0;
         for region_id in desired.iter().copied() {
@@ -118,9 +168,9 @@ impl AsyncRegionCache {
                 region_id,
                 last_used: next.clock,
             });
-            uploads.push(RegionUpload {
+            assignments.push(RegionAssignment {
                 slot: slot as u32,
-                records: generate_region(region_id),
+                region_id,
             });
         }
 
@@ -132,24 +182,23 @@ impl AsyncRegionCache {
                     .map(|slot| slot as u32)
             })
             .collect::<Result<Vec<_>>>()?;
-        let uploaded_sha256 = hash_uploads(&uploads);
         let resident = next.slots.iter().flatten().count();
         let counts = AsyncPlanCounts {
             retained_region_count: retained,
-            uploaded_region_count: uploads.len(),
+            uploaded_region_count: assignments.len(),
             evicted_region_count: evicted,
             protected_region_count: protected_slots.len(),
             resident_region_count: resident,
             free_region_count: ASYNC_CACHE_CAPACITY - resident,
-            instance_bytes: uploads.len() * REGION_INSTANCE_BYTES,
+            instance_bytes: assignments.len() * REGION_INSTANCE_BYTES,
         };
-        Ok(AsyncStreamPlan {
+        Ok(AsyncLayoutPlan {
+            config,
             next_cache: next,
-            uploads,
+            assignments,
             active_slots,
             reused_slots,
             counts,
-            uploaded_sha256,
         })
     }
 
@@ -157,5 +206,38 @@ impl AsyncRegionCache {
         self.slots
             .iter()
             .position(|entry| entry.is_some_and(|entry| entry.region_id == region_id))
+    }
+}
+
+impl AsyncLayoutPlan {
+    pub fn materialize(self, uploads: Vec<RegionUpload>) -> Result<AsyncStreamPlan> {
+        ensure!(
+            uploads.len() == self.assignments.len(),
+            "async payload count does not match the cache reservation"
+        );
+        for (assignment, upload) in self.assignments.iter().zip(&uploads) {
+            ensure!(
+                upload.slot == assignment.slot,
+                "async payload slot does not match the cache reservation"
+            );
+            ensure!(
+                upload.records.len() * std::mem::size_of::<crate::resident::InstanceRecord>()
+                    == REGION_INSTANCE_BYTES,
+                "async region payload has an invalid record count"
+            );
+            ensure!(
+                upload
+                    .records
+                    .iter()
+                    .all(|record| record.region_id == assignment.region_id),
+                "async payload region does not match the cache reservation"
+            );
+        }
+        let uploaded_sha256 = hash_uploads(&uploads);
+        Ok(AsyncStreamPlan {
+            layout: self,
+            uploads,
+            uploaded_sha256,
+        })
     }
 }

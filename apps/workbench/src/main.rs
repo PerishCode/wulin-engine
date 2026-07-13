@@ -1,4 +1,3 @@
-mod async_resident;
 mod capture;
 mod inspect;
 mod load;
@@ -6,7 +5,10 @@ mod perception;
 mod rendering;
 mod resident;
 mod scene;
+mod streaming;
 mod window;
+
+pub(crate) use streaming::{async_resident, cooked};
 
 use std::sync::mpsc::SyncSender;
 use std::thread;
