@@ -7,8 +7,8 @@ use crate::scene::Camera;
 use crate::terrain::TerrainAssignment;
 
 pub(super) const LOD_REVISION: &str = "gpu-terrain-lod-v1";
-pub(super) const PATCHES_PER_REGION_SIDE: u32 = 4;
-pub(super) const PATCH_CELL_SIDE: u32 = 8;
+pub(in crate::rendering) const PATCHES_PER_REGION_SIDE: u32 = 4;
+pub(in crate::rendering) const PATCH_CELL_SIDE: u32 = 8;
 const LOD_LEVEL_COUNT: usize = 3;
 const PATCH_WORLD_SIDE_METERS: f32 = 4.0;
 const WORLD_PATCH_ORIGIN_METERS: f32 = -1_032.0;
@@ -231,6 +231,15 @@ fn build_patches<'a>(
         }
     }
     Ok(patches)
+}
+
+pub(in crate::rendering) fn selected_lod(
+    patch_x: i32,
+    patch_z: i32,
+    camera: Camera,
+    settings: TerrainLodSettings,
+) -> u32 {
+    select_lod(patch_x, patch_z, camera_patch(camera), settings)
 }
 
 fn select_lod(patch_x: i32, patch_z: i32, camera: [i32; 2], settings: TerrainLodSettings) -> u32 {

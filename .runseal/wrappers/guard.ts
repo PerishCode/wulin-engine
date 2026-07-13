@@ -66,6 +66,7 @@ await run("deno check", "deno", [
     ".runseal/wrappers/terrain-lod.ts",
     ".runseal/wrappers/composition.ts",
     ".runseal/wrappers/terrain-sampling.ts",
+    ".runseal/wrappers/lod-composition.ts",
 ]);
 await run("flavor", "flavor", ["check", "--root", ".", "--config", "flavor.toml"]);
 await run("sidecar doctor", "sidecar", ["doctor", "--config", "sidecar.toml"]);

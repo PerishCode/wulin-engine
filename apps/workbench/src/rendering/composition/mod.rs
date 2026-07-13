@@ -12,6 +12,7 @@ use crate::resident::active_region_ids;
 use super::renderer::Renderer;
 use super::terrain::control::TerrainPollOutcome;
 
+mod contact;
 mod fixture;
 mod probe;
 
@@ -275,7 +276,6 @@ impl Renderer {
             "composition snapshots do not match the published pair"
         );
         self.meshlet_scene_renderer.disable();
-        self.terrain_renderer.disable_lod();
         self.terrain_renderer.enable()?;
         self.skeletal_scene_renderer.enable();
         self.composition.enabled = true;
