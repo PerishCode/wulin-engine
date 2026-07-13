@@ -127,6 +127,7 @@ contains only files that exist.
 | `docs/adr/0013-gpu-skeletal-crowd-execution.md` | Accepted GPU pose reuse, bounded hierarchy evaluation, meshlet skinning, and fixed submission contract. |
 | `docs/adr/0014-gpu-surface-visibility-resolve.md` | Accepted compact visibility, deterministic fragment winner, surface reconstruction, and fixed-screen resolve contract. |
 | `docs/adr/0015-gpu-conservative-occlusion.md` | Accepted reverse-Z hierarchy, exact invalidation, conservative query, and stable GPU compaction contract. |
+| `docs/adr/0016-gpu-streamed-terrain.md` | Accepted fixed terrain payload, global lattice continuity, bounded publication, and fixed GPU expansion contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -150,6 +151,7 @@ contains only files that exist.
 | `experiments/0010-gpu-skeletal-crowds/README.md` | Accepted Experiment 0010 GPU pose reuse, hierarchy, skinning, oracle, visual, and release timing evidence. |
 | `experiments/0011-gpu-surface-resolve/README.md` | Accepted Experiment 0011 visibility payload, exact surface oracle, sweep, visual, and release timing evidence. |
 | `experiments/0012-gpu-conservative-occlusion/README.md` | Accepted Experiment 0012 hierarchy, bound proof, stable compaction, exact-output, invalidation, and work-elimination evidence. |
+| `experiments/0013-gpu-streamed-terrain/README.md` | Accepted Experiment 0013 canonical terrain payload, bounded residency, exact shared edges, failure rollback, and fixed mesh evidence. |
 | `crates/meshlet-catalog/Cargo.toml` | Deterministic static meshlet catalog package and dependency boundary. |
 | `crates/meshlet-catalog/src/lib.rs` | Eight-archetype, three-LOD geometry generation, meshlet partitioning, validation, encoding, and hashing. |
 | `crates/meshlet-catalog/tests/catalog.rs` | Catalog determinism, reducing-LOD, and mesh-shader bound regression contract. |
@@ -161,11 +163,17 @@ contains only files that exist.
 | `crates/surface-catalog/Cargo.toml` | Deterministic surface fixture package and dependency boundary. |
 | `crates/surface-catalog/src/lib.rs` | Normal/UV stream, expanded primitive map, generated material texture array, validation, encoding, and hashing. |
 | `crates/surface-catalog/tests/catalog.rs` | Surface bounds, complete mip layout, deterministic encoding, and hash regressions. |
+| `crates/terrain-format/Cargo.toml` | Canonical fixed terrain-pack package boundary and reusable dependencies. |
+| `crates/terrain-format/src/lib.rs` | Versioned indexed terrain pack, checksum, canonical metadata, and neighboring-edge validation. |
+| `crates/terrain-format/src/payload.rs` | Fixed 4 KiB terrain payload validation, encoding, decoding, and zero-padding contract. |
+| `crates/terrain-format/tests/pack.rs` | Terrain round-trip, malformed pack, padding, checksum, and shared-edge rejection contract. |
 | `crates/region-format/Cargo.toml` | Canonical region-format package boundary and reusable dependencies. |
 | `crates/region-format/src/lib.rs` | Versioned pack writer/reader, explicit record codec, index validation, and chunk verification. |
 | `crates/region-format/tests/pack.rs` | Canonical round-trip and malformed metadata/payload rejection contract. |
 | `tools/region-cooker/Cargo.toml` | Offline deterministic region-cooker package boundary. |
 | `tools/region-cooker/src/main.rs` | Canonical sparse Experiment 0008 pack generation and manifest output. |
+| `tools/terrain-cooker/Cargo.toml` | Offline deterministic terrain-cooker package boundary. |
+| `tools/terrain-cooker/src/main.rs` | Global integer-lattice terrain generation, shared-edge proof, pack writing, and manifest output. |
 | `apps/workbench/Cargo.toml` | Native workbench package and Windows API feature boundary. |
 | `apps/workbench/build.rs` | Workbench Agility SDK staging and pinned DXC shader compilation. |
 | `apps/workbench/shaders/calibration.hlsl` | Procedural calibration scene vertex and pixel shader. |
@@ -176,19 +184,24 @@ contains only files that exist.
 | `apps/workbench/shaders/skeletal_scene.hlsl` | GPU animation classification, pose compaction/evaluation, four-weight meshlet skinning, and semantic-ID shaders. |
 | `apps/workbench/shaders/surface_resolve.hlsl` | Deterministic visibility winner, compact payload emission, skeletal surface reconstruction, material resolve, and samples. |
 | `apps/workbench/shaders/occlusion.hlsl` | Conservative hierarchy query, fixed classify/prefix/stable-scatter compaction, and reverse-Z mip construction. |
+| `apps/workbench/shaders/terrain.hlsl` | Fixed terrain seam oracle, amplification and mesh expansion, material color, and semantic-ID emission. |
 | `apps/workbench/src/main.rs` | Workbench composition, Win32/frame loop, pending frame operations, and error propagation. |
 | `apps/workbench/src/capture.rs` | Color/object-ID artifacts, encoding, hashes, manifests, and capture ownership. |
 | `apps/workbench/src/inspect/mod.rs` | Workbench control-plane module boundary and narrow exports. |
 | `apps/workbench/src/inspect/server.rs` | Project-owned SidecarRuntime transport, event framing, and response delivery. |
 | `apps/workbench/src/inspect/protocol.rs` | Typed workbench control vocabulary, payload decoding, and protocol errors. |
-| `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch, workload status, and stream transaction entrypoints. |
+| `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch, pending frame operations, and established stream transaction entrypoints. |
+| `apps/workbench/src/inspect/status.rs` | Workbench, renderer capability, and active workload status projection. |
 | `apps/workbench/src/inspect/surface_control.rs` | Typed surface, material, mip, occlusion history, and probe control dispatch. |
+| `apps/workbench/src/inspect/terrain_control.rs` | Typed terrain pack, schedule, mode, and I/O/copy gate control dispatch. |
 | `apps/workbench/src/load.rs` | Region address space, load configuration, workload counts, and procedural semantics. |
 | `apps/workbench/src/resident.rs` | Resident cache planning, deterministic records, LRU eviction, and stream reports. |
 | `apps/workbench/src/streaming/mod.rs` | Workbench streaming ownership boundary and narrow module exports. |
 | `apps/workbench/src/streaming/async_resident.rs` | Protected 50-slot reservation planning, payload materialization, and transaction reports. |
 | `apps/workbench/src/streaming/cooked/mod.rs` | Cooked pack controller, bounded transaction status, gate, and failure rollback evidence. |
 | `apps/workbench/src/streaming/cooked/worker.rs` | Single background pack reader, bounded channels, chunk verification, and I/O metrics. |
+| `apps/workbench/src/streaming/terrain/mod.rs` | Terrain pack controller, bounded transaction status, I/O gate, and rollback evidence. |
+| `apps/workbench/src/streaming/terrain/worker.rs` | Single background terrain reader, bounded channels, payload verification, and I/O metrics. |
 | `apps/workbench/src/perception.rs` | Pixel-region validation, ID analysis, semantic joins, samples, and diagnostic colors. |
 | `apps/workbench/src/scene.rs` | Calibration scene objects, camera state, transforms, and spatial manifest. |
 | `apps/workbench/src/window.rs` | Win32 window class, native handle, and console shutdown lifecycle. |
@@ -235,6 +248,14 @@ contains only files that exist.
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/descriptors.rs` | Surface SRV/UAV descriptor layout and shader-visible heap construction. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/targets.rs` | Visibility, deterministic winner, resolved color, depth, and semantic target ownership. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/upload.rs` | Immutable surface buffer and texture-array upload helpers. |
+| `apps/workbench/src/rendering/terrain/mod.rs` | Terrain renderer, immutable published snapshot, fixed mesh recording, and mode status. |
+| `apps/workbench/src/rendering/terrain/cache.rs` | Protected deterministic terrain LRU planning, active mapping, and slot movement counts. |
+| `apps/workbench/src/rendering/terrain/control.rs` | Renderer-owned terrain streamer completion, scheduling, publication, and mode controls. |
+| `apps/workbench/src/rendering/terrain/copy_timing.rs` | Copy-queue timestamp heap, bounded readback, frequency, and GPU duration decoding. |
+| `apps/workbench/src/rendering/terrain/descriptors.rs` | Raw per-slot terrain SRVs and statistics/seam UAV descriptor heap construction. |
+| `apps/workbench/src/rendering/terrain/pipeline.rs` | Terrain compute and mesh root signature, PSOs, and shader contract. |
+| `apps/workbench/src/rendering/terrain/probe.rs` | Terrain mapping, geometry, shared-edge, resource, hash, and timing oracle projection. |
+| `apps/workbench/src/rendering/terrain/transfer.rs` | Dedicated copy queue, protected slots, upload arena, gates, fences, and frame publication. |
 | `apps/workbench/src/rendering/cooked.rs` | Cooked I/O completion, reservation cancellation, and GPU submission orchestration. |
 | `apps/workbench/src/rendering/calibration/object_id_target.rs` | Persistent `R32_UINT` semantic render-target resource and descriptor ownership. |
 | `apps/workbench/src/rendering/calibration/scene_renderer.rs` | Calibration graphics PSO, reverse-Z depth, procedural geometry, and scene draws. |
@@ -262,6 +283,8 @@ contains only files that exist.
 | `.runseal/support/surface-resolve.ts` | Experiment 0011 payload, sample oracle, artifact, environment, and distribution validation helpers. |
 | `.runseal/wrappers/occlusion.ts` | Canonical Experiment 0012 hierarchy, invalidation, stable compaction, sweep, timing, movement, and restart workflow. |
 | `.runseal/support/occlusion.ts` | Experiment 0012 fixed submission, hierarchy, order, oracle, resource, and evidence validation helpers. |
+| `.runseal/wrappers/terrain.ts` | Canonical Experiment 0013 cook, seam, radius, boundary, movement, hold, corruption, restart, and timing workflow. |
+| `.runseal/support/terrain.ts` | Experiment 0013 stable probe, canonical hash, capture, resource, and seam validation helpers. |
 | `.runseal/wrappers/visual-loop.ts` | Canonical Experiment 0002 deterministic capture and cleanup workflow. |
 | `.runseal/wrappers/spatial-scene.ts` | Canonical Experiment 0003 spatial rendering and inspection workflow. |
 | `.runseal/wrappers/workbench.ts` | Canonical workbench lifecycle and typed inspect workflow. |
@@ -302,6 +325,12 @@ exhaustively proven fixture bounds, full-signature history invalidation, fixed
 100/1/100-group stable GPU compaction, and one filtered indirect visibility dispatch.
 This accepts exact work elimination; ROV-path total timing is not a promoted performance
 claim.
+Experiment 0013 and ADR 0016 accept an independent fixed 4 KiB terrain payload, global
+integer-lattice same-resolution continuity, bounded background I/O and protected copy
+publication, exact CPU/GPU shared-edge validation, terrain semantic perception, and one
+fixed 400-group mesh dispatch. Terrain LOD, cross-resolution stitching, composition,
+grounding, collision, and committed-per-region allocation as a final policy remain
+unaccepted.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -325,6 +354,7 @@ runseal :meshlet-scene
 runseal :skeletal-crowds
 runseal :surface-resolve
 runseal :occlusion
+runseal :terrain
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
@@ -360,6 +390,15 @@ runseal :workbench surface-disable
 runseal :workbench occlusion-enable
 runseal :workbench occlusion-disable
 runseal :workbench occlusion-reset
+runseal :workbench terrain
+runseal :workbench terrain-open out/terrain/0013-gpu-streamed-terrain/terrain.wlt
+runseal :workbench terrain-schedule 64 64 2
+runseal :workbench terrain-enable
+runseal :workbench terrain-disable
+runseal :workbench terrain-io-gate-arm
+runseal :workbench terrain-io-gate-release
+runseal :workbench terrain-copy-gate-arm
+runseal :workbench terrain-copy-gate-release
 runseal :workbench load-probe
 runseal :workbench load-disable
 runseal :workbench resume

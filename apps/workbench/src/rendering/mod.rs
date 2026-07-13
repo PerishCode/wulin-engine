@@ -7,5 +7,6 @@ mod load;
 mod meshlet_scene;
 mod renderer;
 mod resident;
+mod terrain;
 
 pub use renderer::{RenderOutcome, Renderer};

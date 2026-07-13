@@ -7,6 +7,7 @@ pub const MAX_REGION_SIDE: u32 = 128;
 pub const REGION_INSTANCE_SIDE: u32 = 32;
 pub const INSTANCES_PER_REGION: u32 = REGION_INSTANCE_SIDE * REGION_INSTANCE_SIDE;
 pub const REGION_OBJECT_ID_BASE: u32 = 65_536;
+pub const TERRAIN_OBJECT_ID_BASE: u32 = 32_768;
 pub const MAX_ACTIVE_RADIUS: u32 = 4;
 pub const MAX_VISIBLE_INSTANCES: u32 =
     (MAX_ACTIVE_RADIUS * 2 + 1) * (MAX_ACTIVE_RADIUS * 2 + 1) * INSTANCES_PER_REGION;
@@ -103,6 +104,20 @@ pub fn region_semantic(id: u32) -> Option<RegionSemantic> {
     Some(RegionSemantic {
         name: format!("load.region.{x:03}.{z:03}"),
         kind: "region-proxy".into(),
+        color: region_color(x, z),
+    })
+}
+
+pub fn terrain_semantic(id: u32) -> Option<RegionSemantic> {
+    let index = id.checked_sub(TERRAIN_OBJECT_ID_BASE + 1)?;
+    if index >= MAX_REGION_SIDE * MAX_REGION_SIDE {
+        return None;
+    }
+    let x = index % MAX_REGION_SIDE;
+    let z = index / MAX_REGION_SIDE;
+    Some(RegionSemantic {
+        name: format!("terrain.region.{x:03}.{z:03}"),
+        kind: "terrain-region".into(),
         color: region_color(x, z),
     })
 }

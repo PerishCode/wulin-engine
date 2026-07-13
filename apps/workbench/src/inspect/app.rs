@@ -2,16 +2,14 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::mpsc::{Receiver, SyncSender};
 
 use serde_json::json;
-use windows::Win32::Foundation::{HWND, RECT};
-use windows::Win32::UI::WindowsAndMessaging::{
-    GetClientRect, GetForegroundWindow, IsWindowVisible,
-};
+use windows::Win32::Foundation::HWND;
 
 use crate::rendering::Renderer;
 use crate::{PendingCapture, PendingOperations, WorkbenchState, load, perception, scene, window};
 
 use super::protocol::{ControlKind, ControlResult, ProtocolError};
 use super::server::ControlCommand;
+use super::status::load_status;
 
 pub(crate) fn handle_commands(
     hwnd: HWND,
@@ -24,7 +22,7 @@ pub(crate) fn handle_commands(
     while let Ok(command) = commands.try_recv() {
         let ControlCommand { kind, response } = command;
         let result = match kind {
-            ControlKind::Status => status(hwnd, renderer, state, scene),
+            ControlKind::Status => super::status::workbench(hwnd, renderer, state, scene),
             ControlKind::SetClearColor(color) => {
                 state.clear_color = color;
                 Ok(json!({"clearColor": color}))
@@ -91,6 +89,17 @@ pub(crate) fn handle_commands(
                     code: "gate_failed",
                     message: error.to_string(),
                 }),
+            terrain @ (ControlKind::TerrainStatus
+            | ControlKind::TerrainOpen { .. }
+            | ControlKind::TerrainEnable
+            | ControlKind::TerrainDisable
+            | ControlKind::TerrainIoGateArm
+            | ControlKind::TerrainIoGateRelease
+            | ControlKind::TerrainCopyGateArm
+            | ControlKind::TerrainCopyGateRelease
+            | ControlKind::TerrainSchedule { .. }) => {
+                super::terrain_control::dispatch(renderer, terrain)
+            }
             ControlKind::MeshletStatus => Ok(renderer.meshlet_scene_status()),
             ControlKind::MeshletConfigure {
                 archetype_mask,
@@ -397,26 +406,6 @@ fn begin_cooked_stream(
     })
 }
 
-pub(crate) fn load_status(renderer: &Renderer) -> serde_json::Value {
-    if renderer.async_resident_enabled() {
-        json!({
-            "mode": "async-resident-load",
-            "load": renderer.async_resident_config().map(|config| config.json()),
-            "async": renderer.async_resident_status(),
-            "cooked": renderer.cooked_status(),
-            "meshlet": renderer.meshlet_scene_status(),
-            "skeletal": renderer.skeletal_scene_status(),
-            "surface": renderer.surface_status(),
-        })
-    } else if let Some(config) = renderer.resident_config() {
-        json!({"mode": "resident-load", "load": config.json()})
-    } else if let Some(config) = renderer.load_config() {
-        json!({"mode": "region-load", "load": config.json()})
-    } else {
-        json!({"mode": "calibration", "load": null})
-    }
-}
-
 fn validate_cooked_path(value: &str) -> anyhow::Result<PathBuf> {
     let path = Path::new(value);
     anyhow::ensure!(
@@ -440,58 +429,4 @@ fn validate_cooked_path(value: &str) -> anyhow::Result<PathBuf> {
         "cooked pack must use the .wlr extension"
     );
     Ok(path.to_path_buf())
-}
-
-fn status(
-    hwnd: HWND,
-    renderer: &Renderer,
-    state: &WorkbenchState,
-    scene: &scene::SceneState,
-) -> ControlResult {
-    let mut client = RECT::default();
-    unsafe { GetClientRect(hwnd, &mut client) }.map_err(internal_error)?;
-    let device_removed_reason = unsafe { renderer.device_removed_reason() };
-    Ok(json!({
-        "schemaVersion": 1,
-        "processId": std::process::id(),
-        "launchedBySidecar": state.launched_by_sidecar,
-        "uptimeMs": state.started_at.elapsed().as_millis(),
-        "state": if state.paused { "paused" } else { "running" },
-        "frameIndex": state.frame_index,
-        "lastFrameMs": state.last_frame_ms,
-        "clearColor": state.clear_color,
-        "spatial": scene.spatial_json(),
-        "workload": load_status(renderer),
-        "window": {
-            "handle": format!("0x{:X}", hwnd.0 as usize),
-            "width": client.right - client.left,
-            "height": client.bottom - client.top,
-            "visible": unsafe { IsWindowVisible(hwnd) }.as_bool(),
-            "foreground": unsafe { GetForegroundWindow() } == hwnd
-        },
-        "renderer": {
-            "api": "D3D12",
-            "adapter": renderer.adapter_name(),
-            "featureLevel": "12_1",
-            "meshShaderTier": renderer.mesh_shader_tier(),
-            "shaderModel": renderer.shader_model(),
-            "barycentrics": renderer.barycentrics_supported(),
-            "rasterizerOrderedViews": renderer.rasterizer_ordered_views_supported(),
-            "visibilityFormat": renderer.visibility_format_supported(),
-            "colorUavFormat": renderer.color_uav_format_supported(),
-            "swapChainBuffers": 2,
-            "format": "R8G8B8A8_UNORM",
-            "vsync": true,
-            "debugLayer": renderer.debug_layer(),
-            "deviceRemovedReason": device_removed_reason
-        },
-        "lastError": state.last_error
-    }))
-}
-
-fn internal_error(error: windows::core::Error) -> ProtocolError {
-    ProtocolError {
-        code: "internal_error",
-        message: error.to_string(),
-    }
 }

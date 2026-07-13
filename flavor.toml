@@ -35,5 +35,14 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 15 }
+payload = { max_children = 16 }
 reason = "Runseal resolves named repository wrappers from one flat directory; each child is an explicit operator entrypoint."
+
+[[overrides]]
+match = "apps/workbench/src/rendering"
+kind = "dir"
+priority = 10
+
+[overrides.rules."core/fs/too-many-children"]
+payload = { max_children = 11 }
+reason = "Rendering is the workbench composition boundary; each child is an accepted renderer or shared D3D12 owner with its own module boundary."

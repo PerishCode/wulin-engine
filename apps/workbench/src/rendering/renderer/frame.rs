@@ -10,6 +10,7 @@ use crate::scene::SceneState;
 
 use super::super::device::transition;
 use super::super::meshlet_scene::{MeshletFrame, SkeletalFrame};
+use super::super::terrain::TerrainFrame;
 use super::{CapturedFrame, RenderOutcome, Renderer};
 
 impl Renderer {
@@ -24,6 +25,7 @@ impl Renderer {
         debug_assert!(!capture_object_ids || capture);
         debug_assert!(!probe_load || self.load_config().is_some());
         unsafe { self.poll_cooked_completion()? };
+        unsafe { self.poll_terrain_completion()? };
         let stream_resident = self.resident_renderer.has_pending_stream();
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() } as usize;
         unsafe { self.wait_for_buffer(index)? };
@@ -38,6 +40,9 @@ impl Renderer {
             && self.cooked_streamer.has_pending()
         {
             self.cooked_streamer.mark_published(report)?;
+        }
+        if let Some(report) = unsafe { self.terrain_renderer.prepare_frame(&self.command_list) }? {
+            self.terrain_streamer.mark_published(&report)?;
         }
 
         unsafe {
@@ -54,7 +59,17 @@ impl Renderer {
                 .OMSetRenderTargets(1, Some(&handle), true, None);
             self.command_list
                 .ClearRenderTargetView(handle, &color, None);
-            if self.skeletal_scene_renderer.is_enabled() {
+            if self.terrain_renderer.is_enabled() {
+                self.terrain_renderer.record(
+                    &self.command_list,
+                    TerrainFrame {
+                        scene,
+                        render_targets: [handle, self.scene_renderer.object_id_handle()],
+                        depth_target: self.scene_renderer.depth_handle(),
+                        probe: probe_load,
+                    },
+                )?;
+            } else if self.skeletal_scene_renderer.is_enabled() {
                 let snapshot = self
                     .async_resident_renderer
                     .snapshot()
@@ -191,6 +206,11 @@ impl Renderer {
             } else {
                 None
             };
+            let terrain_probe = if probe_load && self.terrain_renderer.is_enabled() {
+                Some(unsafe { self.terrain_renderer.read_probe() }?)
+            } else {
+                None
+            };
             let surface_probe = if probe_load
                 && self.skeletal_scene_renderer.is_enabled()
                 && self.skeletal_scene_renderer.surface_is_enabled()
@@ -219,7 +239,8 @@ impl Renderer {
                 None
             };
             let load_probe = if probe_load
-                && (self.meshlet_scene_renderer.is_enabled()
+                && (self.terrain_renderer.is_enabled()
+                    || self.meshlet_scene_renderer.is_enabled()
                     || self.skeletal_scene_renderer.is_enabled())
             {
                 None
@@ -243,6 +264,7 @@ impl Renderer {
                 meshlet_probe,
                 skeletal_probe,
                 surface_probe,
+                terrain_probe,
                 resident_stream,
             });
         }
@@ -252,6 +274,7 @@ impl Renderer {
             meshlet_probe: None,
             skeletal_probe: None,
             surface_probe: None,
+            terrain_probe: None,
             resident_stream: None,
         })
     }

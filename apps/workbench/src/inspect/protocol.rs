@@ -91,6 +91,22 @@ pub enum ControlKind {
     SurfaceOcclusionEnable,
     SurfaceOcclusionDisable,
     SurfaceOcclusionReset,
+    TerrainStatus,
+    TerrainOpen {
+        path: String,
+    },
+    TerrainSchedule {
+        world_region_side: u32,
+        active_center_x: u32,
+        active_center_z: u32,
+        active_radius: u32,
+    },
+    TerrainEnable,
+    TerrainDisable,
+    TerrainIoGateArm,
+    TerrainIoGateRelease,
+    TerrainCopyGateArm,
+    TerrainCopyGateRelease,
 }
 
 pub type ControlResult = std::result::Result<Value, ProtocolError>;
@@ -206,11 +222,20 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "surface.occlusion.enable" => Ok(ControlKind::SurfaceOcclusionEnable),
         "surface.occlusion.disable" => Ok(ControlKind::SurfaceOcclusionDisable),
         "surface.occlusion.reset" => Ok(ControlKind::SurfaceOcclusionReset),
+        "terrain.status" => Ok(ControlKind::TerrainStatus),
+        "terrain.enable" => Ok(ControlKind::TerrainEnable),
+        "terrain.disable" => Ok(ControlKind::TerrainDisable),
+        "terrain.io_gate.arm" => Ok(ControlKind::TerrainIoGateArm),
+        "terrain.io_gate.release" => Ok(ControlKind::TerrainIoGateRelease),
+        "terrain.copy_gate.arm" => Ok(ControlKind::TerrainCopyGateArm),
+        "terrain.copy_gate.release" => Ok(ControlKind::TerrainCopyGateRelease),
+        "terrain.open" => parse_terrain(payload),
         "cooked.open" => parse_cooked(payload),
         "load.configure" => parse_load(payload, LoadTarget::Procedural),
         "resident.stream" => parse_load(payload, LoadTarget::Resident),
         "async.schedule" => parse_load(payload, LoadTarget::Async),
         "cooked.schedule" => parse_load(payload, LoadTarget::Cooked),
+        "terrain.schedule" => parse_load(payload, LoadTarget::Terrain),
         "camera.set_pose" => parse_camera(payload),
         "workbench.capture" => parse_capture(payload),
         "perception.capture" => parse_perception(payload),
@@ -227,6 +252,7 @@ enum LoadTarget {
     Resident,
     Async,
     Cooked,
+    Terrain,
 }
 
 fn parse_load(value: Value, target: LoadTarget) -> ParsedControl {
@@ -257,6 +283,12 @@ fn parse_load(value: Value, target: LoadTarget) -> ParsedControl {
             active_radius,
         },
         LoadTarget::Cooked => ControlKind::CookedSchedule {
+            world_region_side,
+            active_center_x,
+            active_center_z,
+            active_radius,
+        },
+        LoadTarget::Terrain => ControlKind::TerrainSchedule {
             world_region_side,
             active_center_x,
             active_center_z,
@@ -296,6 +328,11 @@ fn parse_surface(value: Value) -> ParsedControl {
 fn parse_cooked(value: Value) -> ParsedControl {
     let payload: CookedPayload = decode(value)?;
     Ok(ControlKind::CookedOpen { path: payload.path })
+}
+
+fn parse_terrain(value: Value) -> ParsedControl {
+    let payload: CookedPayload = decode(value)?;
+    Ok(ControlKind::TerrainOpen { path: payload.path })
 }
 
 fn parse_camera(value: Value) -> ParsedControl {
