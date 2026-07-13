@@ -69,8 +69,11 @@ export function stableLodCompositionProbe(
     };
 }
 
-export function validateLodCompositionProbe(probe: Record<string, unknown>): void {
-    validateSamplingProbe(probe);
+export function validateLodCompositionProbe(
+    probe: Record<string, unknown>,
+    requireVisible = true,
+): void {
+    validateSamplingProbe(probe, requireVisible);
     const terrain = object(probe, "terrain");
     validateTerrainLodProbe(terrain, true);
     const contact = object(probe, "contact");
@@ -81,8 +84,11 @@ export function validateLodCompositionProbe(probe: Record<string, unknown>): voi
     ) fail("terrain LOD composition exceeded its contact bound");
 }
 
-export function validateSamplingProbe(probe: Record<string, unknown>): void {
-    validateCompositionProbe(probe);
+export function validateSamplingProbe(
+    probe: Record<string, unknown>,
+    requireVisible = true,
+): void {
+    validateCompositionProbe(probe, requireVisible);
     const grounding = object(probe, "grounding");
     if (
         grounding.fixture !== "arbitrary-q8" || grounding.groundingMode !== 2 ||

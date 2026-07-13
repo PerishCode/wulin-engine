@@ -108,7 +108,7 @@ async function configureSurface(args: string[]): Promise<void> {
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|occlusion-enable|occlusion-disable|occlusion-reset|terrain|terrain-open|terrain-schedule|terrain-enable|terrain-disable|terrain-lod|terrain-lod-config|terrain-lod-enable|terrain-lod-disable|terrain-io-gate-arm|terrain-io-gate-release|terrain-copy-gate-arm|terrain-copy-gate-release|composition|composition-schedule|composition-enable|composition-disable|composition-order|composition-fixture|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|occlusion-enable|occlusion-disable|occlusion-reset|terrain|terrain-open|terrain-schedule|terrain-enable|terrain-disable|terrain-lod|terrain-lod-config|terrain-lod-enable|terrain-lod-disable|terrain-io-gate-arm|terrain-io-gate-release|terrain-copy-gate-arm|terrain-copy-gate-release|composition|composition-schedule|composition-enable|composition-disable|composition-traversal-enable|composition-traversal-disable|composition-order|composition-fixture|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -305,11 +305,13 @@ switch (verb) {
     }
     case "composition-enable":
     case "composition-disable":
+    case "composition-traversal-enable":
+    case "composition-traversal-disable":
         if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
         await run([
             "inspect",
             "workbench",
-            verb === "composition-enable" ? "composition.enable" : "composition.disable",
+            verb.replaceAll("-", "."),
             "--format",
             "json",
         ]);

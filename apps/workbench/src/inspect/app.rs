@@ -108,6 +108,8 @@ pub(crate) fn handle_commands(
             | ControlKind::CompositionSchedule { .. }
             | ControlKind::CompositionEnable
             | ControlKind::CompositionDisable
+            | ControlKind::CompositionTraversalEnable
+            | ControlKind::CompositionTraversalDisable
             | ControlKind::CompositionOrder { .. }
             | ControlKind::CompositionFixture { .. }) => {
                 super::composition_control::dispatch(renderer, composition)

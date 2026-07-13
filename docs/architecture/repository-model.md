@@ -3,7 +3,7 @@
 ## State
 
 The repository has completed the native workbench cold start through exact-ground,
-LOD-rendered terrain/object composition. `crates/region-format`, its offline writer under
+LOD-rendered camera-driven terrain/object traversal. `crates/region-format`, its offline writer under
 `tools/region-cooker`, `crates/meshlet-catalog`, `crates/animation-catalog`, and
 `crates/surface-catalog` are promoted by Experiments 0008-0011 and ADRs 0011-0014.
 Experiment 0012 and ADR 0015 accept workbench-owned hierarchy, invalidation, query, and
@@ -13,6 +13,8 @@ expansion, and probes remain workbench-owned. Experiments 0015-0016 and ADRs 001
 accept atomic terrain/object publication and exact arbitrary-position GPU sampling but
 keep composition workbench-owned. Experiment 0017 and ADR 0020 accept terrain render
 LOD with exact full-resolution object ground and bounded fixture contact error without
+promoting a new reusable owner. Experiment 0018 and ADR 0021 accept bounded
+camera-derived latest-wins pair scheduling and complete-old-snapshot continuity without
 promoting a new reusable owner. Other engine systems remain workbench-owned until an
 experiment establishes a reusable boundary. Directories are created only when they own
 real files.

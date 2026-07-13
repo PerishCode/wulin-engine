@@ -40,6 +40,10 @@ Experiment 0012 已将上一兼容帧的确定性 winner 构造成完整 reverse
 Experiment 0013 已将全局整数高度格点写入独立 4 KiB 地形 payload，经单后台 worker、受保护
 50 槽缓存和独立 copy queue 发布后，以一次固定 400 组 mesh dispatch 展开 25 个区域；CPU/GPU
 对 40 条共享边和 1,320 个样本零差异，I/O/copy 阻塞、损坏回滚与 restart 均保持旧帧不变。
+Experiments 0014-0017 已依次验证 GPU patch LOD、精确跨 LOD 边投影、地形/角色原子组合、
+任意位置精确 grounding，以及“全分辨率物理地面 + 可见 LOD 近似”的接触误差合同。
+Experiment 0018 进一步让 camera 直接驱动区域中心：仅允许一个在途 pair 和一个 latest-wins
+目标，held I/O、连续跨区、teleport、失败、disable/catch-up 与 restart 均不暴露半新半旧快照。
 
 ## Project model
 
@@ -69,6 +73,11 @@ runseal :skeletal-crowds
 runseal :surface-resolve
 runseal :occlusion
 runseal :terrain
+runseal :terrain-lod
+runseal :composition
+runseal :terrain-sampling
+runseal :lod-composition
+runseal :region-traversal
 runseal :workbench start
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24
