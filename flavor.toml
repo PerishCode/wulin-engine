@@ -35,7 +35,7 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 22 }
+payload = { max_children = 23 }
 reason = "Runseal resolves named repository wrappers from one flat directory; each child is an explicit operator entrypoint."
 
 [[overrides]]
@@ -73,6 +73,24 @@ priority = 10
 [overrides.rules."rust/tests/in-source"]
 enabled = false
 reason = "Split-coordinate unit tests exercise private normalization and transaction invariants without promoting a public binary-crate test seam."
+
+[[overrides]]
+match = "apps/workbench/src/streaming/terrain/address.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Signed terrain mapping tests exercise private format-V1 alias arithmetic beside the implementation that owns it."
+
+[[overrides]]
+match = "apps/workbench/src/rendering/terrain/cache.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Terrain cache identity tests require private slot state to prove signed keys cannot false-hit local aliases."
 
 [[overrides]]
 match = "apps/workbench/src/rendering/terrain"

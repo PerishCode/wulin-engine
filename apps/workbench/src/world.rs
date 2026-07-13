@@ -14,7 +14,7 @@ const PROBE_Q9_DENOMINATOR: i32 = 512;
 const PROBE_STEP_Q9: i32 = 256;
 const PROBE_MIN_LOCAL_Q9: i32 = -8 * PROBE_Q9_DENOMINATOR;
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegionCoord {
     pub x: i64,
@@ -28,7 +28,7 @@ impl RegionCoord {
         Self { x, z }
     }
 
-    fn checked_offset(self, x: i64, z: i64) -> Result<Self> {
+    pub fn checked_offset(self, x: i64, z: i64) -> Result<Self> {
         Ok(Self {
             x: self
                 .x

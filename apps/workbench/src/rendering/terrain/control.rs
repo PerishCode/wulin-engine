@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::load::LoadConfig;
-use crate::terrain::{TerrainCompletion, TerrainScheduleReport};
+use crate::terrain::{GlobalTerrainConfig, TerrainCompletion, TerrainScheduleReport};
 
 use super::super::renderer::Renderer;
 
@@ -28,6 +28,26 @@ impl Renderer {
         );
         self.disable_composition();
         let reservation = self.terrain_renderer.reserve(config)?;
+        let transaction_id = reservation.transaction_id;
+        match self.terrain_streamer.schedule(reservation) {
+            Ok(report) => Ok(report),
+            Err(error) => {
+                let _ = self.terrain_renderer.cancel(transaction_id);
+                Err(error)
+            }
+        }
+    }
+
+    pub fn schedule_global_terrain(
+        &mut self,
+        config: GlobalTerrainConfig,
+    ) -> Result<TerrainScheduleReport> {
+        anyhow::ensure!(
+            !self.composition.has_pending(),
+            "composition pair transaction is active"
+        );
+        self.disable_composition();
+        let reservation = self.terrain_renderer.reserve_global(config)?;
         let transaction_id = reservation.transaction_id;
         match self.terrain_streamer.schedule(reservation) {
             Ok(report) => Ok(report),

@@ -35,6 +35,7 @@ impl TerrainRenderer {
             "enabled": self.enabled,
             "published": self.published.as_ref().map(|value| json!({
                 "config": value.config,
+                "globalConfig": value.global_config,
                 "generation": value.generation,
                 "active": value.active,
                 "transaction": value.report,

@@ -1,11 +1,37 @@
 use std::path::{Component, Path, PathBuf};
 
-use serde_json::json;
+use serde::Deserialize;
+use serde_json::{Value, json};
 
 use crate::load::LoadConfig;
 use crate::rendering::Renderer;
+use crate::terrain::GlobalTerrainConfig;
 
 use super::protocol::{ControlKind, ControlResult, ProtocolError};
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GlobalPayload {
+    origin_x: i64,
+    origin_z: i64,
+    center_x: i64,
+    center_z: i64,
+    active_radius: u32,
+}
+
+pub fn parse_global(value: Value) -> Result<ControlKind, ProtocolError> {
+    let payload: GlobalPayload = serde_json::from_value(value).map_err(|error| ProtocolError {
+        code: "invalid_payload",
+        message: error.to_string(),
+    })?;
+    Ok(ControlKind::TerrainGlobalSchedule {
+        origin_x: payload.origin_x,
+        origin_z: payload.origin_z,
+        center_x: payload.center_x,
+        center_z: payload.center_z,
+        active_radius: payload.active_radius,
+    })
+}
 
 pub fn dispatch(renderer: &mut Renderer, kind: ControlKind) -> ControlResult {
     match kind {
@@ -75,8 +101,44 @@ pub fn dispatch(renderer: &mut Renderer, kind: ControlKind) -> ControlResult {
             active_center_z,
             active_radius,
         ),
+        ControlKind::TerrainGlobalSchedule {
+            origin_x,
+            origin_z,
+            center_x,
+            center_z,
+            active_radius,
+        } => schedule_global(
+            renderer,
+            origin_x,
+            origin_z,
+            center_x,
+            center_z,
+            active_radius,
+        ),
         _ => unreachable!("non-terrain command reached terrain dispatcher"),
     }
+}
+
+fn schedule_global(
+    renderer: &mut Renderer,
+    origin_x: i64,
+    origin_z: i64,
+    center_x: i64,
+    center_z: i64,
+    active_radius: u32,
+) -> ControlResult {
+    let config = GlobalTerrainConfig::new(origin_x, origin_z, center_x, center_z, active_radius)
+        .map_err(|error| ProtocolError {
+            code: "invalid_global_terrain_config",
+            message: error.to_string(),
+        })?;
+    let report = renderer
+        .schedule_global_terrain(config)
+        .map_err(stream_error)?;
+    serde_json::to_value(report).map_err(|error| ProtocolError {
+        code: "stream_failed",
+        message: error.to_string(),
+    })
 }
 
 fn schedule(
@@ -96,21 +158,23 @@ fn schedule(
         code: "invalid_load_config",
         message: error.to_string(),
     })?;
-    let report = renderer.schedule_terrain(config).map_err(|error| {
-        let message = error.to_string();
-        ProtocolError {
-            code: if message.contains("stream_busy") {
-                "stream_busy"
-            } else {
-                "stream_failed"
-            },
-            message,
-        }
-    })?;
+    let report = renderer.schedule_terrain(config).map_err(stream_error)?;
     serde_json::to_value(report).map_err(|error| ProtocolError {
         code: "stream_failed",
         message: error.to_string(),
     })
+}
+
+fn stream_error(error: anyhow::Error) -> ProtocolError {
+    let message = error.to_string();
+    ProtocolError {
+        code: if message.contains("stream_busy") {
+            "stream_busy"
+        } else {
+            "stream_failed"
+        },
+        message,
+    }
 }
 
 fn validate_path(value: &str) -> anyhow::Result<PathBuf> {

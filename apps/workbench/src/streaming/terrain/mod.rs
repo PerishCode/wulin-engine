@@ -1,3 +1,4 @@
+mod address;
 mod worker;
 
 use std::collections::BTreeSet;
@@ -12,6 +13,9 @@ use crate::load::LoadConfig;
 
 use self::worker::{IoGate, PackWorker, ReadCompletion, ReadRequest, ensure_gate_advance};
 
+pub(crate) use self::address::AddressedRegion;
+pub use self::address::GlobalTerrainConfig;
+
 pub const TERRAIN_STREAM_REVISION: &str = "terrain-stream-v1";
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -19,11 +23,14 @@ pub const TERRAIN_STREAM_REVISION: &str = "terrain-stream-v1";
 pub struct TerrainAssignment {
     pub slot: u32,
     pub region_id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_region: Option<crate::world::RegionCoord>,
 }
 
 pub struct TerrainUpload {
     pub slot: u32,
     pub region_id: u32,
+    pub global_region: Option<crate::world::RegionCoord>,
     pub payload: [u8; terrain_format::PAYLOAD_BYTES as usize],
     pub tile: TerrainTile,
     pub sha256: String,
@@ -56,6 +63,8 @@ pub struct TerrainReservationReport {
     pub revision: &'static str,
     pub transaction_id: u64,
     pub config: LoadConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_config: Option<GlobalTerrainConfig>,
     #[serde(flatten)]
     pub counts: TerrainPlanCounts,
     pub assignments: Vec<TerrainAssignment>,
@@ -67,6 +76,8 @@ pub struct TerrainScheduleReport {
     pub revision: &'static str,
     pub transaction_id: u64,
     pub config: LoadConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_config: Option<GlobalTerrainConfig>,
     pub requested_region_ids: Vec<u32>,
     pub gate_fence: Option<u64>,
 }
@@ -77,6 +88,8 @@ pub struct TerrainTransactionReport {
     pub revision: &'static str,
     pub transaction_id: u64,
     pub config: LoadConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_config: Option<GlobalTerrainConfig>,
     #[serde(flatten)]
     pub counts: TerrainPlanCounts,
     pub uploaded_sha256: String,
@@ -113,6 +126,7 @@ struct PackState {
 struct PendingTerrain {
     transaction_id: u64,
     requested_region_ids: Vec<u32>,
+    global_config: Option<GlobalTerrainConfig>,
     io_gate_fence: Option<u64>,
     stage: &'static str,
     io: Option<TerrainIoMetrics>,
@@ -176,6 +190,7 @@ impl TerrainStreamer {
         self.pending = Some(PendingTerrain {
             transaction_id: reservation.transaction_id,
             requested_region_ids: requested_region_ids.clone(),
+            global_config: reservation.global_config,
             io_gate_fence,
             stage: "reading",
             io: None,
@@ -184,6 +199,7 @@ impl TerrainStreamer {
             revision: TERRAIN_STREAM_REVISION,
             transaction_id: reservation.transaction_id,
             config: reservation.config,
+            global_config: reservation.global_config,
             requested_region_ids,
             gate_fence: io_gate_fence,
         })
@@ -293,6 +309,7 @@ impl TerrainStreamer {
             json!({
                 "transactionId": pending.transaction_id,
                 "requestedRegionIds": pending.requested_region_ids,
+                "globalConfig": pending.global_config,
                 "stage": pending.stage,
                 "ioGateFence": pending.io_gate_fence,
                 "io": pending.io,

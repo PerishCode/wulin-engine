@@ -69,6 +69,8 @@ await run("deno check", "deno", [
     ".runseal/wrappers/lod-composition.ts",
     ".runseal/wrappers/region-traversal.ts",
     ".runseal/wrappers/global-space.ts",
+    ".runseal/wrappers/global-terrain.ts",
+    ".runseal/support/global-terrain.ts",
     ".runseal/support/workbench-world.ts",
 ]);
 await run("flavor", "flavor", ["check", "--root", ".", "--config", "flavor.toml"]);

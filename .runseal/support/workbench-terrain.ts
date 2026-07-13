@@ -13,6 +13,14 @@ function integer(value: string, name: string): number {
     return parsed;
 }
 
+function signedInteger(value: string, name: string): number {
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed)) {
+        fail(`workbench: ${name} must be a safe integer`);
+    }
+    return parsed;
+}
+
 export async function dispatchTerrain(
     verb: string | undefined,
     args: string[],
@@ -51,6 +59,27 @@ export async function dispatchTerrain(
                     active_center_x: integer(args[0], "active center x"),
                     active_center_z: integer(args[1], "active center z"),
                     active_radius: integer(args[2] ?? "2", "active radius"),
+                }),
+                "--format",
+                "json",
+            ]);
+            return true;
+        case "terrain-global-schedule":
+            if (args.length < 4 || args.length > 5) {
+                fail(
+                    "workbench: terrain-global-schedule requires origin x, origin z, center x, center z, and optional radius",
+                );
+            }
+            await run([
+                "inspect",
+                "workbench",
+                "terrain.global.schedule",
+                JSON.stringify({
+                    origin_x: signedInteger(args[0], "global origin x"),
+                    origin_z: signedInteger(args[1], "global origin z"),
+                    center_x: signedInteger(args[2], "global center x"),
+                    center_z: signedInteger(args[3], "global center z"),
+                    active_radius: integer(args[4] ?? "2", "active radius"),
                 }),
                 "--format",
                 "json",
