@@ -80,6 +80,7 @@ impl Renderer {
                     .async_resident_renderer
                     .snapshot()
                     .context("composition has no resident snapshot")?;
+                let grounding_mode = self.composition_grounding_mode();
                 match self.composition_order() {
                     CompositionOrder::TerrainFirst => {
                         self.terrain_renderer.record(
@@ -103,6 +104,7 @@ impl Renderer {
                                 background_color: color,
                                 probe: probe_load,
                                 terrain_slots: Some(&terrain_slots),
+                                grounding_mode,
                                 clear_depth_semantic: false,
                             },
                         )?;
@@ -119,6 +121,7 @@ impl Renderer {
                                 background_color: color,
                                 probe: probe_load,
                                 terrain_slots: Some(&terrain_slots),
+                                grounding_mode,
                                 clear_depth_semantic: true,
                             },
                         )?;
@@ -161,6 +164,7 @@ impl Renderer {
                         background_color: color,
                         probe: probe_load,
                         terrain_slots: None,
+                        grounding_mode: 0,
                         clear_depth_semantic: true,
                     },
                 )?;

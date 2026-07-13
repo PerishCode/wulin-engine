@@ -108,7 +108,8 @@ pub(crate) fn handle_commands(
             | ControlKind::CompositionSchedule { .. }
             | ControlKind::CompositionEnable
             | ControlKind::CompositionDisable
-            | ControlKind::CompositionOrder { .. }) => {
+            | ControlKind::CompositionOrder { .. }
+            | ControlKind::CompositionFixture { .. }) => {
                 super::composition_control::dispatch(renderer, composition)
             }
             ControlKind::MeshletStatus => Ok(renderer.meshlet_scene_status()),

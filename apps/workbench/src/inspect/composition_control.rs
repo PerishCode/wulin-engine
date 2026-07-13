@@ -1,7 +1,59 @@
+use serde::Deserialize;
+use serde_json::Value;
+
 use crate::load::LoadConfig;
-use crate::rendering::Renderer;
+use crate::rendering::{CompositionFixture, Renderer};
 
 use super::protocol::{ControlKind, ControlResult, ProtocolError};
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OrderPayload {
+    order: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FixturePayload {
+    fixture: String,
+}
+
+pub(super) fn parse_order(value: Value) -> Result<ControlKind, ProtocolError> {
+    let payload: OrderPayload = decode(value)?;
+    match payload.order.as_str() {
+        "terrain-first" => Ok(ControlKind::CompositionOrder {
+            terrain_first: true,
+        }),
+        "object-first" => Ok(ControlKind::CompositionOrder {
+            terrain_first: false,
+        }),
+        _ => Err(ProtocolError {
+            code: "invalid_payload",
+            message: "order must be terrain-first or object-first".into(),
+        }),
+    }
+}
+
+pub(super) fn parse_fixture(value: Value) -> Result<ControlKind, ProtocolError> {
+    let payload: FixturePayload = decode(value)?;
+    match payload.fixture.as_str() {
+        "cell-center" => Ok(ControlKind::CompositionFixture {
+            arbitrary_q8: false,
+        }),
+        "arbitrary-q8" => Ok(ControlKind::CompositionFixture { arbitrary_q8: true }),
+        _ => Err(ProtocolError {
+            code: "invalid_payload",
+            message: "fixture must be cell-center or arbitrary-q8".into(),
+        }),
+    }
+}
+
+fn decode<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, ProtocolError> {
+    serde_json::from_value(value).map_err(|error| ProtocolError {
+        code: "invalid_payload",
+        message: error.to_string(),
+    })
+}
 
 pub fn dispatch(renderer: &mut Renderer, kind: ControlKind) -> ControlResult {
     match kind {
@@ -39,6 +91,14 @@ pub fn dispatch(renderer: &mut Renderer, kind: ControlKind) -> ControlResult {
             renderer.set_composition_order(terrain_first);
             Ok(renderer.composition_status())
         }
+        ControlKind::CompositionFixture { arbitrary_q8 } => renderer
+            .set_composition_fixture(if arbitrary_q8 {
+                CompositionFixture::ArbitraryQ8
+            } else {
+                CompositionFixture::CellCenter
+            })
+            .map(|()| renderer.composition_status())
+            .map_err(stream_error),
         _ => unreachable!("non-composition command reached composition dispatcher"),
     }
 }

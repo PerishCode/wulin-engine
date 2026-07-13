@@ -23,6 +23,11 @@ export function stableCompositionProbe(
     return {
         revision: probe.revision,
         grounding: {
+            fixture: grounding.fixture,
+            groundingMode: grounding.groundingMode,
+            groundDenominator: grounding.groundDenominator,
+            positionLatticeDenominator: grounding.positionLatticeDenominator,
+            positionSha256: grounding.positionSha256,
             candidateCount: grounding.candidateCount,
             gpuSha256: grounding.gpuSha256,
             cpuSha256: grounding.cpuSha256,
@@ -34,6 +39,8 @@ export function stableCompositionProbe(
             allocationBytes: grounding.allocationBytes,
             cullWriteCount: grounding.cullWriteCount,
             meshReadCount: grounding.meshReadCount,
+            triangles: grounding.triangles,
+            boundaries: grounding.boundaries,
         },
         terrain: stableTerrainProbe(terrain),
         skeletal: {
@@ -48,6 +55,32 @@ export function stableCompositionProbe(
         fixedTerrainDispatches: probe.fixedTerrainDispatches,
         fixedSkeletalDispatches: probe.fixedSkeletalDispatches,
     };
+}
+
+export function validateSamplingProbe(probe: Record<string, unknown>): void {
+    validateCompositionProbe(probe);
+    const grounding = object(probe, "grounding");
+    if (
+        grounding.fixture !== "arbitrary-q8" || grounding.groundingMode !== 2 ||
+        grounding.groundDenominator !== 65_536 || grounding.positionLatticeDenominator !== 512
+    ) fail("arbitrary sampling encoding changed");
+    const triangles = object(grounding, "triangles");
+    if (
+        field<number>(triangles, "first", "number") <= 0 ||
+        field<number>(triangles, "diagonal", "number") <= 0 ||
+        field<number>(triangles, "second", "number") <= 0
+    ) fail("arbitrary sampling did not cover both triangles and their diagonal");
+    const boundaries = object(grounding, "boundaries");
+    const config = object(object(probe, "skeletal"), "config");
+    const radius = field<number>(config, "activeRadius", "number");
+    const diameter = radius * 2 + 1;
+    const expectedEdges = 2 * diameter * (diameter - 1);
+    if (
+        boundaries.logicalNeighborEdges !== expectedEdges ||
+        boundaries.pairComparisons !== expectedEdges * 32 ||
+        boundaries.positionMismatchCount !== 0 || boundaries.groundMismatchCount !== 0 ||
+        boundaries.firstMismatch !== null
+    ) fail("arbitrary cross-region boundary contract failed");
 }
 
 export function validateCompositionProbe(
