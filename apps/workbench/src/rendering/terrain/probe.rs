@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 
 use crate::load::LoadConfig;
 use crate::scene::SceneState;
-use crate::terrain::{GlobalTerrainConfig, TerrainAssignment};
+use crate::terrain::{GlobalTerrainConfig, TerrainAssignment, TerrainSourceNamespace};
 
 use super::{
     LOD_STATS_BYTES, PATCH_GROUP_COUNT, QUERY_COUNT, STATS_BYTES, TERRAIN_REVISION, TerrainRenderer,
@@ -21,6 +21,8 @@ pub struct TerrainProbe {
     active_mapping: Vec<TerrainAssignment>,
     active_mapping_sha256: String,
     payload_sha256: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global_content: Option<GlobalContentEvidence>,
     cpu_edges: terrain_format::EdgeValidation,
     gpu_edges: GpuEdges,
     geometry: TerrainGeometry,
@@ -38,6 +40,14 @@ struct GlobalAddressEvidence {
     entry_count: usize,
     duplicate_global_count: usize,
     mismatch_count: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GlobalContentEvidence {
+    source_namespace: TerrainSourceNamespace,
+    content_sha256: String,
+    region_count: usize,
 }
 
 impl TerrainProbe {
@@ -234,6 +244,11 @@ impl TerrainRenderer {
         for tile in &snapshot.tiles {
             payload_hash.update(terrain_format::encode_tile(tile)?);
         }
+        let global_content = snapshot
+            .report
+            .source_namespace
+            .map(|namespace| global_content_evidence(namespace, &snapshot.active, &snapshot.tiles))
+            .transpose()?;
         let milliseconds = |start: usize, end: usize| {
             timestamps[end].saturating_sub(timestamps[start]) as f64 * 1_000.0
                 / self.timestamp_frequency as f64
@@ -246,6 +261,7 @@ impl TerrainRenderer {
             active_mapping: snapshot.active.clone(),
             active_mapping_sha256: format!("{:x}", mapping_hash.finalize()),
             payload_sha256: format!("{:x}", payload_hash.finalize()),
+            global_content,
             cpu_edges,
             gpu_edges: GpuEdges {
                 neighbor_edges: seams[0],
@@ -307,6 +323,34 @@ impl TerrainRenderer {
             },
         })
     }
+}
+
+fn global_content_evidence(
+    source_namespace: TerrainSourceNamespace,
+    active: &[TerrainAssignment],
+    tiles: &[terrain_format::TerrainTile],
+) -> Result<GlobalContentEvidence> {
+    ensure!(
+        active.len() == tiles.len(),
+        "canonical terrain content assignment count mismatch"
+    );
+    let mut hash = Sha256::new();
+    for (assignment, tile) in active.iter().zip(tiles) {
+        let global = assignment
+            .global_region
+            .context("canonical terrain content has no global assignment")?;
+        hash.update(global.x.to_le_bytes());
+        hash.update(global.z.to_le_bytes());
+        for height in tile.heights {
+            hash.update(height.to_le_bytes());
+        }
+        hash.update(tile.materials);
+    }
+    Ok(GlobalContentEvidence {
+        source_namespace,
+        content_sha256: format!("{:x}", hash.finalize()),
+        region_count: tiles.len(),
+    })
 }
 
 fn global_evidence(

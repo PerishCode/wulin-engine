@@ -7,8 +7,14 @@ use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
+mod global;
 mod payload;
 
+pub use global::{
+    GLOBAL_INDEX_ENTRY_BYTES, GLOBAL_MAGIC, GLOBAL_VERSION, GlobalEdgeMismatch,
+    GlobalEdgeValidation, GlobalPackMetadata, GlobalRegion, GlobalTerrainPack, GlobalTerrainRead,
+    GlobalTerrainTile, encode_global_tile, validate_global_neighbor_edges, write_global_pack,
+};
 use payload::{decode_payload, encode_payload};
 pub use payload::{encode_tile, validate_tile};
 

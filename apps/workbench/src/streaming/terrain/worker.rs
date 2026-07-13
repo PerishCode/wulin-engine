@@ -1,11 +1,15 @@
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
+use std::{fs::File, io::Read, path::Path};
 
-use anyhow::{Context, Result, bail};
-use terrain_format::TerrainPack;
+use anyhow::{Context, Result, bail, ensure};
+use terrain_format::{GlobalRegion, GlobalTerrainPack, TerrainPack, TerrainTile};
 
-use super::{TerrainAssignment, TerrainIoMetrics, TerrainUpload};
+use super::{
+    PackAddressing, PackDescriptor, TerrainAssignment, TerrainIoMetrics, TerrainSourceNamespace,
+    TerrainUpload,
+};
 
 #[derive(Clone, Default)]
 pub(super) struct IoGate {
@@ -16,6 +20,11 @@ pub(super) struct PackWorker {
     requests: Option<SyncSender<ReadRequest>>,
     completions: Receiver<ReadCompletion>,
     thread: Option<JoinHandle<()>>,
+}
+
+pub(super) enum PackFile {
+    Local(TerrainPack),
+    Signed(GlobalTerrainPack),
 }
 
 pub(super) struct ReadRequest {
@@ -59,7 +68,7 @@ impl IoGate {
 }
 
 impl PackWorker {
-    pub fn start(pack: TerrainPack, gate: IoGate) -> Result<Self> {
+    pub fn start(pack: PackFile, gate: IoGate) -> Result<Self> {
         let (request_tx, request_rx) = sync_channel::<ReadRequest>(1);
         let (completion_tx, completion_rx) = sync_channel::<ReadCompletion>(1);
         let thread = thread::Builder::new()
@@ -86,6 +95,90 @@ impl PackWorker {
     }
 }
 
+impl PackFile {
+    pub fn open(path: impl AsRef<Path>) -> Result<(Self, PackDescriptor)> {
+        let path = path.as_ref();
+        let mut file = File::open(path)
+            .with_context(|| format!("failed to open terrain pack {}", path.display()))?;
+        let mut magic = [0u8; 8];
+        file.read_exact(&mut magic)
+            .context("terrain pack magic is truncated")?;
+        if magic == terrain_format::MAGIC {
+            let pack = TerrainPack::open(path)?;
+            let descriptor = PackDescriptor {
+                metadata: serde_json::to_value(pack.metadata())?,
+                addressing: PackAddressing::LocalAlias {
+                    region_ids: pack.region_ids().collect(),
+                },
+            };
+            Ok((Self::Local(pack), descriptor))
+        } else if magic == terrain_format::GLOBAL_MAGIC {
+            let pack = GlobalTerrainPack::open(path)?;
+            let descriptor = PackDescriptor {
+                metadata: serde_json::to_value(pack.metadata())?,
+                addressing: PackAddressing::SignedGlobal {
+                    regions: pack
+                        .regions()
+                        .map(|region| crate::world::RegionCoord::new(region.x, region.z))
+                        .collect(),
+                    source_namespace: TerrainSourceNamespace(pack.source_namespace()),
+                },
+            };
+            Ok((Self::Signed(pack), descriptor))
+        } else {
+            bail!("terrain pack magic is invalid")
+        }
+    }
+
+    fn read(&mut self, assignment: TerrainAssignment) -> Result<(TerrainUpload, u32, f64, f64)> {
+        match self {
+            Self::Local(pack) => {
+                let read = pack.read_region(assignment.region_id)?;
+                Ok((
+                    TerrainUpload {
+                        slot: assignment.slot,
+                        region_id: assignment.region_id,
+                        global_region: assignment.global_region,
+                        payload: read.payload,
+                        tile: read.tile,
+                        sha256: read.sha256,
+                    },
+                    read.payload_bytes,
+                    read.read_ms,
+                    read.verify_ms,
+                ))
+            }
+            Self::Signed(pack) => {
+                let global = assignment
+                    .global_region
+                    .context("signed terrain read has no global region")?;
+                let read = pack.read_region(GlobalRegion::new(global.x, global.z))?;
+                ensure!(
+                    read.tile.region == GlobalRegion::new(global.x, global.z),
+                    "signed terrain read identity mismatch"
+                );
+                Ok((
+                    TerrainUpload {
+                        slot: assignment.slot,
+                        region_id: assignment.region_id,
+                        global_region: Some(global),
+                        payload: read.payload,
+                        tile: TerrainTile {
+                            region_id: assignment.region_id,
+                            heights: read.tile.heights,
+                            materials: read.tile.materials,
+                        },
+                        sha256: read.sha256,
+                    },
+                    read.payload_bytes,
+                    read.read_ms,
+                    read.verify_ms,
+                ))
+            }
+        }
+    }
+}
+
 impl Drop for PackWorker {
     fn drop(&mut self) {
         self.requests.take();
@@ -96,7 +189,7 @@ impl Drop for PackWorker {
 }
 
 fn worker_loop(
-    mut pack: TerrainPack,
+    mut pack: PackFile,
     gate: IoGate,
     requests: Receiver<ReadRequest>,
     completions: SyncSender<ReadCompletion>,
@@ -125,31 +218,24 @@ fn worker_loop(
 }
 
 fn read_request(
-    pack: &mut TerrainPack,
+    pack: &mut PackFile,
     request: ReadRequest,
 ) -> std::result::Result<(Vec<TerrainUpload>, TerrainIoMetrics), (String, TerrainIoMetrics)> {
     let start = std::time::Instant::now();
     let mut metrics = TerrainIoMetrics::default();
     let mut uploads = Vec::with_capacity(request.assignments.len());
     for assignment in request.assignments {
-        let read = match pack.read_region(assignment.region_id) {
+        let (upload, payload_bytes, read_ms, verify_ms) = match pack.read(assignment) {
             Ok(read) => read,
             Err(error) => {
                 metrics.total_ms = start.elapsed().as_secs_f64() * 1_000.0;
                 return Err((format!("{error:#}"), metrics));
             }
         };
-        metrics.payload_bytes += u64::from(read.payload_bytes);
-        metrics.read_ms += read.read_ms;
-        metrics.verify_ms += read.verify_ms;
-        uploads.push(TerrainUpload {
-            slot: assignment.slot,
-            region_id: assignment.region_id,
-            global_region: assignment.global_region,
-            payload: read.payload,
-            tile: read.tile,
-            sha256: read.sha256,
-        });
+        metrics.payload_bytes += u64::from(payload_bytes);
+        metrics.read_ms += read_ms;
+        metrics.verify_ms += verify_ms;
+        uploads.push(upload);
     }
     metrics.total_ms = start.elapsed().as_secs_f64() * 1_000.0;
     if uploads.len() > 25 {

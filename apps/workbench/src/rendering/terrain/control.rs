@@ -17,7 +17,7 @@ impl Renderer {
     pub fn open_terrain_pack(
         &mut self,
         path: impl AsRef<std::path::Path>,
-    ) -> Result<terrain_format::PackMetadata> {
+    ) -> Result<serde_json::Value> {
         self.terrain_streamer.open(path)
     }
 
@@ -26,6 +26,7 @@ impl Renderer {
             !self.composition.has_pending(),
             "composition pair transaction is active"
         );
+        self.terrain_streamer.ensure_local_source()?;
         self.disable_composition();
         let reservation = self.terrain_renderer.reserve(config)?;
         let transaction_id = reservation.transaction_id;
@@ -47,7 +48,12 @@ impl Renderer {
             "composition pair transaction is active"
         );
         self.disable_composition();
-        let reservation = self.terrain_renderer.reserve_global(config)?;
+        let reservation = match self.terrain_streamer.source_namespace()? {
+            Some(namespace) => self
+                .terrain_renderer
+                .reserve_canonical_global(config, namespace)?,
+            None => self.terrain_renderer.reserve_global(config)?,
+        };
         let transaction_id = reservation.transaction_id;
         match self.terrain_streamer.schedule(reservation) {
             Ok(report) => Ok(report),
