@@ -100,6 +100,13 @@ export async function event(
     );
 }
 
+export async function rawEvent(
+    verb: string,
+    payload: string,
+): Promise<Record<string, unknown>> {
+    return object(await invoke(["inspect", "workbench", verb, payload]), "data");
+}
+
 function failure(response: Record<string, unknown>, verb: string, code: string) {
     if (response.ok !== false) fail(`${verb} unexpectedly succeeded`);
     const raw = response.error;

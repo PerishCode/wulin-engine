@@ -136,6 +136,7 @@ contains only files that exist.
 | `docs/adr/0022-camera-relative-global-space.md` | Accepted signed global region, bounded split-position conversion, camera-at-origin rendering, and mode-isolation contract. |
 | `docs/adr/0023-signed-terrain-addressing.md` | Accepted signed terrain cache identity, bounded local content alias, and transactional publication contract. |
 | `docs/adr/0024-signed-atomic-composition.md` | Accepted shared signed terrain/object identity and matched global/local pair publication contract. |
+| `docs/adr/0025-signed-camera-traversal.md` | Accepted frozen-origin signed camera traversal, checked extent, and latest-wins pair contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -168,6 +169,7 @@ contains only files that exist.
 | `experiments/0019-camera-relative-global-space/README.md` | Accepted Experiment 0019 signed global regions, exact split conversion, far-anchor/rebase invariance, rejection, and timing evidence. |
 | `experiments/0020-signed-terrain-addressing/README.md` | Accepted Experiment 0020 signed terrain residency, local alias, overlap, rollback, compatibility, and timing evidence. |
 | `experiments/0021-signed-atomic-composition/README.md` | Accepted Experiment 0021 shared signed terrain/object cache identity, atomic holds, rollback, and timing evidence. |
+| `experiments/0022-signed-camera-traversal/README.md` | Accepted Experiment 0022 signed boundaries, latest-wins pair scheduling, failure, restart, and timing evidence. |
 | `crates/meshlet-catalog/Cargo.toml` | Deterministic static meshlet catalog package and dependency boundary. |
 | `crates/meshlet-catalog/src/lib.rs` | Eight-archetype, three-LOD geometry generation, meshlet partitioning, validation, encoding, and hashing. |
 | `crates/meshlet-catalog/tests/catalog.rs` | Catalog determinism, reducing-LOD, and mesh-shader bound regression contract. |
@@ -235,7 +237,7 @@ contains only files that exist.
 | `apps/workbench/src/rendering/composition/fixture.rs` | Deterministic cell-center/arbitrary instance materialization and exact terrain triangle sampling fixture. |
 | `apps/workbench/src/rendering/composition/probe.rs` | Exact grounding oracle, pair mapping, shared submission, and combined timing evidence projection. |
 | `apps/workbench/src/rendering/composition/state.rs` | Pair coordinator initialization, transaction state changes, and composition/traversal status projection. |
-| `apps/workbench/src/rendering/composition/traversal.rs` | Camera-region mapping, immutable session basis, single desired slot, blocked failure, and automatic pair scheduling. |
+| `apps/workbench/src/rendering/composition/traversal.rs` | Local/signed camera mapping, immutable frozen-origin basis, single desired slot, blocked failure, and automatic pair scheduling. |
 | `apps/workbench/src/rendering/device.rs` | Reference adapter selection, debug-layer enablement, and common transitions. |
 | `apps/workbench/src/rendering/gpu_capture.rs` | D3D12 copy footprint, persistent readback, and tight four-byte pixel extraction. |
 | `apps/workbench/src/rendering/load/pipeline.rs` | Procedural load root signatures, PSOs, and indirect command signature. |
@@ -317,10 +319,12 @@ contains only files that exist.
 | `.runseal/wrappers/global-space.ts` | Canonical Experiment 0019 far-anchor, rebase, exact oracle, rejection, restart, compatibility, and timing workflow. |
 | `.runseal/wrappers/global-terrain.ts` | Canonical Experiment 0020 signed terrain alias, movement, hold, rejection, restart, compatibility, and timing workflow. |
 | `.runseal/wrappers/global-composition.ts` | Canonical Experiment 0021 signed pair alias, movement, three-hold, rejection, restart, compatibility, and timing workflow. |
+| `.runseal/wrappers/global-traversal.ts` | Canonical Experiment 0022 far boundary, latest-wins, blocked failure, restart, compatibility, and timing workflow. |
 | `.runseal/support/cooked-region.ts` | Experiment 0008 structured evidence, pack corruption, hashing, and comparison helpers. |
 | `.runseal/support/composition.ts` | Experiments 0015-0018 stable composition, grounding, contact, LOD, and timing validation support. |
 | `.runseal/support/global-terrain.ts` | Experiment 0020 Sidecar lifecycle, global/local mapping, transaction, capture, and distribution validation helpers. |
 | `.runseal/support/global-composition.ts` | Experiment 0021 shared pair mapping, half-report, hold, probe, and attachment validation helpers. |
+| `.runseal/support/global-traversal.ts` | Experiment 0022 frozen-origin target mapping, traversal status, camera movement, and publication helpers. |
 | `.runseal/support/traversal.ts` | Experiment 0018 bounded status, region mapping, and logical revisit evidence helpers. |
 | `.runseal/support/workbench/composition.ts` | Local/global composition workbench CLI validation and typed Sidecar dispatch. |
 | `.runseal/support/workbench/terrain.ts` | Terrain-specific workbench CLI argument validation and typed Sidecar event dispatch. |
@@ -426,6 +430,12 @@ publish one matched global/local pair while independent I/O/copy holds keep the 
 visible. This accepts manual signed atomic composition for the deterministic object
 fixture, not cooked-object global lookup, automatic traversal/rebase, or a new world
 format.
+Experiment 0022 and ADR 0025 allow the accepted camera mapping and one-in-flight plus
+latest-wins policy to carry an optional signed target through both halves. The signed
+origin is frozen per session, every legal local center is checked for `i64` range at
+enable, and automatic publication remains one matched global/local pair. This accepts
+camera traversal inside one explicit signed alias window, not automatic rebase,
+prefetch, cooked-object global lookup, or an unbounded world.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -458,6 +468,7 @@ runseal :region-traversal
 runseal :global-space
 runseal :global-terrain
 runseal :global-composition
+runseal :global-traversal
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
