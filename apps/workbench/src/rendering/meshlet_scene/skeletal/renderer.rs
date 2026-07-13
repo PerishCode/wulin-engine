@@ -10,7 +10,7 @@ use super::pipeline::{SKELETAL_CONSTANT_COUNT, SkeletalPipeline};
 use super::probe::{self, ProbeInput, SkeletalProbe};
 use super::resources::{
     AnimationBuffers, COUNTER_BYTES, ExecutionResources, MAX_SHARED_POSES, MAX_SKELETAL_VISIBLE,
-    PALETTE_BYTES, QUERY_COUNT, SAMPLE_BYTES,
+    PALETTE_BYTES, SAMPLE_BYTES,
 };
 use super::surface::{SurfaceFrame, SurfaceRenderer};
 use crate::rendering::async_resident::PublishedSnapshot;
@@ -44,7 +44,7 @@ impl Default for SkeletalSettings {
 
 pub struct SkeletalSceneRenderer {
     pipeline: SkeletalPipeline,
-    mesh_catalog: MeshletCatalog,
+    pub(super) mesh_catalog: MeshletCatalog,
     pub(super) animation_catalog: AnimationCatalog,
     mesh_catalog_sha256: String,
     animation_catalog_sha256: String,
@@ -98,7 +98,14 @@ impl SkeletalSceneRenderer {
             )
         }?;
         let surface = unsafe {
-            SurfaceRenderer::new(device, queue, &resources.heap, &mesh_catalog, width, height)
+            super::surface_bridge::create_surface(
+                device,
+                queue,
+                &resources,
+                &mesh_catalog,
+                &animation_catalog,
+                [width, height],
+            )
         }?;
         Ok(Self {
             pipeline,
@@ -186,7 +193,7 @@ impl SkeletalSceneRenderer {
     }
 
     pub unsafe fn record(
-        &self,
+        &mut self,
         command_list: &ID3D12GraphicsCommandList,
         frame: SkeletalFrame<'_>,
     ) -> Result<()> {
@@ -298,7 +305,7 @@ impl SkeletalSceneRenderer {
                         &self.resources.query_heap,
                         D3D12_QUERY_TYPE_TIMESTAMP,
                         0,
-                        QUERY_COUNT - 1,
+                        5,
                         &self.resources.timestamp_readback,
                         0,
                     );

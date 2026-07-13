@@ -1,3 +1,5 @@
+mod recording;
+
 use animation_catalog::Catalog as AnimationCatalog;
 use anyhow::{Result, ensure};
 use meshlet_catalog::Catalog as MeshletCatalog;
@@ -6,14 +8,15 @@ use surface_catalog::{MATERIAL_COUNT, MIP_COUNT};
 use windows::Win32::Graphics::Direct3D12::*;
 
 use crate::load::LoadConfig;
-use crate::rendering::resident::{set_viewport, transition, uav_barrier};
+use crate::rendering::resident::{transition, uav_barrier};
 
 use super::super::pipeline::SKELETAL_CONSTANT_COUNT;
 use super::super::probe::SkeletalProbe;
-use super::super::resources::{ExecutionResources, QUERY_COUNT};
+use super::occlusion::OCCLUSION_GROUPS;
+use super::occlusion::{self, BoundProof};
 use super::pipeline::{SURFACE_CONSTANT_COUNT, SurfacePipeline};
 use super::probe::{self, ProbeInput, SurfaceProbe};
-use super::resources::{SAMPLE_BYTES, STATS_BYTES, SurfaceResources};
+use super::resources::{SAMPLE_BYTES, STATS_BYTES, SurfaceResourceInput, SurfaceResources};
 
 pub const SURFACE_REVISION: &str = "gpu-surface-resolve-v1";
 
@@ -39,6 +42,13 @@ pub struct SurfaceRenderer {
     height: u32,
     enabled: bool,
     settings: SurfaceSettings,
+    occlusion_enabled: bool,
+    history_signature: Option<[u32; SKELETAL_CONSTANT_COUNT as usize]>,
+    last_history_queried: bool,
+    history_reset_count: u64,
+    pending_invalidation_reason: &'static str,
+    last_bypass_reason: &'static str,
+    bound_proof: BoundProof,
 }
 
 pub struct SurfaceFrame<'a> {
@@ -52,6 +62,8 @@ pub struct SurfaceFrame<'a> {
 pub struct SurfaceProbeContext<'a> {
     pub skeletal: SkeletalProbe,
     pub animation_catalog: &'a AnimationCatalog,
+    pub mesh_catalog: &'a MeshletCatalog,
+    pub scene: &'a crate::scene::SceneState,
     pub skeletal_settings: super::super::renderer::SkeletalSettings,
     pub config: LoadConfig,
     pub background_color: [f32; 4],
@@ -59,24 +71,46 @@ pub struct SurfaceProbeContext<'a> {
     pub timestamp_frequency: u64,
 }
 
+pub struct SurfaceRendererInput<'a> {
+    pub queue: &'a ID3D12CommandQueue,
+    pub source_heap: &'a ID3D12DescriptorHeap,
+    pub source_visible: &'a ID3D12Resource,
+    pub source_counters: &'a ID3D12Resource,
+    pub mesh: &'a MeshletCatalog,
+    pub animation: &'a AnimationCatalog,
+    pub extent: [u32; 2],
+}
+
 impl SurfaceRenderer {
-    pub unsafe fn new(
-        device: &ID3D12Device,
-        queue: &ID3D12CommandQueue,
-        source_heap: &ID3D12DescriptorHeap,
-        mesh: &MeshletCatalog,
-        width: u32,
-        height: u32,
-    ) -> Result<Self> {
+    pub unsafe fn new(device: &ID3D12Device, input: SurfaceRendererInput<'_>) -> Result<Self> {
+        let [width, height] = input.extent;
+        let bound_proof = occlusion::validate_fixture_bound(input.mesh, input.animation)?;
         Ok(Self {
             pipeline: unsafe { SurfacePipeline::new(device) }?,
             resources: unsafe {
-                SurfaceResources::new(device, queue, source_heap, mesh, width, height)
+                SurfaceResources::new(
+                    device,
+                    SurfaceResourceInput {
+                        queue: input.queue,
+                        source_heap: input.source_heap,
+                        source_visible: input.source_visible,
+                        source_counters: input.source_counters,
+                        mesh: input.mesh,
+                        extent: input.extent,
+                    },
+                )
             }?,
             width,
             height,
             enabled: false,
             settings: SurfaceSettings::default(),
+            occlusion_enabled: false,
+            history_signature: None,
+            last_history_queried: false,
+            history_reset_count: 0,
+            pending_invalidation_reason: "startup",
+            last_bypass_reason: "startup",
+            bound_proof,
         })
     }
 
@@ -95,10 +129,12 @@ impl SurfaceRenderer {
 
     pub fn enable(&mut self) {
         self.enabled = true;
+        self.invalidate_occlusion_history("surface-enable");
     }
 
     pub fn disable(&mut self) {
         self.enabled = false;
+        self.invalidate_occlusion_history("surface-disable");
     }
 
     pub fn is_enabled(&self) -> bool {
@@ -129,146 +165,100 @@ impl SurfaceRenderer {
                 "indirectVisibilityDispatchCount": 1,
                 "resolveDispatchCount": 1,
                 "resolveGroups": [self.width.div_ceil(8), self.height.div_ceil(8), 1],
-            }
+            },
+            "occlusion": {
+                "enabled": self.occlusion_enabled,
+                "historyAvailable": self.history_signature.is_some(),
+                "lastHistoryQueried": self.last_history_queried,
+                "resetCount": self.history_reset_count,
+                "lastBypassReason": self.last_bypass_reason,
+                "resources": {
+                    "hierarchyFormat": "R32_UINT",
+                    "hierarchyMipCount": self.resources.occlusion.mip_count,
+                    "hierarchyBytes": self.resources.occlusion.hierarchy_bytes,
+                    "executionBytes": self.resources.occlusion.execution_bytes,
+                    "totalSurfaceExecutionBytes": self.resources.total_execution_bytes,
+                },
+                "submission": {
+                    "queryDispatchCount": 1,
+                    "queryGroups": OCCLUSION_GROUPS,
+                    "prefixDispatchCount": 1,
+                    "prefixGroups": 1,
+                    "scatterDispatchCount": 1,
+                    "scatterGroups": OCCLUSION_GROUPS,
+                    "compactionDispatchCount": 3,
+                    "hierarchyDispatchCount": self.resources.occlusion.mip_count,
+                },
+                "boundProof": self.bound_proof,
+            },
         })
     }
 
-    pub unsafe fn record(
+    pub fn enable_occlusion(&mut self) {
+        self.occlusion_enabled = true;
+    }
+
+    pub fn disable_occlusion(&mut self) {
+        self.occlusion_enabled = false;
+    }
+
+    pub fn reset_occlusion_history(&mut self) {
+        self.invalidate_occlusion_history("explicit-reset");
+    }
+
+    fn invalidate_occlusion_history(&mut self, reason: &'static str) {
+        self.history_signature = None;
+        self.last_history_queried = false;
+        self.history_reset_count += 1;
+        self.pending_invalidation_reason = reason;
+    }
+
+    unsafe fn build_hierarchy(
         &self,
         command_list: &ID3D12GraphicsCommandList,
-        execution: &ExecutionResources,
-        skeletal_constants: [u32; SKELETAL_CONSTANT_COUNT as usize],
-        frame: SurfaceFrame<'_>,
+        mut constants: [u32; SURFACE_CONSTANT_COUNT as usize],
+        gpu_start: D3D12_GPU_DESCRIPTOR_HANDLE,
     ) {
-        let surface_constants = self.constants(skeletal_constants, frame.background_color);
-        let gpu_start = unsafe { self.resources.gpu_start() };
-        let visibility_target = unsafe { self.resources.visibility_handle() };
         unsafe {
             transition(
                 command_list,
-                &execution.visible,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-            );
-            transition(
-                command_list,
-                &execution.palette,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-            );
-            command_list.SetDescriptorHeaps(&[Some(self.resources.heap.clone())]);
-            let (winner_gpu, winner_cpu) = self.resources.winner_uav_handles();
-            command_list.ClearUnorderedAccessViewUint(
-                winner_gpu,
-                winner_cpu,
                 &self.resources.visibility_winner,
-                &[0; 4],
-                &[],
-            );
-            uav_barrier(command_list, &self.resources.visibility_winner);
-            let render_targets = [visibility_target, frame.object_id_target];
-            command_list.OMSetRenderTargets(
-                2,
-                Some(render_targets.as_ptr()),
-                false,
-                Some(&frame.depth_target),
-            );
-            command_list.ClearRenderTargetView(visibility_target, &[0.0; 4], None);
-            command_list.ClearRenderTargetView(frame.object_id_target, &[0.0; 4], None);
-            command_list.ClearDepthStencilView(
-                frame.depth_target,
-                D3D12_CLEAR_FLAG_DEPTH,
-                0.0,
-                0,
-                None,
-            );
-            set_viewport(command_list, self.width, self.height);
-            self.bind_graphics(command_list, surface_constants, gpu_start);
-            command_list.SetPipelineState(&self.pipeline.visibility);
-            command_list.ExecuteIndirect(
-                &self.pipeline.mesh_signature,
-                1,
-                &execution.counters,
-                0,
-                None,
-                0,
-            );
-            uav_barrier(command_list, &self.resources.candidate_to_visible);
-            uav_barrier(command_list, &self.resources.visibility_winner);
-            if frame.probe {
-                command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 4);
-            }
-
-            transition(
-                command_list,
-                &self.resources.visibility,
-                D3D12_RESOURCE_STATE_RENDER_TARGET,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-            );
-            transition(
-                command_list,
-                &self.resources.candidate_to_visible,
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
             );
-            let (stats_gpu, stats_cpu) = self.resources.stats_uav_handles();
-            command_list.ClearUnorderedAccessViewUint(
-                stats_gpu,
-                stats_cpu,
-                &self.resources.stats,
-                &[0; 4],
-                &[],
-            );
-            self.bind_compute(command_list, surface_constants, gpu_start);
-            command_list.SetPipelineState(&self.pipeline.shade);
+            self.bind_compute(command_list, constants, gpu_start);
+            command_list.SetPipelineState(&self.pipeline.hiz_mip0);
             command_list.Dispatch(self.width.div_ceil(8), self.height.div_ceil(8), 1);
-            for resource in [
-                &self.resources.color,
-                &self.resources.stats,
-                &self.resources.samples,
-            ] {
-                uav_barrier(command_list, resource);
-            }
-            self.copy_resolved_color(command_list, frame.back_buffer);
-            if frame.probe {
-                self.record_probe_copies(command_list);
-            } else {
-                transition(
-                    command_list,
-                    &self.resources.visibility,
-                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                    D3D12_RESOURCE_STATE_RENDER_TARGET,
-                );
-            }
-            transition(
-                command_list,
-                &self.resources.candidate_to_visible,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            );
-            transition(
-                command_list,
-                &execution.visible,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            );
-            transition(
-                command_list,
-                &execution.palette,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            );
-            if frame.probe {
-                command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 5);
-                command_list.ResolveQueryData(
-                    &execution.query_heap,
-                    D3D12_QUERY_TYPE_TIMESTAMP,
+            uav_barrier(command_list, &self.resources.occlusion.hierarchy);
+            command_list.SetPipelineState(&self.pipeline.hiz_reduce);
+            for destination_mip in 1..self.resources.occlusion.mip_count {
+                let destination_width = (self.width >> destination_mip).max(1);
+                let destination_height = (self.height >> destination_mip).max(1);
+                constants[32..36].copy_from_slice(&[
+                    destination_mip - 1,
+                    destination_mip,
+                    destination_width,
+                    destination_height,
+                ]);
+                command_list.SetComputeRoot32BitConstants(
                     0,
-                    QUERY_COUNT,
-                    &execution.timestamp_readback,
-                    0,
+                    4,
+                    constants[32..36].as_ptr().cast(),
+                    32,
                 );
+                command_list.Dispatch(
+                    destination_width.div_ceil(8),
+                    destination_height.div_ceil(8),
+                    1,
+                );
+                uav_barrier(command_list, &self.resources.occlusion.hierarchy);
             }
+            transition(
+                command_list,
+                &self.resources.visibility_winner,
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            );
         }
     }
 
@@ -346,6 +336,37 @@ impl SurfaceRenderer {
         unsafe {
             transition(
                 command_list,
+                &self.resources.visibility_winner,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+            );
+            self.resources
+                .winner_readback
+                .record(command_list, &self.resources.visibility_winner);
+            transition(
+                command_list,
+                &self.resources.visibility_winner,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            );
+            transition(
+                command_list,
+                &self.resources.occlusion.hierarchy,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+            );
+            self.resources
+                .occlusion
+                .hierarchy_readback
+                .record(command_list, &self.resources.occlusion.hierarchy);
+            transition(
+                command_list,
+                &self.resources.occlusion.hierarchy,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            );
+            transition(
+                command_list,
                 &self.resources.visibility,
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                 D3D12_RESOURCE_STATE_COPY_SOURCE,
@@ -403,6 +424,8 @@ impl SurfaceRenderer {
                 settings_json: self.settings_json(),
                 skeletal: context.skeletal,
                 animation_catalog: context.animation_catalog,
+                mesh_catalog: context.mesh_catalog,
+                scene: context.scene,
                 skeletal_settings: context.skeletal_settings,
                 config: context.config,
                 background_color: context.background_color,
@@ -410,6 +433,11 @@ impl SurfaceRenderer {
                 timestamp_frequency: context.timestamp_frequency,
                 width: self.width,
                 height: self.height,
+                occlusion_enabled: self.occlusion_enabled,
+                history_queried: self.last_history_queried,
+                history_reset_count: self.history_reset_count,
+                bypass_reason: self.last_bypass_reason,
+                bound_proof: self.bound_proof,
             })
         }
     }
@@ -418,6 +446,7 @@ impl SurfaceRenderer {
         &self,
         skeletal: [u32; SKELETAL_CONSTANT_COUNT as usize],
         background_color: [f32; 4],
+        history_queried: bool,
     ) -> [u32; SURFACE_CONSTANT_COUNT as usize] {
         let mut constants = [0; SURFACE_CONSTANT_COUNT as usize];
         constants[..16].copy_from_slice(&skeletal[..16]);
@@ -431,6 +460,19 @@ impl SurfaceRenderer {
             *destination = channel.to_bits();
         }
         constants[24] = skeletal[49];
+        constants[28..32].copy_from_slice(&[
+            u32::from(history_queried),
+            self.resources.occlusion.mip_count,
+            self.width,
+            self.height,
+        ]);
+        constants[36..40].copy_from_slice(&[
+            super::occlusion::BOUND_RADIAL_SCALE.to_bits(),
+            super::occlusion::BOUND_RADIAL_BIAS.to_bits(),
+            super::occlusion::BOUND_VERTICAL_PAD.to_bits(),
+            super::occlusion::PIXEL_EXPANSION.to_bits(),
+        ]);
+        constants[40] = super::occlusion::DEPTH_BIAS.to_bits();
         constants
     }
 }

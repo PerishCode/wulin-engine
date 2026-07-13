@@ -49,7 +49,10 @@ export function loadConfig(
     };
 }
 
-export function validateProbe(probe: Record<string, unknown>): void {
+export function validateProbe(
+    probe: Record<string, unknown>,
+    requireFullMaterialCoverage = true,
+): void {
     if (
         field<string>(probe, "revision", "string") !== REVISION ||
         field<string>(probe, "surfaceCatalogSha256", "string") !== SURFACE_SHA256 ||
@@ -67,7 +70,10 @@ export function validateProbe(probe: Record<string, unknown>): void {
     }
     const settings = object(probe, "settings");
     const materialCount = field<number>(settings, "materialCount", "number");
-    if (field<number>(stats, "observedMaterialCount", "number") !== materialCount) {
+    if (
+        requireFullMaterialCoverage &&
+        field<number>(stats, "observedMaterialCount", "number") !== materialCount
+    ) {
         fail("surface material coverage differs from the configured count");
     }
     if (

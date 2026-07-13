@@ -8,7 +8,7 @@
 
 ## Status
 
-**GPU 表面可见性解析闭环已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
+**GPU 保守遮挡闭环已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
 Sidecar 生命周期和项目自有 inspect 协议已经形成可重复的可见控制闭环。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
@@ -34,6 +34,9 @@ meshlet skinning：18,928 个可见角色的 shared 与 fully unique pose 负载
 Experiment 0011 已将几何可见性与材质求值解耦：确定性 visibility payload 通过 GPU 重建
 蒙皮表面属性，固定 14,400 个 compute group 解析 1280x720 全屏；材质、mip、LOD、半径、
 shared/unique pose sweep 均保持固定提交并精确匹配 CPU texel 与颜色 oracle。
+Experiment 0012 已将上一兼容帧的确定性 winner 构造成完整 reverse-Z 层级，并通过固定
+100/1/100 组 classify/prefix/stable-scatter 在 mesh execution 前保守剔除遮挡角色；高遮挡
+视角精确消除了 74.916% 源 meshlet 及对应蒙皮作业，最终 visibility、颜色和语义附件不变。
 
 ## Project model
 
@@ -61,6 +64,7 @@ runseal :cooked-region
 runseal :meshlet-scene
 runseal :skeletal-crowds
 runseal :surface-resolve
+runseal :occlusion
 runseal :workbench start
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24

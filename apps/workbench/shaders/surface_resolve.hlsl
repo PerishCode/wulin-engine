@@ -76,6 +76,10 @@ cbuffer SurfaceResolveConstants : register(b0)
     uint4 surface_shape;
     float4 background_color;
     uint4 surface_animation;
+    uint4 occlusion_shape;
+    uint4 hierarchy_shape;
+    float4 occlusion_params;
+    float4 occlusion_bias;
 };
 
 StructuredBuffer<InstanceRecord> region_instances[REGION_SLOT_CAPACITY] : register(t0);

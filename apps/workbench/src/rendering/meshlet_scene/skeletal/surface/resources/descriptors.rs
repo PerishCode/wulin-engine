@@ -1,163 +1,36 @@
 use std::mem::size_of;
 
 use anyhow::{Context, Result};
-use meshlet_catalog::Catalog as MeshletCatalog;
-use surface_catalog::{
-    Catalog, MATERIAL_COUNT, MIP_COUNT, Material, SurfacePrimitive, SurfaceVertex,
-};
+use surface_catalog::{MATERIAL_COUNT, MIP_COUNT, Material, SurfacePrimitive, SurfaceVertex};
 use windows::Win32::Graphics::Direct3D12::*;
 use windows::Win32::Graphics::Dxgi::Common::{
-    DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R32_TYPELESS, DXGI_FORMAT_R32G32_UINT,
-    DXGI_FORMAT_UNKNOWN,
+    DXGI_FORMAT, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R32_TYPELESS, DXGI_FORMAT_R32_UINT,
+    DXGI_FORMAT_R32G32_UINT, DXGI_FORMAT_UNKNOWN,
 };
 
-use crate::rendering::gpu_capture::Readback;
-
-use super::targets::{
-    color_target, create_visibility_rtv, readback_buffer, uav_buffer, visibility_target,
-    winner_target,
-};
+use super::super::occlusion::{OCCLUSION_COUNTER_BYTES, OCCLUSION_GROUPS, OcclusionResources};
 use super::upload::UploadedSurface;
+use super::{CANDIDATE_CAPACITY, SAMPLE_BYTES, STATS_BYTES};
 
-pub const CANDIDATE_CAPACITY: u32 = 25_600;
-pub const STATS_BYTES: u64 = 32;
-pub const SAMPLE_COUNT: u32 = 6;
-pub const SAMPLE_STRIDE: u64 = 32;
-pub const SAMPLE_BYTES: u64 = SAMPLE_COUNT as u64 * SAMPLE_STRIDE;
-const DESCRIPTOR_COUNT: u32 = 79;
+const DESCRIPTOR_COUNT: u32 = 96;
 const COPIED_DESCRIPTOR_COUNT: u32 = 61;
 
-pub struct SurfaceResources {
-    pub catalog: Catalog,
-    pub catalog_sha256: String,
-    pub uploaded: UploadedSurface,
-    pub visibility: ID3D12Resource,
-    pub visibility_winner: ID3D12Resource,
-    pub color: ID3D12Resource,
-    pub candidate_to_visible: ID3D12Resource,
-    pub stats: ID3D12Resource,
-    pub samples: ID3D12Resource,
-    pub heap: ID3D12DescriptorHeap,
-    pub visibility_rtv: ID3D12DescriptorHeap,
-    pub visibility_readback: Readback,
-    pub stats_readback: ID3D12Resource,
-    pub sample_readback: ID3D12Resource,
-    pub execution_bytes: u64,
-    descriptor_increment: usize,
+pub struct HeapInputs<'a> {
+    pub source_heap: &'a ID3D12DescriptorHeap,
+    pub catalog: &'a surface_catalog::Catalog,
+    pub uploaded: &'a UploadedSurface,
+    pub visibility: &'a ID3D12Resource,
+    pub winner: &'a ID3D12Resource,
+    pub color: &'a ID3D12Resource,
+    pub candidate: &'a ID3D12Resource,
+    pub stats: &'a ID3D12Resource,
+    pub samples: &'a ID3D12Resource,
+    pub source_visible: &'a ID3D12Resource,
+    pub source_counters: &'a ID3D12Resource,
+    pub occlusion: &'a OcclusionResources,
 }
 
-impl SurfaceResources {
-    pub unsafe fn new(
-        device: &ID3D12Device,
-        queue: &ID3D12CommandQueue,
-        source_heap: &ID3D12DescriptorHeap,
-        mesh: &MeshletCatalog,
-        width: u32,
-        height: u32,
-    ) -> Result<Self> {
-        let catalog = Catalog::build(mesh);
-        let catalog_sha256 = catalog.sha256();
-        let uploaded = unsafe { UploadedSurface::new(device, queue, &catalog) }?;
-        let visibility = unsafe { visibility_target(device, width, height) }?;
-        let visibility_winner = unsafe { winner_target(device, width, height) }?;
-        let color = unsafe { color_target(device, width, height) }?;
-        let candidate_to_visible = unsafe { uav_buffer(device, CANDIDATE_CAPACITY as u64 * 4) }?;
-        let stats = unsafe { uav_buffer(device, STATS_BYTES) }?;
-        let samples = unsafe { uav_buffer(device, SAMPLE_BYTES) }?;
-        let (heap, descriptor_increment) = unsafe {
-            create_heap(
-                device,
-                HeapInputs {
-                    source_heap,
-                    catalog: &catalog,
-                    uploaded: &uploaded,
-                    visibility: &visibility,
-                    winner: &visibility_winner,
-                    color: &color,
-                    candidate: &candidate_to_visible,
-                    stats: &stats,
-                    samples: &samples,
-                },
-            )
-        }?;
-        let visibility_rtv = unsafe { create_visibility_rtv(device, &visibility) }?;
-        let visibility_readback =
-            unsafe { Readback::new_with_pixel_bytes(device, &visibility, 8) }?;
-        let stats_readback = unsafe { readback_buffer(device, STATS_BYTES) }?;
-        let sample_readback = unsafe { readback_buffer(device, SAMPLE_BYTES) }?;
-        let execution_bytes = u64::from(width) * u64::from(height) * 20
-            + CANDIDATE_CAPACITY as u64 * 4
-            + STATS_BYTES
-            + SAMPLE_BYTES
-            + uploaded.total_bytes as u64;
-        Ok(Self {
-            catalog,
-            catalog_sha256,
-            uploaded,
-            visibility,
-            visibility_winner,
-            color,
-            candidate_to_visible,
-            stats,
-            samples,
-            heap,
-            visibility_rtv,
-            visibility_readback,
-            stats_readback,
-            sample_readback,
-            execution_bytes,
-            descriptor_increment,
-        })
-    }
-
-    pub unsafe fn visibility_handle(&self) -> D3D12_CPU_DESCRIPTOR_HANDLE {
-        unsafe { self.visibility_rtv.GetCPUDescriptorHandleForHeapStart() }
-    }
-
-    pub unsafe fn gpu_start(&self) -> D3D12_GPU_DESCRIPTOR_HANDLE {
-        unsafe { self.heap.GetGPUDescriptorHandleForHeapStart() }
-    }
-
-    pub unsafe fn stats_uav_handles(
-        &self,
-    ) -> (D3D12_GPU_DESCRIPTOR_HANDLE, D3D12_CPU_DESCRIPTOR_HANDLE) {
-        let gpu = unsafe { self.heap.GetGPUDescriptorHandleForHeapStart() };
-        let cpu = unsafe { self.heap.GetCPUDescriptorHandleForHeapStart() };
-        (
-            D3D12_GPU_DESCRIPTOR_HANDLE {
-                ptr: gpu.ptr + (self.descriptor_increment * 76) as u64,
-            },
-            cpu_handle(cpu, self.descriptor_increment, 76),
-        )
-    }
-
-    pub unsafe fn winner_uav_handles(
-        &self,
-    ) -> (D3D12_GPU_DESCRIPTOR_HANDLE, D3D12_CPU_DESCRIPTOR_HANDLE) {
-        let gpu = unsafe { self.heap.GetGPUDescriptorHandleForHeapStart() };
-        let cpu = unsafe { self.heap.GetCPUDescriptorHandleForHeapStart() };
-        (
-            D3D12_GPU_DESCRIPTOR_HANDLE {
-                ptr: gpu.ptr + (self.descriptor_increment * 78) as u64,
-            },
-            cpu_handle(cpu, self.descriptor_increment, 78),
-        )
-    }
-}
-
-struct HeapInputs<'a> {
-    source_heap: &'a ID3D12DescriptorHeap,
-    catalog: &'a Catalog,
-    uploaded: &'a UploadedSurface,
-    visibility: &'a ID3D12Resource,
-    winner: &'a ID3D12Resource,
-    color: &'a ID3D12Resource,
-    candidate: &'a ID3D12Resource,
-    stats: &'a ID3D12Resource,
-    samples: &'a ID3D12Resource,
-}
-
-unsafe fn create_heap(
+pub unsafe fn create_heap(
     device: &ID3D12Device,
     inputs: HeapInputs<'_>,
 ) -> Result<(ID3D12DescriptorHeap, usize)> {
@@ -180,6 +53,26 @@ unsafe fn create_heap(
             start,
             inputs.source_heap.GetCPUDescriptorHandleForHeapStart(),
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+        );
+        structured_srv(
+            device,
+            &inputs.occlusion.filtered_visible,
+            CANDIDATE_CAPACITY,
+            24,
+            cpu_handle(start, increment, 50),
+        );
+        structured_srv(
+            device,
+            inputs.source_visible,
+            CANDIDATE_CAPACITY,
+            24,
+            cpu_handle(start, increment, 61),
+        );
+        raw_srv(
+            device,
+            inputs.source_counters,
+            80,
+            cpu_handle(start, increment, 62),
         );
         structured_srv(
             device,
@@ -254,8 +147,79 @@ unsafe fn create_heap(
             DXGI_FORMAT_R32G32_UINT,
             cpu_handle(start, increment, 78),
         );
+        texture_srv(
+            device,
+            inputs.winner,
+            DXGI_FORMAT_R32G32_UINT,
+            D3D12_SRV_DIMENSION_TEXTURE2D,
+            cpu_handle(start, increment, 79),
+        );
+        structured_uav(
+            device,
+            &inputs.occlusion.filtered_visible,
+            CANDIDATE_CAPACITY,
+            24,
+            cpu_handle(start, increment, 80),
+        );
+        raw_uav(
+            device,
+            &inputs.occlusion.counters,
+            OCCLUSION_COUNTER_BYTES,
+            cpu_handle(start, increment, 81),
+        );
+        for mip in 0..inputs.occlusion.mip_count {
+            texture_mip_uav(
+                device,
+                &inputs.occlusion.hierarchy,
+                DXGI_FORMAT_R32_UINT,
+                mip,
+                cpu_handle(start, increment, 82 + mip as usize),
+            );
+        }
+        structured_uav(
+            device,
+            &inputs.occlusion.candidate_mask,
+            CANDIDATE_CAPACITY,
+            4,
+            cpu_handle(start, increment, 93),
+        );
+        structured_uav(
+            device,
+            &inputs.occlusion.group_offsets,
+            OCCLUSION_GROUPS,
+            4,
+            cpu_handle(start, increment, 94),
+        );
+        texture_srv_mips(
+            device,
+            &inputs.occlusion.hierarchy,
+            DXGI_FORMAT_R32_UINT,
+            inputs.occlusion.mip_count,
+            cpu_handle(start, increment, 95),
+        );
     }
     Ok((heap, increment))
+}
+
+unsafe fn raw_srv(
+    device: &ID3D12Device,
+    resource: &ID3D12Resource,
+    bytes: u64,
+    handle: D3D12_CPU_DESCRIPTOR_HANDLE,
+) {
+    let desc = D3D12_SHADER_RESOURCE_VIEW_DESC {
+        Format: DXGI_FORMAT_R32_TYPELESS,
+        ViewDimension: D3D12_SRV_DIMENSION_BUFFER,
+        Shader4ComponentMapping: D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+        Anonymous: D3D12_SHADER_RESOURCE_VIEW_DESC_0 {
+            Buffer: D3D12_BUFFER_SRV {
+                NumElements: (bytes / 4) as u32,
+                Flags: D3D12_BUFFER_SRV_FLAG_RAW,
+                ..Default::default()
+            },
+        },
+    };
+    unsafe { device.CreateShaderResourceView(resource, Some(&desc), handle) };
 }
 
 unsafe fn structured_srv(
@@ -271,10 +235,9 @@ unsafe fn structured_srv(
         Shader4ComponentMapping: D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         Anonymous: D3D12_SHADER_RESOURCE_VIEW_DESC_0 {
             Buffer: D3D12_BUFFER_SRV {
-                FirstElement: 0,
                 NumElements: count,
                 StructureByteStride: stride,
-                Flags: D3D12_BUFFER_SRV_FLAG_NONE,
+                ..Default::default()
             },
         },
     };
@@ -293,11 +256,9 @@ unsafe fn structured_uav(
         ViewDimension: D3D12_UAV_DIMENSION_BUFFER,
         Anonymous: D3D12_UNORDERED_ACCESS_VIEW_DESC_0 {
             Buffer: D3D12_BUFFER_UAV {
-                FirstElement: 0,
                 NumElements: count,
                 StructureByteStride: stride,
-                CounterOffsetInBytes: 0,
-                Flags: D3D12_BUFFER_UAV_FLAG_NONE,
+                ..Default::default()
             },
         },
     };
@@ -307,28 +268,23 @@ unsafe fn structured_uav(
 unsafe fn texture_srv(
     device: &ID3D12Device,
     resource: &ID3D12Resource,
-    format: windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT,
+    format: DXGI_FORMAT,
     dimension: D3D12_SRV_DIMENSION,
     handle: D3D12_CPU_DESCRIPTOR_HANDLE,
 ) {
     let anonymous = if dimension == D3D12_SRV_DIMENSION_TEXTURE2DARRAY {
         D3D12_SHADER_RESOURCE_VIEW_DESC_0 {
             Texture2DArray: D3D12_TEX2D_ARRAY_SRV {
-                MostDetailedMip: 0,
                 MipLevels: MIP_COUNT,
-                FirstArraySlice: 0,
                 ArraySize: MATERIAL_COUNT,
-                PlaneSlice: 0,
-                ResourceMinLODClamp: 0.0,
+                ..Default::default()
             },
         }
     } else {
         D3D12_SHADER_RESOURCE_VIEW_DESC_0 {
             Texture2D: D3D12_TEX2D_SRV {
-                MostDetailedMip: 0,
                 MipLevels: 1,
-                PlaneSlice: 0,
-                ResourceMinLODClamp: 0.0,
+                ..Default::default()
             },
         }
     };
@@ -344,7 +300,43 @@ unsafe fn texture_srv(
 unsafe fn texture_uav(
     device: &ID3D12Device,
     resource: &ID3D12Resource,
-    format: windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT,
+    format: DXGI_FORMAT,
+    handle: D3D12_CPU_DESCRIPTOR_HANDLE,
+) {
+    let desc = D3D12_UNORDERED_ACCESS_VIEW_DESC {
+        Format: format,
+        ViewDimension: D3D12_UAV_DIMENSION_TEXTURE2D,
+        ..Default::default()
+    };
+    unsafe { device.CreateUnorderedAccessView(resource, None, Some(&desc), handle) };
+}
+
+unsafe fn texture_srv_mips(
+    device: &ID3D12Device,
+    resource: &ID3D12Resource,
+    format: DXGI_FORMAT,
+    mip_count: u32,
+    handle: D3D12_CPU_DESCRIPTOR_HANDLE,
+) {
+    let desc = D3D12_SHADER_RESOURCE_VIEW_DESC {
+        Format: format,
+        ViewDimension: D3D12_SRV_DIMENSION_TEXTURE2D,
+        Shader4ComponentMapping: D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+        Anonymous: D3D12_SHADER_RESOURCE_VIEW_DESC_0 {
+            Texture2D: D3D12_TEX2D_SRV {
+                MipLevels: mip_count,
+                ..Default::default()
+            },
+        },
+    };
+    unsafe { device.CreateShaderResourceView(resource, Some(&desc), handle) };
+}
+
+unsafe fn texture_mip_uav(
+    device: &ID3D12Device,
+    resource: &ID3D12Resource,
+    format: DXGI_FORMAT,
+    mip: u32,
     handle: D3D12_CPU_DESCRIPTOR_HANDLE,
 ) {
     let desc = D3D12_UNORDERED_ACCESS_VIEW_DESC {
@@ -352,8 +344,8 @@ unsafe fn texture_uav(
         ViewDimension: D3D12_UAV_DIMENSION_TEXTURE2D,
         Anonymous: D3D12_UNORDERED_ACCESS_VIEW_DESC_0 {
             Texture2D: D3D12_TEX2D_UAV {
-                MipSlice: 0,
-                PlaneSlice: 0,
+                MipSlice: mip,
+                ..Default::default()
             },
         },
     };
@@ -371,18 +363,16 @@ unsafe fn raw_uav(
         ViewDimension: D3D12_UAV_DIMENSION_BUFFER,
         Anonymous: D3D12_UNORDERED_ACCESS_VIEW_DESC_0 {
             Buffer: D3D12_BUFFER_UAV {
-                FirstElement: 0,
                 NumElements: (bytes / 4) as u32,
-                StructureByteStride: 0,
-                CounterOffsetInBytes: 0,
                 Flags: D3D12_BUFFER_UAV_FLAG_RAW,
+                ..Default::default()
             },
         },
     };
     unsafe { device.CreateUnorderedAccessView(resource, None, Some(&desc), handle) };
 }
 
-fn cpu_handle(
+pub fn cpu_handle(
     start: D3D12_CPU_DESCRIPTOR_HANDLE,
     increment: usize,
     index: usize,
