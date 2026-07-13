@@ -30,6 +30,7 @@ pub struct AsyncResidentRenderer {
     width: u32,
     height: u32,
     published: Option<PublishedSnapshot>,
+    staged: Option<Publication>,
 }
 
 pub(in crate::rendering) struct PublishedSnapshot {
@@ -95,6 +96,7 @@ impl AsyncResidentRenderer {
             width,
             height,
             published: None,
+            staged: None,
         })
     }
 
@@ -119,6 +121,14 @@ impl AsyncResidentRenderer {
 
     pub fn reserve(&mut self, config: LoadConfig) -> Result<AsyncReservationReport> {
         self.transfer.reserve(config, &self.protected_slots())
+    }
+
+    pub(in crate::rendering) fn reserve_composition(
+        &mut self,
+        config: LoadConfig,
+    ) -> Result<AsyncReservationReport> {
+        self.transfer
+            .reserve_composition(config, &self.protected_slots())
     }
 
     pub fn cancel_reservation(&mut self, transaction_id: u64) -> Result<()> {
@@ -146,23 +156,74 @@ impl AsyncResidentRenderer {
         }
     }
 
+    pub(in crate::rendering) unsafe fn submit_generated(
+        &mut self,
+        transaction_id: u64,
+        uploads: Vec<RegionUpload>,
+        generation_ms: f64,
+        direct_queue: &ID3D12CommandQueue,
+        direct_fence: &ID3D12Fence,
+        direct_release_fence: u64,
+    ) -> Result<AsyncTransactionReport> {
+        unsafe {
+            self.transfer.submit(
+                transaction_id,
+                uploads,
+                PayloadPreparation::generated(generation_ms),
+                direct_queue,
+                direct_fence,
+                direct_release_fence,
+            )
+        }
+    }
+
     pub unsafe fn prepare_frame(
         &mut self,
         command_list: &ID3D12GraphicsCommandList,
     ) -> Option<AsyncTransactionReport> {
-        if let Some(Publication {
+        unsafe { self.stage_frame(command_list) };
+        self.commit_staged()
+    }
+
+    pub(in crate::rendering) unsafe fn stage_frame(
+        &mut self,
+        command_list: &ID3D12GraphicsCommandList,
+    ) -> bool {
+        if self.staged.is_some() {
+            return false;
+        }
+        let Some(publication) = (unsafe { self.transfer.poll_publication(command_list) }) else {
+            return false;
+        };
+        self.staged = Some(publication);
+        true
+    }
+
+    pub(in crate::rendering) fn commit_staged(&mut self) -> Option<AsyncTransactionReport> {
+        let Publication {
             config,
             active_slots,
             report,
-        }) = unsafe { self.transfer.poll_publication(command_list) }
-        {
-            self.published = Some(PublishedSnapshot {
-                config,
-                active_slots,
-            });
-            return Some(report);
-        }
-        None
+        } = self.staged.take()?;
+        self.published = Some(PublishedSnapshot {
+            config,
+            active_slots,
+        });
+        Some(report)
+    }
+
+    pub(in crate::rendering) fn discard_staged(&mut self) -> Option<AsyncTransactionReport> {
+        self.staged.take().map(|publication| publication.report)
+    }
+
+    pub(in crate::rendering) fn staged_report(&self) -> Option<&AsyncTransactionReport> {
+        self.staged.as_ref().map(|publication| &publication.report)
+    }
+
+    pub(in crate::rendering) fn staged_active_slots(&self) -> Option<&[u32]> {
+        self.staged
+            .as_ref()
+            .map(|publication| publication.active_slots.as_slice())
     }
 
     pub unsafe fn record(
@@ -388,7 +449,7 @@ impl AsyncResidentRenderer {
     }
 
     pub fn disable(&mut self) -> Result<()> {
-        if self.transfer.has_pending() || self.transfer.has_armed_gate() {
+        if self.transfer.has_pending() || self.transfer.has_armed_gate() || self.staged.is_some() {
             bail!("cannot disable async resident mode while a transaction or gate is active");
         }
         self.published = None;
@@ -401,9 +462,14 @@ impl AsyncResidentRenderer {
 
     fn protected_slots(&self) -> std::collections::BTreeSet<u32> {
         self.published
-            .as_ref()
-            .map(|snapshot| snapshot.active_slots.iter().copied().collect())
-            .unwrap_or_default()
+            .iter()
+            .flat_map(|snapshot| snapshot.active_slots.iter().copied())
+            .chain(
+                self.staged
+                    .iter()
+                    .flat_map(|publication| publication.active_slots.iter().copied()),
+            )
+            .collect()
     }
 }
 

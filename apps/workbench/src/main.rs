@@ -205,8 +205,13 @@ fn complete_frame(
     }
     if let Some(response) = pending.probe.take() {
         let result = outcome
-            .terrain_probe
-            .map(|probe| serde_json::to_value(probe).context("terrain probe encoding failed"))
+            .composition_probe
+            .map(|probe| serde_json::to_value(probe).context("composition probe encoding failed"))
+            .or_else(|| {
+                outcome.terrain_probe.map(|probe| {
+                    serde_json::to_value(probe).context("terrain probe encoding failed")
+                })
+            })
             .or_else(|| {
                 outcome.surface_probe.map(|probe| {
                     serde_json::to_value(probe).context("surface probe encoding failed")

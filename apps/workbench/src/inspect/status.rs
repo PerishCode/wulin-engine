@@ -10,7 +10,15 @@ use crate::{WorkbenchState, scene};
 use super::protocol::{ControlResult, ProtocolError};
 
 pub(crate) fn load_status(renderer: &Renderer) -> serde_json::Value {
-    if renderer.terrain_mode_enabled() {
+    if renderer.composition_enabled() {
+        json!({
+            "mode": "atomic-terrain-object-composition",
+            "load": renderer.load_config().map(|config| config.json()),
+            "composition": renderer.composition_status(),
+            "terrain": renderer.terrain_status(),
+            "skeletal": renderer.skeletal_scene_status(),
+        })
+    } else if renderer.terrain_mode_enabled() {
         json!({
             "mode": "gpu-streamed-terrain",
             "load": renderer.terrain_config().map(|config| config.json()),

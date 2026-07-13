@@ -126,6 +126,23 @@ impl AsyncRegionCache {
         config: LoadConfig,
         protected_slots: &BTreeSet<u32>,
     ) -> Result<AsyncLayoutPlan> {
+        self.plan_layout_ordered(config, protected_slots, false)
+    }
+
+    pub fn plan_composition_layout(
+        &self,
+        config: LoadConfig,
+        protected_slots: &BTreeSet<u32>,
+    ) -> Result<AsyncLayoutPlan> {
+        self.plan_layout_ordered(config, protected_slots, true)
+    }
+
+    fn plan_layout_ordered(
+        &self,
+        config: LoadConfig,
+        protected_slots: &BTreeSet<u32>,
+        high_slots_first: bool,
+    ) -> Result<AsyncLayoutPlan> {
         let desired = active_region_ids(config)?;
         let desired_set = desired.iter().copied().collect::<BTreeSet<_>>();
         let mut next = self.clone();
@@ -145,7 +162,12 @@ impl AsyncRegionCache {
             if next.slot_for(region_id).is_some() {
                 continue;
             }
-            let slot = if let Some(slot) = next.slots.iter().position(Option::is_none) {
+            let free_slot = if high_slots_first {
+                next.slots.iter().rposition(Option::is_none)
+            } else {
+                next.slots.iter().position(Option::is_none)
+            };
+            let slot = if let Some(slot) = free_slot {
                 slot
             } else {
                 let slot = next

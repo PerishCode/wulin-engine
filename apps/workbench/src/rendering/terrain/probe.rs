@@ -28,6 +28,12 @@ pub struct TerrainProbe {
     lod: TerrainLodEvidence,
 }
 
+impl TerrainProbe {
+    pub(in crate::rendering) fn total_gpu_ms(&self) -> f64 {
+        self.timing.total_ms
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GpuEdges {

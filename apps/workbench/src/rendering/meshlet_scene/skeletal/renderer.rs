@@ -1,16 +1,14 @@
-use animation_catalog::{BONE_COUNT, CLIP_COUNT, Catalog as AnimationCatalog};
+use animation_catalog::{CLIP_COUNT, Catalog as AnimationCatalog};
 use anyhow::{Result, ensure};
 use meshlet_catalog::{Catalog as MeshletCatalog, LOD_COUNT};
-use serde_json::{Value, json};
 use windows::Win32::Graphics::Direct3D12::*;
 
 use crate::scene::SceneState;
 
 use super::pipeline::{SKELETAL_CONSTANT_COUNT, SkeletalPipeline};
-use super::probe::{self, ProbeInput, SkeletalProbe};
 use super::resources::{
-    AnimationBuffers, COUNTER_BYTES, ExecutionResources, MAX_SHARED_POSES, MAX_SKELETAL_VISIBLE,
-    PALETTE_BYTES, SAMPLE_BYTES,
+    AnimationBuffers, COUNTER_BYTES, ExecutionResources, GROUND_BYTES, MAX_SHARED_POSES,
+    MAX_SKELETAL_VISIBLE, SAMPLE_BYTES,
 };
 use super::surface::{SurfaceFrame, SurfaceRenderer};
 use crate::rendering::async_resident::PublishedSnapshot;
@@ -46,15 +44,15 @@ pub struct SkeletalSceneRenderer {
     pipeline: SkeletalPipeline,
     pub(super) mesh_catalog: MeshletCatalog,
     pub(super) animation_catalog: AnimationCatalog,
-    mesh_catalog_sha256: String,
-    animation_catalog_sha256: String,
-    mesh_buffers: CatalogBuffers,
-    animation_buffers: AnimationBuffers,
+    pub(super) mesh_catalog_sha256: String,
+    pub(super) animation_catalog_sha256: String,
+    pub(super) mesh_buffers: CatalogBuffers,
+    pub(super) animation_buffers: AnimationBuffers,
     pub(super) resources: ExecutionResources,
     pub(super) surface: SurfaceRenderer,
     pub(super) timestamp_frequency: u64,
-    width: u32,
-    height: u32,
+    pub(super) width: u32,
+    pub(super) height: u32,
     pub(super) enabled: bool,
     pub(super) settings: SkeletalSettings,
 }
@@ -68,6 +66,8 @@ pub struct SkeletalFrame<'a> {
     pub depth_target: D3D12_CPU_DESCRIPTOR_HANDLE,
     pub background_color: [f32; 4],
     pub probe: bool,
+    pub terrain_slots: Option<&'a [u32]>,
+    pub clear_depth_semantic: bool,
 }
 
 impl SkeletalSceneRenderer {
@@ -75,6 +75,7 @@ impl SkeletalSceneRenderer {
         device: &ID3D12Device,
         queue: &ID3D12CommandQueue,
         region_heap: &ID3D12DescriptorHeap,
+        terrain_heap: &ID3D12DescriptorHeap,
         timestamp_frequency: u64,
         width: u32,
         height: u32,
@@ -91,6 +92,7 @@ impl SkeletalSceneRenderer {
             ExecutionResources::new(
                 device,
                 region_heap,
+                terrain_heap,
                 &mesh_catalog,
                 &animation_catalog,
                 &mesh_buffers,
@@ -160,44 +162,12 @@ impl SkeletalSceneRenderer {
         self.enabled
     }
 
-    pub fn status_json(&self) -> Value {
-        json!({
-            "revision": SKELETAL_REVISION,
-            "enabled": self.enabled,
-            "settings": self.settings_json(),
-            "catalog": {
-                "meshletSha256": self.mesh_catalog_sha256,
-                "animationSha256": self.animation_catalog_sha256,
-                "boneCount": BONE_COUNT,
-                "clipCount": CLIP_COUNT,
-                "sampleCountPerClip": animation_catalog::SAMPLE_COUNT,
-                "skinBindingCount": self.animation_catalog.skin_bindings.len(),
-                "meshletGpuBytes": self.mesh_buffers.total_bytes,
-                "animationGpuBytes": self.animation_buffers.total_bytes,
-            },
-            "resources": {
-                "visibleCapacity": MAX_SKELETAL_VISIBLE,
-                "sharedPoseCapacity": MAX_SHARED_POSES,
-                "uniquePoseCapacity": MAX_SKELETAL_VISIBLE,
-                "paletteBytes": PALETTE_BYTES,
-                "executionBytes": self.resources.execution_bytes,
-            },
-            "submission": {
-                "resetDispatchCount": 1,
-                "cullDispatchCount": 1,
-                "poseCompactDispatchCount": 1,
-                "indirectPoseDispatchCount": 1,
-                "indirectMeshDispatchCount": 1,
-            }
-        })
-    }
-
     pub unsafe fn record(
         &mut self,
         command_list: &ID3D12GraphicsCommandList,
         frame: SkeletalFrame<'_>,
     ) -> Result<()> {
-        let constants = self.constants(frame.scene, frame.snapshot);
+        let constants = self.constants(frame.scene, frame.snapshot, frame.terrain_slots);
         let gpu_start = unsafe { self.resources.heap.GetGPUDescriptorHandleForHeapStart() };
         unsafe {
             command_list.SetDescriptorHeaps(&[Some(self.resources.heap.clone())]);
@@ -221,6 +191,7 @@ impl SkeletalSceneRenderer {
             for resource in [
                 &self.resources.counters,
                 &self.resources.pose_bitset,
+                &self.resources.ground,
                 &self.resources.sample,
             ] {
                 uav_barrier(command_list, resource);
@@ -340,6 +311,27 @@ impl SkeletalSceneRenderer {
                     0,
                     SAMPLE_BYTES,
                 );
+                if frame.terrain_slots.is_some() {
+                    transition(
+                        command_list,
+                        &self.resources.ground,
+                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                        D3D12_RESOURCE_STATE_COPY_SOURCE,
+                    );
+                    command_list.CopyBufferRegion(
+                        &self.resources.ground_readback,
+                        0,
+                        &self.resources.ground,
+                        0,
+                        GROUND_BYTES,
+                    );
+                    transition(
+                        command_list,
+                        &self.resources.ground,
+                        D3D12_RESOURCE_STATE_COPY_SOURCE,
+                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                    );
+                }
                 transition(
                     command_list,
                     &self.resources.counters,
@@ -380,6 +372,14 @@ impl SkeletalSceneRenderer {
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
             );
+            if frame.terrain_slots.is_some() {
+                transition(
+                    command_list,
+                    &self.resources.ground,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                );
+            }
             transition(
                 command_list,
                 &self.resources.palette,
@@ -392,14 +392,16 @@ impl SkeletalSceneRenderer {
                 false,
                 Some(&frame.depth_target),
             );
-            command_list.ClearRenderTargetView(frame.render_targets[1], &[0.0; 4], None);
-            command_list.ClearDepthStencilView(
-                frame.depth_target,
-                D3D12_CLEAR_FLAG_DEPTH,
-                0.0,
-                0,
-                None,
-            );
+            if frame.clear_depth_semantic {
+                command_list.ClearRenderTargetView(frame.render_targets[1], &[0.0; 4], None);
+                command_list.ClearDepthStencilView(
+                    frame.depth_target,
+                    D3D12_CLEAR_FLAG_DEPTH,
+                    0.0,
+                    0,
+                    None,
+                );
+            }
             set_viewport(command_list, self.width, self.height);
             command_list.SetGraphicsRootSignature(&self.pipeline.root);
             command_list.SetPipelineState(&self.pipeline.graphics);
@@ -424,6 +426,14 @@ impl SkeletalSceneRenderer {
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
             );
+            if frame.terrain_slots.is_some() {
+                transition(
+                    command_list,
+                    &self.resources.ground,
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                );
+            }
             transition(
                 command_list,
                 &self.resources.palette,
@@ -433,44 +443,11 @@ impl SkeletalSceneRenderer {
         }
     }
 
-    pub unsafe fn read_probe(
-        &self,
-        snapshot: &PublishedSnapshot,
-        scene: &SceneState,
-    ) -> Result<SkeletalProbe> {
-        unsafe {
-            probe::read(ProbeInput {
-                resources: &self.resources,
-                mesh_catalog: &self.mesh_catalog,
-                animation_catalog: &self.animation_catalog,
-                mesh_catalog_sha256: &self.mesh_catalog_sha256,
-                animation_catalog_sha256: &self.animation_catalog_sha256,
-                settings: self.settings,
-                settings_json: self.settings_json(),
-                timestamp_frequency: self.timestamp_frequency,
-                width: self.width,
-                height: self.height,
-                snapshot,
-                scene,
-            })
-        }
-    }
-
-    fn settings_json(&self) -> Value {
-        json!({
-            "animatedPercent": self.settings.animated_percent,
-            "boneCount": self.settings.bone_count,
-            "phaseCount": self.settings.phase_count,
-            "timeTick": self.settings.time_tick,
-            "uniquePoses": self.settings.unique_poses,
-            "forcedLod": self.settings.forced_lod,
-        })
-    }
-
     fn constants(
         &self,
         scene: &SceneState,
         snapshot: &PublishedSnapshot,
+        terrain_slots: Option<&[u32]>,
     ) -> [u32; SKELETAL_CONSTANT_COUNT as usize] {
         let mut constants = [0u32; SKELETAL_CONSTANT_COUNT as usize];
         for (destination, value) in constants[..16].iter_mut().zip(
@@ -484,7 +461,10 @@ impl SkeletalSceneRenderer {
         constants[17] = MAX_SKELETAL_VISIBLE;
         constants[18] = (1 << CLIP_COUNT) - 1;
         constants[19] = self.settings.forced_lod.unwrap_or(u32::MAX);
-        constants[20..20 + snapshot.active_slots.len()].copy_from_slice(&snapshot.active_slots);
+        for (index, instance_slot) in snapshot.active_slots.iter().copied().enumerate() {
+            let terrain_slot = terrain_slots.map_or(0, |slots| slots[index]);
+            constants[20 + index] = instance_slot | (terrain_slot << 6);
+        }
         constants[48] = self.settings.animated_percent;
         constants[49] = self.settings.bone_count;
         constants[50] = self.settings.phase_count;
@@ -492,7 +472,7 @@ impl SkeletalSceneRenderer {
         constants[52] = u32::from(self.settings.unique_poses);
         constants[53] = MAX_SKELETAL_VISIBLE;
         constants[54] = MAX_SHARED_POSES;
-        constants[55] = 7;
+        constants[55] = u32::from(terrain_slots.is_some());
         constants
     }
 }

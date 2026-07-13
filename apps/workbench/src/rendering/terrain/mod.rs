@@ -1,14 +1,14 @@
 mod cache;
-mod control;
+pub(super) mod control;
 mod copy_timing;
 mod descriptors;
 mod lod;
 mod pipeline;
 mod probe;
+mod state;
 mod transfer;
 
-use anyhow::{Context, Result, ensure};
-use serde_json::{Value, json};
+use anyhow::{Context, Result};
 use windows::Win32::Graphics::Direct3D12::*;
 use windows::core::Interface;
 
@@ -50,6 +50,7 @@ pub struct TerrainRenderer {
     lod_settings: TerrainLodSettings,
     generation: u64,
     published: Option<PublishedTerrain>,
+    staged: Option<TerrainPublication>,
 }
 
 struct PublishedTerrain {
@@ -65,6 +66,7 @@ pub struct TerrainFrame<'a> {
     pub render_targets: [D3D12_CPU_DESCRIPTOR_HANDLE; 2],
     pub depth_target: D3D12_CPU_DESCRIPTOR_HANDLE,
     pub probe: bool,
+    pub clear_depth_semantic: bool,
 }
 
 impl TerrainRenderer {
@@ -158,15 +160,21 @@ impl TerrainRenderer {
             lod_settings: TerrainLodSettings::default(),
             generation: 0,
             published: None,
+            staged: None,
         })
     }
 
     pub fn reserve(&mut self, config: LoadConfig) -> Result<TerrainReservationReport> {
         let protected = self
             .published
-            .as_ref()
-            .map(|value| value.active.iter().map(|entry| entry.slot).collect())
-            .unwrap_or_default();
+            .iter()
+            .flat_map(|value| value.active.iter().map(|entry| entry.slot))
+            .chain(
+                self.staged
+                    .iter()
+                    .flat_map(|value| value.active.iter().map(|entry| entry.slot)),
+            )
+            .collect();
         self.transfer.reserve(config, &protected)
     }
 
@@ -193,14 +201,30 @@ impl TerrainRenderer {
         &mut self,
         command_list: &ID3D12GraphicsCommandList,
     ) -> Result<Option<TerrainTransactionReport>> {
-        let Some(TerrainPublication {
+        unsafe { self.stage_frame(command_list) }?;
+        Ok(self.commit_staged())
+    }
+
+    pub(in crate::rendering) unsafe fn stage_frame(
+        &mut self,
+        command_list: &ID3D12GraphicsCommandList,
+    ) -> Result<bool> {
+        if self.staged.is_some() {
+            return Ok(false);
+        }
+        let Some(publication) = unsafe { self.transfer.poll(command_list) }? else {
+            return Ok(false);
+        };
+        self.staged = Some(publication);
+        Ok(true)
+    }
+
+    pub(in crate::rendering) fn commit_staged(&mut self) -> Option<TerrainTransactionReport> {
+        let TerrainPublication {
             active,
             tiles,
             report,
-        }) = unsafe { self.transfer.poll(command_list) }?
-        else {
-            return Ok(None);
-        };
+        } = self.staged.take()?;
         self.generation += 1;
         self.published = Some(PublishedTerrain {
             config: report.config,
@@ -209,7 +233,21 @@ impl TerrainRenderer {
             generation: self.generation,
             report: report.clone(),
         });
-        Ok(Some(report))
+        Some(report)
+    }
+
+    pub(in crate::rendering) fn discard_staged(&mut self) -> Option<TerrainTransactionReport> {
+        self.staged.take().map(|publication| publication.report)
+    }
+
+    pub(in crate::rendering) fn staged_report(&self) -> Option<&TerrainTransactionReport> {
+        self.staged.as_ref().map(|publication| &publication.report)
+    }
+
+    pub(in crate::rendering) fn staged_assignments(&self) -> Option<&[TerrainAssignment]> {
+        self.staged
+            .as_ref()
+            .map(|publication| publication.active.as_slice())
     }
 
     pub unsafe fn record(
@@ -265,14 +303,16 @@ impl TerrainRenderer {
                 false,
                 Some(&frame.depth_target),
             );
-            command_list.ClearRenderTargetView(frame.render_targets[1], &[0.0; 4], None);
-            command_list.ClearDepthStencilView(
-                frame.depth_target,
-                D3D12_CLEAR_FLAG_DEPTH,
-                0.0,
-                0,
-                None,
-            );
+            if frame.clear_depth_semantic {
+                command_list.ClearRenderTargetView(frame.render_targets[1], &[0.0; 4], None);
+                command_list.ClearDepthStencilView(
+                    frame.depth_target,
+                    D3D12_CLEAR_FLAG_DEPTH,
+                    0.0,
+                    0,
+                    None,
+                );
+            }
             set_viewport(command_list, self.width, self.height);
             command_list.SetGraphicsRootSignature(&self.pipeline.root);
             command_list.SetGraphicsRoot32BitConstants(
@@ -337,91 +377,6 @@ impl TerrainRenderer {
             }
         }
         Ok(())
-    }
-
-    pub fn enable(&mut self) -> Result<()> {
-        ensure!(
-            self.published.is_some(),
-            "terrain requires a published snapshot"
-        );
-        self.enabled = true;
-        Ok(())
-    }
-
-    pub fn disable(&mut self) {
-        self.enabled = false;
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
-    }
-
-    pub fn config(&self) -> Option<LoadConfig> {
-        self.published.as_ref().map(|value| value.config)
-    }
-
-    pub fn status_json(&self) -> Value {
-        json!({
-            "revision": TERRAIN_REVISION,
-            "enabled": self.enabled,
-            "published": self.published.as_ref().map(|value| json!({
-                "config": value.config,
-                "generation": value.generation,
-                "active": value.active,
-                "transaction": value.report,
-            })),
-            "transfer": self.transfer.status_json(),
-            "lod": {
-                "revision": lod::LOD_REVISION,
-                "settings": self.lod_settings,
-                "submission": {
-                    "dispatchCount": u32::from(self.lod_settings.enabled),
-                    "dispatchGroups": [PATCH_GROUP_COUNT, 2, 1],
-                },
-            },
-            "submission": {
-                "meshDispatchCount": 1,
-                "meshDispatchGroups": [PATCH_GROUP_COUNT, 1, 1],
-                "seamDispatchCount": 1,
-                "seamDispatchGroups": [25, 2, 1],
-            },
-        })
-    }
-
-    pub fn configure_lod(
-        &mut self,
-        near_patch_radius: u32,
-        middle_patch_radius: u32,
-        forced_lod: Option<u32>,
-    ) -> Result<()> {
-        self.lod_settings =
-            self.lod_settings
-                .configured(near_patch_radius, middle_patch_radius, forced_lod)?;
-        Ok(())
-    }
-
-    pub fn enable_lod(&mut self) {
-        self.lod_settings.enabled = true;
-    }
-
-    pub fn disable_lod(&mut self) {
-        self.lod_settings.enabled = false;
-    }
-
-    pub fn lod_settings(&self) -> TerrainLodSettings {
-        self.lod_settings
-    }
-
-    pub fn arm_copy_gate(&mut self) -> Result<u64> {
-        self.transfer.arm_gate()
-    }
-
-    pub unsafe fn release_copy_gate(&mut self) -> Result<u64> {
-        unsafe { self.transfer.release_gate() }
-    }
-
-    pub unsafe fn wait_idle(&mut self) -> Result<()> {
-        unsafe { self.transfer.wait_idle() }
     }
 }
 

@@ -112,9 +112,15 @@ export function same(actual: unknown, expected: unknown, label: string): void {
     }
 }
 
-export function distribution(values: number[]): Record<string, number> {
-    if (values.some((value) => !Number.isFinite(value) || value <= 0)) {
-        fail("invalid GPU timing sample");
+export function distribution(
+    values: number[],
+    label = "GPU timing",
+    allowZero = false,
+): Record<string, number> {
+    if (
+        values.some((value) => !Number.isFinite(value) || value < 0 || (!allowZero && value === 0))
+    ) {
+        fail(`invalid ${label} sample: ${JSON.stringify(values)}`);
     }
     const sorted = [...values].sort((left, right) => left - right);
     const at = (fraction: number) => sorted[Math.ceil(fraction * sorted.length) - 1];

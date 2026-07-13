@@ -108,7 +108,7 @@ async function configureSurface(args: string[]): Promise<void> {
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|occlusion-enable|occlusion-disable|occlusion-reset|terrain|terrain-open|terrain-schedule|terrain-enable|terrain-disable|terrain-lod|terrain-lod-config|terrain-lod-enable|terrain-lod-disable|terrain-io-gate-arm|terrain-io-gate-release|terrain-copy-gate-arm|terrain-copy-gate-release|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|occlusion-enable|occlusion-disable|occlusion-reset|terrain|terrain-open|terrain-schedule|terrain-enable|terrain-disable|terrain-lod|terrain-lod-config|terrain-lod-enable|terrain-lod-disable|terrain-io-gate-arm|terrain-io-gate-release|terrain-copy-gate-arm|terrain-copy-gate-release|composition|composition-schedule|composition-enable|composition-disable|composition-order|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -280,6 +280,54 @@ switch (verb) {
             "json",
         ]);
         break;
+    case "composition":
+        if (args.length > 0) fail("workbench: composition does not accept arguments");
+        await run(["inspect", "workbench", "composition.status", "--format", "json"]);
+        break;
+    case "composition-schedule": {
+        if (args.length !== 2) {
+            fail("workbench: composition-schedule requires center x and center z");
+        }
+        await run([
+            "inspect",
+            "workbench",
+            "composition.schedule",
+            JSON.stringify({
+                world_region_side: 128,
+                active_center_x: pixel(args[0], "active center x"),
+                active_center_z: pixel(args[1], "active center z"),
+                active_radius: 2,
+            }),
+            "--format",
+            "json",
+        ]);
+        break;
+    }
+    case "composition-enable":
+    case "composition-disable":
+        if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
+        await run([
+            "inspect",
+            "workbench",
+            verb === "composition-enable" ? "composition.enable" : "composition.disable",
+            "--format",
+            "json",
+        ]);
+        break;
+    case "composition-order": {
+        if (args.length !== 1 || !["terrain-first", "object-first"].includes(args[0])) {
+            fail("workbench: composition-order requires terrain-first or object-first");
+        }
+        await run([
+            "inspect",
+            "workbench",
+            "composition.order",
+            JSON.stringify({ order: args[0] }),
+            "--format",
+            "json",
+        ]);
+        break;
+    }
     case "meshlet":
         if (args.length > 0) fail("workbench: meshlet does not accept arguments");
         await run(["inspect", "workbench", "meshlet.status", "--format", "json"]);

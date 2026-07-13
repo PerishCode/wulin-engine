@@ -385,15 +385,15 @@ impl TerrainTransfer {
         Ok(value)
     }
 
+    pub fn descriptor_heap(&self) -> &ID3D12DescriptorHeap {
+        &self.heap
+    }
+
     pub unsafe fn release_gate(&mut self) -> Result<u64> {
         let value = self.armed_gate.context("terrain copy gate is not armed")?;
         unsafe { self.gate_fence.Signal(value) }.context("terrain copy gate signal failed")?;
         self.armed_gate = None;
         Ok(value)
-    }
-
-    pub fn descriptor_heap(&self) -> &ID3D12DescriptorHeap {
-        &self.heap
     }
 
     pub fn status_json(&self) -> serde_json::Value {

@@ -36,6 +36,7 @@ pub fn evaluate(
     scene: &SceneState,
     width: u32,
     height: u32,
+    ground_numerators: Option<&[i32]>,
 ) -> Result<WorkloadCounts> {
     let matrix = scene.view_projection(width as f32 / height as f32);
     let mut counts = WorkloadCounts {
@@ -54,9 +55,14 @@ pub fn evaluate(
         observed_archetype_mask: 0,
     };
     let mut shared_poses = BTreeSet::new();
-    for region_id in active_region_ids(config)? {
+    for (active_index, region_id) in active_region_ids(config)?.into_iter().enumerate() {
         for (local_index, instance) in generate_region(region_id).into_iter().enumerate() {
-            let center = Vec3::from_array(instance.position) + Vec3::Y * instance.height * 0.5;
+            let logical_index =
+                active_index * crate::load::INSTANCES_PER_REGION as usize + local_index;
+            let ground =
+                ground_numerators.map_or(0.0, |values| values[logical_index] as f32 / 512.0);
+            let center =
+                Vec3::from_array(instance.position) + Vec3::Y * (ground + instance.height * 0.5);
             let clip = matrix * Vec4::new(center.x, center.y, center.z, 1.0);
             let stable_key = region_id * 1024 + local_index as u32;
             let archetype = stable_key & 7;

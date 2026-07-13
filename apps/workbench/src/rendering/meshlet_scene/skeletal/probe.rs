@@ -57,6 +57,22 @@ pub struct SkeletalProbe {
     pub gpu_total_ms: f64,
 }
 
+impl SkeletalProbe {
+    pub(in crate::rendering) fn visible_count(&self) -> u32 {
+        self.gpu.visible
+    }
+
+    pub(in crate::rendering) fn gpu_timing(&self) -> [f64; 5] {
+        [
+            self.gpu_cull_classify_ms,
+            self.gpu_pose_compact_ms,
+            self.gpu_pose_evaluate_ms,
+            self.gpu_mesh_skin_ms,
+            self.gpu_total_ms,
+        ]
+    }
+}
+
 pub struct ProbeInput<'a> {
     pub resources: &'a ExecutionResources,
     pub mesh_catalog: &'a MeshletCatalog,
@@ -70,6 +86,7 @@ pub struct ProbeInput<'a> {
     pub height: u32,
     pub snapshot: &'a PublishedSnapshot,
     pub scene: &'a SceneState,
+    pub ground_numerators: Option<&'a [i32]>,
 }
 
 pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
@@ -100,6 +117,7 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
         input.scene,
         input.width,
         input.height,
+        input.ground_numerators,
     )?;
     if gpu != cpu_oracle {
         bail!("skeletal GPU counters {gpu:?} differ from CPU oracle {cpu_oracle:?}");

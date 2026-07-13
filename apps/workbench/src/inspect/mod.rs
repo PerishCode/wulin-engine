@@ -1,4 +1,5 @@
 mod app;
+mod composition_control;
 mod protocol;
 mod server;
 mod status;
