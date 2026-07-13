@@ -8,6 +8,12 @@ use windows::Win32::Graphics::Dxgi::{
 
 const NVIDIA_VENDOR_ID: u32 = 0x10de;
 
+#[derive(Clone, Copy)]
+pub(super) struct DeviceCapabilities {
+    pub mesh_shader_tier: u32,
+    pub shader_model: &'static str,
+}
+
 pub(super) unsafe fn enable_debug_layer() -> Result<()> {
     let mut debug = None;
     unsafe { D3D12GetDebugInterface(&mut debug) }.context("D3D12 debug layer is unavailable")?;
@@ -40,6 +46,65 @@ pub(super) unsafe fn select_reference_adapter(
         }
     }
     bail!("no NVIDIA adapter was found on the reference platform")
+}
+
+pub(super) unsafe fn query_required_capabilities(
+    device: &ID3D12Device,
+) -> Result<DeviceCapabilities> {
+    let mut options = D3D12_FEATURE_DATA_D3D12_OPTIONS7::default();
+    unsafe {
+        device.CheckFeatureSupport(
+            D3D12_FEATURE_D3D12_OPTIONS7,
+            (&raw mut options).cast(),
+            size_of::<D3D12_FEATURE_DATA_D3D12_OPTIONS7>() as u32,
+        )
+    }
+    .context("D3D12 options7 query failed")?;
+
+    let mut shader_model = D3D12_FEATURE_DATA_SHADER_MODEL {
+        HighestShaderModel: D3D_HIGHEST_SHADER_MODEL,
+    };
+    unsafe {
+        device.CheckFeatureSupport(
+            D3D12_FEATURE_SHADER_MODEL,
+            (&raw mut shader_model).cast(),
+            size_of::<D3D12_FEATURE_DATA_SHADER_MODEL>() as u32,
+        )
+    }
+    .context("D3D12 shader-model query failed")?;
+
+    if options.MeshShaderTier.0 < D3D12_MESH_SHADER_TIER_1.0 {
+        bail!(
+            "reference adapter does not support mesh shaders (tier {})",
+            options.MeshShaderTier.0
+        );
+    }
+    if shader_model.HighestShaderModel.0 < D3D_SHADER_MODEL_6_6.0 {
+        bail!(
+            "reference adapter shader model {} is below 6.6",
+            shader_model_name(shader_model.HighestShaderModel)
+        );
+    }
+    Ok(DeviceCapabilities {
+        mesh_shader_tier: (options.MeshShaderTier.0 / 10) as u32,
+        shader_model: shader_model_name(shader_model.HighestShaderModel),
+    })
+}
+
+fn shader_model_name(model: D3D_SHADER_MODEL) -> &'static str {
+    match model {
+        D3D_SHADER_MODEL_6_9 => "6.9",
+        D3D_SHADER_MODEL_6_8 => "6.8",
+        D3D_SHADER_MODEL_6_7 => "6.7",
+        D3D_SHADER_MODEL_6_6 => "6.6",
+        D3D_SHADER_MODEL_6_5 => "6.5",
+        D3D_SHADER_MODEL_6_4 => "6.4",
+        D3D_SHADER_MODEL_6_3 => "6.3",
+        D3D_SHADER_MODEL_6_2 => "6.2",
+        D3D_SHADER_MODEL_6_1 => "6.1",
+        D3D_SHADER_MODEL_6_0 => "6.0",
+        _ => "unknown",
+    }
 }
 
 pub(super) unsafe fn transition(

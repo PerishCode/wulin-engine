@@ -10,7 +10,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use crate::rendering::Renderer;
 use crate::{PendingCapture, PendingOperations, WorkbenchState, load, perception, scene, window};
 
-use super::server::{ControlCommand, ControlKind, ControlResult, ProtocolError};
+use super::protocol::{ControlKind, ControlResult, ProtocolError};
+use super::server::ControlCommand;
 
 pub(crate) fn handle_commands(
     hwnd: HWND,
@@ -90,6 +91,28 @@ pub(crate) fn handle_commands(
                     code: "gate_failed",
                     message: error.to_string(),
                 }),
+            ControlKind::MeshletStatus => Ok(renderer.meshlet_scene_status()),
+            ControlKind::MeshletConfigure {
+                archetype_mask,
+                forced_lod,
+            } => renderer
+                .configure_meshlet_scene(archetype_mask, forced_lod)
+                .map(|()| renderer.meshlet_scene_status())
+                .map_err(|error| ProtocolError {
+                    code: "invalid_meshlet_config",
+                    message: error.to_string(),
+                }),
+            ControlKind::MeshletEnable => renderer
+                .enable_meshlet_scene()
+                .map(|()| renderer.meshlet_scene_status())
+                .map_err(|error| ProtocolError {
+                    code: "meshlet_unavailable",
+                    message: error.to_string(),
+                }),
+            ControlKind::MeshletDisable => {
+                renderer.disable_meshlet_scene();
+                Ok(renderer.meshlet_scene_status())
+            }
             ControlKind::LoadDisable => renderer
                 .disable_load()
                 .map(|()| load_status(renderer))
@@ -334,6 +357,7 @@ pub(crate) fn load_status(renderer: &Renderer) -> serde_json::Value {
             "load": renderer.async_resident_config().map(|config| config.json()),
             "async": renderer.async_resident_status(),
             "cooked": renderer.cooked_status(),
+            "meshlet": renderer.meshlet_scene_status(),
         })
     } else if let Some(config) = renderer.resident_config() {
         json!({"mode": "resident-load", "load": config.json()})
@@ -400,6 +424,8 @@ fn status(
             "api": "D3D12",
             "adapter": renderer.adapter_name(),
             "featureLevel": "12_1",
+            "meshShaderTier": renderer.mesh_shader_tier(),
+            "shaderModel": renderer.shader_model(),
             "swapChainBuffers": 2,
             "format": "R8G8B8A8_UNORM",
             "vsync": true,

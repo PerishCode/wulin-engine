@@ -32,9 +32,9 @@ pub struct AsyncResidentRenderer {
     published: Option<PublishedSnapshot>,
 }
 
-struct PublishedSnapshot {
-    config: LoadConfig,
-    active_slots: Vec<u32>,
+pub(in crate::rendering) struct PublishedSnapshot {
+    pub config: LoadConfig,
+    pub active_slots: Vec<u32>,
 }
 
 impl AsyncResidentRenderer {
@@ -375,6 +375,14 @@ impl AsyncResidentRenderer {
         self.published.as_ref().map(|snapshot| snapshot.config)
     }
 
+    pub(in crate::rendering) fn snapshot(&self) -> Option<&PublishedSnapshot> {
+        self.published.as_ref()
+    }
+
+    pub(in crate::rendering) fn descriptor_heap(&self) -> &ID3D12DescriptorHeap {
+        self.transfer.descriptor_heap()
+    }
+
     pub fn is_enabled(&self) -> bool {
         self.published.is_some() || self.transfer.has_pending()
     }
@@ -415,6 +423,6 @@ fn async_constants(
     }
     constants[16] = snapshot.config.active_region_count();
     constants[17] = MAX_VISIBLE_INSTANCES;
-    constants[20..45].copy_from_slice(&snapshot.active_slots);
+    constants[20..20 + snapshot.active_slots.len()].copy_from_slice(&snapshot.active_slots);
     constants
 }

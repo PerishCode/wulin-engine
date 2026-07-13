@@ -1,5 +1,7 @@
 mod app;
+mod protocol;
 mod server;
 
 pub(crate) use app::{handle_commands, load_status};
-pub use server::{ControlResult, InspectServer, ProtocolError};
+pub use protocol::{ControlResult, ProtocolError};
+pub use server::InspectServer;

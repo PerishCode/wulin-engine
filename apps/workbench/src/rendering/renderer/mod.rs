@@ -13,14 +13,18 @@ use crate::async_resident::AsyncTransactionReport;
 use crate::cooked::CookedStreamer;
 use crate::load::LoadConfig;
 use crate::resident::StreamReport;
-use crate::scene::SceneState;
 
 use super::async_resident::AsyncResidentRenderer;
-use super::device::{enable_debug_layer, select_reference_adapter, transition};
+use super::calibration::SceneRenderer;
+use super::device::{
+    DeviceCapabilities, enable_debug_layer, query_required_capabilities, select_reference_adapter,
+};
 use super::gpu_capture::{CapturedPixels, Readback};
 use super::load::{LoadProbe, LoadRenderer};
+use super::meshlet_scene::{MeshletProbe, MeshletSceneRenderer};
 use super::resident::ResidentRenderer;
-use super::scene_renderer::SceneRenderer;
+
+mod frame;
 
 const BUFFER_COUNT: usize = 2;
 
@@ -48,8 +52,10 @@ pub struct Renderer {
     pub(super) resident_renderer: ResidentRenderer,
     pub(super) cooked_streamer: CookedStreamer,
     pub(super) async_resident_renderer: AsyncResidentRenderer,
+    meshlet_scene_renderer: MeshletSceneRenderer,
     adapter_name: String,
     debug_layer: bool,
+    capabilities: DeviceCapabilities,
 }
 
 pub struct CapturedFrame {
@@ -60,6 +66,7 @@ pub struct CapturedFrame {
 pub struct RenderOutcome {
     pub capture: Option<CapturedFrame>,
     pub load_probe: Option<LoadProbe>,
+    pub meshlet_probe: Option<MeshletProbe>,
     pub resident_stream: Option<StreamReport>,
 }
 
@@ -84,6 +91,7 @@ impl Renderer {
         unsafe { D3D12CreateDevice(&adapter, D3D_FEATURE_LEVEL_12_1, &mut device) }
             .context("D3D12CreateDevice failed")?;
         let device: ID3D12Device = device.context("D3D12CreateDevice returned no device")?;
+        let capabilities = unsafe { query_required_capabilities(&device) }?;
 
         let queue_desc = D3D12_COMMAND_QUEUE_DESC {
             Type: D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -152,6 +160,9 @@ impl Renderer {
             unsafe { ResidentRenderer::new(&device, timestamp_frequency, width, height) }?;
         let async_resident_renderer =
             unsafe { AsyncResidentRenderer::new(&device, timestamp_frequency, width, height) }?;
+        let meshlet_scene_renderer = unsafe {
+            MeshletSceneRenderer::new(&device, &queue, timestamp_frequency, width, height)
+        }?;
 
         let mut allocators = Vec::with_capacity(BUFFER_COUNT);
         for _ in 0..BUFFER_COUNT {
@@ -191,175 +202,15 @@ impl Renderer {
             resident_renderer,
             cooked_streamer: CookedStreamer::default(),
             async_resident_renderer,
+            meshlet_scene_renderer,
             adapter_name,
             debug_layer,
-        })
-    }
-
-    pub unsafe fn render(
-        &mut self,
-        color: [f32; 4],
-        capture: bool,
-        capture_object_ids: bool,
-        probe_load: bool,
-        scene: &SceneState,
-    ) -> Result<RenderOutcome> {
-        debug_assert!(!capture_object_ids || capture);
-        debug_assert!(!probe_load || self.load_config().is_some());
-        unsafe { self.poll_cooked_completion()? };
-        let stream_resident = self.resident_renderer.has_pending_stream();
-        let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() } as usize;
-        unsafe { self.wait_for_buffer(index)? };
-        unsafe { self.allocators[index].Reset() }.context("command allocator reset failed")?;
-        unsafe { self.command_list.Reset(&self.allocators[index], None) }
-            .context("command list reset failed")?;
-        let publication = unsafe {
-            self.async_resident_renderer
-                .prepare_frame(&self.command_list)
-        };
-        if let Some(report) = publication.as_ref()
-            && self.cooked_streamer.has_pending()
-        {
-            self.cooked_streamer.mark_published(report)?;
-        }
-
-        unsafe {
-            transition(
-                &self.command_list,
-                &self.back_buffers[index],
-                D3D12_RESOURCE_STATE_PRESENT,
-                D3D12_RESOURCE_STATE_RENDER_TARGET,
-            );
-        }
-        let handle = self.rtv_handle(index);
-        unsafe {
-            self.command_list
-                .OMSetRenderTargets(1, Some(&handle), true, None);
-            self.command_list
-                .ClearRenderTargetView(handle, &color, None);
-            if self.async_resident_renderer.config().is_some() {
-                self.async_resident_renderer.record(
-                    &self.command_list,
-                    scene,
-                    [handle, self.scene_renderer.object_id_handle()],
-                    self.scene_renderer.depth_handle(),
-                    probe_load,
-                )?;
-            } else if self.resident_renderer.config().is_some() {
-                self.resident_renderer.record(
-                    &self.command_list,
-                    scene,
-                    [handle, self.scene_renderer.object_id_handle()],
-                    self.scene_renderer.depth_handle(),
-                    probe_load,
-                )?;
-            } else if self.load_renderer.config().is_some() {
-                self.load_renderer.record(
-                    &self.command_list,
-                    scene,
-                    [handle, self.scene_renderer.object_id_handle()],
-                    self.scene_renderer.depth_handle(),
-                    probe_load,
-                )?;
-            } else {
-                self.scene_renderer
-                    .record(&self.command_list, scene, handle);
-            }
-            if capture_object_ids {
-                transition(
-                    &self.command_list,
-                    self.scene_renderer.object_id_resource(),
-                    D3D12_RESOURCE_STATE_RENDER_TARGET,
-                    D3D12_RESOURCE_STATE_COPY_SOURCE,
-                );
-                self.object_id_capture
-                    .record(&self.command_list, self.scene_renderer.object_id_resource());
-                transition(
-                    &self.command_list,
-                    self.scene_renderer.object_id_resource(),
-                    D3D12_RESOURCE_STATE_COPY_SOURCE,
-                    D3D12_RESOURCE_STATE_RENDER_TARGET,
-                );
-            }
-            if capture {
-                transition(
-                    &self.command_list,
-                    &self.back_buffers[index],
-                    D3D12_RESOURCE_STATE_RENDER_TARGET,
-                    D3D12_RESOURCE_STATE_COPY_SOURCE,
-                );
-                self.capture
-                    .record(&self.command_list, &self.back_buffers[index]);
-                transition(
-                    &self.command_list,
-                    &self.back_buffers[index],
-                    D3D12_RESOURCE_STATE_COPY_SOURCE,
-                    D3D12_RESOURCE_STATE_PRESENT,
-                );
-            } else {
-                transition(
-                    &self.command_list,
-                    &self.back_buffers[index],
-                    D3D12_RESOURCE_STATE_RENDER_TARGET,
-                    D3D12_RESOURCE_STATE_PRESENT,
-                );
-            }
-            self.command_list.Close()
-        }
-        .context("command list close failed")?;
-
-        let list: ID3D12CommandList = self.command_list.cast()?;
-        unsafe {
-            self.queue.ExecuteCommandLists(&[Some(list)]);
-            self.swap_chain.Present(1, DXGI_PRESENT(0)).ok()
-        }
-        .context("Present failed")?;
-
-        let signal = self.next_fence_value;
-        self.next_fence_value += 1;
-        unsafe { self.queue.Signal(&self.fence, signal) }.context("queue signal failed")?;
-        self.fence_values[index] = signal;
-        if capture || probe_load || stream_resident {
-            unsafe { self.wait_for_value(signal)? };
-            let captured_frame = if capture {
-                let color = unsafe { self.capture.read() }?;
-                let object_ids = if capture_object_ids {
-                    Some(unsafe { self.object_id_capture.read() }?)
-                } else {
-                    None
-                };
-                Some(CapturedFrame { color, object_ids })
-            } else {
-                None
-            };
-            let load_probe = if probe_load && self.async_resident_renderer.config().is_some() {
-                Some(unsafe { self.async_resident_renderer.read_probe() }?)
-            } else if probe_load && self.resident_renderer.config().is_some() {
-                Some(unsafe { self.resident_renderer.read_probe() }?)
-            } else if probe_load {
-                Some(unsafe { self.load_renderer.read_probe() }?)
-            } else {
-                None
-            };
-            let resident_stream = if stream_resident {
-                Some(self.resident_renderer.complete_stream()?)
-            } else {
-                None
-            };
-            return Ok(RenderOutcome {
-                capture: captured_frame,
-                load_probe,
-                resident_stream,
-            });
-        }
-        Ok(RenderOutcome {
-            capture: None,
-            load_probe: None,
-            resident_stream: None,
+            capabilities,
         })
     }
 
     pub fn configure_load(&mut self, config: LoadConfig) -> Result<()> {
+        self.meshlet_scene_renderer.disable();
         self.async_resident_renderer.disable()?;
         self.resident_renderer.disable();
         self.load_renderer.configure(config);
@@ -367,12 +218,14 @@ impl Renderer {
     }
 
     pub unsafe fn stream_resident(&mut self, config: LoadConfig) -> Result<()> {
+        self.meshlet_scene_renderer.disable();
         self.async_resident_renderer.disable()?;
         self.load_renderer.disable();
         unsafe { self.resident_renderer.prepare_stream(config) }
     }
 
     pub fn disable_load(&mut self) -> Result<()> {
+        self.meshlet_scene_renderer.disable();
         self.async_resident_renderer.disable()?;
         self.load_renderer.disable();
         self.resident_renderer.disable();
@@ -412,6 +265,31 @@ impl Renderer {
         self.async_resident_renderer.is_enabled()
     }
 
+    pub fn configure_meshlet_scene(
+        &mut self,
+        archetype_mask: u32,
+        forced_lod: Option<u32>,
+    ) -> Result<()> {
+        self.meshlet_scene_renderer
+            .configure(archetype_mask, forced_lod)
+    }
+
+    pub fn enable_meshlet_scene(&mut self) -> Result<()> {
+        if self.async_resident_renderer.config().is_none() {
+            bail!("meshlet scene requires a published async resident snapshot");
+        }
+        self.meshlet_scene_renderer.enable();
+        Ok(())
+    }
+
+    pub fn disable_meshlet_scene(&mut self) {
+        self.meshlet_scene_renderer.disable();
+    }
+
+    pub fn meshlet_scene_status(&self) -> serde_json::Value {
+        self.meshlet_scene_renderer.status_json()
+    }
+
     pub fn arm_async_copy_gate(&mut self) -> Result<u64> {
         self.async_resident_renderer.arm_gate()
     }
@@ -430,6 +308,14 @@ impl Renderer {
 
     pub fn debug_layer(&self) -> bool {
         self.debug_layer
+    }
+
+    pub fn mesh_shader_tier(&self) -> u32 {
+        self.capabilities.mesh_shader_tier
+    }
+
+    pub fn shader_model(&self) -> &str {
+        self.capabilities.shader_model
     }
 
     pub unsafe fn wait_idle(&mut self) -> Result<()> {
