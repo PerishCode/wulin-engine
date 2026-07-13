@@ -29,14 +29,18 @@ impl AsyncTransfer {
             })
         });
         let reservation = self.reservation.as_ref().map(|reservation| {
-            json!({
+            let mut value = json!({
                 "stage": "materializing",
                 "transactionId": reservation.transaction_id,
                 "config": reservation.layout.config,
                 "counts": reservation.layout.counts,
                 "assignments": reservation.layout.assignments,
                 "pendingMs": reservation.started_at.elapsed().as_secs_f64() * 1_000.0,
-            })
+            });
+            if let Some(global) = reservation.layout.global_config {
+                value["globalConfig"] = json!(global);
+            }
+            value
         });
         json!({
             "revision": ASYNC_RESIDENT_REVISION,

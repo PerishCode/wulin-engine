@@ -1,9 +1,9 @@
-type Run = (args: string[]) => Promise<void>;
+type RunSidecar = (args: string[]) => Promise<void>;
 
 export async function dispatchWorld(
     verb: string | undefined,
     args: string[],
-    run: Run,
+    run: RunSidecar,
 ): Promise<boolean> {
     if (!verb?.startsWith("world")) return false;
     if (["world", "world-reset", "world-probe"].includes(verb)) {

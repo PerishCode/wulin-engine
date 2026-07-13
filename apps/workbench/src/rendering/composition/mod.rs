@@ -6,14 +6,16 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use windows::Win32::Graphics::Direct3D12::ID3D12GraphicsCommandList;
 
+use crate::address::GlobalRegionConfig;
 use crate::load::LoadConfig;
-use crate::resident::active_region_ids;
+use crate::world::RegionCoord;
 
 use super::renderer::Renderer;
 use super::terrain::control::TerrainPollOutcome;
 
 mod contact;
 mod fixture;
+mod global;
 mod probe;
 mod state;
 mod traversal;
@@ -43,6 +45,7 @@ enum HalfState {
 struct PendingPair {
     token: u64,
     config: LoadConfig,
+    global_config: Option<GlobalRegionConfig>,
     fixture: CompositionFixture,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
@@ -58,6 +61,8 @@ struct PendingPair {
 struct PublishedPair {
     token: u64,
     config: LoadConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global_config: Option<GlobalRegionConfig>,
     fixture: CompositionFixture,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
@@ -68,6 +73,10 @@ struct PublishedPair {
     terrain_slots: Vec<u32>,
     instance_mapping_sha256: String,
     terrain_mapping_sha256: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global_regions: Option<Vec<RegionCoord>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global_mapping_sha256: Option<String>,
     publication_ms: f64,
     camera_driven: bool,
 }
@@ -90,12 +99,13 @@ impl Renderer {
             !self.composition.traversal.is_enabled(),
             "camera traversal owns composition scheduling"
         );
-        unsafe { self.schedule_composition_pair(config, false) }
+        unsafe { self.schedule_composition_pair(config, None, false) }
     }
 
     unsafe fn schedule_composition_pair(
         &mut self,
         config: LoadConfig,
+        global_config: Option<GlobalRegionConfig>,
         camera_driven: bool,
     ) -> Result<Value> {
         ensure!(self.composition.pending.is_none(), "composition_pair_busy");
@@ -104,9 +114,18 @@ impl Renderer {
             "cooked stream is active"
         );
 
-        let terrain_reservation = self.terrain_renderer.reserve(config)?;
+        let terrain_reservation = match global_config {
+            Some(global) => self.terrain_renderer.reserve_global(global)?,
+            None => self.terrain_renderer.reserve(config)?,
+        };
         let terrain_transaction_id = terrain_reservation.transaction_id;
-        let instance_reservation = match self.async_resident_renderer.reserve_composition(config) {
+        let instance_reservation = match global_config {
+            Some(global) => self
+                .async_resident_renderer
+                .reserve_global_composition(global),
+            None => self.async_resident_renderer.reserve_composition(config),
+        };
+        let instance_reservation = match instance_reservation {
             Ok(report) => report,
             Err(error) => {
                 let _ = self.terrain_renderer.cancel(terrain_transaction_id);
@@ -125,6 +144,7 @@ impl Renderer {
         let fixture = self.composition.fixture;
         let token = self.composition.begin(
             config,
+            global_config,
             fixture,
             terrain_transaction_id,
             instance_transaction_id,
@@ -140,7 +160,7 @@ impl Renderer {
             );
             return Err(error);
         }
-        Ok(json!({
+        let mut response = json!({
             "revision": COMPOSITION_REVISION,
             "token": token,
             "config": config,
@@ -148,7 +168,11 @@ impl Renderer {
             "terrainTransactionId": terrain_transaction_id,
             "instanceTransactionId": instance_transaction_id,
             "cameraDriven": camera_driven,
-        }))
+        });
+        if let Some(global) = global_config {
+            response["globalConfig"] = json!(global);
+        }
+        Ok(response)
     }
 
     pub fn composition_status(&self) -> Value {
@@ -205,7 +229,9 @@ impl Renderer {
             .context("composition requires a published pair")?;
         ensure!(
             self.async_resident_renderer.config() == Some(published.config)
-                && self.terrain_renderer.config() == Some(published.config),
+                && self.terrain_renderer.config() == Some(published.config)
+                && self.async_resident_renderer.global_config() == published.global_config
+                && self.terrain_renderer.global_config() == published.global_config,
             "composition snapshots do not match the published pair"
         );
         self.meshlet_scene_renderer.disable();
@@ -298,7 +324,8 @@ impl Renderer {
             .zip(&terrain_slots)
             .filter(|(instance, terrain)| instance != terrain)
             .count();
-        let logical_region_ids = active_region_ids(pending.config)?;
+        let addressed = global::addressed(pending.global_config)?;
+        let logical_region_ids = global::local_ids(addressed.as_deref(), pending.config)?;
         let mapping_hash = |slots: &[u32]| {
             let mut digest = Sha256::new();
             for (region_id, slot) in logical_region_ids.iter().zip(slots) {
@@ -309,6 +336,7 @@ impl Renderer {
         };
         let instance_mapping_sha256 = mapping_hash(&instance_slots);
         let terrain_mapping_sha256 = mapping_hash(&terrain_slots);
+        let (global_regions, global_mapping_sha256) = global::evidence(addressed.as_deref());
         let instance_report = self
             .async_resident_renderer
             .commit_staged()
@@ -327,6 +355,7 @@ impl Renderer {
         self.composition.published = Some(PublishedPair {
             token: pending.token,
             config: pending.config,
+            global_config: pending.global_config,
             fixture: pending.fixture,
             terrain_transaction_id: pending.terrain_transaction_id,
             instance_transaction_id: pending.instance_transaction_id,
@@ -337,6 +366,8 @@ impl Renderer {
             terrain_slots,
             instance_mapping_sha256,
             terrain_mapping_sha256,
+            global_regions,
+            global_mapping_sha256,
             publication_ms: pending.started_at.elapsed().as_secs_f64() * 1_000.0,
             camera_driven: pending.camera_driven,
         });
@@ -356,19 +387,22 @@ impl Renderer {
         if let Some(report) = self.async_resident_renderer.staged_report() {
             ensure!(
                 report.transaction_id == pending.instance_transaction_id
-                    && report.config == pending.config,
+                    && report.config == pending.config
+                    && report.global_config == pending.global_config,
                 "staged instance half does not match the composition pair"
             );
         }
         if let Some(report) = self.terrain_renderer.staged_report() {
             ensure!(
                 report.transaction_id == pending.terrain_transaction_id
-                    && report.config == pending.config,
+                    && report.config == pending.config
+                    && report.global_config == pending.global_config,
                 "staged terrain half does not match the composition pair"
             );
         }
         if pending.terrain == HalfState::Staged && pending.instance == HalfState::Staged {
-            let expected_regions = active_region_ids(pending.config)?;
+            let addressed = global::addressed(pending.global_config)?;
+            let expected_regions = global::local_ids(addressed.as_deref(), pending.config)?;
             let terrain = self
                 .terrain_renderer
                 .staged_assignments()
@@ -389,6 +423,15 @@ impl Renderer {
                     .all(|(assignment, region_id)| assignment.region_id == region_id),
                 "terrain mapping is not in canonical logical order"
             );
+            if let Some(addressed) = addressed {
+                ensure!(
+                    terrain.iter().zip(addressed).all(|(assignment, region)| {
+                        assignment.global_region == Some(region.global_region)
+                            && assignment.region_id == region.local_region_id
+                    }),
+                    "terrain mapping does not match signed composition order"
+                );
+            }
         }
         Ok(())
     }

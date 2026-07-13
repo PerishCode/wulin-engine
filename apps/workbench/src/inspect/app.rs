@@ -117,6 +117,7 @@ pub(crate) fn handle_commands(
             }
             composition @ (ControlKind::CompositionStatus
             | ControlKind::CompositionSchedule { .. }
+            | ControlKind::CompositionGlobalSchedule(..)
             | ControlKind::CompositionEnable
             | ControlKind::CompositionDisable
             | ControlKind::CompositionTraversalEnable

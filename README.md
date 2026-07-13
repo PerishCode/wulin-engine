@@ -8,7 +8,7 @@
 
 ## Status
 
-**有符号全局地形寻址基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
+**有符号全局原子组合基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
 Sidecar 生命周期和项目自有 inspect 协议已经形成可重复的可见控制闭环。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
@@ -50,6 +50,9 @@ object-ID 和诊断附件字节一致，25,600 点精确 oracle 零差异。
 Experiment 0020 已让 signed 64-bit global region 成为地形缓存逻辑身份，同时通过固定局部
 alias 继续消费 format V1 与现有 GPU/语义合同；±2^40 anchor 不会因局部 ID 相同而误命中，
 相邻移动严格保留 20、读取/上传 5 个区域，驻留回访保留 25 且零读取。
+Experiment 0021 进一步让同一个 signed window 同时拥有地形与生成对象缓存身份，并在两套
+独立物理槽之上只发布一个匹配的 global/local pair；三类 I/O/copy hold 均保持完整旧帧，
+远端别名重绑不会误命中，两套缓存的相邻移动都严格保留 20、上传 5 个区域。
 
 ## Project model
 
@@ -86,6 +89,7 @@ runseal :lod-composition
 runseal :region-traversal
 runseal :global-space
 runseal :global-terrain
+runseal :global-composition
 runseal :workbench start
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24

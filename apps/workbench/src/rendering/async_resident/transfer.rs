@@ -8,6 +8,7 @@ use windows::Win32::Graphics::Direct3D12::*;
 use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
 use windows::core::Interface;
 
+use crate::address::GlobalRegionConfig;
 use crate::async_resident::{
     ASYNC_CACHE_CAPACITY, ASYNC_RESIDENT_REVISION, AsyncLayoutPlan, AsyncRegionCache,
     AsyncReservationReport, AsyncTransactionReport, PayloadPreparation,
@@ -184,16 +185,44 @@ impl AsyncTransfer {
         config: LoadConfig,
         protected_slots: &BTreeSet<u32>,
     ) -> Result<AsyncReservationReport> {
-        if self.reservation.is_some() || self.pending.is_some() {
-            bail!("stream_busy");
-        }
+        self.ensure_available()?;
         let layout = self.cache.plan_layout(config, protected_slots)?;
+        self.reserve_layout(layout)
+    }
+
+    pub fn reserve_composition(
+        &mut self,
+        config: LoadConfig,
+        protected_slots: &BTreeSet<u32>,
+    ) -> Result<AsyncReservationReport> {
+        self.ensure_available()?;
+        let layout = self
+            .cache
+            .plan_composition_layout(config, protected_slots)?;
+        self.reserve_layout(layout)
+    }
+
+    pub fn reserve_global_composition(
+        &mut self,
+        config: GlobalRegionConfig,
+        protected_slots: &BTreeSet<u32>,
+    ) -> Result<AsyncReservationReport> {
+        self.ensure_available()?;
+        let layout = self
+            .cache
+            .plan_global_composition_layout(config, protected_slots)?;
+        self.reserve_layout(layout)
+    }
+
+    fn reserve_layout(&mut self, layout: AsyncLayoutPlan) -> Result<AsyncReservationReport> {
+        debug_assert!(self.reservation.is_none() && self.pending.is_none());
         let transaction_id = self.next_transaction_id;
         self.next_transaction_id += 1;
         let report = AsyncReservationReport {
             revision: ASYNC_RESIDENT_REVISION,
             transaction_id,
-            config,
+            config: layout.config,
+            global_config: layout.global_config,
             counts: layout.counts,
             assignments: layout.assignments.clone(),
         };
@@ -205,32 +234,11 @@ impl AsyncTransfer {
         Ok(report)
     }
 
-    pub fn reserve_composition(
-        &mut self,
-        config: LoadConfig,
-        protected_slots: &BTreeSet<u32>,
-    ) -> Result<AsyncReservationReport> {
+    fn ensure_available(&self) -> Result<()> {
         if self.reservation.is_some() || self.pending.is_some() {
             bail!("stream_busy");
         }
-        let layout = self
-            .cache
-            .plan_composition_layout(config, protected_slots)?;
-        let transaction_id = self.next_transaction_id;
-        self.next_transaction_id += 1;
-        let report = AsyncReservationReport {
-            revision: ASYNC_RESIDENT_REVISION,
-            transaction_id,
-            config,
-            counts: layout.counts,
-            assignments: layout.assignments.clone(),
-        };
-        self.reservation = Some(ReservedTransfer {
-            transaction_id,
-            layout,
-            started_at: Instant::now(),
-        });
-        Ok(report)
+        Ok(())
     }
 
     pub fn cancel_reservation(&mut self, transaction_id: u64) -> Result<()> {
@@ -326,6 +334,7 @@ impl AsyncTransfer {
             revision: ASYNC_RESIDENT_REVISION,
             transaction_id,
             config: plan.layout.config,
+            global_config: plan.layout.global_config,
             counts: plan.layout.counts,
             uploaded_sha256: plan.uploaded_sha256,
             direct_release_fence,

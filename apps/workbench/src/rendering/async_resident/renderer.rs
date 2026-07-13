@@ -5,6 +5,7 @@ use serde_json::Value;
 use windows::Win32::Graphics::Direct3D::D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 use windows::Win32::Graphics::Direct3D12::*;
 
+use crate::address::GlobalRegionConfig;
 use crate::async_resident::{AsyncReservationReport, AsyncTransactionReport, PayloadPreparation};
 use crate::load::{LoadConfig, MAX_VISIBLE_INSTANCES};
 use crate::resident::RegionUpload;
@@ -17,6 +18,8 @@ use crate::rendering::resident::{
     QUERY_COUNT, create_buffer, create_query_heap, read_values, set_viewport, transition,
     uav_barrier,
 };
+
+mod global;
 
 pub struct AsyncResidentRenderer {
     pipeline: AsyncResidentPipeline,
@@ -35,6 +38,7 @@ pub struct AsyncResidentRenderer {
 
 pub(in crate::rendering) struct PublishedSnapshot {
     pub config: LoadConfig,
+    pub global_config: Option<GlobalRegionConfig>,
     pub active_slots: Vec<u32>,
 }
 
@@ -205,8 +209,10 @@ impl AsyncResidentRenderer {
             active_slots,
             report,
         } = self.staged.take()?;
+        let global_config = report.global_config;
         self.published = Some(PublishedSnapshot {
             config,
+            global_config,
             active_slots,
         });
         Some(report)

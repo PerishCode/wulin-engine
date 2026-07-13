@@ -70,8 +70,12 @@ await run("deno check", "deno", [
     ".runseal/wrappers/region-traversal.ts",
     ".runseal/wrappers/global-space.ts",
     ".runseal/wrappers/global-terrain.ts",
+    ".runseal/wrappers/global-composition.ts",
     ".runseal/support/global-terrain.ts",
-    ".runseal/support/workbench-world.ts",
+    ".runseal/support/global-composition.ts",
+    ".runseal/support/workbench/composition.ts",
+    ".runseal/support/workbench/terrain.ts",
+    ".runseal/support/workbench/world.ts",
 ]);
 await run("flavor", "flavor", ["check", "--root", ".", "--config", "flavor.toml"]);
 await run("sidecar doctor", "sidecar", ["doctor", "--config", "sidecar.toml"]);

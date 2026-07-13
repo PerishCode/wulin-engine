@@ -24,6 +24,7 @@ impl CompositionCoordinator {
     pub(super) fn begin(
         &mut self,
         config: LoadConfig,
+        global_config: Option<GlobalRegionConfig>,
         fixture: CompositionFixture,
         terrain_transaction_id: u64,
         instance_transaction_id: u64,
@@ -34,6 +35,7 @@ impl CompositionCoordinator {
         self.pending = Some(PendingPair {
             token,
             config,
+            global_config,
             fixture,
             terrain_transaction_id,
             instance_transaction_id,
@@ -68,7 +70,7 @@ impl CompositionCoordinator {
 
     pub(super) fn status_json(&self) -> Value {
         let pending = self.pending.as_ref().map(|value| {
-            json!({
+            let mut pending = json!({
                 "token": value.token,
                 "config": value.config,
                 "fixture": value.fixture,
@@ -79,7 +81,11 @@ impl CompositionCoordinator {
                 "failure": value.failure,
                 "cameraDriven": value.camera_driven,
                 "pendingMs": value.started_at.elapsed().as_secs_f64() * 1_000.0,
-            })
+            });
+            if let Some(global) = value.global_config {
+                pending["globalConfig"] = json!(global);
+            }
+            pending
         });
         json!({
             "revision": COMPOSITION_REVISION,

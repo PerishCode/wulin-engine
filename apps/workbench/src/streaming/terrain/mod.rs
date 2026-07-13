@@ -1,4 +1,3 @@
-mod address;
 mod worker;
 
 use std::collections::BTreeSet;
@@ -13,8 +12,8 @@ use crate::load::LoadConfig;
 
 use self::worker::{IoGate, PackWorker, ReadCompletion, ReadRequest, ensure_gate_advance};
 
-pub(crate) use self::address::AddressedRegion;
-pub use self::address::GlobalTerrainConfig;
+pub(crate) use crate::address::AddressedRegion;
+pub use crate::address::GlobalRegionConfig as GlobalTerrainConfig;
 
 pub const TERRAIN_STREAM_REVISION: &str = "terrain-stream-v1";
 
