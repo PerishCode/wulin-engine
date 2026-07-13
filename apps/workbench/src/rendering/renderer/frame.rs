@@ -21,7 +21,7 @@ impl Renderer {
         capture: bool,
         capture_object_ids: bool,
         probe_load: bool,
-        scene: &SceneState,
+        scene: &mut SceneState,
     ) -> Result<RenderOutcome> {
         debug_assert!(!capture_object_ids || capture);
         debug_assert!(!probe_load || self.load_config().is_some());
@@ -53,6 +53,9 @@ impl Renderer {
             {
                 self.terrain_streamer.mark_published(&report)?;
             }
+        }
+        if let Some(delta) = self.take_composition_camera_shift() {
+            scene.translate_camera_regions(delta)?;
         }
 
         unsafe {

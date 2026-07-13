@@ -320,7 +320,7 @@ impl Renderer {
                 pending.token,
                 pending.config,
                 pending.global_config,
-            );
+            )?;
         }
         self.composition.last_failure = None;
         Ok(())

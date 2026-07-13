@@ -40,7 +40,7 @@ unsafe fn run() -> Result<()> {
 
     unsafe {
         window::show(hwnd);
-        let _ = renderer.render(state.clear_color, false, false, false, &scene)?;
+        let _ = renderer.render(state.clear_color, false, false, false, &mut scene)?;
     }
     state.record_frame();
 
@@ -93,7 +93,7 @@ unsafe fn run() -> Result<()> {
                 capture_requested,
                 perception_requested,
                 probe_requested,
-                &scene,
+                &mut scene,
             )
         } {
             Ok(outcome) => complete_frame(

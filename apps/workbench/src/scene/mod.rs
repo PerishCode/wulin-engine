@@ -1,4 +1,12 @@
-use anyhow::{Result, bail};
+mod camera;
+#[cfg(test)]
+#[path = "../../tests/private/scene.rs"]
+mod tests;
+
+pub use camera::Camera;
+pub(crate) use camera::view_projection;
+
+use anyhow::Result;
 use glam::{Mat4, Quat, Vec3, Vec4};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -8,10 +16,6 @@ use crate::load;
 use crate::world::{self, RegionCoord, WorldSpace};
 
 pub const SCENE_REVISION: &str = "calibration-v1";
-pub const NEAR_PLANE_METERS: f32 = 0.1;
-const DEFAULT_FOV_DEGREES: f32 = 60.0;
-const DEFAULT_POSITION: [f32; 3] = [9.0, 6.0, 12.0];
-const DEFAULT_TARGET: [f32; 3] = [0.0, 1.0, -3.0];
 
 #[derive(Clone, Copy)]
 pub enum MeshKind {
@@ -125,15 +129,6 @@ pub struct SceneState {
     world: WorldSpace,
 }
 
-#[derive(Clone, Copy, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Camera {
-    pub position: [f32; 3],
-    pub target: [f32; 3],
-    pub vertical_fov_degrees: f32,
-    pub near_plane_meters: f32,
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ObjectSnapshot {
@@ -148,13 +143,13 @@ struct ObjectSnapshot {
 impl SceneState {
     pub fn new() -> Self {
         Self {
-            camera: default_camera(),
+            camera: Camera::default(),
             world: WorldSpace::default(),
         }
     }
 
     pub fn reset_camera(&mut self) {
-        self.camera = default_camera();
+        self.camera = Camera::default();
     }
 
     pub fn set_camera(
@@ -164,34 +159,17 @@ impl SceneState {
         vertical_fov_degrees: f32,
         require_world_bound: bool,
     ) -> Result<()> {
-        let position_vector = Vec3::from_array(position);
-        let target_vector = Vec3::from_array(target);
-        let forward = target_vector - position_vector;
-        if !position_vector.is_finite()
-            || !target_vector.is_finite()
-            || !vertical_fov_degrees.is_finite()
-        {
-            bail!("camera values must be finite");
-        }
-        if forward.length_squared() < 0.01 {
-            bail!("camera position and target must be distinct");
-        }
-        if forward.normalize().cross(Vec3::Y).length_squared() < 0.0001 {
-            bail!("camera forward cannot be parallel to world +Y");
-        }
-        if !(20.0..=100.0).contains(&vertical_fov_degrees) {
-            bail!("verticalFovDegrees must be in the range 20..=100");
-        }
+        let camera = Camera::new(position, target, vertical_fov_degrees)?;
         if require_world_bound {
             self.world.render_position(position)?;
             self.world.render_position(target)?;
         }
-        self.camera = Camera {
-            position,
-            target,
-            vertical_fov_degrees,
-            near_plane_meters: NEAR_PLANE_METERS,
-        };
+        self.camera = camera;
+        Ok(())
+    }
+
+    pub(crate) fn translate_camera_regions(&mut self, delta: [i32; 2]) -> Result<()> {
+        self.camera = self.camera.translated_regions(delta)?;
         Ok(())
     }
 
@@ -431,29 +409,6 @@ pub fn semantic_object(id: u32) -> Option<SemanticObject> {
         })
 }
 
-fn default_camera() -> Camera {
-    Camera {
-        position: DEFAULT_POSITION,
-        target: DEFAULT_TARGET,
-        vertical_fov_degrees: DEFAULT_FOV_DEGREES,
-        near_plane_meters: NEAR_PLANE_METERS,
-    }
-}
-
-pub(crate) fn view_projection(camera: Camera, aspect: f32) -> Mat4 {
-    let projection = Mat4::perspective_infinite_reverse_rh(
-        camera.vertical_fov_degrees.to_radians(),
-        aspect,
-        camera.near_plane_meters,
-    );
-    let view = Mat4::look_at_rh(
-        Vec3::from_array(camera.position),
-        Vec3::from_array(camera.target),
-        Vec3::Y,
-    );
-    projection * view
-}
-
 fn hash_matrix(hasher: &mut Sha256, matrix: Mat4) {
     world::hash_f32_array(hasher, matrix.to_cols_array());
 }
@@ -478,23 +433,5 @@ fn object_snapshot(object: &SceneObject) -> ObjectSnapshot {
         translation: object.translation,
         scale: object.scale,
         color: object.color,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn camera_relative_clip_matches() {
-        let scene = SceneState::new();
-        let local = scene.view_projection(1280.0 / 720.0) * OBJECTS[0].model_matrix();
-        let relative = scene.calibration_view_projection(1280.0 / 720.0).unwrap()
-            * scene.calibration_model_matrix(&OBJECTS[0]).unwrap();
-        for point in CLIP_PROBE_POINTS {
-            let expected = local * point;
-            let actual = relative * point;
-            assert!((expected - actual).abs().max_element() <= 0.0001);
-        }
     }
 }

@@ -1,3 +1,8 @@
+mod rollover;
+#[cfg(test)]
+#[path = "../../../tests/private/composition_traversal.rs"]
+mod tests;
+
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -8,6 +13,7 @@ use crate::scene::Camera;
 use crate::world::RegionCoord;
 
 use super::super::renderer::Renderer;
+use rollover::{RolloverPolicy, RolloverState};
 
 const TRAVERSAL_REVISION: &str = "camera-region-traversal-v1";
 const WORLD_MIN_METERS: f64 = -1_032.0;
@@ -20,6 +26,8 @@ struct TraversalBasis {
     active_radius: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     global_origin: Option<RegionCoord>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rollover: Option<RolloverPolicy>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -63,6 +71,7 @@ pub(super) struct CameraTraversal {
     last_scheduled: Option<ScheduledTarget>,
     last_published: Option<ScheduledTarget>,
     last_failure: Option<BlockedTarget>,
+    rollover: RolloverState,
 }
 
 impl CameraTraversal {
@@ -70,13 +79,18 @@ impl CameraTraversal {
         self.enabled
     }
 
-    pub(super) fn enable(&mut self, published: TraversalTarget) -> Result<()> {
-        let basis = TraversalBasis::new(published)?;
+    pub(super) fn enable(
+        &mut self,
+        published: TraversalTarget,
+        canonical_rollover: bool,
+    ) -> Result<()> {
+        let basis = TraversalBasis::new(published, canonical_rollover)?;
         self.enabled = true;
         self.basis = Some(basis);
         self.desired = None;
         self.queued = None;
         self.blocked = None;
+        self.rollover.activate(canonical_rollover);
         self.session_count += 1;
         Ok(())
     }
@@ -87,6 +101,7 @@ impl CameraTraversal {
         self.desired = None;
         self.queued = None;
         self.blocked = None;
+        self.rollover.deactivate();
     }
 
     pub(super) fn plan(
@@ -98,15 +113,12 @@ impl CameraTraversal {
         if !self.enabled {
             return Ok(None);
         }
-        let basis = self
-            .basis
-            .as_ref()
-            .expect("enabled traversal has no immutable basis");
+        let basis = *self.basis.as_ref().expect("enabled traversal has no basis");
         ensure!(
             basis.target(published.config)? == published,
             "published composition changed the traversal basis"
         );
-        let desired = basis.target(map_camera(camera, basis)?)?;
+        let desired = basis.camera_target(map_camera(camera, &basis)?)?;
         if self.desired != Some(desired) {
             self.desired = Some(desired);
             self.desired_change_count += 1;
@@ -152,11 +164,12 @@ impl CameraTraversal {
         token: u64,
         config: LoadConfig,
         global_config: Option<GlobalRegionConfig>,
-    ) {
+    ) -> Result<()> {
         let target = TraversalTarget {
             config,
             global_config,
         };
+        self.commit_rollover(token, target)?;
         self.automatic_publication_count += 1;
         self.last_published = Some(ScheduledTarget::new(token, target));
         if self
@@ -166,6 +179,7 @@ impl CameraTraversal {
         {
             self.blocked = None;
         }
+        Ok(())
     }
 
     pub(super) fn mark_failed(
@@ -188,7 +202,7 @@ impl CameraTraversal {
     }
 
     pub(super) fn status_json(&self) -> Value {
-        json!({
+        let mut value = json!({
             "revision": TRAVERSAL_REVISION,
             "enabled": self.enabled,
             "basis": self.basis,
@@ -205,7 +219,11 @@ impl CameraTraversal {
             "lastScheduled": self.last_scheduled,
             "lastPublished": self.last_published,
             "lastFailure": self.last_failure,
-        })
+        });
+        if let Some(rollover) = self.rollover.status_json() {
+            value["rollover"] = rollover;
+        }
+        value
     }
 
     fn replace_queued(&mut self, next: Option<TraversalTarget>) {
@@ -218,10 +236,21 @@ impl CameraTraversal {
         self.queued = next;
         self.max_queued_depth = self.max_queued_depth.max(u32::from(next.is_some()));
     }
+
+    fn commit_rollover(&mut self, token: u64, target: TraversalTarget) -> Result<()> {
+        let Some(basis) = self.basis.as_mut() else {
+            return Ok(());
+        };
+        self.rollover.commit(token, basis, target)
+    }
+
+    fn take_camera_delta(&mut self) -> Option<[i32; 2]> {
+        self.rollover.take_camera_delta()
+    }
 }
 
 impl TraversalBasis {
-    fn new(published: TraversalTarget) -> Result<Self> {
+    fn new(published: TraversalTarget, canonical_rollover: bool) -> Result<Self> {
         if let Some(global) = published.global_config {
             ensure!(
                 global.local_config()? == published.config,
@@ -232,17 +261,27 @@ impl TraversalBasis {
             world_region_side: published.config.world_region_side,
             active_radius: published.config.active_radius,
             global_origin: published.global_config.map(|value| value.global_origin),
+            rollover: canonical_rollover.then_some(RolloverPolicy::canonical()),
         };
         if basis.global_origin.is_some() {
             ensure!(
                 basis.world_region_side == MAX_REGION_SIDE,
                 "signed traversal requires the format-V1 world extent"
             );
-            let (minimum, maximum) = basis.center_bounds();
-            basis.global_center(minimum, minimum)?;
-            basis.global_center(maximum, maximum)?;
+            if !canonical_rollover {
+                let (minimum, maximum) = basis.center_bounds();
+                basis.global_center(minimum, minimum)?;
+                basis.global_center(maximum, maximum)?;
+            }
         }
         Ok(basis)
+    }
+
+    fn camera_target(self, config: LoadConfig) -> Result<TraversalTarget> {
+        match self.rollover {
+            Some(policy) => policy.target(self, config),
+            None => self.target(config),
+        }
     }
 
     fn target(self, config: LoadConfig) -> Result<TraversalTarget> {
@@ -337,14 +376,26 @@ impl Renderer {
             .published
             .as_ref()
             .context("camera traversal requires a published pair")?;
-        self.composition.traversal.enable(TraversalTarget {
-            config: published.config,
-            global_config: published.global_config,
-        })
+        let canonical_rollover = published.terrain_source_namespace.is_some();
+        ensure!(
+            canonical_rollover == published.object_source_namespace.is_some(),
+            "composition source halves disagree on canonical traversal mode"
+        );
+        self.composition.traversal.enable(
+            TraversalTarget {
+                config: published.config,
+                global_config: published.global_config,
+            },
+            canonical_rollover,
+        )
     }
 
     pub fn disable_composition_traversal(&mut self) {
         self.composition.traversal.disable();
+    }
+
+    pub(in crate::rendering) fn take_composition_camera_shift(&mut self) -> Option<[i32; 2]> {
+        self.composition.traversal.take_camera_delta()
     }
 
     pub(in crate::rendering) unsafe fn drive_composition_traversal(
@@ -411,57 +462,4 @@ fn map_camera(camera: Camera, basis: &TraversalBasis) -> Result<LoadConfig> {
         map_axis(camera.position[2]),
         basis.active_radius,
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn camera(x: f32, z: f32) -> Camera {
-        Camera {
-            position: [x, 5.0, z],
-            target: [x, 0.0, z - 1.0],
-            vertical_fov_degrees: 60.0,
-            near_plane_meters: 0.1,
-        }
-    }
-
-    #[test]
-    fn far_target_is_exact() {
-        let far = 1_i64 << 40;
-        let global = GlobalRegionConfig::new(far, -far, far, -far, 2).unwrap();
-        let published = TraversalTarget {
-            config: global.local_config().unwrap(),
-            global_config: Some(global),
-        };
-        let basis = TraversalBasis::new(published).unwrap();
-        let local = map_camera(camera(16.0, -16.0), &basis).unwrap();
-        let target = basis.target(local).unwrap();
-        assert_eq!((local.active_center_x, local.active_center_z), (65, 63));
-        let mapped = target.global_config.unwrap();
-        assert_eq!(mapped.global_origin, RegionCoord::new(far, -far));
-        assert_eq!(mapped.global_center, RegionCoord::new(far + 1, -far - 1));
-    }
-
-    #[test]
-    fn legacy_status_is_unchanged() {
-        let config = LoadConfig::new(128, 64, 64, 2).unwrap();
-        let target = TraversalTarget {
-            config,
-            global_config: None,
-        };
-        assert_eq!(target.status_json(), json!(config));
-        let basis = TraversalBasis::new(target).unwrap();
-        assert_eq!(json!(basis).get("globalOrigin"), None);
-    }
-
-    #[test]
-    fn basis_rejects_extent_overflow() {
-        let global = GlobalRegionConfig::new(i64::MAX, 0, i64::MAX, 0, 2).unwrap();
-        let published = TraversalTarget {
-            config: global.local_config().unwrap(),
-            global_config: Some(global),
-        };
-        assert!(TraversalBasis::new(published).is_err());
-    }
 }

@@ -8,7 +8,7 @@
 
 ## Status
 
-**规范生成对象原子组合基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
+**规范坐标原点滚动基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
 Sidecar 生命周期和项目自有 inspect 协议已经形成可重复的可见控制闭环。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
@@ -66,6 +66,10 @@ Experiment 0025 已用独立 object source、signed region cache key、region-lo
 seed 将生成对象接入同一 camera-relative projection，并恢复 V2 地形/对象原子组合；固定窗口
 alias 对两套缓存均为 25/0，相邻窗口均为 20/5，terrain source 切换不会使对象误失效，三类
 hold、损坏回滚、语义反查、骨骼 CPU/GPU oracle 与完整附件均通过。
+Experiment 0026 已在规范 V2 traversal 上接受有界原点滚动：每轴离开 `[32,96]` 安全带时，仅在
+匹配地形/对象 pair 提交边界同步更新 basis 与 camera。alias 97 到 64 的同窗口规范化保持两套
+缓存 25/0 且附件字节一致；单轴边界为 20/5、双轴对角线为 16/9，hold、失败、catch-up、
+restart 与 64 组 release 扫描均未暴露混合坐标帧。
 
 ## Project model
 
@@ -107,6 +111,7 @@ runseal :global-traversal
 runseal :signed-terrain-storage
 runseal :camera-relative-terrain
 runseal :canonical-object-composition
+runseal :canonical-origin-rollover
 runseal :workbench start
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24
