@@ -21,6 +21,21 @@ StructuredBuffer<InstanceRecord> region_instances[REGION_SLOT_CAPACITY] : regist
 RWStructuredBuffer<uint> visible_instances : register(u0);
 RWByteAddressBuffer draw_arguments : register(u1);
 
+float3 object_position(InstanceRecord instance, uint semantic_region)
+{
+    if (semantic_region == 0u)
+    {
+        return instance.position;
+    }
+    int region_x = int(semantic_region % MAX_REGION_SIDE);
+    int region_z = int(semantic_region / MAX_REGION_SIDE);
+    return instance.position + float3(
+        float((region_x - int(MAX_REGION_SIDE / 2)) * 16),
+        0.0,
+        float((region_z - int(MAX_REGION_SIDE / 2)) * 16)
+    );
+}
+
 [numthreads(1, 1, 1)]
 void reset_main()
 {
@@ -42,11 +57,14 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     {
         return;
     }
-    uint slot = active_slot_groups[group_id.x / 4][group_id.x % 4];
+    uint packed_mapping = active_slot_groups[group_id.x / 4][group_id.x % 4];
+    uint slot = packed_mapping & 63u;
+    uint semantic_region = packed_mapping >> 6u;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
+    float3 position = object_position(instance, semantic_region);
     float4 clip = mul(
         view_projection,
-        float4(instance.position + float3(0.0, instance.height * 0.5, 0.0), 1.0)
+        float4(position + float3(0.0, instance.height * 0.5, 0.0), 1.0)
     );
     bool visible = clip.w > 0.0
         && abs(clip.x) <= clip.w
@@ -61,7 +79,8 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     draw_arguments.InterlockedAdd(4, 1, compacted_index);
     if (compacted_index < load_shape.y)
     {
-        visible_instances[compacted_index] = slot * INSTANCES_PER_REGION + local_index;
+        uint physical_index = slot * INSTANCES_PER_REGION + local_index;
+        visible_instances[compacted_index] = physical_index | (semantic_region << 16u);
     }
 }
 
@@ -80,15 +99,18 @@ AsyncResidentVertexOutput vs_main(uint vertex_id : SV_VertexID, uint instance_id
         float2(-0.5, 0.0), float2(-0.5, 1.0), float2(0.5, 1.0),
         float2(-0.5, 0.0), float2(0.5, 1.0), float2(0.5, 0.0)
     };
-    uint physical_index = draw_instances[instance_id];
+    uint packed_instance = draw_instances[instance_id];
+    uint physical_index = packed_instance & 0xffffu;
+    uint semantic_region = packed_instance >> 16u;
     uint slot = physical_index / INSTANCES_PER_REGION;
     uint local_index = physical_index % INSTANCES_PER_REGION;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
-    float3 position = instance.position;
+    float3 position = object_position(instance, semantic_region);
     position.x += corners[vertex_id].x * 0.34;
     position.y += corners[vertex_id].y * instance.height;
-    uint region_x = instance.region_id % MAX_REGION_SIDE;
-    uint region_z = instance.region_id / MAX_REGION_SIDE;
+    uint object_region = semantic_region == 0u ? instance.region_id : semantic_region;
+    uint region_x = object_region % MAX_REGION_SIDE;
+    uint region_z = object_region / MAX_REGION_SIDE;
     int relative_x = int(region_x) - int(MAX_REGION_SIDE / 2);
     int relative_z = int(region_z) - int(MAX_REGION_SIDE / 2);
     uint color_key = uint((relative_x + 8) * 17 + (relative_z + 8) * 31);
@@ -100,7 +122,7 @@ AsyncResidentVertexOutput vs_main(uint vertex_id : SV_VertexID, uint instance_id
         float((color_key * 73u) & 255u),
         float((color_key * 109u) & 255u)
     ) / 255.0;
-    output.object_id = REGION_OBJECT_ID_BASE + instance.region_id + 1;
+    output.object_id = REGION_OBJECT_ID_BASE + object_region + 1;
     return output;
 }
 

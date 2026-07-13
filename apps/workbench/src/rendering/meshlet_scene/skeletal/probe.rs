@@ -112,17 +112,20 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
         "skeletal pose dispatch and active counts diverged"
     );
     let gpu = decode_counts(&counters, input.settings.bone_count);
+    let projection = input.snapshot.projection()?;
     let cpu_oracle = oracle::evaluate(
         input.mesh_catalog,
         input.settings,
-        input.snapshot.config,
-        input.scene,
-        input.width,
-        input.height,
-        oracle::GroundingInput {
-            numerators: input.ground_numerators,
-            denominator: input.ground_denominator,
-            instance_records: input.instance_records,
+        oracle::EvaluationInput {
+            config: input.snapshot.config,
+            scene: input.scene,
+            viewport: [input.width, input.height],
+            projection,
+            grounding: oracle::GroundingInput {
+                numerators: input.ground_numerators,
+                denominator: input.ground_denominator,
+                instance_records: input.instance_records,
+            },
         },
     )?;
     if gpu != cpu_oracle {

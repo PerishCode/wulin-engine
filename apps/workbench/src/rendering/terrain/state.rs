@@ -3,9 +3,12 @@ use serde_json::{Value, json};
 use windows::Win32::Graphics::Direct3D12::ID3D12DescriptorHeap;
 
 use crate::load::LoadConfig;
-use crate::terrain::{GlobalTerrainConfig, TerrainAssignment};
+use crate::terrain::{GlobalTerrainConfig, TerrainAssignment, TerrainSourceNamespace};
 
-use super::{PATCH_GROUP_COUNT, TERRAIN_REVISION, TerrainLodSettings, TerrainRenderer, lod};
+use super::{
+    PATCH_GROUP_COUNT, TERRAIN_REVISION, TerrainLodSettings, TerrainProjection, TerrainRenderer,
+    lod,
+};
 
 impl TerrainRenderer {
     pub fn enable(&mut self) -> Result<()> {
@@ -33,6 +36,20 @@ impl TerrainRenderer {
         self.published
             .as_ref()
             .and_then(|value| value.global_config)
+    }
+
+    pub(in crate::rendering) fn source_namespace(&self) -> Option<TerrainSourceNamespace> {
+        self.published
+            .as_ref()
+            .and_then(|value| value.report.source_namespace)
+    }
+
+    pub(in crate::rendering) fn projection(&self) -> Result<TerrainProjection> {
+        let published = self
+            .published
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("terrain projection requires a published snapshot"))?;
+        TerrainProjection::for_terrain(published.config, published.report.source_namespace)
     }
 
     pub fn status_json(&self) -> Value {

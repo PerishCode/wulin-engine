@@ -402,14 +402,6 @@ impl TerrainStreamer {
         );
         Ok(())
     }
-
-    pub fn ensure_composition_source(&self) -> Result<()> {
-        ensure!(
-            self.source_namespace()?.is_none(),
-            "signed terrain pack is not accepted for composition"
-        );
-        Ok(())
-    }
 }
 
 impl PackState {

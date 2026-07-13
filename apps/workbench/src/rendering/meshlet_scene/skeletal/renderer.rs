@@ -14,6 +14,7 @@ use super::surface::{SurfaceFrame, SurfaceRenderer};
 use crate::rendering::async_resident::PublishedSnapshot;
 use crate::rendering::meshlet_scene::CatalogBuffers;
 use crate::rendering::resident::{set_viewport, transition, uav_barrier};
+use crate::rendering::terrain::TerrainProjection;
 
 pub const SKELETAL_REVISION: &str = "gpu-skeletal-crowds-v1";
 
@@ -68,6 +69,7 @@ pub struct SkeletalFrame<'a> {
     pub probe: bool,
     pub terrain_slots: Option<&'a [u32]>,
     pub grounding_mode: u32,
+    pub projection: TerrainProjection,
     pub clear_depth_semantic: bool,
 }
 
@@ -173,7 +175,8 @@ impl SkeletalSceneRenderer {
             frame.snapshot,
             frame.terrain_slots,
             frame.grounding_mode,
-        );
+            frame.projection,
+        )?;
         let gpu_start = unsafe { self.resources.heap.GetGPUDescriptorHandleForHeapStart() };
         unsafe {
             command_list.SetDescriptorHeaps(&[Some(self.resources.heap.clone())]);
@@ -455,11 +458,12 @@ impl SkeletalSceneRenderer {
         snapshot: &PublishedSnapshot,
         terrain_slots: Option<&[u32]>,
         grounding_mode: u32,
-    ) -> [u32; SKELETAL_CONSTANT_COUNT as usize] {
+        projection: TerrainProjection,
+    ) -> Result<[u32; SKELETAL_CONSTANT_COUNT as usize]> {
         let mut constants = [0u32; SKELETAL_CONSTANT_COUNT as usize];
+        let camera = projection.camera(scene.camera());
         for (destination, value) in constants[..16].iter_mut().zip(
-            scene
-                .view_projection(self.width as f32 / self.height as f32)
+            crate::scene::view_projection(camera, self.width as f32 / self.height as f32)
                 .to_cols_array(),
         ) {
             *destination = value.to_bits();
@@ -470,7 +474,16 @@ impl SkeletalSceneRenderer {
         constants[19] = self.settings.forced_lod.unwrap_or(u32::MAX);
         for (index, instance_slot) in snapshot.active_slots.iter().copied().enumerate() {
             let terrain_slot = terrain_slots.map_or(0, |slots| slots[index]);
-            constants[20 + index] = instance_slot | (terrain_slot << 6);
+            let semantic_region = if projection.is_canonical() {
+                projection.region_id(index, 0)?
+            } else {
+                0
+            };
+            ensure!(
+                semantic_region < 1 << 14,
+                "object semantic region exceeds the packed mapping"
+            );
+            constants[20 + index] = instance_slot | (terrain_slot << 6) | (semantic_region << 12);
         }
         constants[48] = self.settings.animated_percent;
         constants[49] = self.settings.bone_count;
@@ -480,6 +493,6 @@ impl SkeletalSceneRenderer {
         constants[53] = MAX_SKELETAL_VISIBLE;
         constants[54] = MAX_SHARED_POSES;
         constants[55] = grounding_mode;
-        constants
+        Ok(constants)
     }
 }

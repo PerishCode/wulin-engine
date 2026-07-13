@@ -3,15 +3,15 @@ use std::ptr;
 use std::time::Instant;
 
 use anyhow::{Context, Result, bail};
-use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0};
+use windows::Win32::Foundation::HANDLE;
 use windows::Win32::Graphics::Direct3D12::*;
-use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
+use windows::Win32::System::Threading::CreateEventW;
 use windows::core::Interface;
 
 use crate::address::GlobalRegionConfig;
 use crate::async_resident::{
     ASYNC_CACHE_CAPACITY, ASYNC_RESIDENT_REVISION, AsyncLayoutPlan, AsyncRegionCache,
-    AsyncReservationReport, AsyncTransactionReport, PayloadPreparation,
+    AsyncReservationReport, AsyncTransactionReport, ObjectSourceNamespace, PayloadPreparation,
 };
 use crate::load::LoadConfig;
 use crate::resident::{REGION_INSTANCE_BYTES, RegionUpload, as_bytes};
@@ -19,6 +19,7 @@ use crate::resident::{REGION_INSTANCE_BYTES, RegionUpload, as_bytes};
 use super::super::resident::{create_buffer, transition};
 use super::resources::create_descriptor_heap;
 
+mod lifecycle;
 mod status;
 
 pub struct AsyncTransfer {
@@ -214,6 +215,19 @@ impl AsyncTransfer {
         self.reserve_layout(layout)
     }
 
+    pub fn reserve_canonical_global_composition(
+        &mut self,
+        config: GlobalRegionConfig,
+        source_namespace: ObjectSourceNamespace,
+        protected_slots: &BTreeSet<u32>,
+    ) -> Result<AsyncReservationReport> {
+        self.ensure_available()?;
+        let layout = self
+            .cache
+            .plan_canonical_layout(config, source_namespace, protected_slots)?;
+        self.reserve_layout(layout)
+    }
+
     fn reserve_layout(&mut self, layout: AsyncLayoutPlan) -> Result<AsyncReservationReport> {
         debug_assert!(self.reservation.is_none() && self.pending.is_none());
         let transaction_id = self.next_transaction_id;
@@ -223,6 +237,7 @@ impl AsyncTransfer {
             transaction_id,
             config: layout.config,
             global_config: layout.global_config,
+            object_source_namespace: layout.object_source_namespace,
             counts: layout.counts,
             assignments: layout.assignments.clone(),
         };
@@ -335,6 +350,7 @@ impl AsyncTransfer {
             transaction_id,
             config: plan.layout.config,
             global_config: plan.layout.global_config,
+            object_source_namespace: plan.layout.object_source_namespace,
             counts: plan.layout.counts,
             uploaded_sha256: plan.uploaded_sha256,
             direct_release_fence,
@@ -416,30 +432,6 @@ impl AsyncTransfer {
         self.armed_gate.is_some()
     }
 
-    pub unsafe fn wait_idle(&mut self) -> Result<()> {
-        if let Some(value) = self.armed_gate.take() {
-            unsafe { self.gate_fence.Signal(value) }
-                .context("async shutdown gate signal failed")?;
-        }
-        let Some(value) = self
-            .pending
-            .as_ref()
-            .map(|pending| pending.report.copy_fence)
-        else {
-            return Ok(());
-        };
-        if unsafe { self.copy_fence.GetCompletedValue() } >= value {
-            return Ok(());
-        }
-        unsafe { self.copy_fence.SetEventOnCompletion(value, self.copy_event) }
-            .context("async copy completion event failed")?;
-        let wait = unsafe { WaitForSingleObject(self.copy_event, INFINITE) };
-        if wait != WAIT_OBJECT_0 {
-            bail!("async copy wait returned {wait:?}");
-        }
-        Ok(())
-    }
-
     unsafe fn write_uploads(&self, uploads: &[crate::resident::RegionUpload]) -> Result<()> {
         let mut mapped = ptr::null_mut();
         unsafe {
@@ -471,15 +463,6 @@ impl AsyncTransfer {
             )
         };
         Ok(())
-    }
-}
-
-impl Drop for AsyncTransfer {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = self.wait_idle();
-            let _ = CloseHandle(self.copy_event);
-        }
     }
 }
 

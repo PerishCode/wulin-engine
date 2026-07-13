@@ -1,5 +1,6 @@
 use anyhow::{Result, ensure};
 
+use crate::async_resident::ObjectSourceNamespace;
 use crate::load::{LoadConfig, MAX_REGION_SIDE};
 use crate::scene::Camera;
 use crate::terrain::TerrainSourceNamespace;
@@ -8,13 +9,21 @@ const PROJECTION_CENTER: i32 = (MAX_REGION_SIDE / 2) as i32;
 const REGION_SIDE_METERS: f32 = terrain_format::CELL_SIDE as f32 * 0.5;
 
 #[derive(Clone, Copy)]
-pub(super) struct TerrainProjection {
+pub(in crate::rendering) struct TerrainProjection {
     config: LoadConfig,
     canonical: bool,
 }
 
 impl TerrainProjection {
-    pub fn new(config: LoadConfig, source: Option<TerrainSourceNamespace>) -> Result<Self> {
+    pub fn for_terrain(config: LoadConfig, source: Option<TerrainSourceNamespace>) -> Result<Self> {
+        Self::new(config, source.is_some())
+    }
+
+    pub fn for_objects(config: LoadConfig, source: Option<ObjectSourceNamespace>) -> Result<Self> {
+        Self::new(config, source.is_some())
+    }
+
+    fn new(config: LoadConfig, canonical: bool) -> Result<Self> {
         let side = config.active_radius * 2 + 1;
         ensure!(
             side * side == config.active_region_count(),
@@ -24,10 +33,7 @@ impl TerrainProjection {
             config.active_radius < MAX_REGION_SIDE / 2,
             "terrain projection radius exceeds the semantic window"
         );
-        Ok(Self {
-            config,
-            canonical: source.is_some(),
-        })
+        Ok(Self { config, canonical })
     }
 
     pub fn is_canonical(self) -> bool {
@@ -77,6 +83,16 @@ impl TerrainProjection {
         ])
     }
 
+    pub fn position(self, active_index: usize, mut local: [f32; 3]) -> Result<[f32; 3]> {
+        if !self.canonical {
+            return Ok(local);
+        }
+        let offset = self.render_offset(active_index)?;
+        local[0] += offset[0] as f32 * REGION_SIDE_METERS;
+        local[2] += offset[1] as f32 * REGION_SIDE_METERS;
+        Ok(local)
+    }
+
     pub fn alias_center(self) -> [u32; 2] {
         [self.config.active_center_x, self.config.active_center_z]
     }
@@ -111,7 +127,7 @@ mod tests {
     #[test]
     fn canonical_aliases_project_identically() {
         let source = TerrainSourceNamespace([7; 32]);
-        let base = TerrainProjection::new(
+        let base = TerrainProjection::for_terrain(
             LoadConfig::new(MAX_REGION_SIDE, 64, 64, 2).unwrap(),
             Some(source),
         )
@@ -121,7 +137,7 @@ mod tests {
             .map(|index| base.region_id(index, 0).unwrap())
             .collect::<Vec<_>>();
         for center in [2, 64, 96, 125] {
-            let projection = TerrainProjection::new(
+            let projection = TerrainProjection::for_terrain(
                 LoadConfig::new(MAX_REGION_SIDE, center, 64, 2).unwrap(),
                 Some(source),
             )
@@ -151,9 +167,11 @@ mod tests {
 
     #[test]
     fn legacy_projection_is_passthrough() {
-        let projection =
-            TerrainProjection::new(LoadConfig::new(MAX_REGION_SIDE, 64, 64, 2).unwrap(), None)
-                .unwrap();
+        let projection = TerrainProjection::for_terrain(
+            LoadConfig::new(MAX_REGION_SIDE, 64, 64, 2).unwrap(),
+            None,
+        )
+        .unwrap();
         let camera = camera(0);
         assert_eq!(projection.camera(camera).position, camera.position);
         assert_eq!(projection.region_id(0, 1234).unwrap(), 1234);

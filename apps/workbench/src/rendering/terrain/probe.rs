@@ -1,11 +1,10 @@
-use anyhow::{Context, Result, ensure};
-use serde::Serialize;
-use sha2::{Digest, Sha256};
-
 use crate::load::LoadConfig;
 use crate::scene::{Camera, SceneState};
 use crate::terrain::{GlobalTerrainConfig, TerrainAssignment, TerrainSourceNamespace};
 use crate::world::RegionCoord;
+use anyhow::{Context, Result, ensure};
+use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 use super::projection::TerrainProjection;
 use super::{
@@ -190,7 +189,8 @@ impl TerrainRenderer {
                 QUERY_COUNT as usize,
             )
         }?;
-        let projection = TerrainProjection::new(snapshot.config, snapshot.report.source_namespace)?;
+        let projection =
+            TerrainProjection::for_terrain(snapshot.config, snapshot.report.source_namespace)?;
         let projected_camera = projection.camera(scene.camera());
         let lod_oracle = super::lod::evaluate(
             snapshot.config,

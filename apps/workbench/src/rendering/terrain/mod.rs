@@ -21,7 +21,7 @@ use crate::terrain::{
 };
 
 use self::pipeline::{TERRAIN_CONSTANT_COUNT, TerrainPipeline};
-use self::projection::TerrainProjection;
+pub(in crate::rendering) use self::projection::TerrainProjection;
 use self::transfer::{TerrainPublication, TerrainTransfer};
 use super::resident::{create_buffer, create_query_heap, set_viewport, transition, uav_barrier};
 
@@ -429,7 +429,8 @@ fn constants(
     height: u32,
 ) -> Result<[u32; TERRAIN_CONSTANT_COUNT as usize]> {
     let mut constants = [0u32; TERRAIN_CONSTANT_COUNT as usize];
-    let projection = TerrainProjection::new(snapshot.config, snapshot.report.source_namespace)?;
+    let projection =
+        TerrainProjection::for_terrain(snapshot.config, snapshot.report.source_namespace)?;
     let camera = projection.camera(scene.camera());
     for (destination, value) in constants[..16]
         .iter_mut()

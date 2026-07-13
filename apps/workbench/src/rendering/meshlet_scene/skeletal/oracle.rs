@@ -6,7 +6,8 @@ use meshlet_catalog::Catalog;
 use serde::Serialize;
 
 use crate::load::LoadConfig;
-use crate::resident::{InstanceRecord, active_region_ids, generate_region};
+use crate::rendering::terrain::TerrainProjection;
+use crate::resident::{InstanceRecord, active_region_ids, canonical_stable_key, generate_region};
 use crate::scene::SceneState;
 
 use super::renderer::SkeletalSettings;
@@ -35,16 +36,28 @@ pub struct GroundingInput<'a> {
     pub instance_records: Option<&'a [Vec<InstanceRecord>]>,
 }
 
+pub struct EvaluationInput<'a> {
+    pub config: LoadConfig,
+    pub scene: &'a SceneState,
+    pub viewport: [u32; 2],
+    pub projection: TerrainProjection,
+    pub grounding: GroundingInput<'a>,
+}
+
 pub fn evaluate(
     catalog: &Catalog,
     settings: SkeletalSettings,
-    config: LoadConfig,
-    scene: &SceneState,
-    width: u32,
-    height: u32,
-    grounding: GroundingInput<'_>,
+    input: EvaluationInput<'_>,
 ) -> Result<WorkloadCounts> {
-    let matrix = scene.view_projection(width as f32 / height as f32);
+    let EvaluationInput {
+        config,
+        scene,
+        viewport: [width, height],
+        projection,
+        grounding,
+    } = input;
+    let camera = projection.camera(scene.camera());
+    let matrix = crate::scene::view_projection(camera, width as f32 / height as f32);
     let mut counts = WorkloadCounts {
         visible: 0,
         rejected: 0,
@@ -75,10 +88,14 @@ pub fn evaluate(
             let ground = grounding.numerators.map_or(0.0, |values| {
                 values[logical_index] as f32 / grounding.denominator as f32
             });
-            let center =
-                Vec3::from_array(instance.position) + Vec3::Y * (ground + instance.height * 0.5);
+            let position = projection.position(active_index, instance.position)?;
+            let center = Vec3::from_array(position) + Vec3::Y * (ground + instance.height * 0.5);
             let clip = matrix * Vec4::new(center.x, center.y, center.z, 1.0);
-            let stable_key = region_id * 1024 + local_index as u32;
+            let stable_key = if projection.is_canonical() {
+                canonical_stable_key(instance.region_id, local_index as u32)
+            } else {
+                region_id * 1024 + local_index as u32
+            };
             let archetype = stable_key & 7;
             let visible = clip.w > 0.0
                 && clip.x.abs() <= clip.w

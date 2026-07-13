@@ -103,14 +103,41 @@ int terrain_height(uint slot, uint x, uint z)
     return int(value << 16u) >> 16;
 }
 
-int terrain_ground_q16(uint slot, InstanceRecord instance)
+float3 object_position(InstanceRecord instance, uint semantic_region)
 {
-    int region_x = int(instance.region_id % 128u);
-    int region_z = int(instance.region_id / 128u);
+    if (semantic_region == 0u)
+    {
+        return instance.position;
+    }
+    int region_x = int(semantic_region % 128u);
+    int region_z = int(semantic_region / 128u);
+    return instance.position + float3(
+        float((region_x - 64) * 16),
+        0.0,
+        float((region_z - 64) * 16)
+    );
+}
+
+uint object_stable_key(InstanceRecord instance, uint local_index, uint semantic_region)
+{
+    return semantic_region == 0u
+        ? instance.region_id * INSTANCES_PER_REGION + local_index
+        : instance.region_id ^ (local_index * 747796405u);
+}
+
+int terrain_ground_q16(
+    uint slot,
+    InstanceRecord instance,
+    uint semantic_region,
+    float3 position)
+{
+    uint region_id = semantic_region == 0u ? instance.region_id : semantic_region;
+    int region_x = int(region_id % 128u);
+    int region_z = int(region_id / 128u);
     float minimum_x = float((region_x - 64) * 16 - 8);
     float minimum_z = float((region_z - 64) * 16 - 8);
-    uint x_q9 = uint(clamp(int(round((instance.position.x - minimum_x) * 512.0)), 0, 8192));
-    uint z_q9 = uint(clamp(int(round((instance.position.z - minimum_z) * 512.0)), 0, 8192));
+    uint x_q9 = uint(clamp(int(round((position.x - minimum_x) * 512.0)), 0, 8192));
+    uint z_q9 = uint(clamp(int(round((position.z - minimum_z) * 512.0)), 0, 8192));
     uint cell_x = min(x_q9 >> 8u, 31u);
     uint cell_z = min(z_q9 >> 8u, 31u);
     uint u = x_q9 - cell_x * 256u;
@@ -171,7 +198,9 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     }
     uint packed_slots = active_slot_groups[group_id.x / 4][group_id.x % 4];
     uint slot = packed_slots & 63u;
+    uint semantic_region = packed_slots >> 12u;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
+    float3 position = object_position(instance, semantic_region);
     uint logical_index = group_id.x * INSTANCES_PER_REGION + local_index;
     float ground = 0.0;
     if (pose_shape.w != 0)
@@ -188,19 +217,19 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         }
         else
         {
-            ground_value = terrain_ground_q16(terrain_slot, instance);
+            ground_value = terrain_ground_q16(terrain_slot, instance, semantic_region, position);
             ground = float(ground_value) / 65536.0;
         }
         ground_numerators_out[logical_index] = ground_value;
     }
-    float3 center = instance.position + float3(0.0, ground + instance.height * 0.5, 0.0);
+    float3 center = position + float3(0.0, ground + instance.height * 0.5, 0.0);
     float4 clip = mul(view_projection, float4(center, 1.0));
     bool in_frustum = clip.w > 0.0
         && abs(clip.x) <= clip.w
         && abs(clip.y) <= clip.w
         && clip.z >= 0.0
         && clip.z <= clip.w;
-    uint stable_key = instance.region_id * INSTANCES_PER_REGION + local_index;
+    uint stable_key = object_stable_key(instance, local_index, semantic_region);
     uint archetype = stable_key & 7u;
     if (!in_frustum || (load_shape.z & (1u << archetype)) == 0)
     {
@@ -455,6 +484,10 @@ void ms_main(
     uint slot = visible.physical_index / INSTANCES_PER_REGION;
     uint local_index = visible.physical_index % INSTANCES_PER_REGION;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
+    uint active_index = visible.reserved / INSTANCES_PER_REGION;
+    uint packed_slots = active_slot_groups[active_index / 4][active_index % 4];
+    uint semantic_region = packed_slots >> 12u;
+    float3 position = object_position(instance, semantic_region);
     float ground = pose_shape.w == 0u
         ? 0.0
         : float(ground_numerators_in[visible.reserved])
@@ -498,10 +531,11 @@ void ms_main(
         MeshVertexOutput output;
         output.position = mul(
             view_projection,
-            float4(instance.position + float3(0.0, ground, 0.0) + rotated, 1.0)
+            float4(position + float3(0.0, ground, 0.0) + rotated, 1.0)
         );
         output.color = colors[visible.archetype] * (1.0 - 0.12 * visible.lod);
-        output.object_id = REGION_OBJECT_ID_BASE + instance.region_id + 1;
+        uint object_region = semantic_region == 0u ? instance.region_id : semantic_region;
+        output.object_id = REGION_OBJECT_ID_BASE + object_region + 1;
         output_vertices[group_thread] = output;
     }
     for (uint primitive_index = group_thread; primitive_index < meshlet.primitive_count; primitive_index += 64)

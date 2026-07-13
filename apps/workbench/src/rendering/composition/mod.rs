@@ -7,7 +7,9 @@ use sha2::{Digest, Sha256};
 use windows::Win32::Graphics::Direct3D12::ID3D12GraphicsCommandList;
 
 use crate::address::GlobalRegionConfig;
+use crate::async_resident::ObjectSourceNamespace;
 use crate::load::LoadConfig;
+use crate::terrain::TerrainSourceNamespace;
 use crate::world::RegionCoord;
 
 use super::renderer::Renderer;
@@ -17,6 +19,7 @@ mod contact;
 mod fixture;
 mod global;
 mod probe;
+mod schedule;
 mod state;
 mod traversal;
 
@@ -46,6 +49,8 @@ struct PendingPair {
     token: u64,
     config: LoadConfig,
     global_config: Option<GlobalRegionConfig>,
+    terrain_source_namespace: Option<TerrainSourceNamespace>,
+    object_source_namespace: Option<ObjectSourceNamespace>,
     fixture: CompositionFixture,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
@@ -56,6 +61,17 @@ struct PendingPair {
     started_at: Instant,
 }
 
+struct PendingPairInput {
+    config: LoadConfig,
+    global_config: Option<GlobalRegionConfig>,
+    terrain_source_namespace: Option<TerrainSourceNamespace>,
+    object_source_namespace: Option<ObjectSourceNamespace>,
+    fixture: CompositionFixture,
+    terrain_transaction_id: u64,
+    instance_transaction_id: u64,
+    camera_driven: bool,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PublishedPair {
@@ -63,6 +79,10 @@ struct PublishedPair {
     config: LoadConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     global_config: Option<GlobalRegionConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    terrain_source_namespace: Option<TerrainSourceNamespace>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    object_source_namespace: Option<ObjectSourceNamespace>,
     fixture: CompositionFixture,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
@@ -94,88 +114,6 @@ pub(super) struct CompositionCoordinator {
 }
 
 impl Renderer {
-    pub unsafe fn schedule_composition(&mut self, config: LoadConfig) -> Result<Value> {
-        ensure!(
-            !self.composition.traversal.is_enabled(),
-            "camera traversal owns composition scheduling"
-        );
-        unsafe { self.schedule_composition_pair(config, None, false) }
-    }
-
-    unsafe fn schedule_composition_pair(
-        &mut self,
-        config: LoadConfig,
-        global_config: Option<GlobalRegionConfig>,
-        camera_driven: bool,
-    ) -> Result<Value> {
-        ensure!(self.composition.pending.is_none(), "composition_pair_busy");
-        ensure!(
-            !self.cooked_streamer.has_pending(),
-            "cooked stream is active"
-        );
-        self.terrain_streamer.ensure_composition_source()?;
-
-        let terrain_reservation = match global_config {
-            Some(global) => self.terrain_renderer.reserve_global(global)?,
-            None => self.terrain_renderer.reserve(config)?,
-        };
-        let terrain_transaction_id = terrain_reservation.transaction_id;
-        let instance_reservation = match global_config {
-            Some(global) => self
-                .async_resident_renderer
-                .reserve_global_composition(global),
-            None => self.async_resident_renderer.reserve_composition(config),
-        };
-        let instance_reservation = match instance_reservation {
-            Ok(report) => report,
-            Err(error) => {
-                let _ = self.terrain_renderer.cancel(terrain_transaction_id);
-                return Err(error);
-            }
-        };
-        let instance_transaction_id = instance_reservation.transaction_id;
-        if let Err(error) = self.terrain_streamer.schedule(terrain_reservation) {
-            let _ = self.terrain_renderer.cancel(terrain_transaction_id);
-            let _ = self
-                .async_resident_renderer
-                .cancel_reservation(instance_transaction_id);
-            return Err(error);
-        }
-
-        let fixture = self.composition.fixture;
-        let token = self.composition.begin(
-            config,
-            global_config,
-            fixture,
-            terrain_transaction_id,
-            instance_transaction_id,
-            camera_driven,
-        );
-        if let Err(error) =
-            unsafe { fixture::submit_generated_instances(self, instance_reservation, fixture) }
-        {
-            self.composition.fail_half(
-                false,
-                instance_transaction_id,
-                format!("instance half failed to submit: {error:#}"),
-            );
-            return Err(error);
-        }
-        let mut response = json!({
-            "revision": COMPOSITION_REVISION,
-            "token": token,
-            "config": config,
-            "fixture": fixture,
-            "terrainTransactionId": terrain_transaction_id,
-            "instanceTransactionId": instance_transaction_id,
-            "cameraDriven": camera_driven,
-        });
-        if let Some(global) = global_config {
-            response["globalConfig"] = json!(global);
-        }
-        Ok(response)
-    }
-
     pub fn composition_status(&self) -> Value {
         self.composition.status_json()
     }
@@ -232,7 +170,10 @@ impl Renderer {
             self.async_resident_renderer.config() == Some(published.config)
                 && self.terrain_renderer.config() == Some(published.config)
                 && self.async_resident_renderer.global_config() == published.global_config
-                && self.terrain_renderer.global_config() == published.global_config,
+                && self.terrain_renderer.global_config() == published.global_config
+                && self.async_resident_renderer.object_source_namespace()
+                    == published.object_source_namespace
+                && self.terrain_renderer.source_namespace() == published.terrain_source_namespace,
             "composition snapshots do not match the published pair"
         );
         self.meshlet_scene_renderer.disable();
@@ -357,6 +298,8 @@ impl Renderer {
             token: pending.token,
             config: pending.config,
             global_config: pending.global_config,
+            terrain_source_namespace: pending.terrain_source_namespace,
+            object_source_namespace: pending.object_source_namespace,
             fixture: pending.fixture,
             terrain_transaction_id: pending.terrain_transaction_id,
             instance_transaction_id: pending.instance_transaction_id,
@@ -391,7 +334,8 @@ impl Renderer {
             ensure!(
                 report.transaction_id == pending.instance_transaction_id
                     && report.config == pending.config
-                    && report.global_config == pending.global_config,
+                    && report.global_config == pending.global_config
+                    && report.object_source_namespace == pending.object_source_namespace,
                 "staged instance half does not match the composition pair"
             );
         }
@@ -399,7 +343,8 @@ impl Renderer {
             ensure!(
                 report.transaction_id == pending.terrain_transaction_id
                     && report.config == pending.config
-                    && report.global_config == pending.global_config,
+                    && report.global_config == pending.global_config
+                    && report.source_namespace == pending.terrain_source_namespace,
                 "staged terrain half does not match the composition pair"
             );
         }
