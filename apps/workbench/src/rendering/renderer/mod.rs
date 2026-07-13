@@ -23,6 +23,7 @@ use super::gpu_capture::{CapturedPixels, Readback};
 use super::load::{LoadProbe, LoadRenderer};
 use super::meshlet_scene::{
     MeshletProbe, MeshletSceneRenderer, SkeletalProbe, SkeletalSceneRenderer, SkeletalSettings,
+    SurfaceProbe, SurfaceSettings,
 };
 use super::resident::ResidentRenderer;
 
@@ -71,6 +72,7 @@ pub struct RenderOutcome {
     pub load_probe: Option<LoadProbe>,
     pub meshlet_probe: Option<MeshletProbe>,
     pub skeletal_probe: Option<SkeletalProbe>,
+    pub surface_probe: Option<SurfaceProbe>,
     pub resident_stream: Option<StreamReport>,
 }
 
@@ -345,6 +347,31 @@ impl Renderer {
         self.skeletal_scene_renderer.status_json()
     }
 
+    pub fn configure_surface(&mut self, material_count: u32, mip_level: u32) -> Result<()> {
+        self.skeletal_scene_renderer
+            .configure_surface(SurfaceSettings {
+                material_count,
+                mip_level,
+            })
+    }
+
+    pub fn enable_surface(&mut self) -> Result<()> {
+        if self.async_resident_renderer.config().is_none() {
+            bail!("surface resolve requires a published async resident snapshot");
+        }
+        self.meshlet_scene_renderer.disable();
+        self.skeletal_scene_renderer.enable_surface();
+        Ok(())
+    }
+
+    pub fn disable_surface(&mut self) {
+        self.skeletal_scene_renderer.disable_surface();
+    }
+
+    pub fn surface_status(&self) -> serde_json::Value {
+        self.skeletal_scene_renderer.surface_status_json()
+    }
+
     pub fn arm_async_copy_gate(&mut self) -> Result<u64> {
         self.async_resident_renderer.arm_gate()
     }
@@ -371,6 +398,22 @@ impl Renderer {
 
     pub fn shader_model(&self) -> &str {
         self.capabilities.shader_model
+    }
+
+    pub fn barycentrics_supported(&self) -> bool {
+        self.capabilities.barycentrics
+    }
+
+    pub fn rasterizer_ordered_views_supported(&self) -> bool {
+        self.capabilities.rasterizer_ordered_views
+    }
+
+    pub fn visibility_format_supported(&self) -> bool {
+        self.capabilities.visibility_format
+    }
+
+    pub fn color_uav_format_supported(&self) -> bool {
+        self.capabilities.color_uav_format
     }
 
     pub unsafe fn wait_idle(&mut self) -> Result<()> {

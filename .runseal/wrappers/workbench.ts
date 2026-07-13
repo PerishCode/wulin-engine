@@ -89,9 +89,24 @@ async function configureSkeletal(args: string[]): Promise<void> {
     ]);
 }
 
+async function configureSurface(args: string[]): Promise<void> {
+    if (args.length > 2) fail("workbench: surface-config accepts materials and mip");
+    await run([
+        "inspect",
+        "workbench",
+        "surface.configure",
+        JSON.stringify({
+            material_count: pixel(args[0] ?? "64", "material count"),
+            mip_level: pixel(args[1] ?? "0", "mip level"),
+        }),
+        "--format",
+        "json",
+    ]);
+}
+
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|pause|resume|restart|stop>",
     );
     console.log("");
     console.log("Control and inspect the native engine workbench through Sidecar.");
@@ -310,6 +325,25 @@ switch (verb) {
         break;
     case "skeletal-config": {
         await configureSkeletal(args);
+        break;
+    }
+    case "surface":
+        if (args.length > 0) fail("workbench: surface does not accept arguments");
+        await run(["inspect", "workbench", "surface.status", "--format", "json"]);
+        break;
+    case "surface-enable":
+    case "surface-disable":
+        if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
+        await run([
+            "inspect",
+            "workbench",
+            verb === "surface-enable" ? "surface.enable" : "surface.disable",
+            "--format",
+            "json",
+        ]);
+        break;
+    case "surface-config": {
+        await configureSurface(args);
         break;
     }
     case "camera-set": {

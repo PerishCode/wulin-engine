@@ -2,6 +2,9 @@ use std::mem::ManuallyDrop;
 
 use anyhow::{Context, Result, bail};
 use windows::Win32::Graphics::Direct3D12::*;
+use windows::Win32::Graphics::Dxgi::Common::{
+    DXGI_FORMAT, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R32G32_UINT,
+};
 use windows::Win32::Graphics::Dxgi::{
     DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IDXGIAdapter4, IDXGIFactory6,
 };
@@ -12,6 +15,10 @@ const NVIDIA_VENDOR_ID: u32 = 0x10de;
 pub(super) struct DeviceCapabilities {
     pub mesh_shader_tier: u32,
     pub shader_model: &'static str,
+    pub barycentrics: bool,
+    pub rasterizer_ordered_views: bool,
+    pub visibility_format: bool,
+    pub color_uav_format: bool,
 }
 
 pub(super) unsafe fn enable_debug_layer() -> Result<()> {
@@ -73,6 +80,36 @@ pub(super) unsafe fn query_required_capabilities(
     }
     .context("D3D12 shader-model query failed")?;
 
+    let mut options3 = D3D12_FEATURE_DATA_D3D12_OPTIONS3::default();
+    unsafe {
+        device.CheckFeatureSupport(
+            D3D12_FEATURE_D3D12_OPTIONS3,
+            (&raw mut options3).cast(),
+            size_of::<D3D12_FEATURE_DATA_D3D12_OPTIONS3>() as u32,
+        )
+    }
+    .context("D3D12 options3 query failed")?;
+    let mut base_options = D3D12_FEATURE_DATA_D3D12_OPTIONS::default();
+    unsafe {
+        device.CheckFeatureSupport(
+            D3D12_FEATURE_D3D12_OPTIONS,
+            (&raw mut base_options).cast(),
+            size_of::<D3D12_FEATURE_DATA_D3D12_OPTIONS>() as u32,
+        )
+    }
+    .context("D3D12 base options query failed")?;
+    let visibility_format = unsafe { query_format(device, DXGI_FORMAT_R32G32_UINT) }?;
+    let color_format = unsafe { query_format(device, DXGI_FORMAT_R8G8B8A8_UNORM) }?;
+    let visibility_supported = visibility_format
+        .Support1
+        .contains(D3D12_FORMAT_SUPPORT1_RENDER_TARGET | D3D12_FORMAT_SUPPORT1_SHADER_LOAD);
+    let visibility_uav_supported = visibility_format
+        .Support2
+        .contains(D3D12_FORMAT_SUPPORT2_UAV_TYPED_LOAD | D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE);
+    let color_uav_supported = color_format
+        .Support2
+        .contains(D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE);
+
     if options.MeshShaderTier.0 < D3D12_MESH_SHADER_TIER_1.0 {
         bail!(
             "reference adapter does not support mesh shaders (tier {})",
@@ -85,10 +122,45 @@ pub(super) unsafe fn query_required_capabilities(
             shader_model_name(shader_model.HighestShaderModel)
         );
     }
+    if !options3.BarycentricsSupported.as_bool() {
+        bail!("reference adapter does not support barycentrics");
+    }
+    if !visibility_supported {
+        bail!("reference adapter does not support the R32G32_UINT visibility target");
+    }
+    if !base_options.ROVsSupported.as_bool() || !visibility_uav_supported {
+        bail!("reference adapter does not support the deterministic ROV winner target");
+    }
+    if !color_uav_supported {
+        bail!("reference adapter does not support R8G8B8A8_UNORM typed UAV stores");
+    }
     Ok(DeviceCapabilities {
         mesh_shader_tier: (options.MeshShaderTier.0 / 10) as u32,
         shader_model: shader_model_name(shader_model.HighestShaderModel),
+        barycentrics: true,
+        rasterizer_ordered_views: true,
+        visibility_format: true,
+        color_uav_format: true,
     })
+}
+
+unsafe fn query_format(
+    device: &ID3D12Device,
+    format: DXGI_FORMAT,
+) -> Result<D3D12_FEATURE_DATA_FORMAT_SUPPORT> {
+    let mut support = D3D12_FEATURE_DATA_FORMAT_SUPPORT {
+        Format: format,
+        ..Default::default()
+    };
+    unsafe {
+        device.CheckFeatureSupport(
+            D3D12_FEATURE_FORMAT_SUPPORT,
+            (&raw mut support).cast(),
+            size_of::<D3D12_FEATURE_DATA_FORMAT_SUPPORT>() as u32,
+        )
+    }
+    .context("D3D12 format support query failed")?;
+    Ok(support)
 }
 
 fn shader_model_name(model: D3D_SHADER_MODEL) -> &'static str {

@@ -12,6 +12,7 @@ use super::resources::{
     AnimationBuffers, COUNTER_BYTES, ExecutionResources, MAX_SHARED_POSES, MAX_SKELETAL_VISIBLE,
     PALETTE_BYTES, QUERY_COUNT, SAMPLE_BYTES,
 };
+use super::surface::{SurfaceFrame, SurfaceRenderer};
 use crate::rendering::async_resident::PublishedSnapshot;
 use crate::rendering::meshlet_scene::CatalogBuffers;
 use crate::rendering::resident::{set_viewport, transition, uav_barrier};
@@ -44,25 +45,28 @@ impl Default for SkeletalSettings {
 pub struct SkeletalSceneRenderer {
     pipeline: SkeletalPipeline,
     mesh_catalog: MeshletCatalog,
-    animation_catalog: AnimationCatalog,
+    pub(super) animation_catalog: AnimationCatalog,
     mesh_catalog_sha256: String,
     animation_catalog_sha256: String,
     mesh_buffers: CatalogBuffers,
     animation_buffers: AnimationBuffers,
-    resources: ExecutionResources,
-    timestamp_frequency: u64,
+    pub(super) resources: ExecutionResources,
+    pub(super) surface: SurfaceRenderer,
+    pub(super) timestamp_frequency: u64,
     width: u32,
     height: u32,
-    enabled: bool,
-    settings: SkeletalSettings,
+    pub(super) enabled: bool,
+    pub(super) settings: SkeletalSettings,
 }
 
 #[derive(Clone, Copy)]
 pub struct SkeletalFrame<'a> {
     pub snapshot: &'a PublishedSnapshot,
     pub scene: &'a SceneState,
+    pub back_buffer: &'a ID3D12Resource,
     pub render_targets: [D3D12_CPU_DESCRIPTOR_HANDLE; 2],
     pub depth_target: D3D12_CPU_DESCRIPTOR_HANDLE,
+    pub background_color: [f32; 4],
     pub probe: bool,
 }
 
@@ -93,6 +97,9 @@ impl SkeletalSceneRenderer {
                 &animation_buffers,
             )
         }?;
+        let surface = unsafe {
+            SurfaceRenderer::new(device, queue, &resources.heap, &mesh_catalog, width, height)
+        }?;
         Ok(Self {
             pipeline,
             mesh_catalog,
@@ -102,6 +109,7 @@ impl SkeletalSceneRenderer {
             mesh_buffers,
             animation_buffers,
             resources,
+            surface,
             timestamp_frequency,
             width,
             height,
@@ -132,11 +140,13 @@ impl SkeletalSceneRenderer {
     }
 
     pub fn enable(&mut self) {
+        self.surface.disable();
         self.enabled = true;
     }
 
     pub fn disable(&mut self) {
         self.enabled = false;
+        self.surface.disable();
     }
 
     pub fn is_enabled(&self) -> bool {
@@ -260,18 +270,43 @@ impl SkeletalSceneRenderer {
                 command_list.EndQuery(&self.resources.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 3)
             };
         }
-        unsafe { self.record_mesh(command_list, frame, constants, gpu_start) };
+        if self.surface.is_enabled() {
+            unsafe {
+                self.surface.record(
+                    command_list,
+                    &self.resources,
+                    constants,
+                    SurfaceFrame {
+                        back_buffer: frame.back_buffer,
+                        object_id_target: frame.render_targets[1],
+                        depth_target: frame.depth_target,
+                        background_color: frame.background_color,
+                        probe: frame.probe,
+                    },
+                )
+            };
+        } else {
+            unsafe { self.record_mesh(command_list, frame, constants, gpu_start) };
+            if frame.probe {
+                unsafe {
+                    command_list.EndQuery(
+                        &self.resources.query_heap,
+                        D3D12_QUERY_TYPE_TIMESTAMP,
+                        4,
+                    );
+                    command_list.ResolveQueryData(
+                        &self.resources.query_heap,
+                        D3D12_QUERY_TYPE_TIMESTAMP,
+                        0,
+                        QUERY_COUNT - 1,
+                        &self.resources.timestamp_readback,
+                        0,
+                    );
+                }
+            }
+        }
         if frame.probe {
             unsafe {
-                command_list.EndQuery(&self.resources.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 4);
-                command_list.ResolveQueryData(
-                    &self.resources.query_heap,
-                    D3D12_QUERY_TYPE_TIMESTAMP,
-                    0,
-                    QUERY_COUNT,
-                    &self.resources.timestamp_readback,
-                    0,
-                );
                 transition(
                     command_list,
                     &self.resources.counters,
