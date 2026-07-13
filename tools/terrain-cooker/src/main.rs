@@ -18,7 +18,7 @@ struct CookReport {
     output: String,
     file_sha256: String,
     metadata: terrain_format::PackMetadata,
-    centers: [[u32; 2]; 4],
+    centers: Vec<[u32; 2]>,
     edge_validation: terrain_format::EdgeValidation,
     min_height: i16,
     max_height: i16,
@@ -26,13 +26,23 @@ struct CookReport {
 
 fn main() -> Result<()> {
     let mut args = std::env::args_os().skip(1);
-    let output = PathBuf::from(args.next().context("usage: terrain-cooker <output.wlt>")?);
-    if args.next().is_some() {
-        bail!("usage: terrain-cooker <output.wlt>");
+    let usage = "usage: terrain-cooker <output.wlt> [--center <x> <z>]...";
+    let output = PathBuf::from(args.next().context(usage)?);
+    let mut centers = Vec::new();
+    while let Some(flag) = args.next() {
+        if flag != "--center" {
+            bail!(usage);
+        }
+        let x = parse_center_axis(args.next().context(usage)?, "x")?;
+        let z = parse_center_axis(args.next().context(usage)?, "z")?;
+        validate_center(x, z)?;
+        centers.push([x, z]);
     }
-    let centers = [[64, 64], [65, 64], [65, 65], [96, 96]];
+    if centers.is_empty() {
+        centers = vec![[64, 64], [65, 64], [65, 65], [96, 96]];
+    }
     let mut region_ids = BTreeSet::new();
-    for [center_x, center_z] in centers {
+    for &[center_x, center_z] in &centers {
         for offset_z in 0..=ACTIVE_RADIUS * 2 {
             for offset_x in 0..=ACTIVE_RADIUS * 2 {
                 let x = center_x + offset_x - ACTIVE_RADIUS;
@@ -72,6 +82,22 @@ fn main() -> Result<()> {
         max_height,
     };
     println!("{}", serde_json::to_string_pretty(&report)?);
+    Ok(())
+}
+
+fn parse_center_axis(value: std::ffi::OsString, name: &str) -> Result<u32> {
+    value
+        .to_string_lossy()
+        .parse()
+        .with_context(|| format!("center {name} must be an unsigned integer"))
+}
+
+fn validate_center(x: u32, z: u32) -> Result<()> {
+    let minimum = ACTIVE_RADIUS;
+    let maximum = WORLD_REGION_SIDE - ACTIVE_RADIUS - 1;
+    if !(minimum..=maximum).contains(&x) || !(minimum..=maximum).contains(&z) {
+        bail!("center must keep the active radius inside the terrain world");
+    }
     Ok(())
 }
 

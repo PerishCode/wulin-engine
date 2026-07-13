@@ -87,6 +87,14 @@ pub fn dispatch(renderer: &mut Renderer, kind: ControlKind) -> ControlResult {
             renderer.disable_composition();
             Ok(renderer.composition_status())
         }
+        ControlKind::CompositionTraversalEnable => renderer
+            .enable_composition_traversal()
+            .map(|()| renderer.composition_status())
+            .map_err(stream_error),
+        ControlKind::CompositionTraversalDisable => {
+            renderer.disable_composition_traversal();
+            Ok(renderer.composition_status())
+        }
         ControlKind::CompositionOrder { terrain_first } => {
             renderer.set_composition_order(terrain_first);
             Ok(renderer.composition_status())

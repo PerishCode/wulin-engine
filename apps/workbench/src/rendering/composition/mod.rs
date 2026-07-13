@@ -15,6 +15,8 @@ use super::terrain::control::TerrainPollOutcome;
 mod contact;
 mod fixture;
 mod probe;
+mod state;
+mod traversal;
 
 pub use fixture::CompositionFixture;
 pub use probe::CompositionProbe;
@@ -47,6 +49,7 @@ struct PendingPair {
     terrain: HalfState,
     instance: HalfState,
     failure: Option<String>,
+    camera_driven: bool,
     started_at: Instant,
 }
 
@@ -66,6 +69,7 @@ struct PublishedPair {
     instance_mapping_sha256: String,
     terrain_mapping_sha256: String,
     publication_ms: f64,
+    camera_driven: bool,
 }
 
 pub(super) struct CompositionCoordinator {
@@ -77,100 +81,23 @@ pub(super) struct CompositionCoordinator {
     pending: Option<PendingPair>,
     published: Option<PublishedPair>,
     last_failure: Option<Value>,
-}
-
-impl Default for CompositionCoordinator {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            order: CompositionOrder::default(),
-            fixture: CompositionFixture::default(),
-            next_token: 1,
-            publication_count: 0,
-            pending: None,
-            published: None,
-            last_failure: None,
-        }
-    }
-}
-
-impl CompositionCoordinator {
-    pub(super) fn has_pending(&self) -> bool {
-        self.pending.is_some()
-    }
-
-    fn begin(
-        &mut self,
-        config: LoadConfig,
-        fixture: CompositionFixture,
-        terrain_transaction_id: u64,
-        instance_transaction_id: u64,
-    ) -> u64 {
-        let token = self.next_token;
-        self.next_token += 1;
-        self.pending = Some(PendingPair {
-            token,
-            config,
-            fixture,
-            terrain_transaction_id,
-            instance_transaction_id,
-            terrain: HalfState::InFlight,
-            instance: HalfState::InFlight,
-            failure: None,
-            started_at: Instant::now(),
-        });
-        token
-    }
-
-    fn fail_half(&mut self, terrain: bool, transaction_id: u64, message: String) {
-        let Some(pending) = self.pending.as_mut() else {
-            return;
-        };
-        let expected = if terrain {
-            pending.terrain_transaction_id
-        } else {
-            pending.instance_transaction_id
-        };
-        if expected != transaction_id {
-            return;
-        }
-        if terrain {
-            pending.terrain = HalfState::Failed;
-        } else {
-            pending.instance = HalfState::Failed;
-        }
-        pending.failure = Some(message);
-    }
-
-    fn status_json(&self) -> Value {
-        let pending = self.pending.as_ref().map(|value| {
-            json!({
-                "token": value.token,
-                "config": value.config,
-                "fixture": value.fixture,
-                "terrainTransactionId": value.terrain_transaction_id,
-                "instanceTransactionId": value.instance_transaction_id,
-                "terrainStage": value.terrain,
-                "instanceStage": value.instance,
-                "failure": value.failure,
-                "pendingMs": value.started_at.elapsed().as_secs_f64() * 1_000.0,
-            })
-        });
-        json!({
-            "revision": COMPOSITION_REVISION,
-            "enabled": self.enabled,
-            "order": self.order,
-            "fixture": self.fixture,
-            "nextToken": self.next_token,
-            "pending": pending,
-            "published": self.published,
-            "lastFailure": self.last_failure,
-        })
-    }
+    traversal: traversal::CameraTraversal,
 }
 
 impl Renderer {
     pub unsafe fn schedule_composition(&mut self, config: LoadConfig) -> Result<Value> {
+        ensure!(
+            !self.composition.traversal.is_enabled(),
+            "camera traversal owns composition scheduling"
+        );
+        unsafe { self.schedule_composition_pair(config, false) }
+    }
+
+    unsafe fn schedule_composition_pair(
+        &mut self,
+        config: LoadConfig,
+        camera_driven: bool,
+    ) -> Result<Value> {
         ensure!(self.composition.pending.is_none(), "composition_pair_busy");
         ensure!(
             !self.cooked_streamer.has_pending(),
@@ -201,6 +128,7 @@ impl Renderer {
             fixture,
             terrain_transaction_id,
             instance_transaction_id,
+            camera_driven,
         );
         if let Err(error) =
             unsafe { fixture::submit_generated_instances(self, instance_reservation, fixture) }
@@ -219,6 +147,7 @@ impl Renderer {
             "fixture": fixture,
             "terrainTransactionId": terrain_transaction_id,
             "instanceTransactionId": instance_transaction_id,
+            "cameraDriven": camera_driven,
         }))
     }
 
@@ -252,6 +181,10 @@ impl Renderer {
     }
 
     pub fn set_composition_fixture(&mut self, fixture: CompositionFixture) -> Result<()> {
+        ensure!(
+            !self.composition.traversal.is_enabled(),
+            "composition fixture change requires traversal disable"
+        );
         ensure!(self.composition.pending.is_none(), "composition_pair_busy");
         ensure!(
             self.composition
@@ -283,6 +216,7 @@ impl Renderer {
     }
 
     pub fn disable_composition(&mut self) {
+        self.composition.traversal.disable();
         if !self.composition.enabled {
             return;
         }
@@ -404,7 +338,13 @@ impl Renderer {
             instance_mapping_sha256,
             terrain_mapping_sha256,
             publication_ms: pending.started_at.elapsed().as_secs_f64() * 1_000.0,
+            camera_driven: pending.camera_driven,
         });
+        if pending.camera_driven {
+            self.composition
+                .traversal
+                .mark_published(pending.token, pending.config);
+        }
         self.composition.last_failure = None;
         Ok(())
     }
@@ -473,6 +413,15 @@ impl Renderer {
             .pending
             .take()
             .expect("failed composition pair disappeared");
+        if pending.camera_driven {
+            self.composition.traversal.mark_failed(
+                pending.config,
+                pending
+                    .failure
+                    .clone()
+                    .unwrap_or_else(|| "composition pair failed".into()),
+            );
+        }
         self.composition.last_failure = Some(json!({
             "token": pending.token,
             "config": pending.config,
