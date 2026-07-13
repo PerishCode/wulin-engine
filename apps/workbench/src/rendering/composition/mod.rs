@@ -372,9 +372,11 @@ impl Renderer {
             camera_driven: pending.camera_driven,
         });
         if pending.camera_driven {
-            self.composition
-                .traversal
-                .mark_published(pending.token, pending.config);
+            self.composition.traversal.mark_published(
+                pending.token,
+                pending.config,
+                pending.global_config,
+            );
         }
         self.composition.last_failure = None;
         Ok(())
@@ -459,6 +461,7 @@ impl Renderer {
         if pending.camera_driven {
             self.composition.traversal.mark_failed(
                 pending.config,
+                pending.global_config,
                 pending
                     .failure
                     .clone()
