@@ -5,6 +5,7 @@ mod descriptors;
 mod lod;
 mod pipeline;
 mod probe;
+mod projection;
 mod state;
 mod transfer;
 
@@ -20,6 +21,7 @@ use crate::terrain::{
 };
 
 use self::pipeline::{TERRAIN_CONSTANT_COUNT, TerrainPipeline};
+use self::projection::TerrainProjection;
 use self::transfer::{TerrainPublication, TerrainTransfer};
 use super::resident::{create_buffer, create_query_heap, set_viewport, transition, uav_barrier};
 
@@ -304,7 +306,7 @@ impl TerrainRenderer {
             self.lod_settings,
             self.width,
             self.height,
-        );
+        )?;
         let heap = self.transfer.descriptor_heap();
         let gpu = unsafe { heap.GetGPUDescriptorHandleForHeapStart() };
         unsafe {
@@ -425,13 +427,14 @@ fn constants(
     lod_settings: TerrainLodSettings,
     width: u32,
     height: u32,
-) -> [u32; TERRAIN_CONSTANT_COUNT as usize] {
+) -> Result<[u32; TERRAIN_CONSTANT_COUNT as usize]> {
     let mut constants = [0u32; TERRAIN_CONSTANT_COUNT as usize];
-    for (destination, value) in constants[..16].iter_mut().zip(
-        scene
-            .view_projection(width as f32 / height as f32)
-            .to_cols_array(),
-    ) {
+    let projection = TerrainProjection::new(snapshot.config, snapshot.report.source_namespace)?;
+    let camera = projection.camera(scene.camera());
+    for (destination, value) in constants[..16]
+        .iter_mut()
+        .zip(crate::scene::view_projection(camera, width as f32 / height as f32).to_cols_array())
+    {
         *destination = value.to_bits();
     }
     constants[16..20].copy_from_slice(&[
@@ -440,10 +443,14 @@ fn constants(
         width,
         height,
     ]);
-    for (destination, entry) in constants[20..48].iter_mut().zip(&snapshot.active) {
-        *destination = entry.slot | (entry.region_id << 6);
+    for (index, (destination, entry)) in constants[20..48]
+        .iter_mut()
+        .zip(&snapshot.active)
+        .enumerate()
+    {
+        *destination = entry.slot | (projection.region_id(index, entry.region_id)? << 6);
     }
-    let camera_patch = lod::camera_patch(scene.camera());
+    let camera_patch = lod::camera_patch(camera);
     constants[48..56].copy_from_slice(&[
         camera_patch[0] as u32,
         camera_patch[1] as u32,
@@ -454,5 +461,5 @@ fn constants(
         0,
         0,
     ]);
-    constants
+    Ok(constants)
 }

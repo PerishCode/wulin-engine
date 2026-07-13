@@ -138,6 +138,7 @@ contains only files that exist.
 | `docs/adr/0024-signed-atomic-composition.md` | Accepted shared signed terrain/object identity and matched global/local pair publication contract. |
 | `docs/adr/0025-signed-camera-traversal.md` | Accepted frozen-origin signed camera traversal, checked extent, and latest-wins pair contract. |
 | `docs/adr/0026-signed-terrain-storage.md` | Accepted signed-key terrain V2, source namespace, canonical residency, and alias-projection contract. |
+| `docs/adr/0027-camera-relative-terrain-projection.md` | Accepted V2 centered terrain projection, camera translation, frame-local semantics, and signed inverse contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -172,6 +173,7 @@ contains only files that exist.
 | `experiments/0021-signed-atomic-composition/README.md` | Accepted Experiment 0021 shared signed terrain/object cache identity, atomic holds, rollback, and timing evidence. |
 | `experiments/0022-signed-camera-traversal/README.md` | Accepted Experiment 0022 signed boundaries, latest-wins pair scheduling, failure, restart, and timing evidence. |
 | `experiments/0023-signed-terrain-storage/README.md` | Accepted Experiment 0023 signed pack identity, canonical residency, alias rebind, rollback, and timing evidence. |
+| `experiments/0024-camera-relative-terrain/README.md` | Accepted Experiment 0024 V2 centered projection, semantic inversion, alias invariance, holds, and timing evidence. |
 | `crates/meshlet-catalog/Cargo.toml` | Deterministic static meshlet catalog package and dependency boundary. |
 | `crates/meshlet-catalog/src/lib.rs` | Eight-archetype, three-LOD geometry generation, meshlet partitioning, validation, encoding, and hashing. |
 | `crates/meshlet-catalog/tests/catalog.rs` | Catalog determinism, reducing-LOD, and mesh-shader bound regression contract. |
@@ -285,14 +287,15 @@ contains only files that exist.
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/descriptors.rs` | Surface SRV/UAV descriptor layout and shader-visible heap construction. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/targets.rs` | Visibility, deterministic winner, resolved color, depth, and semantic target ownership. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/upload.rs` | Immutable surface buffer and texture-array upload helpers. |
-| `apps/workbench/src/rendering/terrain/mod.rs` | Terrain renderer, immutable snapshot, staging/commit, and fixed mesh/LOD validation recording. |
+| `apps/workbench/src/rendering/terrain/mod.rs` | Terrain renderer, immutable snapshot, V2 projection derivation, staging/commit, and fixed mesh/LOD validation recording. |
 | `apps/workbench/src/rendering/terrain/cache.rs` | Protected terrain LRU with separate legacy and signed-global/content-binding cache identities. |
 | `apps/workbench/src/rendering/terrain/control.rs` | Renderer-owned terrain streamer completion, scheduling, publication, and mode controls. |
 | `apps/workbench/src/rendering/terrain/copy_timing.rs` | Copy-queue timestamp heap, bounded readback, frequency, and GPU duration decoding. |
 | `apps/workbench/src/rendering/terrain/descriptors.rs` | Raw per-slot terrain SRVs and region/LOD statistics UAV descriptor heap construction. |
-| `apps/workbench/src/rendering/terrain/lod.rs` | Independent CPU patch LOD, geometry, rational-edge, hashing, validation, and regression oracle. |
+| `apps/workbench/src/rendering/terrain/lod.rs` | Independent CPU patch LOD, projected camera/region geometry, rational-edge, hashing, validation, and regression oracle. |
 | `apps/workbench/src/rendering/terrain/pipeline.rs` | Terrain region/LOD compute and mesh root signature, PSOs, and shader contract. |
-| `apps/workbench/src/rendering/terrain/probe.rs` | Local/global terrain mapping, geometry, edge, resource, hash, and timing oracle projection. |
+| `apps/workbench/src/rendering/terrain/probe.rs` | Local/global mapping, canonical semantic inversion, geometry, edge, resource, hash, and timing oracle projection. |
+| `apps/workbench/src/rendering/terrain/projection.rs` | V1 passthrough and V2 centered camera, position, LOD, and semantic region projection. |
 | `apps/workbench/src/rendering/terrain/state.rs` | Terrain mode, LOD settings, published-state projection, descriptors, gates, and idle controls. |
 | `apps/workbench/src/rendering/terrain/transfer.rs` | Dedicated copy queue, protected slots, upload arena, gates, fences, and frame publication. |
 | `apps/workbench/src/rendering/cooked.rs` | Cooked I/O completion, reservation cancellation, and GPU submission orchestration. |
@@ -325,12 +328,14 @@ contains only files that exist.
 | `.runseal/wrappers/global-composition.ts` | Canonical Experiment 0021 signed pair alias, movement, three-hold, rejection, restart, compatibility, and timing workflow. |
 | `.runseal/wrappers/global-traversal.ts` | Canonical Experiment 0022 far boundary, latest-wins, blocked failure, restart, compatibility, and timing workflow. |
 | `.runseal/wrappers/signed-terrain-storage.ts` | Canonical Experiment 0023 V2 recook, alias rebind, source switch, rollback, restart, and timing workflow. |
+| `.runseal/wrappers/camera-relative-terrain.ts` | Canonical Experiment 0024 alias-extreme projection, LOD, hold, restart, and timing workflow. |
 | `.runseal/support/cooked-region.ts` | Experiment 0008 structured evidence, pack corruption, hashing, and comparison helpers. |
 | `.runseal/support/composition.ts` | Experiments 0015-0018 stable composition, grounding, contact, LOD, and timing validation support. |
 | `.runseal/support/global-terrain.ts` | Experiment 0020 Sidecar lifecycle, global/local mapping, transaction, capture, and distribution validation helpers. |
 | `.runseal/support/global-composition.ts` | Experiment 0021 shared pair mapping, half-report, hold, probe, and attachment validation helpers. |
 | `.runseal/support/global-traversal.ts` | Experiment 0022 frozen-origin target mapping, traversal status, camera movement, and publication helpers. |
 | `.runseal/support/signed-terrain-storage.ts` | Experiment 0023 V2 cooking, canonical-content, semantic-join, corruption, and failure helpers. |
+| `.runseal/support/camera-relative-terrain.ts` | Experiment 0024 alias camera, canonical projection, semantic inversion, frame, and hold helpers. |
 | `.runseal/support/traversal.ts` | Experiment 0018 bounded status, region mapping, and logical revisit evidence helpers. |
 | `.runseal/support/workbench/composition.ts` | Local/global composition workbench CLI validation and typed Sidecar dispatch. |
 | `.runseal/support/workbench/terrain.ts` | Terrain-specific workbench CLI argument validation and typed Sidecar event dispatch. |
@@ -448,6 +453,13 @@ Local IDs remain bounded placement/semantic projections, so alias rebinding pres
 canonical slots with zero I/O while different sources cannot false-hit. This accepts
 signed terrain storage and residency, not V2 composition, automatic rebase,
 camera-relative terrain transforms, or global semantic indirection.
+Experiment 0024 and ADR 0027 accept one V2 projection derived from committed source
+identity: the CPU translates camera and LOD into a fixed centered window while the
+existing GPU mapping consumes bounded projected region IDs. Frame-local object IDs
+invert exactly through a signed CPU table, so every legal local alias produces identical
+terrain attachments without changing HLSL or root constants. This removes the terrain
+side of the origin-rollover blocker, not generated-object projection, V2 atomic
+composition, persistent object identity, or automatic rebase.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -482,6 +494,7 @@ runseal :global-terrain
 runseal :global-composition
 runseal :global-traversal
 runseal :signed-terrain-storage
+runseal :camera-relative-terrain
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect

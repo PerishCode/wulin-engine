@@ -35,7 +35,7 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 26 }
+payload = { max_children = 27 }
 reason = "Runseal resolves named repository wrappers from one flat directory; each child is an explicit operator entrypoint."
 
 [[overrides]]
@@ -44,7 +44,7 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 11 }
+payload = { max_children = 12 }
 reason = "Runseal experiment helpers remain flat, named support owners shared by canonical wrappers."
 
 [[overrides]]
@@ -120,6 +120,15 @@ enabled = false
 reason = "Terrain cache identity tests require private slot state to prove signed keys cannot false-hit local aliases."
 
 [[overrides]]
+match = "apps/workbench/src/rendering/terrain/projection.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Terrain projection tests require private alias and semantic mapping state to prove V1 passthrough and V2 bit invariance."
+
+[[overrides]]
 match = "apps/workbench/src/rendering/terrain/transfer.rs"
 kind = "file"
 priority = 10
@@ -145,5 +154,5 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 11 }
+payload = { max_children = 12 }
 reason = "Terrain keeps cache, transfer, pipeline, probe, and renderer-state owners explicit; the accepted composition stage adds state without merging those boundaries."

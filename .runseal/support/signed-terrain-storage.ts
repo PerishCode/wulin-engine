@@ -63,15 +63,29 @@ export async function captureJoined(
     probe: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
     const assignments = new Map<number, Record<string, unknown>>();
-    for (const raw of array(probe, "activeMapping")) {
-        if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-            fail("signed terrain assignment is invalid");
+    const projection = probe.canonicalProjection;
+    if (projection && typeof projection === "object" && !Array.isArray(projection)) {
+        for (const raw of array(projection as Record<string, unknown>, "entries")) {
+            if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+                fail("signed terrain projection entry is invalid");
+            }
+            const entry = raw as Record<string, unknown>;
+            assignments.set(
+                field<number>(entry, "semanticRegionId", "number"),
+                object(entry, "globalRegion"),
+            );
         }
-        const assignment = raw as Record<string, unknown>;
-        assignments.set(
-            field<number>(assignment, "regionId", "number"),
-            object(assignment, "globalRegion"),
-        );
+    } else {
+        for (const raw of array(probe, "activeMapping")) {
+            if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+                fail("signed terrain assignment is invalid");
+            }
+            const assignment = raw as Record<string, unknown>;
+            assignments.set(
+                field<number>(assignment, "regionId", "number"),
+                object(assignment, "globalRegion"),
+            );
+        }
     }
     const raw = await event("perception.capture", {
         id,
