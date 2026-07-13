@@ -9,19 +9,19 @@ const LOCAL_ORIGIN: u32 = MAX_REGION_SIDE / 2;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GlobalTerrainConfig {
+pub struct GlobalRegionConfig {
     pub global_origin: RegionCoord,
     pub global_center: RegionCoord,
     pub active_radius: u32,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct AddressedRegion {
+pub struct AddressedRegion {
     pub global_region: RegionCoord,
     pub local_region_id: u32,
 }
 
-impl GlobalTerrainConfig {
+impl GlobalRegionConfig {
     pub fn new(
         origin_x: i64,
         origin_z: i64,
@@ -46,7 +46,7 @@ impl GlobalTerrainConfig {
         LoadConfig::new(MAX_REGION_SIDE, center_x, center_z, self.active_radius)
     }
 
-    pub(crate) fn addressed_regions(self) -> Result<Vec<AddressedRegion>> {
+    pub fn addressed_regions(self) -> Result<Vec<AddressedRegion>> {
         let local = self.local_config()?;
         let local_ids = active_region_ids(local)?;
         let diameter = i64::from(self.active_radius * 2 + 1);
@@ -66,7 +66,7 @@ impl GlobalTerrainConfig {
         }
         ensure!(
             regions.len() == local.active_region_count() as usize,
-            "global terrain mapping is incomplete"
+            "global region mapping is incomplete"
         );
         Ok(regions)
     }
@@ -75,16 +75,16 @@ impl GlobalTerrainConfig {
 fn checked_delta(value: i64, origin: i64, axis: &str) -> Result<i64> {
     value
         .checked_sub(origin)
-        .ok_or_else(|| anyhow::anyhow!("global terrain {axis} delta overflowed"))
+        .ok_or_else(|| anyhow::anyhow!("global region {axis} delta overflowed"))
 }
 
 fn checked_local_axis(offset: i64, axis: &str) -> Result<u32> {
     let value = i64::from(LOCAL_ORIGIN)
         .checked_add(offset)
-        .ok_or_else(|| anyhow::anyhow!("local terrain {axis} alias overflowed"))?;
+        .ok_or_else(|| anyhow::anyhow!("local region {axis} alias overflowed"))?;
     ensure!(
         (0..i64::from(MAX_REGION_SIDE)).contains(&value),
-        "global terrain {axis} maps outside local format-V1 extent"
+        "global region {axis} maps outside local format-V1 extent"
     );
     Ok(value as u32)
 }
@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn far_mapping_is_exact() {
         let far = 1_i64 << 40;
-        let config = GlobalTerrainConfig::new(far, -far, far + 1, -far, 2).unwrap();
+        let config = GlobalRegionConfig::new(far, -far, far + 1, -far, 2).unwrap();
         let local = config.local_config().unwrap();
         assert_eq!((local.active_center_x, local.active_center_z), (65, 64));
         let regions = config.addressed_regions().unwrap();
@@ -110,6 +110,6 @@ mod tests {
 
     #[test]
     fn overflow_is_rejected() {
-        assert!(GlobalTerrainConfig::new(i64::MIN, 0, i64::MAX, 0, 2).is_err());
+        assert!(GlobalRegionConfig::new(i64::MIN, 0, i64::MAX, 0, 2).is_err());
     }
 }

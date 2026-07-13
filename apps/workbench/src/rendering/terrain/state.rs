@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use windows::Win32::Graphics::Direct3D12::ID3D12DescriptorHeap;
 
 use crate::load::LoadConfig;
-use crate::terrain::TerrainAssignment;
+use crate::terrain::{GlobalTerrainConfig, TerrainAssignment};
 
 use super::{PATCH_GROUP_COUNT, TERRAIN_REVISION, TerrainLodSettings, TerrainRenderer, lod};
 
@@ -27,6 +27,12 @@ impl TerrainRenderer {
 
     pub fn config(&self) -> Option<LoadConfig> {
         self.published.as_ref().map(|value| value.config)
+    }
+
+    pub(in crate::rendering) fn global_config(&self) -> Option<GlobalTerrainConfig> {
+        self.published
+            .as_ref()
+            .and_then(|value| value.global_config)
     }
 
     pub fn status_json(&self) -> Value {

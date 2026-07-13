@@ -3,8 +3,10 @@ use std::collections::BTreeSet;
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 
+use crate::address::{AddressedRegion, GlobalRegionConfig};
 use crate::load::LoadConfig;
 use crate::resident::{REGION_INSTANCE_BYTES, RegionUpload, active_region_ids, hash_uploads};
+use crate::world::RegionCoord;
 
 pub const ASYNC_RESIDENT_REVISION: &str = "async-resident-v1";
 pub const ASYNC_CACHE_CAPACITY: usize = 50;
@@ -17,8 +19,20 @@ pub struct AsyncRegionCache {
 
 #[derive(Clone, Copy)]
 struct CacheEntry {
-    region_id: u32,
+    key: CacheKey,
     last_used: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct CacheKey {
+    global_region: Option<RegionCoord>,
+    local_region_id: u32,
+}
+
+#[derive(Clone, Copy)]
+struct DesiredRegion {
+    key: CacheKey,
+    assignment: RegionAssignment,
 }
 
 impl Default for AsyncRegionCache {
@@ -33,6 +47,7 @@ impl Default for AsyncRegionCache {
 #[derive(Clone)]
 pub struct AsyncLayoutPlan {
     pub config: LoadConfig,
+    pub global_config: Option<GlobalRegionConfig>,
     pub next_cache: AsyncRegionCache,
     pub assignments: Vec<RegionAssignment>,
     pub active_slots: Vec<u32>,
@@ -51,6 +66,8 @@ pub struct AsyncStreamPlan {
 pub struct RegionAssignment {
     pub slot: u32,
     pub region_id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_region: Option<RegionCoord>,
 }
 
 #[derive(Clone, Copy, Serialize)]
@@ -71,6 +88,8 @@ pub struct AsyncTransactionReport {
     pub revision: &'static str,
     pub transaction_id: u64,
     pub config: LoadConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_config: Option<GlobalRegionConfig>,
     #[serde(flatten)]
     pub counts: AsyncPlanCounts,
     pub uploaded_sha256: String,
@@ -90,6 +109,8 @@ pub struct AsyncReservationReport {
     pub revision: &'static str,
     pub transaction_id: u64,
     pub config: LoadConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_config: Option<GlobalRegionConfig>,
     #[serde(flatten)]
     pub counts: AsyncPlanCounts,
     pub assignments: Vec<RegionAssignment>,
@@ -126,7 +147,11 @@ impl AsyncRegionCache {
         config: LoadConfig,
         protected_slots: &BTreeSet<u32>,
     ) -> Result<AsyncLayoutPlan> {
-        self.plan_layout_ordered(config, protected_slots, false)
+        let desired = active_region_ids(config)?
+            .into_iter()
+            .map(local_region)
+            .collect();
+        self.plan_layout_ordered(config, None, desired, protected_slots, false)
     }
 
     pub fn plan_composition_layout(
@@ -134,22 +159,44 @@ impl AsyncRegionCache {
         config: LoadConfig,
         protected_slots: &BTreeSet<u32>,
     ) -> Result<AsyncLayoutPlan> {
-        self.plan_layout_ordered(config, protected_slots, true)
+        let desired = active_region_ids(config)?
+            .into_iter()
+            .map(local_region)
+            .collect();
+        self.plan_layout_ordered(config, None, desired, protected_slots, true)
+    }
+
+    pub fn plan_global_composition_layout(
+        &self,
+        config: GlobalRegionConfig,
+        protected_slots: &BTreeSet<u32>,
+    ) -> Result<AsyncLayoutPlan> {
+        let local = config.local_config()?;
+        let desired = config
+            .addressed_regions()?
+            .into_iter()
+            .map(global_region)
+            .collect();
+        self.plan_layout_ordered(local, Some(config), desired, protected_slots, true)
     }
 
     fn plan_layout_ordered(
         &self,
         config: LoadConfig,
+        global_config: Option<GlobalRegionConfig>,
+        desired: Vec<DesiredRegion>,
         protected_slots: &BTreeSet<u32>,
         high_slots_first: bool,
     ) -> Result<AsyncLayoutPlan> {
-        let desired = active_region_ids(config)?;
-        let desired_set = desired.iter().copied().collect::<BTreeSet<_>>();
+        let desired_set = desired
+            .iter()
+            .map(|region| region.key)
+            .collect::<BTreeSet<_>>();
         let mut next = self.clone();
         next.clock += 1;
         let mut retained = 0;
         for entry in next.slots.iter_mut().flatten() {
-            if desired_set.contains(&entry.region_id) {
+            if desired_set.contains(&entry.key) {
                 entry.last_used = next.clock;
                 retained += 1;
             }
@@ -158,8 +205,8 @@ impl AsyncRegionCache {
         let mut assignments = Vec::new();
         let mut reused_slots = Vec::new();
         let mut evicted = 0;
-        for region_id in desired.iter().copied() {
-            if next.slot_for(region_id).is_some() {
+        for region in desired.iter().copied() {
+            if next.slot_for(region.key).is_some() {
                 continue;
             }
             let free_slot = if high_slots_first {
@@ -177,7 +224,7 @@ impl AsyncRegionCache {
                     .filter_map(|(slot, entry)| entry.map(|entry| (slot, entry)))
                     .filter(|(slot, entry)| {
                         !protected_slots.contains(&(*slot as u32))
-                            && !desired_set.contains(&entry.region_id)
+                            && !desired_set.contains(&entry.key)
                     })
                     .min_by_key(|(slot, entry)| (entry.last_used, *slot))
                     .map(|(slot, _)| slot)
@@ -187,19 +234,19 @@ impl AsyncRegionCache {
                 slot
             };
             next.slots[slot] = Some(CacheEntry {
-                region_id,
+                key: region.key,
                 last_used: next.clock,
             });
             assignments.push(RegionAssignment {
                 slot: slot as u32,
-                region_id,
+                ..region.assignment
             });
         }
 
         let active_slots = desired
             .iter()
-            .map(|region_id| {
-                next.slot_for(*region_id)
+            .map(|region| {
+                next.slot_for(region.key)
                     .context("async active region is not resident")
                     .map(|slot| slot as u32)
             })
@@ -216,6 +263,7 @@ impl AsyncRegionCache {
         };
         Ok(AsyncLayoutPlan {
             config,
+            global_config,
             next_cache: next,
             assignments,
             active_slots,
@@ -224,10 +272,38 @@ impl AsyncRegionCache {
         })
     }
 
-    fn slot_for(&self, region_id: u32) -> Option<usize> {
+    fn slot_for(&self, key: CacheKey) -> Option<usize> {
         self.slots
             .iter()
-            .position(|entry| entry.is_some_and(|entry| entry.region_id == region_id))
+            .position(|entry| entry.is_some_and(|entry| entry.key == key))
+    }
+}
+
+fn local_region(region_id: u32) -> DesiredRegion {
+    DesiredRegion {
+        key: CacheKey {
+            global_region: None,
+            local_region_id: region_id,
+        },
+        assignment: RegionAssignment {
+            slot: 0,
+            region_id,
+            global_region: None,
+        },
+    }
+}
+
+fn global_region(region: AddressedRegion) -> DesiredRegion {
+    DesiredRegion {
+        key: CacheKey {
+            global_region: Some(region.global_region),
+            local_region_id: region.local_region_id,
+        },
+        assignment: RegionAssignment {
+            slot: 0,
+            region_id: region.local_region_id,
+            global_region: Some(region.global_region),
+        },
     }
 }
 
@@ -261,5 +337,60 @@ impl AsyncLayoutPlan {
             uploads,
             uploaded_sha256,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn protected(plan: &AsyncLayoutPlan) -> BTreeSet<u32> {
+        plan.active_slots.iter().copied().collect()
+    }
+
+    #[test]
+    fn global_alias_misses() {
+        let zero = GlobalRegionConfig::new(0, 0, 0, 0, 2).unwrap();
+        let first = AsyncRegionCache::default()
+            .plan_global_composition_layout(zero, &BTreeSet::new())
+            .unwrap();
+        let far = 1_i64 << 40;
+        let shifted = GlobalRegionConfig::new(far, -far, far, -far, 2).unwrap();
+        let second = first
+            .next_cache
+            .plan_global_composition_layout(shifted, &protected(&first))
+            .unwrap();
+        assert_eq!(second.counts.retained_region_count, 0);
+        assert_eq!(second.counts.uploaded_region_count, 25);
+        assert_eq!(second.counts.resident_region_count, 50);
+        assert!(
+            second
+                .assignments
+                .iter()
+                .all(|assignment| assignment.global_region.is_some())
+        );
+    }
+
+    #[test]
+    fn global_revisit_hits() {
+        let base = GlobalRegionConfig::new(0, 0, 0, 0, 2).unwrap();
+        let first = AsyncRegionCache::default()
+            .plan_global_composition_layout(base, &BTreeSet::new())
+            .unwrap();
+        let adjacent_config = GlobalRegionConfig::new(0, 0, 1, 0, 2).unwrap();
+        let adjacent = first
+            .next_cache
+            .plan_global_composition_layout(adjacent_config, &protected(&first))
+            .unwrap();
+        assert_eq!(adjacent.counts.retained_region_count, 20);
+        assert_eq!(adjacent.counts.uploaded_region_count, 5);
+
+        let revisit = adjacent
+            .next_cache
+            .plan_global_composition_layout(base, &protected(&adjacent))
+            .unwrap();
+        assert_eq!(revisit.counts.retained_region_count, 25);
+        assert_eq!(revisit.counts.uploaded_region_count, 0);
+        assert_eq!(revisit.counts.instance_bytes, 0);
     }
 }

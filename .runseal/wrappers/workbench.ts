@@ -1,5 +1,6 @@
-import { dispatchTerrain } from "../support/workbench-terrain.ts";
-import { dispatchWorld } from "../support/workbench-world.ts";
+import { dispatchComposition } from "../support/workbench/composition.ts";
+import { dispatchTerrain } from "../support/workbench/terrain.ts";
+import { dispatchWorld } from "../support/workbench/world.ts";
 
 function fail(message: string): never {
     console.error(message);
@@ -109,7 +110,7 @@ async function configureSurface(args: string[]): Promise<void> {
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|world|world-relocate|world-rebase|world-reset|world-probe|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|occlusion-enable|occlusion-disable|occlusion-reset|terrain|terrain-open|terrain-schedule|terrain-global-schedule|terrain-enable|terrain-disable|terrain-lod|terrain-lod-config|terrain-lod-enable|terrain-lod-disable|terrain-io-gate-arm|terrain-io-gate-release|terrain-copy-gate-arm|terrain-copy-gate-release|composition|composition-schedule|composition-enable|composition-disable|composition-traversal-enable|composition-traversal-disable|composition-order|composition-fixture|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|world|world-relocate|world-rebase|world-reset|world-probe|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|occlusion-enable|occlusion-disable|occlusion-reset|terrain|terrain-open|terrain-schedule|terrain-global-schedule|terrain-enable|terrain-disable|terrain-lod|terrain-lod-config|terrain-lod-enable|terrain-lod-disable|terrain-io-gate-arm|terrain-io-gate-release|terrain-copy-gate-arm|terrain-copy-gate-release|composition|composition-schedule|composition-global-schedule|composition-enable|composition-disable|composition-traversal-enable|composition-traversal-disable|composition-order|composition-fixture|pause|resume|restart|stop>",
     );
     console.log("\nControl and inspect the native engine workbench through Sidecar.");
     Deno.exit(0);
@@ -121,6 +122,7 @@ const root = profilePath.replace(/[\\/][^\\/]+$/, "");
 const [verb, ...args] = Deno.args;
 
 if (await dispatchTerrain(verb, args, run)) Deno.exit(0);
+if (await dispatchComposition(verb, args, run)) Deno.exit(0);
 if (await dispatchWorld(verb, args, run)) Deno.exit(0);
 
 switch (verb) {
@@ -279,70 +281,6 @@ switch (verb) {
             "json",
         ]);
         break;
-    case "composition":
-        if (args.length > 0) fail("workbench: composition does not accept arguments");
-        await run(["inspect", "workbench", "composition.status", "--format", "json"]);
-        break;
-    case "composition-schedule": {
-        if (args.length !== 2) {
-            fail("workbench: composition-schedule requires center x and center z");
-        }
-        await run([
-            "inspect",
-            "workbench",
-            "composition.schedule",
-            JSON.stringify({
-                world_region_side: 128,
-                active_center_x: pixel(args[0], "active center x"),
-                active_center_z: pixel(args[1], "active center z"),
-                active_radius: 2,
-            }),
-            "--format",
-            "json",
-        ]);
-        break;
-    }
-    case "composition-enable":
-    case "composition-disable":
-    case "composition-traversal-enable":
-    case "composition-traversal-disable":
-        if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
-        await run([
-            "inspect",
-            "workbench",
-            verb.replaceAll("-", "."),
-            "--format",
-            "json",
-        ]);
-        break;
-    case "composition-order": {
-        if (args.length !== 1 || !["terrain-first", "object-first"].includes(args[0])) {
-            fail("workbench: composition-order requires terrain-first or object-first");
-        }
-        await run([
-            "inspect",
-            "workbench",
-            "composition.order",
-            JSON.stringify({ order: args[0] }),
-            "--format",
-            "json",
-        ]);
-        break;
-    }
-    case "composition-fixture": {
-        if (args.length !== 1 || !["cell-center", "arbitrary-q8"].includes(args[0])) {
-            fail("workbench: composition-fixture requires cell-center or arbitrary-q8");
-        }
-        await run([
-            "inspect",
-            "workbench",
-            "composition.fixture",
-            JSON.stringify({ fixture: args[0] }),
-            "--format",
-            "json",
-        ]);
-        break;
-    }
     case "meshlet":
         if (args.length > 0) fail("workbench: meshlet does not accept arguments");
         await run(["inspect", "workbench", "meshlet.status", "--format", "json"]);

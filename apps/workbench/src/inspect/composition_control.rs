@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::address::GlobalRegionConfig;
 use crate::load::LoadConfig;
 use crate::rendering::{CompositionFixture, Renderer};
 
@@ -16,6 +17,16 @@ struct OrderPayload {
 #[serde(deny_unknown_fields)]
 struct FixturePayload {
     fixture: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GlobalPayload {
+    origin_x: i64,
+    origin_z: i64,
+    center_x: i64,
+    center_z: i64,
+    active_radius: u32,
 }
 
 pub(super) fn parse_order(value: Value) -> Result<ControlKind, ProtocolError> {
@@ -48,6 +59,17 @@ pub(super) fn parse_fixture(value: Value) -> Result<ControlKind, ProtocolError> 
     }
 }
 
+pub(super) fn parse_global(value: Value) -> Result<ControlKind, ProtocolError> {
+    let payload: GlobalPayload = decode(value)?;
+    Ok(ControlKind::CompositionGlobalSchedule(
+        payload.origin_x,
+        payload.origin_z,
+        payload.center_x,
+        payload.center_z,
+        payload.active_radius,
+    ))
+}
+
 fn decode<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, ProtocolError> {
     serde_json::from_value(value).map_err(|error| ProtocolError {
         code: "invalid_payload",
@@ -75,6 +97,21 @@ pub fn dispatch(renderer: &mut Renderer, kind: ControlKind) -> ControlResult {
                 message: error.to_string(),
             })?;
             unsafe { renderer.schedule_composition(config) }.map_err(stream_error)
+        }
+        ControlKind::CompositionGlobalSchedule(
+            origin_x,
+            origin_z,
+            center_x,
+            center_z,
+            active_radius,
+        ) => {
+            let config =
+                GlobalRegionConfig::new(origin_x, origin_z, center_x, center_z, active_radius)
+                    .map_err(|error| ProtocolError {
+                        code: "invalid_global_composition_config",
+                        message: error.to_string(),
+                    })?;
+            unsafe { renderer.schedule_global_composition(config) }.map_err(stream_error)
         }
         ControlKind::CompositionEnable => renderer
             .enable_composition()

@@ -230,7 +230,7 @@ impl Renderer {
             return Ok(());
         };
         self.composition.traversal.mark_attempted();
-        match unsafe { self.schedule_composition_pair(config, true) } {
+        match unsafe { self.schedule_composition_pair(config, None, true) } {
             Ok(value) => {
                 let token = value["token"]
                     .as_u64()

@@ -1,4 +1,4 @@
-type SidecarRun = (args: string[]) => Promise<void>;
+type RunSidecar = (args: string[]) => Promise<void>;
 
 function fail(message: string): never {
     console.error(message);
@@ -24,7 +24,7 @@ function signedInteger(value: string, name: string): number {
 export async function dispatchTerrain(
     verb: string | undefined,
     args: string[],
-    run: SidecarRun,
+    run: RunSidecar,
 ): Promise<boolean> {
     switch (verb) {
         case "terrain":
