@@ -5,6 +5,8 @@ static const uint MAX_BONES = 128;
 static const uint MAX_POSE_KEYS = 512;
 static const uint POSE_WORDS = MAX_POSE_KEYS / 32;
 static const uint COUNTER_DWORDS = 20;
+static const uint TERRAIN_HEIGHT_OFFSET = 16;
+static const uint TERRAIN_SAMPLE_SIDE = 33;
 
 struct InstanceRecord
 {
@@ -81,6 +83,8 @@ StructuredBuffer<AffineTransform> catalog_samples : register(t58);
 StructuredBuffer<SkinBinding> catalog_skin : register(t59);
 StructuredBuffer<VisibleObject> draw_objects : register(t50);
 StructuredBuffer<AffineTransform> palette_in : register(t62);
+ByteAddressBuffer terrain_tiles[REGION_SLOT_CAPACITY] : register(t63);
+StructuredBuffer<int> ground_numerators_in : register(t113);
 
 RWStructuredBuffer<VisibleObject> visible_objects : register(u0);
 RWByteAddressBuffer indirect_and_counters : register(u1);
@@ -89,6 +93,15 @@ RWByteAddressBuffer pose_bitset : register(u3);
 RWStructuredBuffer<uint> active_pose_keys : register(u4);
 RWStructuredBuffer<AffineTransform> palette_out : register(u5);
 RWByteAddressBuffer validation_sample : register(u6);
+RWStructuredBuffer<int> ground_numerators_out : register(u7);
+
+int terrain_height(uint slot, uint x, uint z)
+{
+    uint offset = TERRAIN_HEIGHT_OFFSET + (z * TERRAIN_SAMPLE_SIDE + x) * 2u;
+    uint packed = terrain_tiles[NonUniformResourceIndex(slot)].Load(offset & ~3u);
+    uint value = (packed >> ((offset & 2u) * 8u)) & 0xffffu;
+    return int(value << 16u) >> 16;
+}
 
 uint pose_phase(uint stable_key)
 {
@@ -134,9 +147,22 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     {
         return;
     }
-    uint slot = active_slot_groups[group_id.x / 4][group_id.x % 4];
+    uint packed_slots = active_slot_groups[group_id.x / 4][group_id.x % 4];
+    uint slot = packed_slots & 63u;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
-    float3 center = instance.position + float3(0.0, instance.height * 0.5, 0.0);
+    uint logical_index = group_id.x * INSTANCES_PER_REGION + local_index;
+    float ground = 0.0;
+    if (pose_shape.w != 0)
+    {
+        uint terrain_slot = (packed_slots >> 6u) & 63u;
+        uint cell_x = local_index % 32u;
+        uint cell_z = local_index / 32u;
+        int numerator = terrain_height(terrain_slot, cell_x + 1u, cell_z)
+            + terrain_height(terrain_slot, cell_x, cell_z + 1u);
+        ground_numerators_out[logical_index] = numerator;
+        ground = float(numerator) / 512.0;
+    }
+    float3 center = instance.position + float3(0.0, ground + instance.height * 0.5, 0.0);
     float4 clip = mul(view_projection, float4(center, 1.0));
     bool in_frustum = clip.w > 0.0
         && abs(clip.x) <= clip.w
@@ -203,7 +229,7 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     visible.lod = lod;
     visible.stable_key = stable_key;
     visible.pose_slot = pose_slot;
-    visible.reserved = group_id.x * INSTANCES_PER_REGION + local_index;
+    visible.reserved = logical_index;
     visible_objects[visible_index] = visible;
 }
 
@@ -398,6 +424,9 @@ void ms_main(
     uint slot = visible.physical_index / INSTANCES_PER_REGION;
     uint local_index = visible.physical_index % INSTANCES_PER_REGION;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
+    float ground = pose_shape.w != 0
+        ? float(ground_numerators_in[visible.reserved]) / 512.0
+        : 0.0;
     float angle = float((visible.stable_key * 747796405u) & 65535u) * 6.28318530718 / 65536.0;
     float sine;
     float cosine;
@@ -435,7 +464,10 @@ void ms_main(
             float3(0.88, 0.38, 0.58), float3(0.52, 0.72, 0.14)
         };
         MeshVertexOutput output;
-        output.position = mul(view_projection, float4(instance.position + rotated, 1.0));
+        output.position = mul(
+            view_projection,
+            float4(instance.position + float3(0.0, ground, 0.0) + rotated, 1.0)
+        );
         output.color = colors[visible.archetype] * (1.0 - 0.12 * visible.lod);
         output.object_id = REGION_OBJECT_ID_BASE + instance.region_id + 1;
         output_vertices[group_thread] = output;

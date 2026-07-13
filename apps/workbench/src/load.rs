@@ -12,7 +12,7 @@ pub const MAX_ACTIVE_RADIUS: u32 = 4;
 pub const MAX_VISIBLE_INSTANCES: u32 =
     (MAX_ACTIVE_RADIUS * 2 + 1) * (MAX_ACTIVE_RADIUS * 2 + 1) * INSTANCES_PER_REGION;
 
-#[derive(Clone, Copy, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadConfig {
     pub world_region_side: u32,

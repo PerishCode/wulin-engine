@@ -104,6 +104,13 @@ pub(crate) fn handle_commands(
             | ControlKind::TerrainSchedule { .. }) => {
                 super::terrain_control::dispatch(renderer, terrain)
             }
+            composition @ (ControlKind::CompositionStatus
+            | ControlKind::CompositionSchedule { .. }
+            | ControlKind::CompositionEnable
+            | ControlKind::CompositionDisable
+            | ControlKind::CompositionOrder { .. }) => {
+                super::composition_control::dispatch(renderer, composition)
+            }
             ControlKind::MeshletStatus => Ok(renderer.meshlet_scene_status()),
             ControlKind::MeshletConfigure {
                 archetype_mask,

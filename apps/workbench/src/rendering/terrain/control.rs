@@ -5,6 +5,14 @@ use crate::terrain::{TerrainCompletion, TerrainScheduleReport};
 
 use super::super::renderer::Renderer;
 
+pub(in crate::rendering) enum TerrainPollOutcome {
+    Submitted,
+    Failed {
+        transaction_id: u64,
+        message: String,
+    },
+}
+
 impl Renderer {
     pub fn open_terrain_pack(
         &mut self,
@@ -14,6 +22,11 @@ impl Renderer {
     }
 
     pub fn schedule_terrain(&mut self, config: LoadConfig) -> Result<TerrainScheduleReport> {
+        anyhow::ensure!(
+            !self.composition.has_pending(),
+            "composition pair transaction is active"
+        );
+        self.disable_composition();
         let reservation = self.terrain_renderer.reserve(config)?;
         let transaction_id = reservation.transaction_id;
         match self.terrain_streamer.schedule(reservation) {
@@ -33,6 +46,7 @@ impl Renderer {
     }
 
     pub fn enable_terrain(&mut self) -> Result<()> {
+        self.disable_composition();
         self.disable_meshlet_scene();
         self.disable_skeletal_scene();
         self.terrain_renderer.enable()
@@ -89,9 +103,11 @@ impl Renderer {
         unsafe { self.terrain_renderer.release_copy_gate() }
     }
 
-    pub(in crate::rendering) unsafe fn poll_terrain_completion(&mut self) -> Result<()> {
+    pub(in crate::rendering) unsafe fn poll_terrain_completion(
+        &mut self,
+    ) -> Result<Option<TerrainPollOutcome>> {
         let Some(completion) = self.terrain_streamer.poll_completion() else {
-            return Ok(());
+            return Ok(None);
         };
         match completion {
             TerrainCompletion::Ready {
@@ -111,7 +127,10 @@ impl Renderer {
                         release_fence,
                     )
                 } {
-                    Ok(mut report) => self.terrain_streamer.mark_submitted(&mut report),
+                    Ok(mut report) => {
+                        self.terrain_streamer.mark_submitted(&mut report)?;
+                        Ok(Some(TerrainPollOutcome::Submitted))
+                    }
                     Err(error) => {
                         self.terrain_streamer.mark_failed(
                             transaction_id,
@@ -133,8 +152,11 @@ impl Renderer {
                     Err(error) => format!("{message}; terrain cancellation failed: {error}"),
                 };
                 self.terrain_streamer
-                    .mark_failed(transaction_id, message, metrics);
-                Ok(())
+                    .mark_failed(transaction_id, message.clone(), metrics);
+                Ok(Some(TerrainPollOutcome::Failed {
+                    transaction_id,
+                    message,
+                }))
             }
         }
     }

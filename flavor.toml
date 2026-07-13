@@ -35,7 +35,7 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 17 }
+payload = { max_children = 18 }
 reason = "Runseal resolves named repository wrappers from one flat directory; each child is an explicit operator entrypoint."
 
 [[overrides]]
@@ -44,5 +44,14 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 11 }
+payload = { max_children = 12 }
 reason = "Rendering is the workbench composition boundary; each child is an accepted renderer or shared D3D12 owner with its own module boundary."
+
+[[overrides]]
+match = "apps/workbench/src/rendering/terrain"
+kind = "dir"
+priority = 10
+
+[overrides.rules."core/fs/too-many-children"]
+payload = { max_children = 11 }
+reason = "Terrain keeps cache, transfer, pipeline, probe, and renderer-state owners explicit; the accepted composition stage adds state without merging those boundaries."

@@ -1,5 +1,6 @@
 mod async_resident;
 mod calibration;
+mod composition;
 mod cooked;
 mod device;
 pub mod gpu_capture;

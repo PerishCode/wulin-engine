@@ -16,13 +16,16 @@ use crate::rendering::meshlet_scene::CatalogBuffers;
 use crate::rendering::resident::create_buffer;
 use crate::resident::ACTIVE_REGION_CAPACITY;
 
+use super::buffers::{readback_buffer, uav_buffer};
+
 pub const COUNTER_BYTES: u64 = 80;
 pub const SAMPLE_BYTES: u64 = 224;
+pub const GROUND_BYTES: u64 = MAX_SKELETAL_VISIBLE as u64 * 4;
 pub const QUERY_COUNT: u32 = 8;
 pub const MAX_SHARED_POSES: u32 = 512;
 pub const MAX_SKELETAL_VISIBLE: u32 = ACTIVE_REGION_CAPACITY as u32 * INSTANCES_PER_REGION;
 pub const PALETTE_BYTES: u64 = MAX_SKELETAL_VISIBLE as u64 * BONE_COUNT as u64 * 48;
-const DESCRIPTOR_COUNT: u32 = 68;
+const DESCRIPTOR_COUNT: u32 = 120;
 
 pub struct AnimationBuffers {
     pub bones: ID3D12Resource,
@@ -64,11 +67,13 @@ pub struct ExecutionResources {
     pub active_pose_keys: ID3D12Resource,
     pub palette: ID3D12Resource,
     pub sample: ID3D12Resource,
+    pub ground: ID3D12Resource,
     pub heap: ID3D12DescriptorHeap,
     pub query_heap: ID3D12QueryHeap,
     pub timestamp_readback: ID3D12Resource,
     pub counter_readback: ID3D12Resource,
     pub sample_readback: ID3D12Resource,
+    pub ground_readback: ID3D12Resource,
     pub execution_bytes: u64,
 }
 
@@ -76,6 +81,7 @@ impl ExecutionResources {
     pub unsafe fn new(
         device: &ID3D12Device,
         region_heap: &ID3D12DescriptorHeap,
+        terrain_heap: &ID3D12DescriptorHeap,
         mesh_catalog: &MeshletCatalog,
         animation_catalog: &AnimationCatalog,
         mesh: &CatalogBuffers,
@@ -88,10 +94,11 @@ impl ExecutionResources {
         let active_pose_keys = unsafe { uav_buffer(device, MAX_SHARED_POSES as u64 * 4) }?;
         let palette = unsafe { uav_buffer(device, PALETTE_BYTES) }?;
         let sample = unsafe { uav_buffer(device, SAMPLE_BYTES) }?;
+        let ground = unsafe { uav_buffer(device, GROUND_BYTES) }?;
         let heap = unsafe {
             create_heap(
                 device,
-                region_heap,
+                [region_heap, terrain_heap],
                 mesh_catalog,
                 animation_catalog,
                 mesh,
@@ -104,6 +111,7 @@ impl ExecutionResources {
                     &active_pose_keys,
                     &palette,
                     &sample,
+                    &ground,
                 ],
             )
         }?;
@@ -119,6 +127,7 @@ impl ExecutionResources {
         let timestamp_readback = unsafe { readback_buffer(device, QUERY_COUNT as u64 * 8) }?;
         let counter_readback = unsafe { readback_buffer(device, COUNTER_BYTES) }?;
         let sample_readback = unsafe { readback_buffer(device, SAMPLE_BYTES) }?;
+        let ground_readback = unsafe { readback_buffer(device, GROUND_BYTES) }?;
         Ok(Self {
             visible,
             counters,
@@ -127,11 +136,13 @@ impl ExecutionResources {
             active_pose_keys,
             palette,
             sample,
+            ground,
             heap,
             query_heap,
             timestamp_readback,
             counter_readback,
             sample_readback,
+            ground_readback,
             execution_bytes: MAX_SKELETAL_VISIBLE as u64 * (24 + 4)
                 + COUNTER_BYTES
                 + MAX_SHARED_POSES as u64 / 8
@@ -144,12 +155,12 @@ impl ExecutionResources {
 
 unsafe fn create_heap(
     device: &ID3D12Device,
-    region_heap: &ID3D12DescriptorHeap,
+    source_heaps: [&ID3D12DescriptorHeap; 2],
     mesh_catalog: &MeshletCatalog,
     animation_catalog: &AnimationCatalog,
     mesh: &CatalogBuffers,
     animation: &AnimationBuffers,
-    uavs: [&ID3D12Resource; 7],
+    uavs: [&ID3D12Resource; 8],
 ) -> Result<ID3D12DescriptorHeap> {
     let heap: ID3D12DescriptorHeap = unsafe {
         device.CreateDescriptorHeap(&D3D12_DESCRIPTOR_HEAP_DESC {
@@ -168,7 +179,13 @@ unsafe fn create_heap(
         device.CopyDescriptorsSimple(
             ASYNC_CACHE_CAPACITY as u32,
             start,
-            region_heap.GetCPUDescriptorHandleForHeapStart(),
+            source_heaps[0].GetCPUDescriptorHandleForHeapStart(),
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+        );
+        device.CopyDescriptorsSimple(
+            50,
+            cpu_handle(start, increment, 68),
+            source_heaps[1].GetCPUDescriptorHandleForHeapStart(),
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
         );
     }
@@ -292,6 +309,20 @@ unsafe fn create_heap(
             SAMPLE_BYTES,
             cpu_handle(start, increment, 67),
         );
+        structured_srv(
+            device,
+            uavs[7],
+            MAX_SKELETAL_VISIBLE,
+            4,
+            cpu_handle(start, increment, 118),
+        );
+        structured_uav(
+            device,
+            uavs[7],
+            MAX_SKELETAL_VISIBLE,
+            4,
+            cpu_handle(start, increment, 119),
+        );
     }
     Ok(heap)
 }
@@ -371,30 +402,6 @@ fn cpu_handle(
 ) -> D3D12_CPU_DESCRIPTOR_HANDLE {
     D3D12_CPU_DESCRIPTOR_HANDLE {
         ptr: start.ptr + increment * index,
-    }
-}
-
-unsafe fn uav_buffer(device: &ID3D12Device, bytes: u64) -> Result<ID3D12Resource> {
-    unsafe {
-        create_buffer(
-            device,
-            bytes,
-            D3D12_HEAP_TYPE_DEFAULT,
-            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-        )
-    }
-}
-
-unsafe fn readback_buffer(device: &ID3D12Device, bytes: u64) -> Result<ID3D12Resource> {
-    unsafe {
-        create_buffer(
-            device,
-            bytes,
-            D3D12_HEAP_TYPE_READBACK,
-            D3D12_RESOURCE_STATE_COPY_DEST,
-            D3D12_RESOURCE_FLAG_NONE,
-        )
     }
 }
 

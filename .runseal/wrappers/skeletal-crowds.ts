@@ -125,6 +125,8 @@ async function measuredProbes(): Promise<Record<string, unknown>> {
     const timing = (name: string) =>
         distribution(
             samples.map((sample) => field<number>(sample, name, "number")),
+            name,
+            name === "gpuPoseEvaluateMs" && counts.activePoses === 0,
         );
     return {
         warmupMs: WARMUP_MS,

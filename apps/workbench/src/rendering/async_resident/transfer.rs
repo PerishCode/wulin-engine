@@ -205,6 +205,34 @@ impl AsyncTransfer {
         Ok(report)
     }
 
+    pub fn reserve_composition(
+        &mut self,
+        config: LoadConfig,
+        protected_slots: &BTreeSet<u32>,
+    ) -> Result<AsyncReservationReport> {
+        if self.reservation.is_some() || self.pending.is_some() {
+            bail!("stream_busy");
+        }
+        let layout = self
+            .cache
+            .plan_composition_layout(config, protected_slots)?;
+        let transaction_id = self.next_transaction_id;
+        self.next_transaction_id += 1;
+        let report = AsyncReservationReport {
+            revision: ASYNC_RESIDENT_REVISION,
+            transaction_id,
+            config,
+            counts: layout.counts,
+            assignments: layout.assignments.clone(),
+        };
+        self.reservation = Some(ReservedTransfer {
+            transaction_id,
+            layout,
+            started_at: Instant::now(),
+        });
+        Ok(report)
+    }
+
     pub fn cancel_reservation(&mut self, transaction_id: u64) -> Result<()> {
         let reservation = self
             .reservation

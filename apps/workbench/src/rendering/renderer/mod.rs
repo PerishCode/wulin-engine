@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND, WAIT_OBJECT_0};
 use windows::Win32::Graphics::Direct3D::D3D_FEATURE_LEVEL_12_1;
 use windows::Win32::Graphics::Direct3D12::*;
@@ -9,27 +9,26 @@ use windows::Win32::Graphics::Dxgi::*;
 use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
 use windows::core::Interface;
 
-use crate::async_resident::AsyncTransactionReport;
 use crate::cooked::CookedStreamer;
-use crate::load::LoadConfig;
 use crate::resident::StreamReport;
 use crate::terrain::TerrainStreamer;
 
 use super::async_resident::AsyncResidentRenderer;
 use super::calibration::SceneRenderer;
+use super::composition::{CompositionCoordinator, CompositionProbe};
 use super::device::{
     DeviceCapabilities, enable_debug_layer, query_required_capabilities, select_reference_adapter,
 };
 use super::gpu_capture::{CapturedPixels, Readback};
 use super::load::{LoadProbe, LoadRenderer};
 use super::meshlet_scene::{
-    MeshletProbe, MeshletSceneRenderer, SkeletalProbe, SkeletalSceneRenderer, SkeletalSettings,
-    SurfaceProbe, SurfaceSettings,
+    MeshletProbe, MeshletSceneRenderer, SkeletalProbe, SkeletalSceneRenderer, SurfaceProbe,
 };
 use super::resident::ResidentRenderer;
 use super::terrain::{TerrainProbe, TerrainRenderer};
 
 mod frame;
+mod modes;
 
 const BUFFER_COUNT: usize = 2;
 
@@ -57,10 +56,11 @@ pub struct Renderer {
     pub(super) resident_renderer: ResidentRenderer,
     pub(super) cooked_streamer: CookedStreamer,
     pub(super) async_resident_renderer: AsyncResidentRenderer,
-    meshlet_scene_renderer: MeshletSceneRenderer,
-    skeletal_scene_renderer: SkeletalSceneRenderer,
+    pub(super) meshlet_scene_renderer: MeshletSceneRenderer,
+    pub(super) skeletal_scene_renderer: SkeletalSceneRenderer,
     pub(super) terrain_streamer: TerrainStreamer,
     pub(super) terrain_renderer: TerrainRenderer,
+    pub(super) composition: CompositionCoordinator,
     adapter_name: String,
     debug_layer: bool,
     capabilities: DeviceCapabilities,
@@ -78,6 +78,7 @@ pub struct RenderOutcome {
     pub skeletal_probe: Option<SkeletalProbe>,
     pub surface_probe: Option<SurfaceProbe>,
     pub terrain_probe: Option<TerrainProbe>,
+    pub composition_probe: Option<CompositionProbe>,
     pub resident_stream: Option<StreamReport>,
 }
 
@@ -174,18 +175,19 @@ impl Renderer {
         let meshlet_scene_renderer = unsafe {
             MeshletSceneRenderer::new(&device, &queue, timestamp_frequency, width, height)
         }?;
+        let terrain_renderer =
+            unsafe { TerrainRenderer::new(&device, timestamp_frequency, width, height) }?;
         let skeletal_scene_renderer = unsafe {
             SkeletalSceneRenderer::new(
                 &device,
                 &queue,
                 async_resident_renderer.descriptor_heap(),
+                terrain_renderer.descriptor_heap(),
                 timestamp_frequency,
                 width,
                 height,
             )
         }?;
-        let terrain_renderer =
-            unsafe { TerrainRenderer::new(&device, timestamp_frequency, width, height) }?;
 
         let mut allocators = Vec::with_capacity(BUFFER_COUNT);
         for _ in 0..BUFFER_COUNT {
@@ -229,188 +231,11 @@ impl Renderer {
             skeletal_scene_renderer,
             terrain_streamer: TerrainStreamer::default(),
             terrain_renderer,
+            composition: CompositionCoordinator::default(),
             adapter_name,
             debug_layer,
             capabilities,
         })
-    }
-
-    pub fn configure_load(&mut self, config: LoadConfig) -> Result<()> {
-        self.terrain_renderer.disable();
-        self.meshlet_scene_renderer.disable();
-        self.skeletal_scene_renderer.disable();
-        self.async_resident_renderer.disable()?;
-        self.resident_renderer.disable();
-        self.load_renderer.configure(config);
-        Ok(())
-    }
-
-    pub unsafe fn stream_resident(&mut self, config: LoadConfig) -> Result<()> {
-        self.terrain_renderer.disable();
-        self.meshlet_scene_renderer.disable();
-        self.skeletal_scene_renderer.disable();
-        self.async_resident_renderer.disable()?;
-        self.load_renderer.disable();
-        unsafe { self.resident_renderer.prepare_stream(config) }
-    }
-
-    pub fn disable_load(&mut self) -> Result<()> {
-        self.terrain_renderer.disable();
-        self.meshlet_scene_renderer.disable();
-        self.skeletal_scene_renderer.disable();
-        self.async_resident_renderer.disable()?;
-        self.load_renderer.disable();
-        self.resident_renderer.disable();
-        Ok(())
-    }
-
-    pub fn load_config(&self) -> Option<LoadConfig> {
-        self.terrain_renderer.config().or_else(|| {
-            self.async_resident_renderer
-                .config()
-                .or_else(|| self.resident_renderer.config())
-                .or_else(|| self.load_renderer.config())
-        })
-    }
-
-    pub unsafe fn stream_async_resident(
-        &mut self,
-        config: LoadConfig,
-    ) -> Result<AsyncTransactionReport> {
-        self.load_renderer.disable();
-        self.resident_renderer.disable();
-        let release_fence = self.next_fence_value;
-        self.next_fence_value += 1;
-        unsafe {
-            self.async_resident_renderer
-                .schedule(config, &self.queue, &self.fence, release_fence)
-        }
-    }
-
-    pub fn async_resident_status(&self) -> serde_json::Value {
-        self.async_resident_renderer.status_json()
-    }
-
-    pub fn async_resident_config(&self) -> Option<LoadConfig> {
-        self.async_resident_renderer.config()
-    }
-
-    pub fn async_resident_enabled(&self) -> bool {
-        self.async_resident_renderer.is_enabled()
-    }
-
-    pub fn configure_meshlet_scene(
-        &mut self,
-        archetype_mask: u32,
-        forced_lod: Option<u32>,
-    ) -> Result<()> {
-        self.meshlet_scene_renderer
-            .configure(archetype_mask, forced_lod)
-    }
-
-    pub fn enable_meshlet_scene(&mut self) -> Result<()> {
-        if self.async_resident_renderer.config().is_none() {
-            bail!("meshlet scene requires a published async resident snapshot");
-        }
-        self.skeletal_scene_renderer.disable();
-        self.terrain_renderer.disable();
-        self.meshlet_scene_renderer.enable();
-        Ok(())
-    }
-
-    pub fn disable_meshlet_scene(&mut self) {
-        self.meshlet_scene_renderer.disable();
-    }
-
-    pub fn meshlet_scene_status(&self) -> serde_json::Value {
-        self.meshlet_scene_renderer.status_json()
-    }
-
-    pub fn configure_skeletal_scene(
-        &mut self,
-        animated_percent: u32,
-        bone_count: u32,
-        phase_count: u32,
-        time_tick: u32,
-        unique_poses: bool,
-        forced_lod: Option<u32>,
-    ) -> Result<()> {
-        self.skeletal_scene_renderer.configure(SkeletalSettings {
-            animated_percent,
-            bone_count,
-            phase_count,
-            time_tick,
-            unique_poses,
-            forced_lod,
-        })
-    }
-
-    pub fn enable_skeletal_scene(&mut self) -> Result<()> {
-        if self.async_resident_renderer.config().is_none() {
-            bail!("skeletal scene requires a published async resident snapshot");
-        }
-        self.meshlet_scene_renderer.disable();
-        self.terrain_renderer.disable();
-        self.skeletal_scene_renderer.enable();
-        Ok(())
-    }
-
-    pub fn disable_skeletal_scene(&mut self) {
-        self.skeletal_scene_renderer.disable();
-    }
-
-    pub fn skeletal_scene_status(&self) -> serde_json::Value {
-        self.skeletal_scene_renderer.status_json()
-    }
-
-    pub fn configure_surface(&mut self, material_count: u32, mip_level: u32) -> Result<()> {
-        self.skeletal_scene_renderer
-            .configure_surface(SurfaceSettings {
-                material_count,
-                mip_level,
-            })
-    }
-
-    pub fn enable_surface(&mut self) -> Result<()> {
-        if self.async_resident_renderer.config().is_none() {
-            bail!("surface resolve requires a published async resident snapshot");
-        }
-        self.meshlet_scene_renderer.disable();
-        self.terrain_renderer.disable();
-        self.skeletal_scene_renderer.enable_surface();
-        Ok(())
-    }
-
-    pub fn disable_surface(&mut self) {
-        self.skeletal_scene_renderer.disable_surface();
-    }
-
-    pub fn surface_status(&self) -> serde_json::Value {
-        self.skeletal_scene_renderer.surface_status_json()
-    }
-
-    pub fn enable_surface_occlusion(&mut self) {
-        self.skeletal_scene_renderer.enable_surface_occlusion();
-    }
-
-    pub fn disable_surface_occlusion(&mut self) {
-        self.skeletal_scene_renderer.disable_surface_occlusion();
-    }
-
-    pub fn reset_surface_occlusion(&mut self) {
-        self.skeletal_scene_renderer.reset_surface_occlusion();
-    }
-
-    pub fn arm_async_copy_gate(&mut self) -> Result<u64> {
-        self.async_resident_renderer.arm_gate()
-    }
-
-    pub unsafe fn release_async_copy_gate(&mut self) -> Result<u64> {
-        unsafe { self.async_resident_renderer.release_gate() }
-    }
-
-    pub fn resident_config(&self) -> Option<LoadConfig> {
-        self.resident_renderer.config()
     }
 
     pub fn adapter_name(&self) -> &str {
@@ -493,4 +318,12 @@ impl Drop for Renderer {
             let _ = CloseHandle(self.fence_event);
         }
     }
+}
+
+fn ensure_no_composition_pair(composition: &CompositionCoordinator) -> Result<()> {
+    ensure!(
+        !composition.has_pending(),
+        "composition pair transaction is active"
+    );
+    Ok(())
 }

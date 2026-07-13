@@ -129,6 +129,7 @@ contains only files that exist.
 | `docs/adr/0015-gpu-conservative-occlusion.md` | Accepted reverse-Z hierarchy, exact invalidation, conservative query, and stable GPU compaction contract. |
 | `docs/adr/0016-gpu-streamed-terrain.md` | Accepted fixed terrain payload, global lattice continuity, bounded publication, and fixed GPU expansion contract. |
 | `docs/adr/0017-gpu-terrain-lod-stitching.md` | Accepted GPU patch LOD selection, exact coarse-edge projection, fixed submission, and bounded validation contract. |
+| `docs/adr/0018-atomic-terrain-object-composition.md` | Accepted matched terrain/object publication, exact integer grounding, and shared attachment composition contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -154,6 +155,7 @@ contains only files that exist.
 | `experiments/0012-gpu-conservative-occlusion/README.md` | Accepted Experiment 0012 hierarchy, bound proof, stable compaction, exact-output, invalidation, and work-elimination evidence. |
 | `experiments/0013-gpu-streamed-terrain/README.md` | Accepted Experiment 0013 canonical terrain payload, bounded residency, exact shared edges, failure rollback, and fixed mesh evidence. |
 | `experiments/0014-gpu-terrain-lod-stitching/README.md` | Accepted Experiment 0014 GPU patch LOD selection, exact transition-edge projection, and work-reduction evidence. |
+| `experiments/0015-atomic-terrain-object-composition/README.md` | Accepted Experiment 0015 matched publication, exact GPU grounding, shared depth/object-ID composition, and order-invariance evidence. |
 | `crates/meshlet-catalog/Cargo.toml` | Deterministic static meshlet catalog package and dependency boundary. |
 | `crates/meshlet-catalog/src/lib.rs` | Eight-archetype, three-LOD geometry generation, meshlet partitioning, validation, encoding, and hashing. |
 | `crates/meshlet-catalog/tests/catalog.rs` | Catalog determinism, reducing-LOD, and mesh-shader bound regression contract. |
@@ -183,7 +185,7 @@ contains only files that exist.
 | `apps/workbench/shaders/resident_load.hlsl` | Persistent instance compaction, indirect rendering, and semantic-ID shaders. |
 | `apps/workbench/shaders/async_resident.hlsl` | Descriptor-indexed per-slot compaction, indirect rendering, and semantic-ID shaders. |
 | `apps/workbench/shaders/meshlet_scene.hlsl` | GPU object culling, LOD, visible compaction, amplification, mesh emission, and semantic-ID shaders. |
-| `apps/workbench/shaders/skeletal_scene.hlsl` | GPU animation classification, pose compaction/evaluation, four-weight meshlet skinning, and semantic-ID shaders. |
+| `apps/workbench/shaders/skeletal_scene.hlsl` | GPU animation classification, exact terrain grounding, pose compaction/evaluation, four-weight meshlet skinning, and semantic-ID shaders. |
 | `apps/workbench/shaders/surface_resolve.hlsl` | Deterministic visibility winner, compact payload emission, skeletal surface reconstruction, material resolve, and samples. |
 | `apps/workbench/shaders/occlusion.hlsl` | Conservative hierarchy query, fixed classify/prefix/stable-scatter compaction, and reverse-Z mip construction. |
 | `apps/workbench/shaders/terrain.hlsl` | Fixed region/patch seam oracles, GPU patch LOD, exact transition projection, mesh expansion, material color, and semantic-ID emission. |
@@ -194,12 +196,13 @@ contains only files that exist.
 | `apps/workbench/src/inspect/protocol.rs` | Typed workbench control vocabulary, payload decoding, and protocol errors. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch, pending frame operations, and established stream transaction entrypoints. |
 | `apps/workbench/src/inspect/status.rs` | Workbench, renderer capability, and active workload status projection. |
+| `apps/workbench/src/inspect/composition_control.rs` | Typed atomic composition schedule, mode, and pass-order control dispatch. |
 | `apps/workbench/src/inspect/surface_control.rs` | Typed surface, material, mip, occlusion history, and probe control dispatch. |
 | `apps/workbench/src/inspect/terrain_control.rs` | Typed terrain pack, schedule, mode, and I/O/copy gate control dispatch. |
 | `apps/workbench/src/load.rs` | Region address space, load configuration, workload counts, and procedural semantics. |
 | `apps/workbench/src/resident.rs` | Resident cache planning, deterministic records, LRU eviction, and stream reports. |
 | `apps/workbench/src/streaming/mod.rs` | Workbench streaming ownership boundary and narrow module exports. |
-| `apps/workbench/src/streaming/async_resident.rs` | Protected 50-slot reservation planning, payload materialization, and transaction reports. |
+| `apps/workbench/src/streaming/async_resident.rs` | Protected 50-slot low/high reservation planning, payload materialization, and transaction reports. |
 | `apps/workbench/src/streaming/cooked/mod.rs` | Cooked pack controller, bounded transaction status, gate, and failure rollback evidence. |
 | `apps/workbench/src/streaming/cooked/worker.rs` | Single background pack reader, bounded channels, chunk verification, and I/O metrics. |
 | `apps/workbench/src/streaming/terrain/mod.rs` | Terrain pack controller, bounded transaction status, I/O gate, and rollback evidence. |
@@ -208,8 +211,11 @@ contains only files that exist.
 | `apps/workbench/src/scene.rs` | Calibration scene objects, camera state, transforms, and spatial manifest. |
 | `apps/workbench/src/window.rs` | Win32 window class, native handle, and console shutdown lifecycle. |
 | `apps/workbench/src/rendering/mod.rs` | Workbench rendering subsystem boundary and narrow application exports. |
-| `apps/workbench/src/rendering/renderer/mod.rs` | D3D12 device, swap-chain resources, mode controls, and GPU synchronization ownership. |
-| `apps/workbench/src/rendering/renderer/frame.rs` | Per-frame mode dispatch, capture, present, and probe submission path. |
+| `apps/workbench/src/rendering/renderer/mod.rs` | D3D12 device, swap-chain resources, capabilities, and GPU synchronization ownership. |
+| `apps/workbench/src/rendering/renderer/frame.rs` | Per-frame standalone or composed pass dispatch, shared attachments, capture, present, and probe submission path. |
+| `apps/workbench/src/rendering/renderer/modes.rs` | Standalone load, meshlet, skeletal, surface, and composition-aware mode transition ownership. |
+| `apps/workbench/src/rendering/composition/mod.rs` | Matched terrain/object transaction staging, atomic frame publication, rollback, and pair status ownership. |
+| `apps/workbench/src/rendering/composition/probe.rs` | Exact grounding oracle, pair mapping, shared submission, and combined timing evidence projection. |
 | `apps/workbench/src/rendering/device.rs` | Reference adapter selection, debug-layer enablement, and common transitions. |
 | `apps/workbench/src/rendering/gpu_capture.rs` | D3D12 copy footprint, persistent readback, and tight four-byte pixel extraction. |
 | `apps/workbench/src/rendering/load/pipeline.rs` | Procedural load root signatures, PSOs, and indirect command signature. |
@@ -234,7 +240,9 @@ contains only files that exist.
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/oracle.rs` | Deterministic CPU aggregate oracle for skeletal workload validation. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/pipeline.rs` | Skeletal compute and mesh root signature, PSOs, and indirect command signatures. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/probe.rs` | Skeletal counters, timestamp decoding, palette samples, and oracle comparison. |
-| `apps/workbench/src/rendering/meshlet_scene/skeletal/renderer.rs` | Skeletal mode controls, fixed command recording, resource transitions, and status. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/buffers.rs` | Common skeletal UAV and readback buffer allocation policy. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/renderer.rs` | Skeletal mode controls, fixed command recording, and resource transitions. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/report.rs` | Skeletal status, probe readback, optional grounded oracle input, and settings projection. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/resources.rs` | Animation uploads, bounded pose/palette resources, descriptors, queries, and readbacks. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface_bridge.rs` | Narrow skeletal resource and command-recording bridge consumed by surface resolve. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/mod.rs` | Surface visibility and resolve ownership boundary with narrow exports. |
@@ -250,7 +258,7 @@ contains only files that exist.
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/descriptors.rs` | Surface SRV/UAV descriptor layout and shader-visible heap construction. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/targets.rs` | Visibility, deterministic winner, resolved color, depth, and semantic target ownership. |
 | `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/resources/upload.rs` | Immutable surface buffer and texture-array upload helpers. |
-| `apps/workbench/src/rendering/terrain/mod.rs` | Terrain renderer, immutable snapshot, fixed mesh/LOD validation recording, settings, and mode status. |
+| `apps/workbench/src/rendering/terrain/mod.rs` | Terrain renderer, immutable snapshot, staging/commit, and fixed mesh/LOD validation recording. |
 | `apps/workbench/src/rendering/terrain/cache.rs` | Protected deterministic terrain LRU planning, active mapping, and slot movement counts. |
 | `apps/workbench/src/rendering/terrain/control.rs` | Renderer-owned terrain streamer completion, scheduling, publication, and mode controls. |
 | `apps/workbench/src/rendering/terrain/copy_timing.rs` | Copy-queue timestamp heap, bounded readback, frequency, and GPU duration decoding. |
@@ -258,6 +266,7 @@ contains only files that exist.
 | `apps/workbench/src/rendering/terrain/lod.rs` | Independent CPU patch LOD, geometry, rational-edge, hashing, validation, and regression oracle. |
 | `apps/workbench/src/rendering/terrain/pipeline.rs` | Terrain region/LOD compute and mesh root signature, PSOs, and shader contract. |
 | `apps/workbench/src/rendering/terrain/probe.rs` | Terrain mapping, geometry, region/patch edges, resources, hashes, and timing oracle projection. |
+| `apps/workbench/src/rendering/terrain/state.rs` | Terrain mode, LOD settings, published-state projection, descriptors, gates, and idle controls. |
 | `apps/workbench/src/rendering/terrain/transfer.rs` | Dedicated copy queue, protected slots, upload arena, gates, fences, and frame publication. |
 | `apps/workbench/src/rendering/cooked.rs` | Cooked I/O completion, reservation cancellation, and GPU submission orchestration. |
 | `apps/workbench/src/rendering/calibration/object_id_target.rs` | Persistent `R32_UINT` semantic render-target resource and descriptor ownership. |
@@ -280,7 +289,9 @@ contains only files that exist.
 | `.runseal/wrappers/cooked-region.ts` | Canonical Experiment 0008 recook, held-I/O, incremental reads, corruption, restart, and evidence workflow. |
 | `.runseal/wrappers/meshlet-scene.ts` | Canonical Experiment 0009 meshlet catalog, GPU oracle, visual, sweep, movement, and restart evidence workflow. |
 | `.runseal/wrappers/terrain-lod.ts` | Canonical Experiment 0014 GPU terrain LOD, exact stitch oracle, sweep, movement, restart, and timing workflow. |
+| `.runseal/wrappers/composition.ts` | Canonical Experiment 0015 atomic publication, exact grounding, shared attachment, order, failure, movement, restart, and timing workflow. |
 | `.runseal/support/cooked-region.ts` | Experiment 0008 structured evidence, pack corruption, hashing, and comparison helpers. |
+| `.runseal/support/composition.ts` | Experiment 0015 stable evidence, exact contract validation, timing distributions, and polling support. |
 | `.runseal/support/workbench-terrain.ts` | Terrain-specific workbench CLI argument validation and typed Sidecar event dispatch. |
 | `.runseal/wrappers/skeletal-crowds.ts` | Canonical Experiment 0010 debug correctness, release timing, sweep, visual, movement, and restart workflow. |
 | `.runseal/support/skeletal-crowds.ts` | Experiment 0010 structured validation, environment capture, fixtures, and distribution helpers. |
@@ -333,14 +344,21 @@ claim.
 Experiment 0013 and ADR 0016 accept an independent fixed 4 KiB terrain payload, global
 integer-lattice same-resolution continuity, bounded background I/O and protected copy
 publication, exact CPU/GPU shared-edge validation, terrain semantic perception, and one
-fixed 400-group mesh dispatch. Terrain LOD, cross-resolution stitching, composition,
-grounding, collision, and committed-per-region allocation as a final policy remain
-unaccepted.
+fixed 400-group mesh dispatch. That experiment did not accept terrain LOD,
+cross-resolution stitching, composition, grounding, collision, or committed-per-region
+allocation as a final policy.
 Experiment 0014 and ADR 0017 accept three GPU-selected patch resolutions, exact
 coarse-edge clip-space projection, bounded CPU/GPU rational-edge validation, and fixed
 submission independent of selected distribution and emitted geometry. This accepts
 cross-resolution geometric continuity and work elimination, not lower GPU time,
 material/normal continuity, a final LOD policy, composition, grounding, or collision.
+Experiment 0015 and ADR 0018 accept one matched terrain/object publication token,
+transactional two-sided staging and rollback, deliberately distinct physical region
+mappings, exact 25,600-value integer GPU grounding against a CPU oracle, and terrain
+plus skeletal rasterization into one reverse-Z depth and object-ID attachment set. The
+accepted output is byte-identical for terrain-first and object-first execution. This
+does not accept arbitrary-position interpolation, slope alignment, terrain LOD in the
+composed path, collision, or a general scene graph.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -366,6 +384,7 @@ runseal :surface-resolve
 runseal :occlusion
 runseal :terrain
 runseal :terrain-lod
+runseal :composition
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
@@ -414,6 +433,11 @@ runseal :workbench terrain-io-gate-arm
 runseal :workbench terrain-io-gate-release
 runseal :workbench terrain-copy-gate-arm
 runseal :workbench terrain-copy-gate-release
+runseal :workbench composition
+runseal :workbench composition-schedule 64 64
+runseal :workbench composition-enable
+runseal :workbench composition-disable
+runseal :workbench composition-order terrain-first
 runseal :workbench load-probe
 runseal :workbench load-disable
 runseal :workbench resume
