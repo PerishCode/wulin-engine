@@ -14,6 +14,7 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders/async_resident.hlsl");
     println!("cargo:rerun-if-changed=shaders/meshlet_scene.hlsl");
     println!("cargo:rerun-if-changed=shaders/skeletal_scene.hlsl");
+    println!("cargo:rerun-if-changed=shaders/surface_resolve.hlsl");
     println!("cargo:rerun-if-env-changed=AGILITY_SDK_ROOT");
     println!("cargo:rerun-if-env-changed=DXC");
 
@@ -181,6 +182,21 @@ fn main() {
             &manifest_dir,
             &out_dir,
             "skeletal_scene.hlsl",
+            entry,
+            profile,
+            output,
+        );
+    }
+    for (entry, profile, output) in [
+        ("as_main", "as_6_6", "surface_resolve.as.dxil"),
+        ("ms_main", "ms_6_6", "surface_resolve.ms.dxil"),
+        ("ps_main", "ps_6_6", "surface_resolve.ps.dxil"),
+        ("shade_main", "cs_6_6", "surface_resolve.shade.dxil"),
+    ] {
+        compile_named_shader(
+            &manifest_dir,
+            &out_dir,
+            "surface_resolve.hlsl",
             entry,
             profile,
             output,

@@ -203,7 +203,7 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     visible.lod = lod;
     visible.stable_key = stable_key;
     visible.pose_slot = pose_slot;
-    visible.reserved = 0;
+    visible.reserved = group_id.x * INSTANCES_PER_REGION + local_index;
     visible_objects[visible_index] = visible;
 }
 

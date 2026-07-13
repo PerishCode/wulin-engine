@@ -146,6 +146,13 @@ pub(crate) fn handle_commands(
                 renderer.disable_skeletal_scene();
                 Ok(renderer.skeletal_scene_status())
             }
+            ControlKind::SurfaceStatus => super::surface_control::status(renderer),
+            ControlKind::SurfaceConfigure {
+                material_count,
+                mip_level,
+            } => super::surface_control::configure(renderer, material_count, mip_level),
+            ControlKind::SurfaceEnable => super::surface_control::enable(renderer),
+            ControlKind::SurfaceDisable => super::surface_control::disable(renderer),
             ControlKind::LoadDisable => renderer
                 .disable_load()
                 .map(|()| load_status(renderer))
@@ -392,6 +399,7 @@ pub(crate) fn load_status(renderer: &Renderer) -> serde_json::Value {
             "cooked": renderer.cooked_status(),
             "meshlet": renderer.meshlet_scene_status(),
             "skeletal": renderer.skeletal_scene_status(),
+            "surface": renderer.surface_status(),
         })
     } else if let Some(config) = renderer.resident_config() {
         json!({"mode": "resident-load", "load": config.json()})
@@ -460,6 +468,10 @@ fn status(
             "featureLevel": "12_1",
             "meshShaderTier": renderer.mesh_shader_tier(),
             "shaderModel": renderer.shader_model(),
+            "barycentrics": renderer.barycentrics_supported(),
+            "rasterizerOrderedViews": renderer.rasterizer_ordered_views_supported(),
+            "visibilityFormat": renderer.visibility_format_supported(),
+            "colorUavFormat": renderer.color_uav_format_supported(),
             "swapChainBuffers": 2,
             "format": "R8G8B8A8_UNORM",
             "vsync": true,

@@ -64,8 +64,10 @@ impl Renderer {
                     SkeletalFrame {
                         snapshot,
                         scene,
+                        back_buffer: &self.back_buffers[index],
                         render_targets: [handle, self.scene_renderer.object_id_handle()],
                         depth_target: self.scene_renderer.depth_handle(),
+                        background_color: color,
                         probe: probe_load,
                     },
                 )?;
@@ -189,7 +191,25 @@ impl Renderer {
             } else {
                 None
             };
-            let skeletal_probe = if probe_load && self.skeletal_scene_renderer.is_enabled() {
+            let surface_probe = if probe_load
+                && self.skeletal_scene_renderer.is_enabled()
+                && self.skeletal_scene_renderer.surface_is_enabled()
+            {
+                let snapshot = self
+                    .async_resident_renderer
+                    .snapshot()
+                    .context("surface probe has no published resident snapshot")?;
+                Some(unsafe {
+                    self.skeletal_scene_renderer
+                        .read_surface_probe(snapshot, scene, color)
+                }?)
+            } else {
+                None
+            };
+            let skeletal_probe = if probe_load
+                && self.skeletal_scene_renderer.is_enabled()
+                && !self.skeletal_scene_renderer.surface_is_enabled()
+            {
                 let snapshot = self
                     .async_resident_renderer
                     .snapshot()
@@ -222,6 +242,7 @@ impl Renderer {
                 load_probe,
                 meshlet_probe,
                 skeletal_probe,
+                surface_probe,
                 resident_stream,
             });
         }
@@ -230,6 +251,7 @@ impl Renderer {
             load_probe: None,
             meshlet_probe: None,
             skeletal_probe: None,
+            surface_probe: None,
             resident_stream: None,
         })
     }

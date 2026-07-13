@@ -27,6 +27,14 @@ pub struct CapturedPixels {
 
 impl Readback {
     pub unsafe fn new(device: &ID3D12Device, source: &ID3D12Resource) -> Result<Self> {
+        unsafe { Self::new_with_pixel_bytes(device, source, 4) }
+    }
+
+    pub unsafe fn new_with_pixel_bytes(
+        device: &ID3D12Device,
+        source: &ID3D12Resource,
+        pixel_bytes: u64,
+    ) -> Result<Self> {
         let desc = unsafe { source.GetDesc() };
         let mut layout = D3D12_PLACED_SUBRESOURCE_FOOTPRINT::default();
         let mut rows = 0;
@@ -44,8 +52,8 @@ impl Readback {
                 Some(&mut total_bytes),
             );
         }
-        if rows != desc.Height || row_size != desc.Width * 4 || total_bytes == 0 {
-            bail!("unexpected four-byte texture capture footprint");
+        if rows != desc.Height || row_size != desc.Width * pixel_bytes || total_bytes == 0 {
+            bail!("unexpected texture capture footprint");
         }
 
         let heap = D3D12_HEAP_PROPERTIES {

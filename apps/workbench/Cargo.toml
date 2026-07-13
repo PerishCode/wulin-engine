@@ -17,6 +17,7 @@ region-format.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+surface-catalog.workspace = true
 windows = { workspace = true, features = [
   "Win32_Foundation",
   "Win32_Graphics_Direct3D",

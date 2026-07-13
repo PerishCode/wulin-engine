@@ -4,6 +4,7 @@ members = [
   "crates/animation-catalog",
   "crates/meshlet-catalog",
   "crates/region-format",
+  "crates/surface-catalog",
   "experiments/0001-gpu-lab",
   "tools/region-cooker",
 ]
@@ -19,6 +20,7 @@ anyhow = "1.0.100"
 animation-catalog = { path = "crates/animation-catalog" }
 glam = { version = "0.30.9", features = ["serde"] }
 meshlet-catalog = { path = "crates/meshlet-catalog" }
+surface-catalog = { path = "crates/surface-catalog" }
 png = "0.18.0"
 region-format = { path = "crates/region-format" }
 serde = { version = "1.0.228", features = ["derive"] }
