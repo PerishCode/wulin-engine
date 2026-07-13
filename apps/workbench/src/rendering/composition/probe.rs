@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 use super::super::meshlet_scene::SkeletalProbe;
 use super::super::renderer::Renderer;
 use super::super::terrain::TerrainProbe;
+use super::contact::{self, ContactProbe};
 use super::fixture::{self, CompositionFixture, TriangleClass};
 use super::{COMPOSITION_REVISION, CompositionOrder};
 
@@ -18,6 +19,7 @@ pub struct CompositionProbe {
     order: CompositionOrder,
     pair: Value,
     grounding: GroundingProbe,
+    contact: ContactProbe,
     terrain: TerrainProbe,
     skeletal: SkeletalProbe,
     clear_count: u32,
@@ -215,6 +217,15 @@ impl Renderer {
                 &records,
             )
         }?;
+        let contact = contact::evaluate(
+            assignments,
+            tiles,
+            &records,
+            &cpu,
+            fixture.ground_denominator(),
+            scene,
+            self.terrain_renderer.lod_settings(),
+        )?;
         let mesh_read_count = skeletal.visible_count();
         let skeletal_timing = skeletal.gpu_timing();
         let terrain_total_ms = terrain.total_gpu_ms();
@@ -243,10 +254,11 @@ impl Renderer {
                 triangles,
                 boundaries,
             },
+            contact,
             terrain,
             skeletal,
             clear_count: 1,
-            fixed_terrain_dispatches: 3,
+            fixed_terrain_dispatches: 3 + u32::from(self.terrain_renderer.lod_settings().enabled),
             fixed_skeletal_dispatches: 5,
             timing: CompositionTiming {
                 terrain_total_ms,

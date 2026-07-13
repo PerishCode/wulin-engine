@@ -3,7 +3,9 @@ import {
     fail,
     field,
     object,
+    stableLodProbe as stableTerrainLodProbe,
     stableProbe as stableTerrainProbe,
+    validateLodProbe as validateTerrainLodProbe,
     validateProbe as validateTerrainProbe,
 } from "./terrain.ts";
 import { validateProbe as validateSkeletalProbe } from "./skeletal-crowds.ts";
@@ -42,6 +44,7 @@ export function stableCompositionProbe(
             triangles: grounding.triangles,
             boundaries: grounding.boundaries,
         },
+        contact: probe.contact,
         terrain: stableTerrainProbe(terrain),
         skeletal: {
             config: skeletal.config,
@@ -55,6 +58,27 @@ export function stableCompositionProbe(
         fixedTerrainDispatches: probe.fixedTerrainDispatches,
         fixedSkeletalDispatches: probe.fixedSkeletalDispatches,
     };
+}
+
+export function stableLodCompositionProbe(
+    probe: Record<string, unknown>,
+): Record<string, unknown> {
+    return {
+        ...stableCompositionProbe(probe),
+        terrain: stableTerrainLodProbe(object(probe, "terrain")),
+    };
+}
+
+export function validateLodCompositionProbe(probe: Record<string, unknown>): void {
+    validateSamplingProbe(probe);
+    const terrain = object(probe, "terrain");
+    validateTerrainLodProbe(terrain, true);
+    const contact = object(probe, "contact");
+    if (
+        contact.exceedanceCount !== 0 || contact.firstExceedance !== null ||
+        field<number>(contact, "maximumAbsoluteNumerator", "number") >
+            field<number>(contact, "thresholdNumerator", "number")
+    ) fail("terrain LOD composition exceeded its contact bound");
 }
 
 export function validateSamplingProbe(probe: Record<string, unknown>): void {
@@ -99,12 +123,33 @@ export function validateCompositionProbe(
         field<number>(grounding, "meshReadCount", "number") > 25_600 ||
         (requireVisible && field<number>(grounding, "meshReadCount", "number") <= 0)
     ) fail("composition grounding contract failed");
+    const terrain = object(probe, "terrain");
+    const lodEnabled = field<boolean>(
+        object(object(object(terrain, "lod"), "oracle"), "settings"),
+        "enabled",
+        "boolean",
+    );
     if (
-        probe.clearCount !== 1 || probe.fixedTerrainDispatches !== 3 ||
+        probe.clearCount !== 1 || probe.fixedTerrainDispatches !== (lodEnabled ? 4 : 3) ||
         probe.fixedSkeletalDispatches !== 5
     ) fail("composition fixed submission or clear ownership changed");
-    validateTerrainProbe(object(probe, "terrain"));
+    if (lodEnabled) validateTerrainLodProbe(terrain, true);
+    else validateTerrainProbe(terrain);
     validateSkeletalProbe(object(probe, "skeletal"));
+    const contact = object(probe, "contact");
+    if (
+        contact.revision !== "lod-terrain-contact-v1" || contact.denominator !== 262_144 ||
+        contact.sampleCount !== 25_600 ||
+        field<number>(contact, "negativeCount", "number") +
+                    field<number>(contact, "zeroCount", "number") +
+                    field<number>(contact, "positiveCount", "number") !== 25_600 ||
+        contact.thresholdNumerator !== 32_768 || contact.thresholdMeters !== 0.125 ||
+        contact.exceedanceCount !== 0 || contact.firstExceedance !== null
+    ) fail("composition contact evidence changed");
+    if (
+        !lodEnabled &&
+        (contact.zeroCount !== 25_600 || contact.maximumAbsoluteNumerator !== 0)
+    ) fail("full-resolution composition contact is not exact");
     const pair = object(probe, "pair");
     const published = object(pair, "published");
     if (

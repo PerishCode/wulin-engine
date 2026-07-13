@@ -24,6 +24,7 @@ use self::transfer::{TerrainPublication, TerrainTransfer};
 use super::resident::{create_buffer, create_query_heap, set_viewport, transition, uav_barrier};
 
 pub use self::lod::TerrainLodSettings;
+pub(in crate::rendering) use self::lod::{PATCH_CELL_SIDE, PATCHES_PER_REGION_SIDE, selected_lod};
 pub use self::probe::TerrainProbe;
 
 const TERRAIN_REVISION: &str = "gpu-streamed-terrain-v1";

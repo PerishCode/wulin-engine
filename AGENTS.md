@@ -131,6 +131,7 @@ contains only files that exist.
 | `docs/adr/0017-gpu-terrain-lod-stitching.md` | Accepted GPU patch LOD selection, exact coarse-edge projection, fixed submission, and bounded validation contract. |
 | `docs/adr/0018-atomic-terrain-object-composition.md` | Accepted matched terrain/object publication, exact integer grounding, and shared attachment composition contract. |
 | `docs/adr/0019-gpu-arbitrary-terrain-sampling.md` | Accepted Q8 arbitrary-position triangle interpolation and cross-region boundary contract. |
+| `docs/adr/0020-gpu-lod-terrain-composition.md` | Accepted exact-ground, bounded-contact terrain LOD composition contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -158,6 +159,7 @@ contains only files that exist.
 | `experiments/0014-gpu-terrain-lod-stitching/README.md` | Accepted Experiment 0014 GPU patch LOD selection, exact transition-edge projection, and work-reduction evidence. |
 | `experiments/0015-atomic-terrain-object-composition/README.md` | Accepted Experiment 0015 matched publication, exact GPU grounding, shared depth/object-ID composition, and order-invariance evidence. |
 | `experiments/0016-gpu-arbitrary-terrain-sampling/README.md` | Accepted Experiment 0016 exact arbitrary-position triangle sampling, boundary continuity, compatibility, and timing evidence. |
+| `experiments/0017-gpu-lod-terrain-composition/README.md` | Accepted Experiment 0017 exact-ground, bounded-contact terrain LOD composition and timing evidence. |
 | `crates/meshlet-catalog/Cargo.toml` | Deterministic static meshlet catalog package and dependency boundary. |
 | `crates/meshlet-catalog/src/lib.rs` | Eight-archetype, three-LOD geometry generation, meshlet partitioning, validation, encoding, and hashing. |
 | `crates/meshlet-catalog/tests/catalog.rs` | Catalog determinism, reducing-LOD, and mesh-shader bound regression contract. |
@@ -217,6 +219,7 @@ contains only files that exist.
 | `apps/workbench/src/rendering/renderer/frame.rs` | Per-frame standalone or composed pass dispatch, shared attachments, capture, present, and probe submission path. |
 | `apps/workbench/src/rendering/renderer/modes.rs` | Standalone load, meshlet, skeletal, surface, and composition-aware mode transition ownership. |
 | `apps/workbench/src/rendering/composition/mod.rs` | Matched terrain/object transaction staging, atomic frame publication, rollback, and pair status ownership. |
+| `apps/workbench/src/rendering/composition/contact.rs` | Requested-only exact selected-LOD surface and full-resolution grounding residual oracle. |
 | `apps/workbench/src/rendering/composition/fixture.rs` | Deterministic cell-center/arbitrary instance materialization and exact terrain triangle sampling fixture. |
 | `apps/workbench/src/rendering/composition/probe.rs` | Exact grounding oracle, pair mapping, shared submission, and combined timing evidence projection. |
 | `apps/workbench/src/rendering/device.rs` | Reference adapter selection, debug-layer enablement, and common transitions. |
@@ -294,8 +297,9 @@ contains only files that exist.
 | `.runseal/wrappers/terrain-lod.ts` | Canonical Experiment 0014 GPU terrain LOD, exact stitch oracle, sweep, movement, restart, and timing workflow. |
 | `.runseal/wrappers/composition.ts` | Canonical Experiment 0015 atomic publication, exact grounding, shared attachment, order, failure, movement, restart, and timing workflow. |
 | `.runseal/wrappers/terrain-sampling.ts` | Canonical Experiment 0016 arbitrary-position triangle sampling, boundary, movement, restart, compatibility, and timing workflow. |
+| `.runseal/wrappers/lod-composition.ts` | Canonical Experiment 0017 exact-ground, bounded-contact terrain LOD composition workflow. |
 | `.runseal/support/cooked-region.ts` | Experiment 0008 structured evidence, pack corruption, hashing, and comparison helpers. |
-| `.runseal/support/composition.ts` | Experiment 0015 stable evidence, exact contract validation, timing distributions, and polling support. |
+| `.runseal/support/composition.ts` | Experiments 0015-0017 stable composition, grounding, contact, LOD, and timing validation support. |
 | `.runseal/support/workbench-terrain.ts` | Terrain-specific workbench CLI argument validation and typed Sidecar event dispatch. |
 | `.runseal/wrappers/skeletal-crowds.ts` | Canonical Experiment 0010 debug correctness, release timing, sweep, visual, movement, and restart workflow. |
 | `.runseal/support/skeletal-crowds.ts` | Experiment 0010 structured validation, environment capture, fixtures, and distribution helpers. |
@@ -369,6 +373,12 @@ agreement, and same-position continuity across all active region boundaries. The
 retains the accepted fixed submission and formats. It does not accept terrain LOD
 composition, sampling outside the owning region, slope frames, collision, navigation,
 or a general scene query.
+Experiment 0017 and ADR 0020 accept terrain render LOD inside composition while exact
+full-resolution ground remains camera-independent. A requested Q18 oracle bounds the
+canonical visible contact approximation to 0.125 meter, and LOD adds one fixed terrain
+dispatch without changing five-stage skeletal submission. This does not accept a
+general error policy, authored terrain tolerance, geomorphing, slope frames, collision,
+navigation, or reusable scene queries.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -396,6 +406,7 @@ runseal :terrain
 runseal :terrain-lod
 runseal :composition
 runseal :terrain-sampling
+runseal :lod-composition
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
