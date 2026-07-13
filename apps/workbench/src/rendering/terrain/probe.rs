@@ -3,11 +3,11 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::load::LoadConfig;
+use crate::scene::SceneState;
 use crate::terrain::TerrainAssignment;
 
 use super::{
-    PATCH_GROUP_COUNT, PATCHES_PER_REGION, QUERY_COUNT, STATS_BYTES, TERRAIN_REVISION,
-    TRIANGLES_PER_PATCH, TerrainRenderer, VERTICES_PER_PATCH,
+    LOD_STATS_BYTES, PATCH_GROUP_COUNT, QUERY_COUNT, STATS_BYTES, TERRAIN_REVISION, TerrainRenderer,
 };
 
 #[derive(Serialize)]
@@ -25,6 +25,7 @@ pub struct TerrainProbe {
     submission: TerrainSubmission,
     resources: TerrainResources,
     timing: TerrainTiming,
+    lod: TerrainLodEvidence,
 }
 
 #[derive(Serialize)]
@@ -78,24 +79,68 @@ struct TerrainTiming {
     total_ms: f64,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TerrainLodEvidence {
+    oracle: super::lod::TerrainLodOracle,
+    gpu: GpuLod,
+    submission: LodSubmission,
+    resources: LodResources,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GpuLod {
+    lod_counts: [u32; 3],
+    patch_edges: Option<u32>,
+    same_lod_edges: Option<u32>,
+    transition_edges: Option<u32>,
+    adjusted_vertices: Option<u32>,
+    sample_comparisons: Option<u32>,
+    max_lod_delta: Option<u32>,
+    mismatch_count: Option<u32>,
+    first_mismatch: Option<u32>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LodSubmission {
+    dispatch_count: u32,
+    dispatch_groups: [u32; 3],
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LodResources {
+    stats_bytes: u64,
+}
+
 impl TerrainRenderer {
-    pub unsafe fn read_probe(&self) -> Result<TerrainProbe> {
+    pub unsafe fn read_probe(&self, scene: &SceneState) -> Result<TerrainProbe> {
         let snapshot = self
             .published
             .as_ref()
             .context("terrain is not published")?;
         let stats = unsafe { super::super::resident::read_values::<u32>(&self.stats_readback, 8) }?;
         let seams = unsafe { super::super::resident::read_values::<u32>(&self.seams_readback, 8) }?;
+        let lod_stats =
+            unsafe { super::super::resident::read_values::<u32>(&self.lod_stats_readback, 16) }?;
         let timestamps = unsafe {
             super::super::resident::read_values::<u64>(
                 &self.timestamp_readback,
                 QUERY_COUNT as usize,
             )
         }?;
-        let active_count = snapshot.config.active_region_count();
-        let oracle_patches = active_count * PATCHES_PER_REGION;
-        let oracle_vertices = oracle_patches * VERTICES_PER_PATCH;
-        let oracle_triangles = oracle_patches * TRIANGLES_PER_PATCH;
+        let lod_oracle = super::lod::evaluate(
+            snapshot.config,
+            &snapshot.active,
+            &snapshot.tiles,
+            scene.camera(),
+            self.lod_settings,
+        )?;
+        let oracle_patches = lod_oracle.geometry.patches;
+        let oracle_vertices = lod_oracle.geometry.vertices;
+        let oracle_triangles = lod_oracle.geometry.triangles;
         ensure!(
             stats[0] == PATCH_GROUP_COUNT,
             "terrain fixed patch group count mismatch"
@@ -127,6 +172,37 @@ impl TerrainRenderer {
             "terrain GPU comparison count mismatch"
         );
         ensure!(seams[2] == 0, "terrain GPU edge mismatch");
+        ensure!(
+            lod_stats[..3] == lod_oracle.lod_counts,
+            "terrain GPU LOD counts mismatch"
+        );
+        if self.lod_settings.enabled {
+            ensure!(
+                lod_stats[3] == lod_oracle.edges.patch_edges,
+                "terrain LOD edge count mismatch"
+            );
+            ensure!(
+                lod_stats[4] == lod_oracle.edges.same_lod_edges,
+                "terrain same-LOD edge count mismatch"
+            );
+            ensure!(
+                lod_stats[5] == lod_oracle.edges.transition_edges,
+                "terrain transition edge count mismatch"
+            );
+            ensure!(
+                lod_stats[6] == lod_oracle.edges.adjusted_vertices,
+                "terrain adjusted vertex count mismatch"
+            );
+            ensure!(
+                lod_stats[7] == lod_oracle.edges.sample_comparisons,
+                "terrain LOD sample count mismatch"
+            );
+            ensure!(
+                lod_stats[8] == lod_oracle.edges.max_lod_delta,
+                "terrain maximum LOD delta mismatch"
+            );
+            ensure!(lod_stats[9] == 0, "terrain LOD geometric mismatch");
+        }
         let mut mapping_hash = Sha256::new();
         for entry in &snapshot.active {
             mapping_hash.update(entry.slot.to_le_bytes());
@@ -183,6 +259,28 @@ impl TerrainRenderer {
                 seam_ms: milliseconds(0, 1),
                 raster_ms: milliseconds(1, 2),
                 total_ms: milliseconds(0, 2),
+            },
+            lod: TerrainLodEvidence {
+                oracle: lod_oracle,
+                gpu: GpuLod {
+                    lod_counts: [lod_stats[0], lod_stats[1], lod_stats[2]],
+                    patch_edges: self.lod_settings.enabled.then_some(lod_stats[3]),
+                    same_lod_edges: self.lod_settings.enabled.then_some(lod_stats[4]),
+                    transition_edges: self.lod_settings.enabled.then_some(lod_stats[5]),
+                    adjusted_vertices: self.lod_settings.enabled.then_some(lod_stats[6]),
+                    sample_comparisons: self.lod_settings.enabled.then_some(lod_stats[7]),
+                    max_lod_delta: self.lod_settings.enabled.then_some(lod_stats[8]),
+                    mismatch_count: self.lod_settings.enabled.then_some(lod_stats[9]),
+                    first_mismatch: (self.lod_settings.enabled && lod_stats[10] != u32::MAX)
+                        .then_some(lod_stats[10]),
+                },
+                submission: LodSubmission {
+                    dispatch_count: u32::from(self.lod_settings.enabled),
+                    dispatch_groups: [PATCH_GROUP_COUNT, 2, 1],
+                },
+                resources: LodResources {
+                    stats_bytes: LOD_STATS_BYTES,
+                },
             },
         })
     }

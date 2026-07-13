@@ -207,7 +207,7 @@ impl Renderer {
                 None
             };
             let terrain_probe = if probe_load && self.terrain_renderer.is_enabled() {
-                Some(unsafe { self.terrain_renderer.read_probe() }?)
+                Some(unsafe { self.terrain_renderer.read_probe(scene) }?)
             } else {
                 None
             };

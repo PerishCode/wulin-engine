@@ -7,11 +7,12 @@ pub(super) unsafe fn create_heap(
     regions: &[ID3D12Resource],
     stats: &ID3D12Resource,
     seams: &ID3D12Resource,
+    lod_stats: &ID3D12Resource,
 ) -> Result<ID3D12DescriptorHeap> {
     let heap: ID3D12DescriptorHeap = unsafe {
         device.CreateDescriptorHeap(&D3D12_DESCRIPTOR_HEAP_DESC {
             Type: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors: 52,
+            NumDescriptors: 53,
             Flags: D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
             NodeMask: 0,
         })
@@ -45,14 +46,17 @@ pub(super) unsafe fn create_heap(
             )
         };
     }
-    for (index, resource) in [stats, seams].into_iter().enumerate() {
+    for (index, (resource, elements)) in [(stats, 8), (seams, 8), (lod_stats, 16)]
+        .into_iter()
+        .enumerate()
+    {
         let desc = D3D12_UNORDERED_ACCESS_VIEW_DESC {
             Format: DXGI_FORMAT_R32_TYPELESS,
             ViewDimension: D3D12_UAV_DIMENSION_BUFFER,
             Anonymous: D3D12_UNORDERED_ACCESS_VIEW_DESC_0 {
                 Buffer: D3D12_BUFFER_UAV {
                     FirstElement: 0,
-                    NumElements: 8,
+                    NumElements: elements,
                     StructureByteStride: 0,
                     CounterOffsetInBytes: 0,
                     Flags: D3D12_BUFFER_UAV_FLAG_RAW,

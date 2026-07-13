@@ -192,6 +192,7 @@ fn main() {
     for (entry, profile, output) in [
         ("reset_main", "cs_6_6", "terrain.reset.dxil"),
         ("seam_main", "cs_6_6", "terrain.seam.dxil"),
+        ("lod_seam_main", "cs_6_6", "terrain.lod_seam.dxil"),
         ("as_main", "as_6_6", "terrain.as.dxil"),
         ("ms_main", "ms_6_6", "terrain.ms.dxil"),
         ("ps_main", "ps_6_6", "terrain.ps.dxil"),

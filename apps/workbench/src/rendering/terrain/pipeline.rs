@@ -13,16 +13,18 @@ use windows::core::Interface;
 
 const RESET_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/terrain.reset.dxil"));
 const SEAM_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/terrain.seam.dxil"));
+const LOD_SEAM_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/terrain.lod_seam.dxil"));
 const AMPLIFICATION_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/terrain.as.dxil"));
 const MESH_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/terrain.ms.dxil"));
 const PIXEL_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/terrain.ps.dxil"));
 
-pub const TERRAIN_CONSTANT_COUNT: u32 = 48;
+pub const TERRAIN_CONSTANT_COUNT: u32 = 56;
 
 pub struct TerrainPipeline {
     pub root: ID3D12RootSignature,
     pub reset: ID3D12PipelineState,
     pub seam: ID3D12PipelineState,
+    pub lod_seam: ID3D12PipelineState,
     pub graphics: ID3D12PipelineState,
 }
 
@@ -31,11 +33,13 @@ impl TerrainPipeline {
         let root = unsafe { create_root(device) }?;
         let reset = unsafe { create_compute_pipeline(device, &root, RESET_SHADER) }?;
         let seam = unsafe { create_compute_pipeline(device, &root, SEAM_SHADER) }?;
+        let lod_seam = unsafe { create_compute_pipeline(device, &root, LOD_SEAM_SHADER) }?;
         let graphics = unsafe { create_mesh_pipeline(device, &root) }?;
         Ok(Self {
             root,
             reset,
             seam,
+            lod_seam,
             graphics,
         })
     }
@@ -52,7 +56,7 @@ unsafe fn create_root(device: &ID3D12Device) -> Result<ID3D12RootSignature> {
         },
         D3D12_DESCRIPTOR_RANGE {
             RangeType: D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
-            NumDescriptors: 2,
+            NumDescriptors: 3,
             BaseShaderRegister: 0,
             RegisterSpace: 0,
             OffsetInDescriptorsFromTableStart: 50,

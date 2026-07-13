@@ -74,6 +74,7 @@ impl TerrainTransfer {
         device: &ID3D12Device,
         stats: &ID3D12Resource,
         seams: &ID3D12Resource,
+        lod_stats: &ID3D12Resource,
     ) -> Result<Self> {
         let mut regions = Vec::with_capacity(TERRAIN_CACHE_CAPACITY);
         for _ in 0..TERRAIN_CACHE_CAPACITY {
@@ -87,7 +88,7 @@ impl TerrainTransfer {
                 )
             }?);
         }
-        let heap = unsafe { create_heap(device, &regions, stats, seams) }?;
+        let heap = unsafe { create_heap(device, &regions, stats, seams, lod_stats) }?;
         let region_allocation_bytes =
             unsafe { device.GetResourceAllocationInfo(0, &[regions[0].GetDesc()]) }.SizeInBytes
                 * TERRAIN_CACHE_CAPACITY as u64;

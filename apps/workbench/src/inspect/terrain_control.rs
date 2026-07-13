@@ -43,6 +43,26 @@ pub fn dispatch(renderer: &mut Renderer, kind: ControlKind) -> ControlResult {
         ControlKind::TerrainCopyGateRelease => unsafe { renderer.release_terrain_copy_gate() }
             .map(|fence| json!({"gateFence": fence}))
             .map_err(gate_error),
+        ControlKind::TerrainLodStatus => Ok(renderer.terrain_lod_status()),
+        ControlKind::TerrainLodConfigure {
+            near_patch_radius,
+            middle_patch_radius,
+            forced_lod,
+        } => renderer
+            .configure_terrain_lod(near_patch_radius, middle_patch_radius, forced_lod)
+            .map(|()| renderer.terrain_lod_status())
+            .map_err(|error| ProtocolError {
+                code: "invalid_terrain_lod_config",
+                message: error.to_string(),
+            }),
+        ControlKind::TerrainLodEnable => {
+            renderer.enable_terrain_lod();
+            Ok(renderer.terrain_lod_status())
+        }
+        ControlKind::TerrainLodDisable => {
+            renderer.disable_terrain_lod();
+            Ok(renderer.terrain_lod_status())
+        }
         ControlKind::TerrainSchedule {
             world_region_side,
             active_center_x,
