@@ -16,6 +16,7 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders/skeletal_scene.hlsl");
     println!("cargo:rerun-if-changed=shaders/surface_resolve.hlsl");
     println!("cargo:rerun-if-changed=shaders/occlusion.hlsl");
+    println!("cargo:rerun-if-changed=shaders/terrain.hlsl");
     println!("cargo:rerun-if-env-changed=AGILITY_SDK_ROOT");
     println!("cargo:rerun-if-env-changed=DXC");
 
@@ -183,6 +184,22 @@ fn main() {
             &manifest_dir,
             &out_dir,
             "skeletal_scene.hlsl",
+            entry,
+            profile,
+            output,
+        );
+    }
+    for (entry, profile, output) in [
+        ("reset_main", "cs_6_6", "terrain.reset.dxil"),
+        ("seam_main", "cs_6_6", "terrain.seam.dxil"),
+        ("as_main", "as_6_6", "terrain.as.dxil"),
+        ("ms_main", "ms_6_6", "terrain.ms.dxil"),
+        ("ps_main", "ps_6_6", "terrain.ps.dxil"),
+    ] {
+        compile_named_shader(
+            &manifest_dir,
+            &out_dir,
+            "terrain.hlsl",
             entry,
             profile,
             output,

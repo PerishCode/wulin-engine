@@ -8,7 +8,7 @@ mod scene;
 mod streaming;
 mod window;
 
-pub(crate) use streaming::{async_resident, cooked};
+pub(crate) use streaming::{async_resident, cooked, terrain};
 
 use std::sync::mpsc::SyncSender;
 use std::thread;
@@ -205,8 +205,13 @@ fn complete_frame(
     }
     if let Some(response) = pending.probe.take() {
         let result = outcome
-            .surface_probe
-            .map(|probe| serde_json::to_value(probe).context("surface probe encoding failed"))
+            .terrain_probe
+            .map(|probe| serde_json::to_value(probe).context("terrain probe encoding failed"))
+            .or_else(|| {
+                outcome.surface_probe.map(|probe| {
+                    serde_json::to_value(probe).context("surface probe encoding failed")
+                })
+            })
             .or_else(|| {
                 outcome.skeletal_probe.map(|probe| {
                     serde_json::to_value(probe).context("skeletal probe encoding failed")

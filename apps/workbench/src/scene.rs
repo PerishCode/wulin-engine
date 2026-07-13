@@ -256,6 +256,13 @@ pub fn semantic_object(id: u32) -> Option<SemanticObject> {
             color: object.color,
         })
         .or_else(|| {
+            load::terrain_semantic(id).map(|region| SemanticObject {
+                name: region.name,
+                kind: region.kind,
+                color: region.color,
+            })
+        })
+        .or_else(|| {
             load::region_semantic(id).map(|region| SemanticObject {
                 name: region.name,
                 kind: region.kind,

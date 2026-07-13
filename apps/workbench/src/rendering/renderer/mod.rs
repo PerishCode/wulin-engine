@@ -13,6 +13,7 @@ use crate::async_resident::AsyncTransactionReport;
 use crate::cooked::CookedStreamer;
 use crate::load::LoadConfig;
 use crate::resident::StreamReport;
+use crate::terrain::TerrainStreamer;
 
 use super::async_resident::AsyncResidentRenderer;
 use super::calibration::SceneRenderer;
@@ -26,6 +27,7 @@ use super::meshlet_scene::{
     SurfaceProbe, SurfaceSettings,
 };
 use super::resident::ResidentRenderer;
+use super::terrain::{TerrainProbe, TerrainRenderer};
 
 mod frame;
 
@@ -57,6 +59,8 @@ pub struct Renderer {
     pub(super) async_resident_renderer: AsyncResidentRenderer,
     meshlet_scene_renderer: MeshletSceneRenderer,
     skeletal_scene_renderer: SkeletalSceneRenderer,
+    pub(super) terrain_streamer: TerrainStreamer,
+    pub(super) terrain_renderer: TerrainRenderer,
     adapter_name: String,
     debug_layer: bool,
     capabilities: DeviceCapabilities,
@@ -73,6 +77,7 @@ pub struct RenderOutcome {
     pub meshlet_probe: Option<MeshletProbe>,
     pub skeletal_probe: Option<SkeletalProbe>,
     pub surface_probe: Option<SurfaceProbe>,
+    pub terrain_probe: Option<TerrainProbe>,
     pub resident_stream: Option<StreamReport>,
 }
 
@@ -179,6 +184,8 @@ impl Renderer {
                 height,
             )
         }?;
+        let terrain_renderer =
+            unsafe { TerrainRenderer::new(&device, timestamp_frequency, width, height) }?;
 
         let mut allocators = Vec::with_capacity(BUFFER_COUNT);
         for _ in 0..BUFFER_COUNT {
@@ -220,6 +227,8 @@ impl Renderer {
             async_resident_renderer,
             meshlet_scene_renderer,
             skeletal_scene_renderer,
+            terrain_streamer: TerrainStreamer::default(),
+            terrain_renderer,
             adapter_name,
             debug_layer,
             capabilities,
@@ -227,6 +236,7 @@ impl Renderer {
     }
 
     pub fn configure_load(&mut self, config: LoadConfig) -> Result<()> {
+        self.terrain_renderer.disable();
         self.meshlet_scene_renderer.disable();
         self.skeletal_scene_renderer.disable();
         self.async_resident_renderer.disable()?;
@@ -236,6 +246,7 @@ impl Renderer {
     }
 
     pub unsafe fn stream_resident(&mut self, config: LoadConfig) -> Result<()> {
+        self.terrain_renderer.disable();
         self.meshlet_scene_renderer.disable();
         self.skeletal_scene_renderer.disable();
         self.async_resident_renderer.disable()?;
@@ -244,6 +255,7 @@ impl Renderer {
     }
 
     pub fn disable_load(&mut self) -> Result<()> {
+        self.terrain_renderer.disable();
         self.meshlet_scene_renderer.disable();
         self.skeletal_scene_renderer.disable();
         self.async_resident_renderer.disable()?;
@@ -253,10 +265,12 @@ impl Renderer {
     }
 
     pub fn load_config(&self) -> Option<LoadConfig> {
-        self.async_resident_renderer
-            .config()
-            .or_else(|| self.resident_renderer.config())
-            .or_else(|| self.load_renderer.config())
+        self.terrain_renderer.config().or_else(|| {
+            self.async_resident_renderer
+                .config()
+                .or_else(|| self.resident_renderer.config())
+                .or_else(|| self.load_renderer.config())
+        })
     }
 
     pub unsafe fn stream_async_resident(
@@ -299,6 +313,7 @@ impl Renderer {
             bail!("meshlet scene requires a published async resident snapshot");
         }
         self.skeletal_scene_renderer.disable();
+        self.terrain_renderer.disable();
         self.meshlet_scene_renderer.enable();
         Ok(())
     }
@@ -335,6 +350,7 @@ impl Renderer {
             bail!("skeletal scene requires a published async resident snapshot");
         }
         self.meshlet_scene_renderer.disable();
+        self.terrain_renderer.disable();
         self.skeletal_scene_renderer.enable();
         Ok(())
     }
@@ -360,6 +376,7 @@ impl Renderer {
             bail!("surface resolve requires a published async resident snapshot");
         }
         self.meshlet_scene_renderer.disable();
+        self.terrain_renderer.disable();
         self.skeletal_scene_renderer.enable_surface();
         Ok(())
     }
@@ -429,6 +446,7 @@ impl Renderer {
     }
 
     pub unsafe fn wait_idle(&mut self) -> Result<()> {
+        unsafe { self.terrain_renderer.wait_idle() }?;
         unsafe { self.async_resident_renderer.wait_idle() }?;
         let signal = self.next_fence_value;
         self.next_fence_value += 1;

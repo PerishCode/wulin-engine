@@ -317,6 +317,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "terrain-cooker"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "terrain-format",
+]
+
+[[package]]
+name = "terrain-format"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -459,6 +478,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "surface-catalog",
+ "terrain-format",
  "windows",
 ]
 
