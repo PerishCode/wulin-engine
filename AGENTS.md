@@ -133,6 +133,7 @@ contains only files that exist.
 | `docs/adr/0019-gpu-arbitrary-terrain-sampling.md` | Accepted Q8 arbitrary-position triangle interpolation and cross-region boundary contract. |
 | `docs/adr/0020-gpu-lod-terrain-composition.md` | Accepted exact-ground, bounded-contact terrain LOD composition contract. |
 | `docs/adr/0021-camera-driven-region-traversal.md` | Accepted bounded camera mapping, latest-wins scheduling, blocked failure, and atomic traversal contract. |
+| `docs/adr/0022-camera-relative-global-space.md` | Accepted signed global region, bounded split-position conversion, camera-at-origin rendering, and mode-isolation contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -162,6 +163,7 @@ contains only files that exist.
 | `experiments/0016-gpu-arbitrary-terrain-sampling/README.md` | Accepted Experiment 0016 exact arbitrary-position triangle sampling, boundary continuity, compatibility, and timing evidence. |
 | `experiments/0017-gpu-lod-terrain-composition/README.md` | Accepted Experiment 0017 exact-ground, bounded-contact terrain LOD composition and timing evidence. |
 | `experiments/0018-camera-driven-region-traversal/README.md` | Accepted Experiment 0018 camera boundaries, bounded latest-wins traversal, failure, continuity, and timing evidence. |
+| `experiments/0019-camera-relative-global-space/README.md` | Accepted Experiment 0019 signed global regions, exact split conversion, far-anchor/rebase invariance, rejection, and timing evidence. |
 | `crates/meshlet-catalog/Cargo.toml` | Deterministic static meshlet catalog package and dependency boundary. |
 | `crates/meshlet-catalog/src/lib.rs` | Eight-archetype, three-LOD geometry generation, meshlet partitioning, validation, encoding, and hashing. |
 | `crates/meshlet-catalog/tests/catalog.rs` | Catalog determinism, reducing-LOD, and mesh-shader bound regression contract. |
@@ -186,7 +188,7 @@ contains only files that exist.
 | `tools/terrain-cooker/src/main.rs` | Global integer-lattice terrain generation, optional deterministic center sets, shared-edge proof, pack writing, and manifest output. |
 | `apps/workbench/Cargo.toml` | Native workbench package and Windows API feature boundary. |
 | `apps/workbench/build.rs` | Workbench Agility SDK staging and pinned DXC shader compilation. |
-| `apps/workbench/shaders/calibration.hlsl` | Procedural calibration scene vertex and pixel shader. |
+| `apps/workbench/shaders/calibration.hlsl` | Camera-relative calibration rasterization, stable scene-local material semantics, color, and object-ID shader. |
 | `apps/workbench/shaders/region_load.hlsl` | Procedural region reset, cull/compact, indirect draw, and semantic-ID shaders. |
 | `apps/workbench/shaders/resident_load.hlsl` | Persistent instance compaction, indirect rendering, and semantic-ID shaders. |
 | `apps/workbench/shaders/async_resident.hlsl` | Descriptor-indexed per-slot compaction, indirect rendering, and semantic-ID shaders. |
@@ -205,6 +207,7 @@ contains only files that exist.
 | `apps/workbench/src/inspect/composition_control.rs` | Typed atomic composition schedule, fixture, mode, traversal, pass-order parsing, and control dispatch. |
 | `apps/workbench/src/inspect/surface_control.rs` | Typed surface, material, mip, occlusion history, and probe control dispatch. |
 | `apps/workbench/src/inspect/terrain_control.rs` | Typed terrain pack, schedule, mode, and I/O/copy gate control dispatch. |
+| `apps/workbench/src/inspect/world_control.rs` | Typed calibration-only global anchor, render-origin rebase, reset, status, and probe dispatch. |
 | `apps/workbench/src/load.rs` | Region address space, load configuration, workload counts, and procedural semantics. |
 | `apps/workbench/src/resident.rs` | Resident cache planning, deterministic records, LRU eviction, and stream reports. |
 | `apps/workbench/src/streaming/mod.rs` | Workbench streaming ownership boundary and narrow module exports. |
@@ -214,8 +217,9 @@ contains only files that exist.
 | `apps/workbench/src/streaming/terrain/mod.rs` | Terrain pack controller, bounded transaction status, I/O gate, and rollback evidence. |
 | `apps/workbench/src/streaming/terrain/worker.rs` | Single background terrain reader, bounded channels, payload verification, and I/O metrics. |
 | `apps/workbench/src/perception.rs` | Pixel-region validation, ID analysis, semantic joins, samples, and diagnostic colors. |
-| `apps/workbench/src/scene.rs` | Calibration scene objects, camera state, transforms, and spatial manifest. |
+| `apps/workbench/src/scene.rs` | Calibration objects, scene-local camera, camera-relative matrices, world controls, probes, and spatial manifest. |
 | `apps/workbench/src/window.rs` | Win32 window class, native handle, and console shutdown lifecycle. |
+| `apps/workbench/src/world.rs` | Signed region coordinates, split-position normalization, bounded render conversion, transactions, and exact oracle. |
 | `apps/workbench/src/rendering/mod.rs` | Workbench rendering subsystem boundary and narrow application exports. |
 | `apps/workbench/src/rendering/renderer/mod.rs` | D3D12 device, swap-chain resources, capabilities, and GPU synchronization ownership. |
 | `apps/workbench/src/rendering/renderer/frame.rs` | Per-frame camera traversal observation, standalone/composed dispatch, capture, present, and probe submission path. |
@@ -303,10 +307,12 @@ contains only files that exist.
 | `.runseal/wrappers/terrain-sampling.ts` | Canonical Experiment 0016 arbitrary-position triangle sampling, boundary, movement, restart, compatibility, and timing workflow. |
 | `.runseal/wrappers/lod-composition.ts` | Canonical Experiment 0017 exact-ground, bounded-contact terrain LOD composition workflow. |
 | `.runseal/wrappers/region-traversal.ts` | Canonical Experiment 0018 boundary, clamp, corridor, held latest-wins, failure, teleport, restart, and timing workflow. |
+| `.runseal/wrappers/global-space.ts` | Canonical Experiment 0019 far-anchor, rebase, exact oracle, rejection, restart, compatibility, and timing workflow. |
 | `.runseal/support/cooked-region.ts` | Experiment 0008 structured evidence, pack corruption, hashing, and comparison helpers. |
 | `.runseal/support/composition.ts` | Experiments 0015-0018 stable composition, grounding, contact, LOD, and timing validation support. |
 | `.runseal/support/traversal.ts` | Experiment 0018 bounded status, region mapping, and logical revisit evidence helpers. |
 | `.runseal/support/workbench-terrain.ts` | Terrain-specific workbench CLI argument validation and typed Sidecar event dispatch. |
+| `.runseal/support/workbench-world.ts` | Signed world-coordinate workbench CLI validation and typed Sidecar event dispatch. |
 | `.runseal/wrappers/skeletal-crowds.ts` | Canonical Experiment 0010 debug correctness, release timing, sweep, visual, movement, and restart workflow. |
 | `.runseal/support/skeletal-crowds.ts` | Experiment 0010 structured validation, environment capture, fixtures, and distribution helpers. |
 | `.runseal/wrappers/surface-resolve.ts` | Canonical Experiment 0011 debug correctness, release timing, surface sweeps, determinism, movement, and restart workflow. |
@@ -390,6 +396,12 @@ world/radius traversal basis, one in-flight pair plus one latest-wins desired co
 complete-old-snapshot rendering, and blocked failure without per-frame retry. This
 accepts bounded atomic traversal, not predictive prefetch, latency hiding, hysteresis,
 cancellation, floating origins, or a general streaming graph.
+Experiment 0019 and ADR 0022 accept signed 64-bit CPU region coordinates, half-open
+split positions, integer-before-float subtraction, an eight-region render bound,
+transactional calibration world controls, camera-at-origin GPU transforms, and stable
+scene-local material semantics. This accepts a coordinate/rendering boundary, not a
+format/cache-key migration, signed streaming address space, automatic rebase policy,
+network coordinates, or a general floating-origin system.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -419,6 +431,7 @@ runseal :composition
 runseal :terrain-sampling
 runseal :lod-composition
 runseal :region-traversal
+runseal :global-space
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect
@@ -431,6 +444,11 @@ runseal :workbench camera
 runseal :workbench camera-set -9 5 10 0 1 -3 60
 runseal :workbench camera-reset
 runseal :workbench scene
+runseal :workbench world
+runseal :workbench world-relocate 1099511627776 -1099511627776
+runseal :workbench world-rebase 1099511627780 -1099511627780
+runseal :workbench world-probe
+runseal :workbench world-reset
 runseal :workbench load-config 128
 runseal :workbench resident
 runseal :workbench resident-stream 64 64

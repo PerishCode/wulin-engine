@@ -7,6 +7,14 @@ use super::{Renderer, ensure_no_composition_pair};
 use crate::rendering::meshlet_scene::{SkeletalSettings, SurfaceSettings};
 
 impl Renderer {
+    pub fn calibration_mode_active(&self) -> bool {
+        !self.composition_enabled()
+            && !self.terrain_mode_enabled()
+            && !self.async_resident_enabled()
+            && self.resident_config().is_none()
+            && self.load_renderer.config().is_none()
+    }
+
     pub fn configure_load(&mut self, config: LoadConfig) -> Result<()> {
         ensure_no_composition_pair(&self.composition)?;
         self.disable_composition();

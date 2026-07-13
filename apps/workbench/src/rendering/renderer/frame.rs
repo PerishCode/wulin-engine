@@ -211,7 +211,7 @@ impl Renderer {
                 )?;
             } else {
                 self.scene_renderer
-                    .record(&self.command_list, scene, handle);
+                    .record(&self.command_list, scene, handle)?;
             }
             if capture_object_ids {
                 transition(

@@ -7,6 +7,7 @@ cbuffer DrawConstants : register(b1)
 {
     column_major float4x4 model;
     float4 object_color;
+    float3 semantic_offset;
     uint material_kind;
     uint object_id;
 };
@@ -38,7 +39,7 @@ PixelInput vs_main(VertexInput input)
     PixelInput output;
     float4 world = mul(model, float4(input.position, 1.0));
     output.position = mul(view_projection, world);
-    output.world_position = world.xyz;
+    output.world_position = world.xyz + semantic_offset;
     output.world_normal = normalize(input.normal);
     output.color = object_color;
     output.material = material_kind;
