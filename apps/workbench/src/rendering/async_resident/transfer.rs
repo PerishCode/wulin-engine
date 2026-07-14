@@ -2,10 +2,10 @@ use std::collections::BTreeSet;
 use std::ptr;
 use std::time::Instant;
 
-use anyhow::{Context, Result, bail};
-use windows::Win32::Foundation::HANDLE;
+use anyhow::{Context, Result, bail, ensure};
+use windows::Win32::Foundation::{HANDLE, WAIT_OBJECT_0};
 use windows::Win32::Graphics::Direct3D12::*;
-use windows::Win32::System::Threading::CreateEventW;
+use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
 use windows::core::Interface;
 
 use crate::address::GlobalRegionConfig;
@@ -14,7 +14,7 @@ use crate::async_resident::{
     AsyncReservationReport, AsyncTransactionReport, ObjectSourceNamespace, PayloadPreparation,
 };
 use crate::load::LoadConfig;
-use crate::resident::{REGION_INSTANCE_BYTES, RegionUpload, as_bytes};
+use crate::resident::{REGION_IDENTITY_BYTES, REGION_INSTANCE_BYTES, RegionUpload};
 
 use super::super::resident::{create_buffer, transition};
 use super::resources::create_descriptor_heap;
@@ -22,12 +22,16 @@ use super::resources::create_descriptor_heap;
 mod lifecycle;
 mod payload;
 mod status;
+mod submit;
 
 pub struct AsyncTransfer {
     regions: Vec<ID3D12Resource>,
+    identities: Vec<ID3D12Resource>,
     descriptor_heap: ID3D12DescriptorHeap,
     region_allocation_bytes: u64,
+    identity_allocation_bytes: u64,
     upload: ID3D12Resource,
+    identity_upload: ID3D12Resource,
     release_allocator: ID3D12CommandAllocator,
     release_list: ID3D12GraphicsCommandList,
     copy_queue: ID3D12CommandQueue,
@@ -42,6 +46,8 @@ pub struct AsyncTransfer {
     cache: AsyncRegionCache,
     reservation: Option<ReservedTransfer>,
     shader_slots: [bool; ASYNC_CACHE_CAPACITY],
+    identity_shader_slots: [bool; ASYNC_CACHE_CAPACITY],
+    identity_kinds: [IdentityKind; ASYNC_CACHE_CAPACITY],
     pending: Option<PendingTransfer>,
     last_completed: Option<AsyncTransactionReport>,
     next_transaction_id: u64,
@@ -57,8 +63,16 @@ struct PendingTransfer {
     next_cache: AsyncRegionCache,
     active_slots: Vec<u32>,
     uploaded_slots: Vec<u32>,
+    identity_transition_slots: Vec<u32>,
+    identity_updates: Vec<(u32, IdentityKind)>,
     report: AsyncTransactionReport,
     started_at: Instant,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum IdentityKind {
+    Ordinal,
+    Explicit,
 }
 
 pub struct Publication {
@@ -81,14 +95,38 @@ impl AsyncTransfer {
                 )
             }?);
         }
-        let descriptor_heap = unsafe { create_descriptor_heap(device, &regions) }?;
+        let mut identities = Vec::with_capacity(ASYNC_CACHE_CAPACITY);
+        for _ in 0..ASYNC_CACHE_CAPACITY {
+            identities.push(unsafe {
+                create_buffer(
+                    device,
+                    REGION_IDENTITY_BYTES as u64,
+                    D3D12_HEAP_TYPE_DEFAULT,
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    D3D12_RESOURCE_FLAG_NONE,
+                )
+            }?);
+        }
+        let descriptor_heap = unsafe { create_descriptor_heap(device, &regions, &identities) }?;
         let region_allocation_bytes =
             unsafe { device.GetResourceAllocationInfo(0, &[regions[0].GetDesc()]) }.SizeInBytes
+                * ASYNC_CACHE_CAPACITY as u64;
+        let identity_allocation_bytes =
+            unsafe { device.GetResourceAllocationInfo(0, &[identities[0].GetDesc()]) }.SizeInBytes
                 * ASYNC_CACHE_CAPACITY as u64;
         let upload = unsafe {
             create_buffer(
                 device,
                 (ASYNC_CACHE_CAPACITY * REGION_INSTANCE_BYTES) as u64,
+                D3D12_HEAP_TYPE_UPLOAD,
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                D3D12_RESOURCE_FLAG_NONE,
+            )
+        }?;
+        let identity_upload = unsafe {
+            create_buffer(
+                device,
+                (ASYNC_CACHE_CAPACITY * REGION_IDENTITY_BYTES) as u64,
                 D3D12_HEAP_TYPE_UPLOAD,
                 D3D12_RESOURCE_STATE_GENERIC_READ,
                 D3D12_RESOURCE_FLAG_NONE,
@@ -126,11 +164,14 @@ impl AsyncTransfer {
         let copy_event = unsafe { CreateEventW(None, false, false, None) }
             .context("async event creation failed")?;
 
-        Ok(Self {
+        let mut transfer = Self {
             regions,
+            identities,
             descriptor_heap,
             region_allocation_bytes,
+            identity_allocation_bytes,
             upload,
+            identity_upload,
             release_allocator,
             release_list,
             copy_queue,
@@ -145,10 +186,78 @@ impl AsyncTransfer {
             cache: AsyncRegionCache::default(),
             reservation: None,
             shader_slots: [false; ASYNC_CACHE_CAPACITY],
+            identity_shader_slots: [false; ASYNC_CACHE_CAPACITY],
+            identity_kinds: [IdentityKind::Ordinal; ASYNC_CACHE_CAPACITY],
             pending: None,
             last_completed: None,
             next_transaction_id: 1,
-        })
+        };
+        unsafe { transfer.initialize_identity_pages() }?;
+        Ok(transfer)
+    }
+
+    unsafe fn initialize_identity_pages(&mut self) -> Result<()> {
+        let mut mapped = ptr::null_mut();
+        unsafe {
+            self.identity_upload.Map(
+                0,
+                Some(&D3D12_RANGE { Begin: 0, End: 0 }),
+                Some(&mut mapped),
+            )
+        }
+        .context("async identity upload arena map failed")?;
+        for slot in 0..ASYNC_CACHE_CAPACITY {
+            let destination = unsafe {
+                mapped
+                    .cast::<u8>()
+                    .add(slot * REGION_IDENTITY_BYTES)
+                    .cast::<u32>()
+            };
+            for local_id in 0..crate::load::INSTANCES_PER_REGION {
+                unsafe { destination.add(local_id as usize).write(local_id) };
+            }
+        }
+        unsafe {
+            self.identity_upload.Unmap(
+                0,
+                Some(&D3D12_RANGE {
+                    Begin: 0,
+                    End: ASYNC_CACHE_CAPACITY * REGION_IDENTITY_BYTES,
+                }),
+            )
+        };
+
+        unsafe { self.copy_allocator.Reset() }
+            .context("async identity initialization allocator reset failed")?;
+        unsafe { self.copy_list.Reset(&self.copy_allocator, None) }
+            .context("async identity initialization list reset failed")?;
+        for slot in 0..ASYNC_CACHE_CAPACITY {
+            unsafe {
+                self.copy_list.CopyBufferRegion(
+                    &self.identities[slot],
+                    0,
+                    &self.identity_upload,
+                    (slot * REGION_IDENTITY_BYTES) as u64,
+                    REGION_IDENTITY_BYTES as u64,
+                )
+            };
+        }
+        unsafe { self.copy_list.Close() }
+            .context("async identity initialization list close failed")?;
+        let list: ID3D12CommandList = self.copy_list.cast()?;
+        unsafe { self.copy_queue.ExecuteCommandLists(&[Some(list)]) };
+        let fence = self.next_copy_fence;
+        self.next_copy_fence += 1;
+        unsafe { self.copy_queue.Signal(&self.copy_fence, fence) }
+            .context("async identity initialization signal failed")?;
+        unsafe { self.copy_fence.SetEventOnCompletion(fence, self.copy_event) }
+            .context("async identity initialization event failed")?;
+        let wait = unsafe { WaitForSingleObject(self.copy_event, INFINITE) };
+        ensure!(
+            wait == WAIT_OBJECT_0,
+            "async identity initialization wait returned {wait:?}"
+        );
+        Ok(())
     }
 
     pub unsafe fn schedule(
@@ -167,6 +276,7 @@ impl AsyncTransfer {
             .map(|assignment| RegionUpload {
                 slot: assignment.slot,
                 records: crate::resident::generate_region(assignment.region_id),
+                local_ids: None,
             })
             .collect();
         let generation_ms = generation_start.elapsed().as_secs_f64() * 1_000.0;
@@ -272,114 +382,6 @@ impl AsyncTransfer {
         Ok(())
     }
 
-    pub unsafe fn submit(
-        &mut self,
-        transaction_id: u64,
-        uploads: Vec<RegionUpload>,
-        preparation: PayloadPreparation,
-        direct_queue: &ID3D12CommandQueue,
-        direct_fence: &ID3D12Fence,
-        direct_release_fence: u64,
-    ) -> Result<AsyncTransactionReport> {
-        let reservation = self
-            .reservation
-            .as_ref()
-            .context("async transfer has no cache reservation")?;
-        ensure_transaction(reservation.transaction_id, transaction_id)?;
-        let reservation = self
-            .reservation
-            .take()
-            .expect("async reservation disappeared");
-        let plan = reservation.layout.materialize(uploads)?;
-        unsafe { self.write_uploads(&plan.uploads) }?;
-
-        unsafe { self.release_allocator.Reset() }
-            .context("async release allocator reset failed")?;
-        unsafe { self.release_list.Reset(&self.release_allocator, None) }
-            .context("async release list reset failed")?;
-        for slot in &plan.layout.reused_slots {
-            let index = *slot as usize;
-            if !self.shader_slots[index] {
-                bail!("reused async slot {slot} is not in shader-resource state");
-            }
-            unsafe {
-                transition(
-                    &self.release_list,
-                    &self.regions[index],
-                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                    D3D12_RESOURCE_STATE_COPY_DEST,
-                )
-            };
-            self.shader_slots[index] = false;
-        }
-        unsafe { self.release_list.Close() }.context("async release list close failed")?;
-        let release_list: ID3D12CommandList = self.release_list.cast()?;
-        unsafe {
-            direct_queue.ExecuteCommandLists(&[Some(release_list)]);
-            direct_queue.Signal(direct_fence, direct_release_fence)
-        }
-        .context("async direct release signal failed")?;
-
-        unsafe { self.copy_allocator.Reset() }.context("async copy allocator reset failed")?;
-        unsafe { self.copy_list.Reset(&self.copy_allocator, None) }
-            .context("async copy list reset failed")?;
-        for upload in &plan.uploads {
-            let upload_offset = u64::from(upload.slot) * REGION_INSTANCE_BYTES as u64;
-            unsafe {
-                self.copy_list.CopyBufferRegion(
-                    &self.regions[upload.slot as usize],
-                    0,
-                    &self.upload,
-                    upload_offset,
-                    REGION_INSTANCE_BYTES as u64,
-                )
-            };
-        }
-        unsafe { self.copy_list.Close() }.context("async copy list close failed")?;
-
-        let gate_fence = self.armed_gate;
-        if let Some(value) = gate_fence {
-            unsafe { self.copy_queue.Wait(&self.gate_fence, value) }
-                .context("async copy gate wait failed")?;
-        }
-        unsafe { self.copy_queue.Wait(direct_fence, direct_release_fence) }
-            .context("async copy release wait failed")?;
-        let copy_list: ID3D12CommandList = self.copy_list.cast()?;
-        unsafe { self.copy_queue.ExecuteCommandLists(&[Some(copy_list)]) };
-        let copy_fence = self.next_copy_fence;
-        self.next_copy_fence += 1;
-        unsafe { self.copy_queue.Signal(&self.copy_fence, copy_fence) }
-            .context("async copy signal failed")?;
-
-        let report = AsyncTransactionReport {
-            revision: ASYNC_RESIDENT_REVISION,
-            transaction_id,
-            config: plan.layout.config,
-            global_config: plan.layout.global_config,
-            object_source_namespace: plan.layout.object_source_namespace,
-            object_stable_seed_namespace: plan.layout.object_stable_seed_namespace,
-            object_page_checksums: None,
-            counts: plan.layout.counts,
-            uploaded_sha256: plan.uploaded_sha256,
-            direct_release_fence,
-            copy_fence,
-            gate_fence,
-            payload_source: preparation.source,
-            payload_preparation_ms: preparation.total_ms,
-            generation_ms: preparation.generation_ms,
-            schedule_ms: reservation.started_at.elapsed().as_secs_f64() * 1_000.0,
-            pending_ms: 0.0,
-        };
-        self.pending = Some(PendingTransfer {
-            next_cache: plan.layout.next_cache,
-            active_slots: plan.layout.active_slots,
-            uploaded_slots: plan.uploads.iter().map(|upload| upload.slot).collect(),
-            report: report.clone(),
-            started_at: reservation.started_at,
-        });
-        Ok(report)
-    }
-
     pub(super) fn bind_object_page_checksums(
         &mut self,
         transaction_id: u64,
@@ -419,6 +421,21 @@ impl AsyncTransfer {
             };
             self.shader_slots[index] = true;
         }
+        for slot in &pending.identity_transition_slots {
+            let index = *slot as usize;
+            unsafe {
+                transition(
+                    command_list,
+                    &self.identities[index],
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                )
+            };
+            self.identity_shader_slots[index] = true;
+        }
+        for (slot, kind) in &pending.identity_updates {
+            self.identity_kinds[*slot as usize] = *kind;
+        }
         self.cache = pending.next_cache;
         pending.report.pending_ms = pending.started_at.elapsed().as_secs_f64() * 1_000.0;
         self.last_completed = Some(pending.report.clone());
@@ -456,39 +473,6 @@ impl AsyncTransfer {
 
     pub fn has_armed_gate(&self) -> bool {
         self.armed_gate.is_some()
-    }
-
-    unsafe fn write_uploads(&self, uploads: &[crate::resident::RegionUpload]) -> Result<()> {
-        let mut mapped = ptr::null_mut();
-        unsafe {
-            self.upload.Map(
-                0,
-                Some(&D3D12_RANGE { Begin: 0, End: 0 }),
-                Some(&mut mapped),
-            )
-        }
-        .context("async upload arena map failed")?;
-        for upload in uploads {
-            let offset = upload.slot as usize * REGION_INSTANCE_BYTES;
-            let bytes = as_bytes(&upload.records);
-            unsafe {
-                ptr::copy_nonoverlapping(
-                    bytes.as_ptr(),
-                    mapped.cast::<u8>().add(offset),
-                    bytes.len(),
-                )
-            };
-        }
-        unsafe {
-            self.upload.Unmap(
-                0,
-                Some(&D3D12_RANGE {
-                    Begin: 0,
-                    End: ASYNC_CACHE_CAPACITY * REGION_INSTANCE_BYTES,
-                }),
-            )
-        };
-        Ok(())
     }
 }
 

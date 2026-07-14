@@ -42,6 +42,7 @@ cbuffer MeshletSceneConstants : register(b0)
 };
 
 StructuredBuffer<InstanceRecord> region_instances[REGION_SLOT_CAPACITY] : register(t0);
+StructuredBuffer<uint> region_local_ids[REGION_SLOT_CAPACITY] : register(t56);
 RWStructuredBuffer<VisibleObject> visible_objects : register(u0);
 RWByteAddressBuffer indirect_and_counters : register(u1);
 StructuredBuffer<LodDescriptor> catalog_lods : register(t55);
@@ -73,6 +74,7 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     }
     uint slot = active_slot_groups[group_id.x / 4][group_id.x % 4];
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
+    uint local_id = region_local_ids[NonUniformResourceIndex(slot)][local_index];
     float3 center = instance.position + float3(0.0, instance.height * 0.5, 0.0);
     float4 clip = mul(view_projection, float4(center, 1.0));
     bool in_frustum = clip.w > 0.0
@@ -80,7 +82,7 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         && abs(clip.y) <= clip.w
         && clip.z >= 0.0
         && clip.z <= clip.w;
-    uint stable_key = instance.region_id * INSTANCES_PER_REGION + local_index;
+    uint stable_key = instance.region_id * INSTANCES_PER_REGION + local_id;
     uint archetype = stable_key & 7u;
     if (!in_frustum || (load_shape.z & (1u << archetype)) == 0)
     {

@@ -89,6 +89,7 @@ pub struct ProbeInput<'a> {
     pub ground_numerators: Option<&'a [i32]>,
     pub ground_denominator: u32,
     pub instance_records: Option<&'a [Vec<crate::resident::InstanceRecord>]>,
+    pub local_ids: Option<&'a [Vec<u32>]>,
 }
 
 pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
@@ -125,6 +126,7 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
                 numerators: input.ground_numerators,
                 denominator: input.ground_denominator,
                 instance_records: input.instance_records,
+                local_ids: input.local_ids,
             },
         },
     )?;

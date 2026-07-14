@@ -114,6 +114,8 @@ pub struct AsyncTransactionReport {
     #[serde(flatten)]
     pub counts: AsyncPlanCounts,
     pub uploaded_sha256: String,
+    pub identity_copy_count: usize,
+    pub identity_copy_bytes: usize,
     pub direct_release_fence: u64,
     pub copy_fence: u64,
     pub gate_fence: Option<u64>,
@@ -395,6 +397,19 @@ impl AsyncLayoutPlan {
                 }),
                 "async payload region does not match the cache reservation"
             );
+            if let Some(local_ids) = &upload.local_ids {
+                ensure!(
+                    local_ids.len() == crate::load::INSTANCES_PER_REGION as usize,
+                    "async identity payload has an invalid local-ID count"
+                );
+                let unique = local_ids.iter().copied().collect::<BTreeSet<_>>();
+                ensure!(
+                    unique.len() == local_ids.len()
+                        && unique.first() == Some(&0)
+                        && unique.last() == Some(&(crate::load::INSTANCES_PER_REGION - 1)),
+                    "async identity payload is not a canonical local-ID permutation"
+                );
+            }
         }
         let uploaded_sha256 = hash_uploads(&uploads);
         Ok(AsyncStreamPlan {

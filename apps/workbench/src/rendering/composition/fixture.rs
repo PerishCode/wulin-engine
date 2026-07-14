@@ -82,6 +82,7 @@ pub(super) unsafe fn submit_generated_instances(
         .map(|assignment| RegionUpload {
             slot: assignment.slot,
             records: generate_reserved_region(*assignment, fixture),
+            local_ids: None,
         })
         .collect();
     let generation_ms = started.elapsed().as_secs_f64() * 1_000.0;

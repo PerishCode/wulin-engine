@@ -36,14 +36,24 @@ export function payloadAuthority(
 ): Record<string, unknown> {
     const authority = object(canonicalObjects(probeValue), "payloadAuthority");
     const grounding = object(probeValue, "grounding");
+    const schema = field<number>(authority, "payloadSchema", "number");
     const probeCount = field<number>(authority, "probeCount", "number");
     const totalCopyCount = field<number>(authority, "totalCopyCount", "number");
     if (
         grounding.instanceReadbackBytes !== 512_000 ||
         grounding.instanceReadbackAllocationBytes !== 524_288 ||
-        grounding.instanceReadbackCopyCount !== 25 ||
-        probeCount * 25 !== totalCopyCount
+        grounding.instanceReadbackCopyCount !== 25
     ) fail("authority probe readback accounting diverged");
+    if (schema === 1 && probeCount * 25 !== totalCopyCount) {
+        fail("schema-1 authority copy accounting diverged");
+    }
+    if (
+        schema === 2 &&
+        (authority.readbackBytes !== 614_400 || authority.copyCount !== 50 ||
+            authority.identityReadbackBytes !== 102_400 ||
+            authority.identityCopyCount !== 25 || probeCount * 50 !== totalCopyCount)
+    ) fail("schema-2 authority copy accounting diverged");
+    if (schema !== 1 && schema !== 2) fail("authority payload schema is unsupported");
     return authority;
 }
 

@@ -184,6 +184,7 @@ fn read_request(
         uploads.push(RegionUpload {
             slot: assignment.slot,
             records: region.records,
+            local_ids: None,
         });
     }
     Ok((uploads, metrics))

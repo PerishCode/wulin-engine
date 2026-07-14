@@ -13,6 +13,7 @@ pub const CACHE_REGION_CAPACITY: usize = 49;
 pub const ACTIVE_REGION_CAPACITY: usize = 25;
 pub const INSTANCE_RECORD_BYTES: usize = size_of::<InstanceRecord>();
 pub const REGION_INSTANCE_BYTES: usize = INSTANCES_PER_REGION as usize * INSTANCE_RECORD_BYTES;
+pub const REGION_IDENTITY_BYTES: usize = INSTANCES_PER_REGION as usize * size_of::<u32>();
 pub const ACTIVE_MAPPING_BYTES: usize = ACTIVE_REGION_CAPACITY * size_of::<ActiveRegion>();
 
 #[repr(C)]
@@ -53,6 +54,7 @@ pub struct StreamPlan {
 pub struct RegionUpload {
     pub slot: u32,
     pub records: Vec<InstanceRecord>,
+    pub local_ids: Option<Vec<u32>>,
 }
 
 #[derive(Serialize)]
@@ -116,6 +118,7 @@ impl RegionCache {
             uploads.push(RegionUpload {
                 slot: slot as u32,
                 records: generate_region(region_id),
+                local_ids: None,
             });
         }
 
@@ -217,6 +220,9 @@ pub(crate) fn hash_uploads(uploads: &[RegionUpload]) -> String {
     for upload in uploads {
         hash.update(upload.slot.to_le_bytes());
         hash.update(as_bytes(&upload.records));
+        if let Some(local_ids) = &upload.local_ids {
+            hash.update(as_bytes(local_ids));
+        }
     }
     format!("{:x}", hash.finalize())
 }

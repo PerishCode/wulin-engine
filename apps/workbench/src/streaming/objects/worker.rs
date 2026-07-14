@@ -163,6 +163,8 @@ fn read_request(
     gate: &IoGate,
     shutdown: &AtomicBool,
 ) -> std::result::Result<(Vec<RegionUpload>, ObjectIoMetrics), (String, ObjectIoMetrics)> {
+    let explicit_local_ids =
+        pack.metadata().payload_schema == region_format::GLOBAL_IDENTITY_PAYLOAD_SCHEMA;
     let started = Instant::now();
     let mut metrics = ObjectIoMetrics {
         worker_queue_ms: request.queued_at.elapsed().as_secs_f64() * 1_000.0,
@@ -197,6 +199,10 @@ fn read_request(
             }
         };
         metrics.payload_bytes += u64::from(read.payload_bytes);
+        metrics.record_bytes += u64::from(region_format::REGION_BYTES);
+        if explicit_local_ids {
+            metrics.identity_bytes += u64::from(region_format::IDENTITY_PLANE_BYTES);
+        }
         metrics.read_ms += read.read_ms;
         metrics.verify_ms += read.verify_ms;
         if assignment.stable_seed != Some(read.stable_seed) {
@@ -212,6 +218,7 @@ fn read_request(
         uploads.push(RegionUpload {
             slot: assignment.slot,
             records: read.records,
+            local_ids: explicit_local_ids.then_some(read.local_ids),
         });
     }
     metrics.total_ms = started.elapsed().as_secs_f64() * 1_000.0;

@@ -40,6 +40,8 @@ struct GroundingProbe {
     ground_denominator: u32,
     position_lattice_denominator: u32,
     position_sha256: String,
+    identity_keyed_position_sha256: String,
+    identity_keyed_ground_sha256: String,
     candidate_count: u32,
     gpu_sha256: String,
     cpu_sha256: String,
@@ -170,6 +172,7 @@ impl Renderer {
         }?;
         let mut cpu = Vec::with_capacity(candidate_count);
         let mut position_digest = Sha256::new();
+        let mut identity_evidence = Vec::with_capacity(candidate_count);
         let mut triangles = TriangleCoverage {
             first: 0,
             diagonal: 0,
@@ -181,9 +184,11 @@ impl Renderer {
                 "composition terrain tile does not match its logical mapping"
             );
             let region_records = &records[active_index];
+            let region_local_ids = &payload_readback.local_ids[active_index];
             ensure!(
-                region_records.len() == crate::load::INSTANCES_PER_REGION as usize,
-                "composition payload page has the wrong record count"
+                region_records.len() == crate::load::INSTANCES_PER_REGION as usize
+                    && region_local_ids.len() == region_records.len(),
+                "composition payload page has the wrong record or identity count"
             );
             let semantic_region_id = projection.region_id(active_index, assignment.region_id)?;
             for (local_index, record) in region_records.iter().enumerate() {
@@ -198,6 +203,13 @@ impl Renderer {
                     semantic_region_id,
                 );
                 cpu.push(ground);
+                identity_evidence.push((
+                    active_index as u32,
+                    region_local_ids[local_index],
+                    position[0].to_bits(),
+                    position[2].to_bits(),
+                    ground,
+                ));
                 match triangle {
                     TriangleClass::First => triangles.first += 1,
                     TriangleClass::Diagonal => triangles.diagonal += 1,
@@ -234,7 +246,14 @@ impl Renderer {
             mismatch_count == 0,
             "composition GPU ground numerators differ from the CPU oracle"
         );
-        let boundaries = boundary_probe(assignments, records, &cpu, fixture, projection)?;
+        let boundaries = boundary_probe(
+            assignments,
+            records,
+            &payload_readback.local_ids,
+            &cpu,
+            fixture,
+            projection,
+        )?;
         ensure!(
             boundaries.position_mismatch_count == 0 && boundaries.ground_mismatch_count == 0,
             "composition boundary samples diverged"
@@ -248,6 +267,19 @@ impl Renderer {
         };
         let minimum_numerator = gpu.iter().copied().min().unwrap_or(0);
         let maximum_numerator = gpu.iter().copied().max().unwrap_or(0);
+        identity_evidence
+            .sort_by_key(|(active_index, local_id, _, _, _)| (*active_index, *local_id));
+        let mut identity_position = Sha256::new();
+        let mut identity_ground = Sha256::new();
+        for (active_index, local_id, x, z, ground) in identity_evidence {
+            for digest in [&mut identity_position, &mut identity_ground] {
+                digest.update(active_index.to_le_bytes());
+                digest.update(local_id.to_le_bytes());
+            }
+            identity_position.update(x.to_le_bytes());
+            identity_position.update(z.to_le_bytes());
+            identity_ground.update(ground.to_le_bytes());
+        }
         let canonical_objects = snapshot
             .object_source_namespace
             .zip(snapshot.object_stable_seed_namespace)
@@ -270,12 +302,14 @@ impl Renderer {
                 &cpu,
                 fixture.ground_denominator(),
                 records,
+                &payload_readback.local_ids,
             )
         }?;
         let contact = contact::evaluate(contact::ContactInput {
             assignments,
             tiles,
             records,
+            local_ids: &payload_readback.local_ids,
             exact_ground: &cpu,
             ground_denominator: fixture.ground_denominator(),
             scene,
@@ -296,6 +330,8 @@ impl Renderer {
                 ground_denominator: fixture.ground_denominator(),
                 position_lattice_denominator: fixture.position_denominator(),
                 position_sha256: format!("{:x}", position_digest.finalize()),
+                identity_keyed_position_sha256: format!("{:x}", identity_position.finalize()),
+                identity_keyed_ground_sha256: format!("{:x}", identity_ground.finalize()),
                 candidate_count: candidate_count as u32,
                 gpu_sha256: hash(&gpu),
                 cpu_sha256: hash(&cpu),
@@ -336,6 +372,7 @@ impl Renderer {
 fn boundary_probe(
     assignments: &[crate::terrain::TerrainAssignment],
     records: &[Vec<crate::resident::InstanceRecord>],
+    local_ids: &[Vec<u32>],
     ground: &[i32],
     fixture: CompositionFixture,
     projection: super::super::terrain::TerrainProjection,
@@ -388,16 +425,26 @@ fn boundary_probe(
                 } else {
                     (31 * terrain_format::CELL_SIDE + along, along)
                 };
-                let first_position =
-                    projection.position(first_index, records[first_index][first_local].position)?;
-                let second_position = projection
-                    .position(second_index, records[second_index][second_local].position)?;
+                let first_physical = local_ids[first_index]
+                    .iter()
+                    .position(|local_id| *local_id == first_local as u32)
+                    .context("first boundary local ID is absent")?;
+                let second_physical = local_ids[second_index]
+                    .iter()
+                    .position(|local_id| *local_id == second_local as u32)
+                    .context("second boundary local ID is absent")?;
+                let first_position = projection
+                    .position(first_index, records[first_index][first_physical].position)?;
+                let second_position = projection.position(
+                    second_index,
+                    records[second_index][second_physical].position,
+                )?;
                 let position_matches = first_position[0].to_bits() == second_position[0].to_bits()
                     && first_position[2].to_bits() == second_position[2].to_bits();
-                let first_ground =
-                    ground[first_index * crate::load::INSTANCES_PER_REGION as usize + first_local];
+                let first_ground = ground
+                    [first_index * crate::load::INSTANCES_PER_REGION as usize + first_physical];
                 let second_ground = ground
-                    [second_index * crate::load::INSTANCES_PER_REGION as usize + second_local];
+                    [second_index * crate::load::INSTANCES_PER_REGION as usize + second_physical];
                 result.pair_comparisons += 1;
                 result.position_mismatch_count += u32::from(!position_matches);
                 result.ground_mismatch_count += u32::from(first_ground != second_ground);

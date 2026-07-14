@@ -39,6 +39,10 @@ pub struct AsyncResidentRenderer {
     active_payload_allocation_bytes: u64,
     active_payload_probe_count: u64,
     active_payload_copy_count: u64,
+    active_identity_readback: ID3D12Resource,
+    active_identity_allocation_bytes: u64,
+    active_identity_probe_count: u64,
+    active_identity_copy_count: u64,
     timestamp_frequency: u64,
     width: u32,
     height: u32,
@@ -109,6 +113,8 @@ impl AsyncResidentRenderer {
         }?;
         let (active_payload_readback, active_payload_allocation_bytes) =
             unsafe { payload::create_readback(device) }?;
+        let (active_identity_readback, active_identity_allocation_bytes) =
+            unsafe { payload::create_identity_readback(device) }?;
         Ok(Self {
             pipeline,
             transfer,
@@ -121,6 +127,10 @@ impl AsyncResidentRenderer {
             active_payload_allocation_bytes,
             active_payload_probe_count: 0,
             active_payload_copy_count: 0,
+            active_identity_readback,
+            active_identity_allocation_bytes,
+            active_identity_probe_count: 0,
+            active_identity_copy_count: 0,
             timestamp_frequency,
             width,
             height,

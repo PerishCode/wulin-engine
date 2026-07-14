@@ -25,7 +25,7 @@ pub const QUERY_COUNT: u32 = 8;
 pub const MAX_SHARED_POSES: u32 = 512;
 pub const MAX_SKELETAL_VISIBLE: u32 = ACTIVE_REGION_CAPACITY as u32 * INSTANCES_PER_REGION;
 pub const PALETTE_BYTES: u64 = MAX_SKELETAL_VISIBLE as u64 * BONE_COUNT as u64 * 48;
-const DESCRIPTOR_COUNT: u32 = 120;
+const DESCRIPTOR_COUNT: u32 = 170;
 
 pub struct AnimationBuffers {
     pub bones: ID3D12Resource,
@@ -180,6 +180,16 @@ unsafe fn create_heap(
             ASYNC_CACHE_CAPACITY as u32,
             start,
             source_heaps[0].GetCPUDescriptorHandleForHeapStart(),
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+        );
+        device.CopyDescriptorsSimple(
+            ASYNC_CACHE_CAPACITY as u32,
+            cpu_handle(start, increment, 120),
+            cpu_handle(
+                source_heaps[0].GetCPUDescriptorHandleForHeapStart(),
+                increment,
+                ASYNC_CACHE_CAPACITY,
+            ),
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
         );
         device.CopyDescriptorsSimple(

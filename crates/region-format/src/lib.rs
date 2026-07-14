@@ -10,9 +10,10 @@ use sha2::{Digest, Sha256};
 mod global;
 
 pub use global::{
-    GLOBAL_HEADER_BYTES, GLOBAL_INDEX_ENTRY_BYTES, GLOBAL_MAGIC, GLOBAL_PAYLOAD_SCHEMA,
-    GLOBAL_VERSION, GlobalPackMetadata, GlobalRegion, GlobalRegionPack, GlobalRegionRead,
-    canonical_stable_seed, write_global_pack,
+    GLOBAL_HEADER_BYTES, GLOBAL_IDENTITY_PAYLOAD_SCHEMA, GLOBAL_IDENTITY_REGION_BYTES,
+    GLOBAL_INDEX_ENTRY_BYTES, GLOBAL_MAGIC, GLOBAL_PAYLOAD_SCHEMA, GLOBAL_VERSION,
+    GlobalPackMetadata, GlobalRegion, GlobalRegionPack, GlobalRegionRead, IDENTITY_BYTES,
+    IDENTITY_PLANE_BYTES, canonical_stable_seed, write_global_identity_pack, write_global_pack,
 };
 
 pub const MAGIC: [u8; 8] = *b"WLRGN001";
