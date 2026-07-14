@@ -139,10 +139,12 @@ pub fn evaluate(
 }
 
 pub fn pose_key(presentation: PresentationRecord, settings: SkeletalSettings) -> u32 {
-    presentation
-        .animation_clip()
-        .expect("static object has no pose")
-        * 64
+    animation_catalog::rig_for_archetype(presentation.archetype)
+        * animation_catalog::POSE_KEYS_PER_RIG
+        + presentation
+            .animation_clip()
+            .expect("static object has no pose")
+            * 64
         + pose_phase(presentation, settings)
 }
 

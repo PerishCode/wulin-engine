@@ -203,7 +203,11 @@ void ms_main(
     {
         uint vertex_index = catalog_meshlet_vertices[meshlet.vertex_offset + group_thread];
         float3 local = catalog_vertices[vertex_index].xyz;
-        local.y *= instance.height;
+        bool imported = visible.archetype == 7u;
+        if (!imported)
+        {
+            local.y *= instance.height;
+        }
         if (visible.pose_slot != 0xffffffffu)
         {
             SkinBinding binding = catalog_skin[vertex_index];
@@ -220,6 +224,10 @@ void ms_main(
                 ) * weight;
             }
             local = skinned;
+        }
+        if (imported)
+        {
+            local.y *= instance.height;
         }
         float3 rotated = float3(
             local.x * cosine - local.z * sine,
@@ -313,7 +321,11 @@ void resolve_vertex(
 {
     SurfaceVertex surface = surface_vertices[vertex_index];
     normal = decode_octahedral(surface.oct_normal_uv.xy);
-    normal.y /= max(instance.height, 0.001);
+    bool imported = visible.archetype == 7u;
+    if (!imported)
+    {
+        normal.y /= max(instance.height, 0.001);
+    }
     if (visible.pose_slot != 0xffffffffu)
     {
         SkinBinding binding = catalog_skin[vertex_index];
@@ -330,6 +342,10 @@ void resolve_vertex(
             ) * weight;
         }
         normal = skinned;
+    }
+    if (imported)
+    {
+        normal.y /= max(instance.height, 0.001);
     }
     normal = normalize(float3(
         normal.x * cosine - normal.z * sine,

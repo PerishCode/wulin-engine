@@ -16,12 +16,15 @@ const TEXTURE_SHA256: &str = "61c8b109ee7f8bf262791933380fafb1465f7b51cbe6472c2d
 struct SourceVertex {
     position: [f32; 3],
     uv: [f32; 2],
+    joints: [u16; 4],
+    weights: [f32; 4],
 }
 
 #[derive(Clone, Copy)]
 struct CookedVertex {
     position: [f32; 4],
     normal_uv: [f32; 4],
+    binding: [u32; 2],
 }
 
 struct CookedLod {
@@ -79,6 +82,7 @@ fn cook() -> Result<(), Box<dyn Error>> {
         return Err("source primitive must be non-morphed triangles".into());
     }
     let reader = primitive.reader(|buffer| (buffer.index() == 0).then_some(bin.as_slice()));
+    let (joint_count, maximum_joint_depth) = validate_skin(&gltf.document)?;
     let positions = reader
         .read_positions()
         .ok_or("source primitive has no positions")?
@@ -88,8 +92,22 @@ fn cook() -> Result<(), Box<dyn Error>> {
         .ok_or("source primitive has no UV0")?
         .into_f32()
         .collect::<Vec<_>>();
-    if positions.len() != uvs.len() || positions.is_empty() {
-        return Err("source position and UV streams differ or are empty".into());
+    let joints = reader
+        .read_joints(0)
+        .ok_or("source primitive has no JOINTS_0")?
+        .into_u16()
+        .collect::<Vec<_>>();
+    let weights = reader
+        .read_weights(0)
+        .ok_or("source primitive has no WEIGHTS_0")?
+        .into_f32()
+        .collect::<Vec<_>>();
+    if positions.is_empty()
+        || positions.len() != uvs.len()
+        || positions.len() != joints.len()
+        || positions.len() != weights.len()
+    {
+        return Err("source vertex stream shapes differ or are empty".into());
     }
     let source_indices = reader
         .read_indices()
@@ -106,14 +124,63 @@ fn cook() -> Result<(), Box<dyn Error>> {
     let source_vertices = positions
         .into_iter()
         .zip(uvs)
-        .map(|(position, uv)| SourceVertex { position, uv })
+        .zip(joints)
+        .zip(weights)
+        .map(|(((position, uv), joints), weights)| SourceVertex {
+            position,
+            uv,
+            joints,
+            weights,
+        })
         .collect::<Vec<_>>();
-    let (vertices, indices) = normalize_and_deduplicate(&source_vertices, &source_indices)?;
+    let (vertices, indices) =
+        normalize_and_deduplicate(&source_vertices, &source_indices, joint_count)?;
     let lods = build_lods(&vertices, &indices)?;
-    let payload = encode_payload(&vertices, &lods);
+    let payload = encode_payload(&vertices, &lods, joint_count, maximum_joint_depth);
     let out = PathBuf::from(env::var_os("OUT_DIR").ok_or("missing OUT_DIR")?);
     fs::write(out.join("khronos-fox.wlm"), payload)?;
     Ok(())
+}
+
+fn validate_skin(document: &gltf::Document) -> Result<(u32, u32), Box<dyn Error>> {
+    if document.skins().count() != 1 {
+        return Err("source must contain exactly one skin".into());
+    }
+    let skin = document.skins().next().unwrap();
+    let joints = skin.joints().map(|joint| joint.index()).collect::<Vec<_>>();
+    if joints.len() != 24 || skin.inverse_bind_matrices().is_none() {
+        return Err("source skin must contain 24 joints and inverse binds".into());
+    }
+    let mut parents = vec![None; document.nodes().count()];
+    for node in document.nodes() {
+        for child in node.children() {
+            if parents[child.index()].replace(node.index()).is_some() {
+                return Err("source node has multiple parents".into());
+            }
+        }
+    }
+    let ordinals = joints
+        .iter()
+        .enumerate()
+        .map(|(ordinal, node)| (*node, ordinal))
+        .collect::<BTreeMap<_, _>>();
+    let mut depths = vec![0u32; joints.len()];
+    let mut roots = 0;
+    for (ordinal, node) in joints.iter().copied().enumerate() {
+        match parents[node].and_then(|parent| ordinals.get(&parent).copied()) {
+            None => roots += 1,
+            Some(parent) if parent < ordinal => depths[ordinal] = depths[parent] + 1,
+            Some(_) => return Err("source skin joints are not parent-first".into()),
+        }
+    }
+    if roots != 1 {
+        return Err("source skin must contain exactly one joint root".into());
+    }
+    let maximum_depth = depths.into_iter().max().unwrap_or(0);
+    if maximum_depth > 7 {
+        return Err("source skin exceeds the eight-level GPU hierarchy".into());
+    }
+    Ok((joints.len() as u32, maximum_depth))
 }
 
 fn verified_read(path: &Path, expected: &str) -> Result<Vec<u8>, Box<dyn Error>> {
@@ -132,12 +199,19 @@ fn verified_read(path: &Path, expected: &str) -> Result<Vec<u8>, Box<dyn Error>>
 fn normalize_and_deduplicate(
     source: &[SourceVertex],
     source_indices: &[u32],
+    joint_count: u32,
 ) -> Result<(Vec<CookedVertex>, Vec<u32>), Box<dyn Error>> {
     if source.iter().any(|vertex| {
         !vertex.position.into_iter().all(f32::is_finite)
             || !vertex.uv.into_iter().all(f32::is_finite)
+            || !vertex.weights.into_iter().all(f32::is_finite)
+            || vertex.weights.into_iter().any(|weight| weight < 0.0)
+            || vertex
+                .joints
+                .into_iter()
+                .any(|joint| u32::from(joint) >= joint_count)
     }) {
-        return Err("source contains non-finite geometry".into());
+        return Err("source contains invalid geometry or skin data".into());
     }
     let mut minimum = [f32::INFINITY; 3];
     let mut maximum = [f32::NEG_INFINITY; 3];
@@ -155,9 +229,10 @@ fn normalize_and_deduplicate(
     let center_z = (minimum[2] + maximum[2]) * 0.5;
     let scale = height.recip();
 
-    let mut unique = BTreeMap::<[u32; 5], u32>::new();
+    let mut unique = BTreeMap::<[u32; 11], u32>::new();
     let mut positions = Vec::<[f32; 3]>::new();
     let mut uvs = Vec::<[f32; 2]>::new();
+    let mut bindings = Vec::<[u32; 2]>::new();
     let mut indices = Vec::with_capacity(source_indices.len());
     for source_index in source_indices {
         let vertex = source[*source_index as usize];
@@ -172,13 +247,23 @@ fn normalize_and_deduplicate(
             position[2].to_bits(),
             vertex.uv[0].to_bits(),
             vertex.uv[1].to_bits(),
+            u32::from(vertex.joints[0]) | (u32::from(vertex.joints[1]) << 16),
+            u32::from(vertex.joints[2]) | (u32::from(vertex.joints[3]) << 16),
+            vertex.weights[0].to_bits(),
+            vertex.weights[1].to_bits(),
+            vertex.weights[2].to_bits(),
+            vertex.weights[3].to_bits(),
         ];
-        let index = *unique.entry(key).or_insert_with(|| {
+        let index = if let Some(index) = unique.get(&key) {
+            *index
+        } else {
             let index = positions.len() as u32;
             positions.push(position);
             uvs.push(vertex.uv);
+            bindings.push(quantize_binding(vertex.joints, vertex.weights)?);
+            unique.insert(key, index);
             index
-        });
+        };
         indices.push(index);
     }
     let normals = generate_normals(&positions, &indices)?;
@@ -186,7 +271,8 @@ fn normalize_and_deduplicate(
         .into_iter()
         .zip(normals)
         .zip(uvs)
-        .map(|((position, normal), uv)| CookedVertex {
+        .zip(bindings)
+        .map(|(((position, normal), uv), binding)| CookedVertex {
             position: [position[0], position[1], position[2], 1.0],
             normal_uv: [
                 encode_octahedral(normal)[0],
@@ -194,9 +280,52 @@ fn normalize_and_deduplicate(
                 uv[0],
                 uv[1],
             ],
+            binding,
         })
         .collect();
     Ok((vertices, indices))
+}
+
+fn quantize_binding(joints: [u16; 4], weights: [f32; 4]) -> Result<[u32; 2], Box<dyn Error>> {
+    let sum = weights.into_iter().sum::<f32>();
+    if !sum.is_finite() || sum <= f32::EPSILON {
+        return Err("source skin weights have no positive influence".into());
+    }
+    let scaled = weights.map(|weight| weight / sum * 255.0);
+    let mut quantized = scaled.map(|weight| weight.floor() as u8);
+    let mut fractions = scaled.map(|weight| weight.fract());
+    let assigned = quantized
+        .iter()
+        .map(|weight| u32::from(*weight))
+        .sum::<u32>();
+    for _ in 0..255u32.saturating_sub(assigned) {
+        let mut selected = 0;
+        for index in 1..4 {
+            if fractions[index] > fractions[selected] {
+                selected = index;
+            }
+        }
+        quantized[selected] = quantized[selected].saturating_add(1);
+        fractions[selected] = -1.0;
+    }
+    if quantized
+        .iter()
+        .map(|weight| u32::from(*weight))
+        .sum::<u32>()
+        != 255
+    {
+        return Err("source skin weights do not quantize to 255".into());
+    }
+    Ok([
+        u32::from(joints[0])
+            | (u32::from(joints[1]) << 8)
+            | (u32::from(joints[2]) << 16)
+            | (u32::from(joints[3]) << 24),
+        u32::from(quantized[0])
+            | (u32::from(quantized[1]) << 8)
+            | (u32::from(quantized[2]) << 16)
+            | (u32::from(quantized[3]) << 24),
+    ])
 }
 
 fn generate_normals(
@@ -267,14 +396,21 @@ fn build_lods(
     Ok(lods)
 }
 
-fn encode_payload(vertices: &[CookedVertex], lods: &[CookedLod]) -> Vec<u8> {
+fn encode_payload(
+    vertices: &[CookedVertex],
+    lods: &[CookedLod],
+    joint_count: u32,
+    maximum_joint_depth: u32,
+) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"WLFOX001");
+    bytes.extend_from_slice(b"WLFOX002");
     bytes.extend_from_slice(&decode_hex(JSON_SHA256));
     bytes.extend_from_slice(&decode_hex(BIN_SHA256));
     bytes.extend_from_slice(&decode_hex(TEXTURE_SHA256));
     bytes.extend_from_slice(&(vertices.len() as u32).to_le_bytes());
     bytes.extend_from_slice(&(lods.len() as u32).to_le_bytes());
+    bytes.extend_from_slice(&joint_count.to_le_bytes());
+    bytes.extend_from_slice(&maximum_joint_depth.to_le_bytes());
     for lod in lods {
         bytes.extend_from_slice(&(lod.indices.len() as u32).to_le_bytes());
         bytes.extend_from_slice(&lod.error.to_bits().to_le_bytes());
@@ -283,6 +419,8 @@ fn encode_payload(vertices: &[CookedVertex], lods: &[CookedLod]) -> Vec<u8> {
         for value in vertex.position.into_iter().chain(vertex.normal_uv) {
             bytes.extend_from_slice(&value.to_bits().to_le_bytes());
         }
+        bytes.extend_from_slice(&vertex.binding[0].to_le_bytes());
+        bytes.extend_from_slice(&vertex.binding[1].to_le_bytes());
     }
     for lod in lods {
         for index in &lod.indices {

@@ -2,19 +2,29 @@ use std::f32::consts::TAU;
 
 use meshlet_catalog::Catalog as MeshletCatalog;
 
-use crate::{Affine, BONE_COUNT, Bone, CLIP_COUNT, Catalog, SAMPLE_COUNT, SkinBinding};
+use crate::{
+    Affine, BONE_COUNT, Bone, CLIP_COUNT, Catalog, SAMPLE_COUNT, SkinBinding, imported_rig,
+};
 
 pub fn build() -> Catalog {
-    let bones = build_bones();
-    let inverse_bind = build_inverse_bind(&bones);
-    let samples = build_samples(&bones);
+    let mut bones = build_bones();
+    let mut inverse_bind = build_inverse_bind(&bones);
+    let mut samples = build_samples(&bones);
+    let imported = imported_rig::decode().expect("imported rig payload is invalid");
+    bones.extend_from_slice(&imported.bones);
+    inverse_bind.extend_from_slice(&imported.inverse_bind);
+    samples.extend_from_slice(&imported.samples);
     let meshlets = MeshletCatalog::build();
     let imported_start = meshlets.imported.vertex_start as usize;
     let imported_end = imported_start + meshlets.imported.vertex_count as usize;
     let skin_bindings = (0..meshlets.vertices.len())
         .map(|index| {
             if (imported_start..imported_end).contains(&index) {
-                rigid_binding()
+                let binding = meshlets.imported_vertex_bindings[index - imported_start];
+                SkinBinding {
+                    indices: binding.indices,
+                    weights: binding.weights,
+                }
             } else {
                 skin_binding(index as u32)
             }
@@ -25,6 +35,7 @@ pub fn build() -> Catalog {
         inverse_bind,
         samples,
         skin_bindings,
+        imported: imported.metadata,
     }
 }
 
@@ -106,11 +117,4 @@ fn skin_binding(vertex: u32) -> SkinBinding {
     let indices = base | ((base + 1) << 8) | ((base + 2) << 16) | ((base + 3) << 24);
     let weights = 128u32 | (64u32 << 8) | (42u32 << 16) | (21u32 << 24);
     SkinBinding { indices, weights }
-}
-
-fn rigid_binding() -> SkinBinding {
-    SkinBinding {
-        indices: 0,
-        weights: 252u32 | (1u32 << 8) | (1u32 << 16) | (1u32 << 24),
-    }
 }

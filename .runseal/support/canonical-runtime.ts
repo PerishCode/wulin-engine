@@ -475,6 +475,7 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
             cpuOracle: skeletal.cpuOracle,
             paletteWriteBytes: skeletal.paletteWriteBytes,
             importedGeometry: skeletal.importedGeometry,
+            importedRig: skeletal.importedRig,
             meshletCatalogSha256: skeletal.meshletCatalogSha256,
             animationCatalogSha256: skeletal.animationCatalogSha256,
         },

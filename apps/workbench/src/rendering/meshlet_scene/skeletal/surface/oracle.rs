@@ -78,7 +78,8 @@ fn shade_visible(
         "surface sample stable key differs from its candidate address"
     );
     let palette = presentation.is_animated().then(|| {
-        input.animation.evaluate_pose(
+        input.animation.evaluate_pose_for_archetype(
+            presentation.archetype,
             presentation.animation_clip().unwrap(),
             pose_phase(presentation, input.skeletal_settings),
             input.skeletal_settings.bone_count,
@@ -98,7 +99,11 @@ fn shade_visible(
         let vertex_index = primitive.vertex_indices[vertex] as usize;
         let surface = input.surface.vertices[vertex_index];
         let decoded = decode_octahedral([surface.oct_normal_uv[0], surface.oct_normal_uv[1]]);
-        let mut normal = Vec3::new(decoded[0], decoded[1] / instance.height, decoded[2]);
+        let imported = presentation.archetype == meshlet_catalog::IMPORTED_ARCHETYPE;
+        let mut normal = Vec3::from_array(decoded);
+        if !imported {
+            normal.y /= instance.height;
+        }
         if let Some(palette) = &palette {
             let binding = input.animation.skin_bindings[vertex_index];
             let indices = unpack_bytes(binding.indices);
@@ -112,6 +117,9 @@ fn shade_visible(
                         normal,
                     ) * (f32::from(weight) / 255.0)
                 });
+        }
+        if imported {
+            normal.y /= instance.height;
         }
         normals[vertex] = Vec3::new(
             normal.x * cosine - normal.z * sine,

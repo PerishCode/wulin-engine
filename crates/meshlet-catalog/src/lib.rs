@@ -25,6 +25,13 @@ pub struct VertexSurface {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ImportedVertexBinding {
+    pub indices: u32,
+    pub weights: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Meshlet {
     pub vertex_offset: u32,
     pub vertex_count: u32,
@@ -50,6 +57,8 @@ pub struct ImportedMetadata {
     pub cooked_sha256: String,
     pub vertex_start: u32,
     pub vertex_count: u32,
+    pub source_joint_count: u32,
+    pub maximum_joint_depth: u32,
     pub lod_index_counts: [u32; 3],
     pub lod_errors: [f32; 3],
     pub bounds_min: [f32; 3],
@@ -64,6 +73,7 @@ pub struct Catalog {
     pub meshlet_vertices: Vec<u32>,
     pub primitives: Vec<u32>,
     pub lods: Vec<Lod>,
+    pub imported_vertex_bindings: Vec<ImportedVertexBinding>,
     pub imported: ImportedMetadata,
 }
 
@@ -76,6 +86,7 @@ impl Catalog {
             meshlet_vertices: Vec::new(),
             primitives: Vec::new(),
             lods: Vec::with_capacity((ARCHETYPE_COUNT * LOD_COUNT) as usize),
+            imported_vertex_bindings: Vec::new(),
             imported: ImportedMetadata {
                 revision: "uninitialized",
                 source_json_sha256: String::new(),
@@ -84,6 +95,8 @@ impl Catalog {
                 cooked_sha256: String::new(),
                 vertex_start: 0,
                 vertex_count: 0,
+                source_joint_count: 0,
+                maximum_joint_depth: 0,
                 lod_index_counts: [0; 3],
                 lod_errors: [0.0; 3],
                 bounds_min: [0.0; 3],
@@ -173,15 +186,29 @@ impl Catalog {
                 previous = Some(*descriptor);
             }
         }
-        if self.imported.revision != "cooked-gltf-geometry-v1"
+        if self.imported.revision != "cooked-gltf-geometry-v2-skin"
             || self.imported.vertex_count == 0
             || self.imported.vertex_start + self.imported.vertex_count > self.vertices.len() as u32
             || self.imported.source_json_sha256.len() != 64
             || self.imported.source_bin_sha256.len() != 64
             || self.imported.source_texture_sha256.len() != 64
             || self.imported.cooked_sha256.len() != 64
+            || self.imported.source_joint_count != 24
+            || self.imported.maximum_joint_depth > 7
+            || self.imported_vertex_bindings.len() != self.imported.vertex_count as usize
         {
             return Err("imported catalog metadata is invalid".into());
+        }
+        for (index, binding) in self.imported_vertex_bindings.iter().enumerate() {
+            let indices = unpack_bytes(binding.indices);
+            let weights = unpack_bytes(binding.weights);
+            if indices
+                .into_iter()
+                .any(|joint| u32::from(joint) >= self.imported.source_joint_count)
+                || weights.iter().map(|weight| u32::from(*weight)).sum::<u32>() != 255
+            {
+                return Err(format!("imported vertex binding {index} is invalid"));
+            }
         }
         if self.imported.bounds_min[1].abs() > f32::EPSILON
             || (self.imported.bounds_max[1] - 1.0).abs() > f32::EPSILON
@@ -209,7 +236,7 @@ impl Catalog {
 
     pub fn encoded_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(b"WLMSH002");
+        bytes.extend_from_slice(b"WLMSH003");
         for count in [
             self.vertices.len(),
             self.surface_vertices.len(),
@@ -226,6 +253,7 @@ impl Catalog {
         bytes.extend_from_slice(&u32_bytes(&self.meshlet_vertices));
         bytes.extend_from_slice(&u32_bytes(&self.primitives));
         bytes.extend_from_slice(&self.lod_bytes());
+        bytes.extend_from_slice(&self.imported_vertex_binding_bytes());
         for value in [
             &self.imported.source_json_sha256,
             &self.imported.source_bin_sha256,
@@ -234,9 +262,14 @@ impl Catalog {
         ] {
             bytes.extend_from_slice(value.as_bytes());
         }
-        for value in [self.imported.vertex_start, self.imported.vertex_count]
-            .into_iter()
-            .chain(self.imported.lod_index_counts)
+        for value in [
+            self.imported.vertex_start,
+            self.imported.vertex_count,
+            self.imported.source_joint_count,
+            self.imported.maximum_joint_depth,
+        ]
+        .into_iter()
+        .chain(self.imported.lod_index_counts)
         {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
@@ -304,6 +337,15 @@ impl Catalog {
             ]
         }))
     }
+
+    pub fn imported_vertex_binding_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(self.imported_vertex_bindings.len() * 8);
+        for binding in &self.imported_vertex_bindings {
+            bytes.extend_from_slice(&binding.indices.to_le_bytes());
+            bytes.extend_from_slice(&binding.weights.to_le_bytes());
+        }
+        bytes
+    }
 }
 
 fn append_imported(catalog: &mut Catalog) -> Result<(), String> {
@@ -313,6 +355,7 @@ fn append_imported(catalog: &mut Catalog) -> Result<(), String> {
     catalog
         .surface_vertices
         .extend_from_slice(&imported.surfaces);
+    catalog.imported_vertex_bindings = imported.bindings;
 
     for indices in &imported.lod_indices {
         let meshlet_start = catalog.meshlets.len() as u32;
@@ -342,6 +385,15 @@ fn append_imported(catalog: &mut Catalog) -> Result<(), String> {
     imported.metadata.vertex_start = vertex_start;
     catalog.imported = imported.metadata;
     Ok(())
+}
+
+fn unpack_bytes(value: u32) -> [u8; 4] {
+    [
+        value as u8,
+        (value >> 8) as u8,
+        (value >> 16) as u8,
+        (value >> 24) as u8,
+    ]
 }
 
 pub(crate) fn append_partitioned_meshlets(catalog: &mut Catalog, triangles: &[[u32; 3]]) {
