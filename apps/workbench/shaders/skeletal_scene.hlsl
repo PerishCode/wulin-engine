@@ -14,6 +14,14 @@ struct InstanceRecord
     uint region_id;
 };
 
+struct PresentationRecord
+{
+    uint archetype;
+    uint material;
+    uint yaw_q16;
+    uint animation;
+};
+
 struct VisibleObject
 {
     uint physical_index;
@@ -21,7 +29,10 @@ struct VisibleObject
     uint lod;
     uint stable_key;
     uint pose_slot;
-    uint reserved;
+    uint candidate_index;
+    uint material;
+    uint yaw_q16;
+    uint animation;
 };
 
 struct LodDescriptor
@@ -63,6 +74,7 @@ StructuredBuffer<AffineTransform> catalog_inverse_bind : register(t57);
 StructuredBuffer<AffineTransform> catalog_samples : register(t58);
 ByteAddressBuffer terrain_tiles[REGION_SLOT_CAPACITY] : register(t63);
 StructuredBuffer<uint> region_local_ids[REGION_SLOT_CAPACITY] : register(t114);
+StructuredBuffer<PresentationRecord> region_presentations[REGION_SLOT_CAPACITY] : register(t164);
 
 RWStructuredBuffer<VisibleObject> visible_objects : register(u0);
 RWByteAddressBuffer indirect_and_counters : register(u1);
@@ -130,10 +142,11 @@ int terrain_ground_q16(
         : h10 * int(256u - v) + h01 * int(256u - u) + h11 * int(sum - 256u);
 }
 
-uint pose_phase(uint stable_key)
+uint presentation_pose_phase(uint animation)
 {
     uint phase_count = animation_shape.z;
-    uint bucket = ((stable_key >> 3) + animation_shape.w) % phase_count;
+    uint phase_offset = (animation >> 8u) & 255u;
+    uint bucket = (phase_offset + animation_shape.w) % phase_count;
     return bucket * (64u / phase_count);
 }
 
@@ -179,6 +192,8 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     uint semantic_region = packed_slots >> 12u;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
     uint local_id = region_local_ids[NonUniformResourceIndex(slot)][local_index];
+    PresentationRecord presentation =
+        region_presentations[NonUniformResourceIndex(slot)][local_index];
     float3 position = object_position(instance, semantic_region);
     uint logical_index = group_id.x * INSTANCES_PER_REGION + local_index;
     float ground = 0.0;
@@ -209,7 +224,7 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         && clip.z >= 0.0
         && clip.z <= clip.w;
     uint stable_key = object_stable_key(instance, local_id, semantic_region);
-    uint archetype = stable_key & 7u;
+    uint archetype = presentation.archetype;
     if (!in_frustum || (load_shape.z & (1u << archetype)) == 0)
     {
         indirect_and_counters.InterlockedAdd(16, 1);
@@ -231,7 +246,7 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     indirect_and_counters.InterlockedAdd(48, descriptor.primitive_count);
     indirect_and_counters.InterlockedOr(52, 1u << archetype);
 
-    bool animated = stable_key % 100u < animation_shape.x;
+    bool animated = presentation.animation != 0xffffffffu;
     uint pose_slot = 0xffffffffu;
     if (animated)
     {
@@ -247,7 +262,8 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         }
         else
         {
-            pose_slot = archetype * 64u + pose_phase(stable_key);
+            uint clip = presentation.animation & 255u;
+            pose_slot = clip * 64u + presentation_pose_phase(presentation.animation);
             uint ignored;
             pose_bitset.InterlockedOr((pose_slot / 32u) * 4u, 1u << (pose_slot % 32u), ignored);
         }
@@ -268,7 +284,10 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     visible.lod = lod;
     visible.stable_key = stable_key;
     visible.pose_slot = pose_slot;
-    visible.reserved = logical_index;
+    visible.candidate_index = logical_index;
+    visible.material = presentation.material;
+    visible.yaw_q16 = presentation.yaw_q16;
+    visible.animation = presentation.animation;
     visible_objects[visible_index] = visible;
 }
 
@@ -349,9 +368,9 @@ void pose_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         uint visible_index = animated_visible_indices[group_id.x];
         VisibleObject visible = visible_objects[visible_index];
         pose_slot = group_id.x;
-        clip = visible.archetype;
-        phase = pose_phase(visible.stable_key);
-        variant = visible.stable_key;
+        clip = visible.animation & 255u;
+        phase = presentation_pose_phase(visible.animation);
+        variant = visible.animation >> 16u;
     }
     else
     {

@@ -5,10 +5,9 @@ use meshlet_catalog::Catalog;
 use serde::Serialize;
 
 use crate::rendering::terrain::TerrainProjection;
-use crate::resident::{InstanceRecord, canonical_stable_key};
+use crate::resident::{InstanceRecord, PresentationRecord};
 use crate::scene::SceneState;
 
-use super::super::super::renderer::SkeletalSettings;
 use super::super::resources::CANDIDATE_CAPACITY;
 use super::{
     BOUND_RADIAL_BIAS, BOUND_RADIAL_SCALE, BOUND_VERTICAL_PAD, DEPTH_BIAS, HierarchyMip,
@@ -120,13 +119,13 @@ pub fn validate_fixture_bound(mesh: &Catalog, animation: &AnimationCatalog) -> R
 
 pub struct QueryInput<'a> {
     pub mesh: &'a Catalog,
-    pub settings: SkeletalSettings,
     pub scene: &'a SceneState,
     pub projection: TerrainProjection,
     pub ground_numerators: &'a [i32],
     pub ground_denominator: u32,
     pub instance_records: &'a [Vec<InstanceRecord>],
     pub local_ids: &'a [Vec<u32>],
+    pub presentations: &'a [Vec<PresentationRecord>],
     pub extent: [u32; 2],
     pub hierarchy: &'a [HierarchyMip],
     pub history_queried: bool,
@@ -136,6 +135,7 @@ pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
     let [width, height] = input.extent;
     ensure!(
         input.instance_records.len() == input.local_ids.len()
+            && input.instance_records.len() == input.presentations.len()
             && input.instance_records.len() == input.projection.active_count(),
         "occlusion canonical payload shapes differ"
     );
@@ -150,8 +150,9 @@ pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
     let mut mask = vec![0; CANDIDATE_CAPACITY as usize];
     for (region_ordinal, instances) in input.instance_records.iter().enumerate() {
         ensure!(
-            instances.len() == input.local_ids[region_ordinal].len(),
-            "occlusion canonical record and local-ID counts differ"
+            instances.len() == input.local_ids[region_ordinal].len()
+                && instances.len() == input.presentations[region_ordinal].len(),
+            "occlusion canonical triple counts differ"
         );
         for (local_index, instance) in instances.iter().copied().enumerate() {
             let candidate = region_ordinal as u32 * 1024 + local_index as u32;
@@ -164,11 +165,8 @@ pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
             position[1] += ground;
             let center = Vec3::from_array(position) + Vec3::Y * instance.height * 0.5;
             let clip = matrix * center.extend(1.0);
-            let stable_key = canonical_stable_key(
-                instance.region_id,
-                input.local_ids[region_ordinal][local_index],
-            );
-            let archetype = stable_key & 7;
+            let presentation = input.presentations[region_ordinal][local_index];
+            let archetype = presentation.archetype;
             let visible = clip.w > 0.0
                 && clip.x.abs() <= clip.w
                 && clip.y.abs() <= clip.w
@@ -185,7 +183,7 @@ pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
                 2
             };
             let descriptor = input.mesh.lod(archetype, lod);
-            let animated = stable_key % 100 < input.settings.animated_percent;
+            let animated = presentation.is_animated();
             oracle.source_visible += 1;
             oracle.source_meshlets += descriptor.meshlet_count;
             oracle.source_vertices += descriptor.vertex_count;

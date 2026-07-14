@@ -270,12 +270,15 @@ impl Renderer {
         let terrain = unsafe { self.terrain_renderer.read_probe(scene) }?;
         let skeletal = unsafe {
             self.skeletal_scene_renderer.read_composition_probe(
-                snapshot,
-                scene,
-                &cpu,
-                authority::GROUND_DENOMINATOR,
-                records,
-                &payload_readback.local_ids,
+                super::super::meshlet_scene::CompositionProbeInput {
+                    snapshot,
+                    scene,
+                    ground_numerators: &cpu,
+                    ground_denominator: authority::GROUND_DENOMINATOR,
+                    instance_records: records,
+                    local_ids: &payload_readback.local_ids,
+                    presentations: &payload_readback.presentations,
+                },
             )
         }?;
         let contact = contact::evaluate(contact::ContactInput {
@@ -299,6 +302,7 @@ impl Renderer {
                     background_color,
                     instance_records: records,
                     local_ids: &payload_readback.local_ids,
+                    presentations: &payload_readback.presentations,
                     projection,
                     ground_numerators: &cpu,
                     ground_denominator: authority::GROUND_DENOMINATOR,

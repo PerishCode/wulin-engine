@@ -52,6 +52,9 @@ async function forbiddenScan(): Promise<void> {
         "forced_lod",
         "format-V1",
         "schema-1",
+        "schema-2",
+        "WLRGN002",
+        "--identity-order",
         "ordinal restoration",
     ].join("|");
     const output = await new Deno.Command("git", {

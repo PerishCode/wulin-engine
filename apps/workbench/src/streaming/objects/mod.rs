@@ -15,7 +15,7 @@ use crate::world::RegionCoord;
 
 use self::worker::{IoGate, PackWorker, ReadCompletion, ReadRequest};
 
-pub const COOKED_OBJECT_REVISION: &str = "cooked-canonical-object-v1";
+pub const COOKED_OBJECT_REVISION: &str = "authored-object-presentation-v1";
 
 #[derive(Clone, Copy)]
 pub struct ObjectPackSource {
@@ -30,6 +30,7 @@ pub struct ObjectIoMetrics {
     pub payload_bytes: u64,
     pub record_bytes: u64,
     pub identity_bytes: u64,
+    pub presentation_bytes: u64,
     pub seek_count: usize,
     pub worker_queue_ms: f64,
     pub gate_ms: f64,

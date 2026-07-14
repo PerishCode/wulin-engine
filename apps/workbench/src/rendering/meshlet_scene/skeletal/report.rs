@@ -7,15 +7,20 @@ use crate::scene::SceneState;
 use super::probe::{self, ProbeInput, SkeletalProbe};
 use super::renderer::SkeletalSceneRenderer;
 
+pub(in crate::rendering) struct CompositionProbeInput<'a> {
+    pub snapshot: &'a PublishedSnapshot,
+    pub scene: &'a SceneState,
+    pub ground_numerators: &'a [i32],
+    pub ground_denominator: u32,
+    pub instance_records: &'a [Vec<crate::resident::InstanceRecord>],
+    pub local_ids: &'a [Vec<u32>],
+    pub presentations: &'a [Vec<crate::resident::PresentationRecord>],
+}
+
 impl SkeletalSceneRenderer {
     pub(in crate::rendering) unsafe fn read_composition_probe(
         &self,
-        snapshot: &PublishedSnapshot,
-        scene: &SceneState,
-        ground_numerators: &[i32],
-        ground_denominator: u32,
-        instance_records: &[Vec<crate::resident::InstanceRecord>],
-        local_ids: &[Vec<u32>],
+        input: CompositionProbeInput<'_>,
     ) -> Result<SkeletalProbe> {
         unsafe {
             probe::read(ProbeInput {
@@ -29,12 +34,13 @@ impl SkeletalSceneRenderer {
                 timestamp_frequency: self.timestamp_frequency,
                 width: self.width,
                 height: self.height,
-                snapshot,
-                scene,
-                ground_numerators,
-                ground_denominator,
-                instance_records,
-                local_ids,
+                snapshot: input.snapshot,
+                scene: input.scene,
+                ground_numerators: input.ground_numerators,
+                ground_denominator: input.ground_denominator,
+                instance_records: input.instance_records,
+                local_ids: input.local_ids,
+                presentations: input.presentations,
             })
         }
     }
@@ -48,7 +54,6 @@ impl SkeletalSceneRenderer {
 
     fn settings_json(&self) -> Value {
         json!({
-            "animatedPercent": self.settings.animated_percent,
             "boneCount": self.settings.bone_count,
             "phaseCount": self.settings.phase_count,
             "timeTick": self.settings.time_tick,

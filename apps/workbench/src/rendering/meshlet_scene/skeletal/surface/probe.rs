@@ -139,6 +139,7 @@ pub struct ProbeInput<'a> {
     pub skeletal_settings: SkeletalSettings,
     pub instance_records: &'a [Vec<crate::resident::InstanceRecord>],
     pub local_ids: &'a [Vec<u32>],
+    pub presentations: &'a [Vec<crate::resident::PresentationRecord>],
     pub projection: TerrainProjection,
     pub ground_numerators: &'a [i32],
     pub ground_denominator: u32,
@@ -208,6 +209,7 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {
                 surface_settings: input.settings,
                 instance_records: input.instance_records,
                 local_ids: input.local_ids,
+                presentations: input.presentations,
                 background_color: input.background_color,
             },
         )?;

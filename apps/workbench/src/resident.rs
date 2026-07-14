@@ -1,7 +1,7 @@
 use std::mem::size_of;
 
 use anyhow::Result;
-pub use region_format::InstanceRecord;
+pub use region_format::{InstanceRecord, PresentationRecord};
 use sha2::{Digest, Sha256};
 
 use crate::load::{INSTANCES_PER_REGION, LoadConfig, MAX_REGION_SIDE};
@@ -10,11 +10,14 @@ pub const ACTIVE_REGION_CAPACITY: usize = 25;
 pub const INSTANCE_RECORD_BYTES: usize = size_of::<InstanceRecord>();
 pub const REGION_INSTANCE_BYTES: usize = INSTANCES_PER_REGION as usize * INSTANCE_RECORD_BYTES;
 pub const REGION_IDENTITY_BYTES: usize = INSTANCES_PER_REGION as usize * size_of::<u32>();
+pub const REGION_PRESENTATION_BYTES: usize =
+    INSTANCES_PER_REGION as usize * size_of::<PresentationRecord>();
 
 pub struct RegionUpload {
     pub slot: u32,
     pub records: Vec<InstanceRecord>,
     pub local_ids: Vec<u32>,
+    pub presentations: Vec<PresentationRecord>,
 }
 
 pub(crate) fn active_region_ids(config: LoadConfig) -> Result<Vec<u32>> {
@@ -43,6 +46,7 @@ pub(crate) fn hash_uploads(uploads: &[RegionUpload]) -> String {
         hash.update(upload.slot.to_le_bytes());
         hash.update(as_bytes(&upload.records));
         hash.update(as_bytes(&upload.local_ids));
+        hash.update(as_bytes(&upload.presentations));
     }
     format!("{:x}", hash.finalize())
 }

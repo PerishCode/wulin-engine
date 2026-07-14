@@ -18,6 +18,9 @@ struct VisibleObject
     uint stable_key;
     uint pose_slot;
     uint candidate_index;
+    uint material;
+    uint yaw_q16;
+    uint animation;
 };
 
 struct LodDescriptor

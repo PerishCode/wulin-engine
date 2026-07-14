@@ -8,7 +8,9 @@ use crate::async_resident::{
     ASYNC_CACHE_CAPACITY, ASYNC_RESIDENT_REVISION, AsyncTransactionReport,
 };
 use crate::rendering::resident::transition;
-use crate::resident::{REGION_IDENTITY_BYTES, REGION_INSTANCE_BYTES, RegionUpload, as_bytes};
+use crate::resident::{
+    REGION_IDENTITY_BYTES, REGION_INSTANCE_BYTES, REGION_PRESENTATION_BYTES, RegionUpload, as_bytes,
+};
 
 use super::{AsyncTransfer, PendingTransfer, ensure_transaction};
 
@@ -32,12 +34,12 @@ impl AsyncTransfer {
             .take()
             .expect("async reservation disappeared");
         let plan = reservation.layout.materialize(uploads)?;
-        let identity_copy_slots = plan
+        let plane_copy_slots = plan
             .uploads
             .iter()
             .map(|upload| upload.slot)
             .collect::<Vec<_>>();
-        unsafe { self.write_uploads(&plan.uploads, &identity_copy_slots) }?;
+        unsafe { self.write_uploads(&plan.uploads, &plane_copy_slots) }?;
 
         unsafe { self.release_allocator.Reset() }
             .context("async release allocator reset failed")?;
@@ -58,7 +60,7 @@ impl AsyncTransfer {
             };
             self.shader_slots[index] = false;
         }
-        for slot in &identity_copy_slots {
+        for slot in &plane_copy_slots {
             let index = *slot as usize;
             if self.identity_shader_slots[index] {
                 unsafe {
@@ -70,6 +72,17 @@ impl AsyncTransfer {
                     )
                 };
                 self.identity_shader_slots[index] = false;
+            }
+            if self.presentation_shader_slots[index] {
+                unsafe {
+                    transition(
+                        &self.release_list,
+                        &self.presentations[index],
+                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                        D3D12_RESOURCE_STATE_COPY_DEST,
+                    )
+                };
+                self.presentation_shader_slots[index] = false;
             }
         }
         unsafe { self.release_list.Close() }.context("async release list close failed")?;
@@ -95,7 +108,7 @@ impl AsyncTransfer {
                 )
             };
         }
-        for slot in &identity_copy_slots {
+        for slot in &plane_copy_slots {
             let upload_offset = u64::from(*slot) * REGION_IDENTITY_BYTES as u64;
             unsafe {
                 self.copy_list.CopyBufferRegion(
@@ -104,6 +117,18 @@ impl AsyncTransfer {
                     &self.identity_upload,
                     upload_offset,
                     REGION_IDENTITY_BYTES as u64,
+                )
+            };
+        }
+        for slot in &plane_copy_slots {
+            let upload_offset = u64::from(*slot) * REGION_PRESENTATION_BYTES as u64;
+            unsafe {
+                self.copy_list.CopyBufferRegion(
+                    &self.presentations[*slot as usize],
+                    0,
+                    &self.presentation_upload,
+                    upload_offset,
+                    REGION_PRESENTATION_BYTES as u64,
                 )
             };
         }
@@ -133,8 +158,10 @@ impl AsyncTransfer {
             object_page_checksums: Vec::new(),
             counts: plan.layout.counts,
             uploaded_sha256: plan.uploaded_sha256,
-            identity_copy_count: identity_copy_slots.len(),
-            identity_copy_bytes: identity_copy_slots.len() * REGION_IDENTITY_BYTES,
+            identity_copy_count: plane_copy_slots.len(),
+            identity_copy_bytes: plane_copy_slots.len() * REGION_IDENTITY_BYTES,
+            presentation_copy_count: plane_copy_slots.len(),
+            presentation_copy_bytes: plane_copy_slots.len() * REGION_PRESENTATION_BYTES,
             direct_release_fence,
             copy_fence,
             gate_fence,
@@ -152,6 +179,12 @@ impl AsyncTransfer {
                 .map(|upload| upload.slot)
                 .filter(|slot| !self.identity_shader_slots[*slot as usize])
                 .collect(),
+            presentation_transition_slots: plan
+                .uploads
+                .iter()
+                .map(|upload| upload.slot)
+                .filter(|slot| !self.presentation_shader_slots[*slot as usize])
+                .collect(),
             report: report.clone(),
             started_at: reservation.started_at,
         });
@@ -161,7 +194,7 @@ impl AsyncTransfer {
     unsafe fn write_uploads(
         &self,
         uploads: &[RegionUpload],
-        identity_copy_slots: &[u32],
+        plane_copy_slots: &[u32],
     ) -> Result<()> {
         let mut mapped = ptr::null_mut();
         unsafe {
@@ -192,7 +225,7 @@ impl AsyncTransfer {
                 }),
             )
         };
-        if identity_copy_slots.is_empty() {
+        if plane_copy_slots.is_empty() {
             return Ok(());
         }
         let mut identity_mapped = ptr::null_mut();
@@ -205,7 +238,7 @@ impl AsyncTransfer {
         }
         .context("async identity upload arena map failed")?;
         for upload in uploads {
-            if !identity_copy_slots.contains(&upload.slot) {
+            if !plane_copy_slots.contains(&upload.slot) {
                 continue;
             }
             let offset = upload.slot as usize * REGION_IDENTITY_BYTES;
@@ -219,6 +252,33 @@ impl AsyncTransfer {
                 Some(&D3D12_RANGE {
                     Begin: 0,
                     End: ASYNC_CACHE_CAPACITY * REGION_IDENTITY_BYTES,
+                }),
+            )
+        };
+        let mut presentation_mapped = ptr::null_mut();
+        unsafe {
+            self.presentation_upload.Map(
+                0,
+                Some(&D3D12_RANGE { Begin: 0, End: 0 }),
+                Some(&mut presentation_mapped),
+            )
+        }
+        .context("async presentation upload arena map failed")?;
+        for upload in uploads {
+            if !plane_copy_slots.contains(&upload.slot) {
+                continue;
+            }
+            let offset = upload.slot as usize * REGION_PRESENTATION_BYTES;
+            let destination = unsafe { presentation_mapped.cast::<u8>().add(offset) };
+            let bytes = as_bytes(&upload.presentations);
+            unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), destination, bytes.len()) };
+        }
+        unsafe {
+            self.presentation_upload.Unmap(
+                0,
+                Some(&D3D12_RANGE {
+                    Begin: 0,
+                    End: ASYNC_CACHE_CAPACITY * REGION_PRESENTATION_BYTES,
                 }),
             )
         };

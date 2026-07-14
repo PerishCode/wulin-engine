@@ -104,6 +104,8 @@ struct PublishedPair {
     global_mapping_sha256: String,
     publication_ms: f64,
     camera_driven: bool,
+    objects: crate::async_resident::AsyncTransactionReport,
+    terrain: crate::terrain::TerrainTransactionReport,
 }
 
 pub(super) struct CompositionCoordinator {
@@ -307,6 +309,8 @@ impl Renderer {
             global_mapping_sha256,
             publication_ms: pending.started_at.elapsed().as_secs_f64() * 1_000.0,
             camera_driven: pending.purpose.camera_driven(),
+            objects: instance_report,
+            terrain: terrain_report,
         });
         self.enable_composition()?;
         if pending.purpose == PairPurpose::Traversal {

@@ -2,8 +2,9 @@ use std::fs;
 
 use region_format::{
     GLOBAL_HEADER_BYTES, GLOBAL_INDEX_ENTRY_BYTES, GLOBAL_PAYLOAD_SCHEMA, GLOBAL_REGION_BYTES,
-    GlobalRegion, GlobalRegionPack, IDENTITY_PLANE_BYTES, InstanceRecord, RECORDS_PER_REGION,
-    REGION_BYTES, canonical_stable_seed, write_global_pack,
+    GlobalRegion, GlobalRegionPack, IDENTITY_PLANE_BYTES, InstanceRecord, PRESENTATION_PLANE_BYTES,
+    PresentationRecord, RECORDS_PER_REGION, REGION_BYTES, STATIC_PRESENTATION_ANIMATION,
+    canonical_stable_seed, write_global_pack,
 };
 use sha2::{Digest, Sha256};
 
@@ -29,12 +30,37 @@ fn records(region: GlobalRegion, variant: u32) -> Vec<InstanceRecord> {
 fn canonical_payload(
     region: GlobalRegion,
     variant: u32,
-) -> (GlobalRegion, Vec<InstanceRecord>, Vec<u32>) {
+) -> (
+    GlobalRegion,
+    Vec<InstanceRecord>,
+    Vec<u32>,
+    Vec<PresentationRecord>,
+) {
     (
         region,
         records(region, variant),
         (0..RECORDS_PER_REGION).collect(),
+        presentations(variant),
     )
+}
+
+fn presentations(variant: u32) -> Vec<PresentationRecord> {
+    (0..RECORDS_PER_REGION)
+        .map(|index| {
+            if index.is_multiple_of(4) {
+                PresentationRecord::static_object(index % 8, (index + variant) % 64, index * 61)
+            } else {
+                PresentationRecord::animated(
+                    index % 8,
+                    (index + variant) % 64,
+                    index * 61,
+                    (index + 3) % 8,
+                    (index + variant) % 64,
+                    index ^ variant,
+                )
+            }
+        })
+        .collect()
 }
 
 fn temp_path(name: &str) -> std::path::PathBuf {
@@ -60,7 +86,7 @@ fn signed_pack_round_trips_and_is_deterministic() {
         .collect::<Vec<_>>();
     let first_metadata = write_global_pack(&path, namespace(), contents.clone()).unwrap();
     let second_metadata = write_global_pack(&second, namespace(), contents.clone()).unwrap();
-    assert_eq!(first_metadata.version, 2);
+    assert_eq!(first_metadata.version, 3);
     assert_eq!(first_metadata.payload_schema, GLOBAL_PAYLOAD_SCHEMA);
     assert_eq!(
         first_metadata.stable_seed_namespace_sha256,
@@ -75,13 +101,14 @@ fn signed_pack_round_trips_and_is_deterministic() {
     let mut pack = GlobalRegionPack::open(&path).unwrap();
     assert_eq!(pack.metadata().region_count, 3);
     assert_eq!(pack.stable_seed_namespace(), namespace());
-    for (region, expected, expected_ids) in contents {
+    for (region, expected, expected_ids, expected_presentations) in contents {
         let read = pack.read_region(region).unwrap();
         assert_eq!(read.region, region);
         assert_eq!(read.stable_seed, canonical_stable_seed(namespace(), region));
         assert_eq!(read.payload_bytes, GLOBAL_REGION_BYTES);
         assert_eq!(read.records, expected);
         assert_eq!(read.local_ids, expected_ids);
+        assert_eq!(read.presentations, expected_presentations);
         assert_eq!(read.payload.len(), GLOBAL_REGION_BYTES as usize);
         assert_eq!(
             pack.region_sha256(region),
@@ -98,25 +125,40 @@ fn identity_pack_round_trips_reordered_pairs_deterministically() {
     let second = temp_path("identity-deterministic");
     let reordered = temp_path("identity-reordered");
     let region = GlobalRegion::new(1_i64 << 40, -(1_i64 << 40));
-    let (records_a, local_ids_a) = permuted_records(region, 73);
-    let (records_b, local_ids_b) = permuted_records(region, 419);
+    let (records_a, local_ids_a, presentations_a) = permuted_records(region, 73);
+    let (records_b, local_ids_b, presentations_b) = permuted_records(region, 419);
 
     let first_metadata = write_global_pack(
         &path,
         namespace(),
-        [(region, records_a.clone(), local_ids_a.clone())],
+        [(
+            region,
+            records_a.clone(),
+            local_ids_a.clone(),
+            presentations_a.clone(),
+        )],
     )
     .unwrap();
     let second_metadata = write_global_pack(
         &second,
         namespace(),
-        [(region, records_a.clone(), local_ids_a.clone())],
+        [(
+            region,
+            records_a.clone(),
+            local_ids_a.clone(),
+            presentations_a.clone(),
+        )],
     )
     .unwrap();
     let reordered_metadata = write_global_pack(
         &reordered,
         namespace(),
-        [(region, records_b.clone(), local_ids_b.clone())],
+        [(
+            region,
+            records_b.clone(),
+            local_ids_b.clone(),
+            presentations_b.clone(),
+        )],
     )
     .unwrap();
 
@@ -142,20 +184,29 @@ fn identity_pack_round_trips_reordered_pairs_deterministically() {
     assert_eq!(first_read.payload.len(), GLOBAL_REGION_BYTES as usize);
     assert_eq!(first_read.records, records_a);
     assert_eq!(first_read.local_ids, local_ids_a);
+    assert_eq!(first_read.presentations, presentations_a);
     assert_eq!(
-        &first_read.payload[REGION_BYTES as usize..],
+        &first_read.payload[REGION_BYTES as usize..(REGION_BYTES + IDENTITY_PLANE_BYTES) as usize],
         &encode_local_ids(&first_read.local_ids)
     );
     assert_eq!(
-        first_read.payload.len() - REGION_BYTES as usize,
-        IDENTITY_PLANE_BYTES as usize
+        first_read.payload.len() - REGION_BYTES as usize - IDENTITY_PLANE_BYTES as usize,
+        PRESENTATION_PLANE_BYTES as usize
     );
 
     let mut reordered_pack = GlobalRegionPack::open(&reordered).unwrap();
     let reordered_read = reordered_pack.read_region(region).unwrap();
     assert_eq!(
-        keyed_records(&first_read.records, &first_read.local_ids),
-        keyed_records(&reordered_read.records, &reordered_read.local_ids)
+        keyed_triples(
+            &first_read.records,
+            &first_read.local_ids,
+            &first_read.presentations
+        ),
+        keyed_triples(
+            &reordered_read.records,
+            &reordered_read.local_ids,
+            &reordered_read.presentations
+        )
     );
 
     fs::remove_file(path).unwrap();
@@ -248,26 +299,92 @@ fn writer_rejects_invalid_seed_identity_and_empty_namespace() {
     let mut invalid = records(region, 0);
     invalid[0].region_id ^= 1;
     let local_ids = (0..RECORDS_PER_REGION).collect::<Vec<_>>();
-    assert!(write_global_pack(&path, namespace(), [(region, invalid, local_ids)]).is_err());
+    assert!(
+        write_global_pack(
+            &path,
+            namespace(),
+            [(region, invalid, local_ids, presentations(0))]
+        )
+        .is_err()
+    );
     assert!(write_global_pack(&path, [0; 32], [canonical_payload(region, 0)]).is_err());
+}
+
+#[test]
+fn presentation_writer_rejects_invalid_fields_and_count() {
+    let path = temp_path("presentation-invalid");
+    let region = GlobalRegion::new(31, -47);
+    let records = records(region, 0);
+    let local_ids = (0..RECORDS_PER_REGION).collect::<Vec<_>>();
+    let base = presentations(0);
+    for (label, mutate) in [
+        ("archetype", (0, 8)),
+        ("material", (1, 64)),
+        ("yaw", (2, 65_536)),
+        ("clip", (3, 8)),
+        ("phase", (3, 64 << 8)),
+    ] {
+        let mut invalid = base.clone();
+        match mutate.0 {
+            0 => invalid[0].archetype = mutate.1,
+            1 => invalid[0].material = mutate.1,
+            2 => invalid[0].yaw_q16 = mutate.1,
+            3 if label == "clip" => invalid[1].animation = mutate.1,
+            3 => invalid[1].animation = mutate.1,
+            _ => unreachable!(),
+        }
+        assert!(
+            write_global_pack(
+                &path,
+                namespace(),
+                [(region, records.clone(), local_ids.clone(), invalid)]
+            )
+            .is_err(),
+            "{label}"
+        );
+    }
+    let mut static_record = base.clone();
+    static_record[0].animation = STATIC_PRESENTATION_ANIMATION;
+    write_global_pack(
+        &path,
+        namespace(),
+        [(region, records.clone(), local_ids.clone(), static_record)],
+    )
+    .unwrap();
+    assert!(
+        write_global_pack(
+            &path,
+            namespace(),
+            [(region, records, local_ids, base[..base.len() - 1].to_vec())]
+        )
+        .is_err()
+    );
+    fs::remove_file(path).unwrap();
 }
 
 #[test]
 fn identity_writer_and_reader_reject_invalid_local_ids() {
     let path = temp_path("identity-invalid");
     let region = GlobalRegion::new(-17, 29);
-    let (records, local_ids) = permuted_records(region, 31);
+    let (records, local_ids, presentations) = permuted_records(region, 31);
 
     let mut duplicate = local_ids.clone();
     duplicate[1] = duplicate[0];
-    assert!(write_global_pack(&path, namespace(), [(region, records.clone(), duplicate)]).is_err());
+    assert!(
+        write_global_pack(
+            &path,
+            namespace(),
+            [(region, records.clone(), duplicate, presentations.clone())]
+        )
+        .is_err()
+    );
     let mut out_of_range = local_ids.clone();
     out_of_range[0] = RECORDS_PER_REGION;
     assert!(
         write_global_pack(
             &path,
             namespace(),
-            [(region, records.clone(), out_of_range)]
+            [(region, records.clone(), out_of_range, presentations.clone())]
         )
         .is_err()
     );
@@ -278,13 +395,19 @@ fn identity_writer_and_reader_reject_invalid_local_ids() {
             [(
                 region,
                 records.clone(),
-                local_ids[..local_ids.len() - 1].to_vec()
+                local_ids[..local_ids.len() - 1].to_vec(),
+                presentations.clone()
             )]
         )
         .is_err()
     );
 
-    write_global_pack(&path, namespace(), [(region, records, local_ids.clone())]).unwrap();
+    write_global_pack(
+        &path,
+        namespace(),
+        [(region, records, local_ids.clone(), presentations)],
+    )
+    .unwrap();
     let original = fs::read(&path).unwrap();
     let metadata = GlobalRegionPack::open(&path).unwrap().metadata().clone();
     let identity_offset = metadata.payload_offset as usize + REGION_BYTES as usize;
@@ -330,26 +453,37 @@ fn identity_writer_and_reader_reject_invalid_local_ids() {
     fs::remove_file(path).unwrap();
 }
 
-fn permuted_records(region: GlobalRegion, offset: u32) -> (Vec<InstanceRecord>, Vec<u32>) {
+fn permuted_records(
+    region: GlobalRegion,
+    offset: u32,
+) -> (Vec<InstanceRecord>, Vec<u32>, Vec<PresentationRecord>) {
     let source = records(region, 0);
+    let presentations = presentations(0);
     let mut output = Vec::with_capacity(RECORDS_PER_REGION as usize);
     let mut local_ids = Vec::with_capacity(RECORDS_PER_REGION as usize);
+    let mut presentation_output = Vec::with_capacity(RECORDS_PER_REGION as usize);
     for index in 0..RECORDS_PER_REGION {
         let local_id = (index.wrapping_mul(769).wrapping_add(offset)) % RECORDS_PER_REGION;
         output.push(source[local_id as usize]);
         local_ids.push(local_id);
+        presentation_output.push(presentations[local_id as usize]);
     }
-    (output, local_ids)
+    (output, local_ids, presentation_output)
 }
 
-fn keyed_records(records: &[InstanceRecord], local_ids: &[u32]) -> Vec<(u32, InstanceRecord)> {
+fn keyed_triples(
+    records: &[InstanceRecord],
+    local_ids: &[u32],
+    presentations: &[PresentationRecord],
+) -> Vec<(u32, InstanceRecord, PresentationRecord)> {
     let mut keyed = records
         .iter()
         .copied()
         .zip(local_ids.iter().copied())
-        .map(|(record, local_id)| (local_id, record))
+        .zip(presentations.iter().copied())
+        .map(|((record, local_id), presentation)| (local_id, record, presentation))
         .collect::<Vec<_>>();
-    keyed.sort_by_key(|(local_id, _)| *local_id);
+    keyed.sort_by_key(|(local_id, _, _)| *local_id);
     keyed
 }
 

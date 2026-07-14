@@ -6,7 +6,7 @@ use meshlet_catalog::Catalog;
 use serde::Serialize;
 
 use crate::rendering::terrain::TerrainProjection;
-use crate::resident::{InstanceRecord, canonical_stable_key};
+use crate::resident::{InstanceRecord, PresentationRecord};
 use crate::scene::SceneState;
 
 use super::renderer::SkeletalSettings;
@@ -34,6 +34,7 @@ pub struct GroundingInput<'a> {
     pub denominator: u32,
     pub instance_records: &'a [Vec<InstanceRecord>],
     pub local_ids: &'a [Vec<u32>],
+    pub presentations: &'a [Vec<PresentationRecord>],
 }
 
 pub struct EvaluationInput<'a> {
@@ -56,6 +57,7 @@ pub fn evaluate(
     } = input;
     ensure!(
         grounding.instance_records.len() == grounding.local_ids.len()
+            && grounding.instance_records.len() == grounding.presentations.len()
             && grounding.instance_records.len() == projection.active_count(),
         "skeletal canonical payload shapes differ"
     );
@@ -79,19 +81,19 @@ pub fn evaluate(
     let mut shared_poses = BTreeSet::new();
     for (active_index, records) in grounding.instance_records.iter().enumerate() {
         ensure!(
-            records.len() == grounding.local_ids[active_index].len(),
-            "skeletal canonical record and local-ID counts differ"
+            records.len() == grounding.local_ids[active_index].len()
+                && records.len() == grounding.presentations[active_index].len(),
+            "skeletal canonical triple counts differ"
         );
         for (local_index, instance) in records.iter().enumerate() {
-            let local_id = grounding.local_ids[active_index][local_index];
+            let presentation = grounding.presentations[active_index][local_index];
             let logical_index =
                 active_index * crate::load::INSTANCES_PER_REGION as usize + local_index;
             let ground = grounding.numerators[logical_index] as f32 / grounding.denominator as f32;
             let position = projection.position(active_index, instance.position)?;
             let center = Vec3::from_array(position) + Vec3::Y * (ground + instance.height * 0.5);
             let clip = matrix * Vec4::new(center.x, center.y, center.z, 1.0);
-            let stable_key = canonical_stable_key(instance.region_id, local_id);
-            let archetype = stable_key & 7;
+            let archetype = presentation.archetype;
             let visible = clip.w > 0.0
                 && clip.x.abs() <= clip.w
                 && clip.y.abs() <= clip.w
@@ -115,11 +117,11 @@ pub fn evaluate(
             counts.emitted_vertices += descriptor.vertex_count;
             counts.emitted_triangles += descriptor.primitive_count;
             counts.observed_archetype_mask |= 1 << archetype;
-            if stable_key % 100 < settings.animated_percent {
+            if presentation.is_animated() {
                 counts.animated += 1;
                 counts.skin_influences += descriptor.vertex_count * 4;
                 if !settings.unique_poses {
-                    shared_poses.insert(pose_key(stable_key, archetype, settings));
+                    shared_poses.insert(pose_key(presentation, settings));
                 }
             } else {
                 counts.static_count += 1;
@@ -136,11 +138,19 @@ pub fn evaluate(
     Ok(counts)
 }
 
-pub fn pose_key(stable_key: u32, archetype: u32, settings: SkeletalSettings) -> u32 {
-    archetype * 64 + pose_phase(stable_key, settings)
+pub fn pose_key(presentation: PresentationRecord, settings: SkeletalSettings) -> u32 {
+    presentation
+        .animation_clip()
+        .expect("static object has no pose")
+        * 64
+        + pose_phase(presentation, settings)
 }
 
-pub fn pose_phase(stable_key: u32, settings: SkeletalSettings) -> u32 {
-    let bucket = ((stable_key >> 3) + settings.time_tick) % settings.phase_count;
+pub fn pose_phase(presentation: PresentationRecord, settings: SkeletalSettings) -> u32 {
+    let bucket = (presentation
+        .animation_phase_offset()
+        .expect("static object has no pose")
+        + settings.time_tick)
+        % settings.phase_count;
     bucket * (64 / settings.phase_count)
 }

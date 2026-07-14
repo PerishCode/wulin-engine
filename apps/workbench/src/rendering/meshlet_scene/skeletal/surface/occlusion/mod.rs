@@ -13,9 +13,10 @@ use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_R32_UINT, DXGI_SAMPLE_D
 
 use crate::rendering::resident::create_buffer;
 
+use super::super::resources::VISIBLE_OBJECT_BYTES;
 use super::resources::CANDIDATE_CAPACITY;
 
-pub const FILTERED_VISIBLE_BYTES: u64 = CANDIDATE_CAPACITY as u64 * 24;
+pub const FILTERED_VISIBLE_BYTES: u64 = CANDIDATE_CAPACITY as u64 * VISIBLE_OBJECT_BYTES as u64;
 pub const OCCLUSION_COUNTER_BYTES: u64 = 80;
 pub const OCCLUSION_MASK_BYTES: u64 = CANDIDATE_CAPACITY as u64 * 4;
 pub const OCCLUSION_GROUPS: u32 = CANDIDATE_CAPACITY.div_ceil(256);

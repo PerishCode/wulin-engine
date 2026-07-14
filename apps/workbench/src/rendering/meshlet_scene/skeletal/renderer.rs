@@ -20,7 +20,6 @@ pub const SKELETAL_REVISION: &str = "gpu-skeletal-crowds-v1";
 
 #[derive(Clone, Copy)]
 pub struct SkeletalSettings {
-    pub animated_percent: u32,
     pub bone_count: u32,
     pub phase_count: u32,
     pub time_tick: u32,
@@ -30,7 +29,6 @@ pub struct SkeletalSettings {
 impl Default for SkeletalSettings {
     fn default() -> Self {
         Self {
-            animated_percent: 100,
             bone_count: 64,
             phase_count: 64,
             time_tick: 0,
@@ -335,7 +333,7 @@ impl SkeletalSceneRenderer {
             );
             constants[20 + index] = instance_slot | (terrain_slot << 6) | (semantic_region << 12);
         }
-        constants[48] = self.settings.animated_percent;
+        constants[48] = 0;
         constants[49] = self.settings.bone_count;
         constants[50] = self.settings.phase_count;
         constants[51] = self.settings.time_tick;

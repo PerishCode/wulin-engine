@@ -20,6 +20,9 @@ struct VisibleObject
     uint stable_key;
     uint pose_slot;
     uint candidate_index;
+    uint material;
+    uint yaw_q16;
+    uint animation;
 };
 
 struct LodDescriptor
@@ -192,7 +195,7 @@ void ms_main(
     uint local_index = visible.physical_index % INSTANCES_PER_REGION;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
     float3 position = canonical_position(instance, visible.candidate_index);
-    float angle = float((visible.stable_key * 747796405u) & 65535u) * 6.28318530718 / 65536.0;
+    float angle = float(visible.yaw_q16) * 6.28318530718 / 65536.0;
     float sine;
     float cosine;
     sincos(angle, sine, cosine);
@@ -402,8 +405,7 @@ void shade_main(
         float2 decoded = float2(payload.y & 0xffffu, payload.y >> 16u) / 65535.0;
         float3 bary = float3(decoded, max(0.0, 1.0 - decoded.x - decoded.y));
         bary /= max(dot(bary, 1.0), 0.00001);
-        float angle = float((visible.stable_key * 747796405u) & 65535u)
-            * 6.28318530718 / 65536.0;
+        float angle = float(visible.yaw_q16) * 6.28318530718 / 65536.0;
         float sine;
         float cosine;
         sincos(angle, sine, cosine);
@@ -427,7 +429,7 @@ void shade_main(
         );
         float2 uv = uvs[0] * bary.x + uvs[1] * bary.y + uvs[2] * bary.z;
         stable_key = visible.stable_key;
-        material_index = stable_key % surface_shape.x;
+        material_index = visible.material;
         MaterialRecord material = surface_materials[material_index];
         uint mip = surface_shape.y;
         uint side = max(1u, MATERIAL_TEXTURE_SIDE >> mip);

@@ -193,6 +193,7 @@ fn read_request(
         metrics.payload_bytes += u64::from(read.payload_bytes);
         metrics.record_bytes += u64::from(region_format::REGION_BYTES);
         metrics.identity_bytes += u64::from(region_format::IDENTITY_PLANE_BYTES);
+        metrics.presentation_bytes += u64::from(region_format::PRESENTATION_PLANE_BYTES);
         metrics.read_ms += read.read_ms;
         metrics.verify_ms += read.verify_ms;
         if assignment.stable_seed != read.stable_seed {
@@ -209,6 +210,7 @@ fn read_request(
             slot: assignment.slot,
             records: read.records,
             local_ids: read.local_ids,
+            presentations: read.presentations,
         });
     }
     metrics.total_ms = started.elapsed().as_secs_f64() * 1_000.0;

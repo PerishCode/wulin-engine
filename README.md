@@ -8,9 +8,11 @@
 
 ## Status
 
-**Canonical runtime 收敛已完成**：signed terrain、schema-2 authored objects、固定 50 槽
+**Canonical runtime 收敛已完成**：signed terrain、固定 50 槽
 GPU residency、terrain-first composition、Sidecar 生命周期和项目自有 inspect 协议已经形成
-唯一、可重复的内容运行闭环。
+唯一、可重复的内容运行闭环。Experiment 0032 已在该闭环内接受 schema-3 authored object
+presentation：空间、local-ID、archetype、material、yaw 与 animation 作为三平面 cooked
+authority 原子发布，不引入第二套 runtime。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
 两档 Compute benchmark。Experiment 0002 已通过同进程重复捕获、可见状态变化和 Sidecar
@@ -87,6 +89,10 @@ Experiment 0031 最终删除 local/schema-1/generated/standalone 与递归 wrapp
 shell 和 canonical composition。直接 403 秒验收通过 reordered source、完整附件、四类 hold、
 损坏回滚、rollover、32+32 traversal、额外 64 次同进程资源平台和 16 次完整生命周期；Runseal
 现仅保留五个 wrapper 与一个 support 文件。
+Experiment 0032 将 archetype、material、Q16 yaw 与 animation clip/phase/variant 从 stable key
+推导改为 schema-3 cooked presentation plane。426.1 秒直接验收通过两种物理乱序、四种独立
+展示变体、25/5/9 三平面复制、presentation 损坏回滚、32+32 traversal、64 次资源平台和 16
+次生命周期；位置、local-ID、grounding、contact 与语义身份在展示变体间保持不变。
 
 ## Project model
 
@@ -123,7 +129,8 @@ waits for renderer and inspect readiness, discovers stamped processes, and close
 entire local runtime through one manifest.
 
 `runseal :canonical-runtime` is the only end-to-end engine acceptance workflow. It cooks
-signed terrain and schema-2 object sources directly, validates canonical composition,
+signed terrain and schema-3 object sources directly, validates explicit presentation,
+canonical composition,
 fault rollback, traversal/prefetch/rollover, the 64-publication resource plateau, and 16
 complete lifecycle cycles without invoking an older experiment workflow.
 

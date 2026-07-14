@@ -161,4 +161,4 @@ priority = 10
 [overrides.rules."core/source/too-long"]
 severity = "warning"
 payload = { max_lines = 600 }
-reason = "The schema-2 object format keeps dual-plane validation, exact reads, and writing in one owner."
+reason = "The schema-3 object format keeps triple-plane validation, exact reads, and writing in one owner."

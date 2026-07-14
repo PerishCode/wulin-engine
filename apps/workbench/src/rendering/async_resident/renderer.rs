@@ -24,6 +24,10 @@ pub struct AsyncResidentRenderer {
     active_identity_allocation_bytes: u64,
     active_identity_probe_count: u64,
     active_identity_copy_count: u64,
+    active_presentation_readback: windows::Win32::Graphics::Direct3D12::ID3D12Resource,
+    active_presentation_allocation_bytes: u64,
+    active_presentation_probe_count: u64,
+    active_presentation_copy_count: u64,
     published: Option<PublishedSnapshot>,
     staged: Option<Publication>,
 }
@@ -50,6 +54,8 @@ impl AsyncResidentRenderer {
             unsafe { payload::create_readback(device) }?;
         let (active_identity_readback, active_identity_allocation_bytes) =
             unsafe { payload::create_identity_readback(device) }?;
+        let (active_presentation_readback, active_presentation_allocation_bytes) =
+            unsafe { payload::create_presentation_readback(device) }?;
         Ok(Self {
             transfer,
             active_payload_readback,
@@ -60,6 +66,10 @@ impl AsyncResidentRenderer {
             active_identity_allocation_bytes,
             active_identity_probe_count: 0,
             active_identity_copy_count: 0,
+            active_presentation_readback,
+            active_presentation_allocation_bytes,
+            active_presentation_probe_count: 0,
+            active_presentation_copy_count: 0,
             published: None,
             staged: None,
         })
