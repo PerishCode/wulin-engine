@@ -95,14 +95,15 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031/0032 and ADRs 0034/0035 accept one live content runtime with explicit
-object presentation authority:
+Experiments 0031-0033 and ADRs 0034-0036 accept one live content runtime with explicit
+object presentation authority and deterministic frame-driven presentation time:
 
 - signed `i64` terrain packs (`.wlt`);
 - signed schema-3 object packs (`.wlr`) with explicit authored local IDs and presentation;
 - source-addressed 50-slot terrain and triple-plane object caches;
 - atomic terrain-first canonical composition after an idle workbench shell;
 - fixed arbitrary-Q8 grounding, terrain LOD, skeletal, surface, and occlusion execution;
+- one renderer-owned 64-tick presentation clock with pause/set/step controls;
 - one compact `source.*` / `canonical.*` inspect vocabulary;
 - one non-recursive `runseal :canonical-runtime` acceptance workflow.
 
@@ -124,9 +125,11 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/README.md` | ADR naming, status, and maintenance rules. |
 | `docs/adr/0034-canonical-runtime-convergence.md` | Accepted single-runtime, operator-surface, and attachment contract. |
 | `docs/adr/0035-authored-object-presentation.md` | Accepted schema-3 triple-plane object presentation authority and publication contract. |
+| `docs/adr/0036-deterministic-temporal-presentation.md` | Accepted renderer-owned frame clock, deterministic control, and content-independent time contract. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
+| `experiments/0033-deterministic-temporal-presentation/README.md` | Accepted deterministic frame-driven animation time, explicit stepping, held-pair continuity, and zero-data-movement evidence. |
 | `crates/region-format/src/global.rs` | Signed schema-3 spatial, identity, and presentation object pack codec. |
 | `crates/terrain-format/src/global.rs` | Signed terrain pack codec and exact lookup. |
 | `crates/canonical-object-fixture/src/lib.rs` | Deterministic arbitrary-Q8 authored object fixture. |
@@ -148,8 +151,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository validation and forbidden-symbol gate. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0032 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0033 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
+| `.runseal/support/temporal-presentation.ts` | Deterministic presentation-time and held-pair acceptance support. |
 
 ## 6. Core Operational Workflows
 
@@ -171,11 +175,12 @@ runseal :canonical-runtime
 
 This workflow cooks fresh signed sources and directly validates canonical correctness,
 source reordering, movement, aliasing, failure rollback, all four fault gates, reactive
-and prepared traversal, rollover, a same-process 64-publication resource plateau, and
-16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
+and prepared traversal, rollover, deterministic presentation time, a same-process
+64-publication resource plateau, and 16 complete lifecycle cycles. It must not invoke an
+older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0032-authored-object-presentation/` and remains ignored.
+`out/captures/0033-deterministic-temporal-presentation/` and remains ignored.
 
 ### 6.3 Manual workbench
 

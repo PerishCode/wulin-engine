@@ -167,6 +167,17 @@ export async function event(verb: string, payload: unknown = {}): Promise<Json> 
     return object(response, "data");
 }
 
+export async function rejectedEvent(verb: string, payload: unknown = {}): Promise<Json> {
+    const response = await invoke([
+        "inspect",
+        "workbench",
+        verb,
+        JSON.stringify(payload),
+    ], true);
+    if (response.ok !== false) fail(`${verb} unexpectedly succeeded`);
+    return response;
+}
+
 export async function status(): Promise<Json> {
     return await event("workbench.status");
 }
@@ -174,6 +185,8 @@ export async function status(): Promise<Json> {
 export async function openSources(terrain: string, objects: string): Promise<void> {
     await event("source.terrain.open", { path: terrain });
     await event("source.objects.open", { path: objects });
+    await event("canonical.time.pause");
+    await event("canonical.time.set", { tick: 0 });
 }
 
 export async function cookTerrain(path: string, centers: Coord[]): Promise<Json> {
@@ -460,6 +473,7 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
             settings: skeletal.settings,
             gpu: skeletal.gpu,
             cpuOracle: skeletal.cpuOracle,
+            paletteWriteBytes: skeletal.paletteWriteBytes,
             meshletCatalogSha256: skeletal.meshletCatalogSha256,
             animationCatalogSha256: skeletal.animationCatalogSha256,
         },

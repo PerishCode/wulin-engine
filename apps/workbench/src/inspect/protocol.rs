@@ -44,6 +44,15 @@ pub enum ControlKind {
         path: String,
     },
     CanonicalStatus,
+    CanonicalTimeStatus,
+    CanonicalTimePause,
+    CanonicalTimeResume,
+    CanonicalTimeSet {
+        tick: u32,
+    },
+    CanonicalTimeStep {
+        ticks: u32,
+    },
     CanonicalSchedule {
         origin_x: i64,
         origin_z: i64,
@@ -122,6 +131,18 @@ struct CanonicalSchedulePayload {
     active_radius: u32,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CanonicalTimeSetPayload {
+    tick: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CanonicalTimeStepPayload {
+    ticks: u32,
+}
+
 pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
     match verb {
         "workbench.status" => Ok(ControlKind::Status),
@@ -142,6 +163,11 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "source.terrain.open" => parse_pack(payload, true),
         "source.objects.open" => parse_pack(payload, false),
         "canonical.status" => Ok(ControlKind::CanonicalStatus),
+        "canonical.time.status" => Ok(ControlKind::CanonicalTimeStatus),
+        "canonical.time.pause" => Ok(ControlKind::CanonicalTimePause),
+        "canonical.time.resume" => Ok(ControlKind::CanonicalTimeResume),
+        "canonical.time.set" => parse_canonical_time_set(payload),
+        "canonical.time.step" => parse_canonical_time_step(payload),
         "canonical.schedule" => parse_canonical_schedule(payload),
         "canonical.traversal.enable" => Ok(ControlKind::CanonicalTraversalEnable),
         "canonical.traversal.disable" => Ok(ControlKind::CanonicalTraversalDisable),
@@ -180,6 +206,18 @@ fn parse_canonical_schedule(value: Value) -> ParsedControl {
         center_x: payload.center_x,
         center_z: payload.center_z,
         active_radius: payload.active_radius,
+    })
+}
+
+fn parse_canonical_time_set(value: Value) -> ParsedControl {
+    let payload: CanonicalTimeSetPayload = decode(value)?;
+    Ok(ControlKind::CanonicalTimeSet { tick: payload.tick })
+}
+
+fn parse_canonical_time_step(value: Value) -> ParsedControl {
+    let payload: CanonicalTimeStepPayload = decode(value)?;
+    Ok(ControlKind::CanonicalTimeStep {
+        ticks: payload.ticks,
     })
 }
 

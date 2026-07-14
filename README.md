@@ -10,9 +10,10 @@
 
 **Canonical runtime 收敛已完成**：signed terrain、固定 50 槽
 GPU residency、terrain-first composition、Sidecar 生命周期和项目自有 inspect 协议已经形成
-唯一、可重复的内容运行闭环。Experiment 0032 已在该闭环内接受 schema-3 authored object
+唯一、可重复的内容运行闭环。Experiment 0033 已在该闭环内接受 schema-3 authored object
 presentation：空间、local-ID、archetype、material、yaw 与 animation 作为三平面 cooked
-authority 原子发布，不引入第二套 runtime。
+authority 原子发布，并由唯一的 64 tick renderer clock 连续推进；时间变化不会触发内容
+I/O、GPU page copy 或 pair 重发布。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
 两档 Compute benchmark。Experiment 0002 已通过同进程重复捕获、可见状态变化和 Sidecar
@@ -93,6 +94,10 @@ Experiment 0032 将 archetype、material、Q16 yaw 与 animation clip/phase/vari
 推导改为 schema-3 cooked presentation plane。426.1 秒直接验收通过两种物理乱序、四种独立
 展示变体、25/5/9 三平面复制、presentation 损坏回滚、32+32 traversal、64 次资源平台和 16
 次生命周期；位置、local-ID、grounding、contact 与语义身份在展示变体间保持不变。
+Experiment 0033 接管此前固定为 0 的 animation time tick，以 renderer-owned 64 tick frame
+clock 在每个 canonical frame 提交后推进。449.1 秒直接验收通过 tick 0/1/64 精确步进与回环、
+11 帧自动推进、事务挂起时旧 pair 持续动画、无内容重发布，以及全部既有 traversal、资源平台
+和生命周期回归；pause/set/step 让验收仍可冻结到逐字节确定帧。
 
 ## Project model
 
@@ -130,7 +135,7 @@ entire local runtime through one manifest.
 
 `runseal :canonical-runtime` is the only end-to-end engine acceptance workflow. It cooks
 signed terrain and schema-3 object sources directly, validates explicit presentation,
-canonical composition,
+deterministic presentation time, canonical composition,
 fault rollback, traversal/prefetch/rollover, the 64-publication resource plateau, and 16
 complete lifecycle cycles without invoking an older experiment workflow.
 

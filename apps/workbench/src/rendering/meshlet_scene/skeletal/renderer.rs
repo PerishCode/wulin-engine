@@ -51,6 +51,10 @@ pub struct SkeletalSceneRenderer {
     pub(super) width: u32,
     pub(super) height: u32,
     pub(super) settings: SkeletalSettings,
+    pub(super) time_running: bool,
+    pub(super) automatic_time_advance_count: u64,
+    pub(super) manual_time_step_count: u64,
+    pub(super) time_wrap_count: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -120,7 +124,62 @@ impl SkeletalSceneRenderer {
             width,
             height,
             settings: SkeletalSettings::default(),
+            time_running: true,
+            automatic_time_advance_count: 0,
+            manual_time_step_count: 0,
+            time_wrap_count: 0,
         })
+    }
+
+    pub(in crate::rendering) fn pause_presentation_time(&mut self) {
+        self.time_running = false;
+    }
+
+    pub(in crate::rendering) fn resume_presentation_time(&mut self) {
+        self.time_running = true;
+    }
+
+    pub(in crate::rendering) fn set_presentation_time(&mut self, tick: u32) -> Result<()> {
+        ensure!(
+            !self.time_running,
+            "presentation clock must be paused before setting time"
+        );
+        ensure!(
+            tick < self.settings.phase_count,
+            "presentation tick must be below {}",
+            self.settings.phase_count
+        );
+        self.settings.time_tick = tick;
+        Ok(())
+    }
+
+    pub(in crate::rendering) fn step_presentation_time(&mut self, ticks: u32) -> Result<()> {
+        ensure!(
+            !self.time_running,
+            "presentation clock must be paused before stepping"
+        );
+        ensure!(
+            (1..=4_096).contains(&ticks),
+            "presentation step must contain 1..=4096 ticks"
+        );
+        self.advance_presentation_ticks(ticks);
+        self.manual_time_step_count = self.manual_time_step_count.wrapping_add(u64::from(ticks));
+        Ok(())
+    }
+
+    pub(in crate::rendering) fn advance_presentation_frame(&mut self) {
+        if self.time_running {
+            self.advance_presentation_ticks(1);
+            self.automatic_time_advance_count = self.automatic_time_advance_count.wrapping_add(1);
+        }
+    }
+
+    fn advance_presentation_ticks(&mut self, ticks: u32) {
+        let total = self.settings.time_tick + ticks;
+        self.time_wrap_count = self
+            .time_wrap_count
+            .wrapping_add(u64::from(total / self.settings.phase_count));
+        self.settings.time_tick = total % self.settings.phase_count;
     }
 
     pub unsafe fn record(

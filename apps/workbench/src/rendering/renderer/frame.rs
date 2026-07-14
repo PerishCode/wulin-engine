@@ -155,7 +155,7 @@ impl Renderer {
         self.next_fence_value += 1;
         unsafe { self.queue.Signal(&self.fence, signal) }.context("queue signal failed")?;
         self.fence_values[index] = signal;
-        if capture || probe {
+        let outcome = if capture || probe {
             unsafe { self.wait_for_value(signal)? };
             let captured_frame = if capture {
                 let color = unsafe { self.capture.read() }?;
@@ -173,14 +173,17 @@ impl Renderer {
             } else {
                 None
             };
-            return Ok(RenderOutcome {
+            RenderOutcome {
                 capture: captured_frame,
                 composition_probe,
-            });
-        }
-        Ok(RenderOutcome {
-            capture: None,
-            composition_probe: None,
-        })
+            }
+        } else {
+            RenderOutcome {
+                capture: None,
+                composition_probe: None,
+            }
+        };
+        self.advance_presentation_frame();
+        Ok(outcome)
     }
 }
