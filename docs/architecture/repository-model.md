@@ -2,7 +2,8 @@
 
 ## State
 
-Experiments through 0040 and ADR 0043 promote the accepted canonical content runtime into
+Experiments through 0043 and ADR 0046 define the accepted canonical content runtime, reference
+host, and first prototype composition root. The runtime remains in
 `crates/engine-runtime`. It owns scene/world state, signed terrain/object streaming, atomic
 composition, traversal/prefetch/rollover, rendering, presentation time, shaders, probes, and GPU
 device/resource lifecycle. The format/catalog crates and offline cookers remain independent
@@ -12,11 +13,16 @@ The runtime also owns the sole mutable presentation timeline and successful-fram
 renderer consumes an immutable pre-commit tick for GPU work and evidence; it cannot pause, set,
 step, or advance time. Elapsed time and simulation-step policy remain unpromoted.
 
-`apps/workbench` is now a native diagnostic host. It owns the Win32 message loop, inspect
-transport, operator capture persistence, perception response shaping, readiness, and process
-lifecycle, and consumes the runtime through one facade. Native input, simulation stepping,
-runtime actors, and a prototype host remain unpromoted until later experiments establish their
-boundaries. Directories are created only when they own real files.
+`crates/reference-host` owns the concrete Windows single-window/message lifecycle, normalized
+keyboard/focus state and bounded journal, strict bootstrap config/path validation, and hidden
+canonical-ready driver. It is not a cross-platform abstraction.
+
+`apps/workbench` is the native diagnostic composition root. It retains inspect transport,
+operator capture persistence, perception response shaping, diagnostic readiness, pause/failure
+shaping, and fault gates. `apps/prototype` is the plain non-diagnostic composition root: configured
+canonical startup is mandatory, it continuously frames the same runtime, and Escape only requests
+host exit. Simulation stepping, terrain contact consumers, runtime actors, camera actions, and
+gameplay interaction remain unpromoted. Directories are created only when they own real files.
 
 ## Dependency direction
 

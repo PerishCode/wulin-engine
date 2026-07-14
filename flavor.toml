@@ -98,7 +98,7 @@ enabled = false
 reason = "Frame-transaction tests exercise the private runtime timeline without exporting temporal authority."
 
 [[overrides]]
-match = "apps/workbench/src/input.rs"
+match = "crates/reference-host/src/input.rs"
 kind = "file"
 priority = 10
 
@@ -107,7 +107,7 @@ enabled = false
 reason = "Host input state-machine tests exercise private journal limits without exporting a test surface."
 
 [[overrides]]
-match = "apps/workbench/src/bootstrap.rs"
+match = "crates/reference-host/src/bootstrap.rs"
 kind = "file"
 priority = 10
 

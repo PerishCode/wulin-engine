@@ -135,6 +135,12 @@ Experiment 0042 为同一 workbench 加入严格 schema-1 bootstrap 文档。无
 双源原子 pair，并仅在 canonical frame 已渲染后 ready。559.8 秒直接验收保持普通 idle-shell
 启动、输入重放、六个 GPU 哈希、32+32 traversal、资源平台与 16 次生命周期。该配置尚不包含
 相机、输入映射、模拟、actor、内容发现或新应用。
+Experiment 0043 将已验收的 Win32 window/message、输入 journal 与 canonical bootstrap 晋升到
+`crates/reference-host`，并新增无 inspect 的 `apps/prototype`。prototype 强制配置启动，只在
+canonical frame 后显示并 ready，持续运行同一 `engine-runtime`，Escape 仅负责宿主退出。587.5 秒
+直接验收中，三类失败均无 readiness，首次/重启在隐藏 frame 8/9 达到同一配置与签名目标；六个
+GPU 哈希、32+32 traversal、零增长资源平台和 16 次生命周期仍通过。相机、模拟、terrain contact、
+actor 与 gameplay interaction 仍留在后续独立门。
 
 ## Project model
 
@@ -170,6 +176,8 @@ runseal :workbench stop
 # With out/cooked/bootstrap/runtime.json prepared:
 sidecar start --config sidecar.bootstrap.toml
 sidecar stop --config sidecar.bootstrap.toml
+sidecar start --config sidecar.prototype.toml
+sidecar stop --config sidecar.prototype.toml
 ```
 
 `sidecar.toml` owns the debug-layer correctness workbench and `sidecar.benchmark.toml`
@@ -177,11 +185,17 @@ owns the release measurement workbench. Sidecar starts each process tree,
 waits for renderer and inspect readiness, discovers stamped processes, and closes the
 entire local runtime through one manifest.
 
+`sidecar.prototype.toml` launches the plain configured prototype without an inspect endpoint.
+It becomes visible and ready only after canonical content has rendered; close the window, press
+Escape, or use `sidecar stop` to end it. The bootstrap file is generated during canonical
+acceptance or may be prepared with the documented cooker formats.
+
 `runseal :canonical-runtime` is the only end-to-end engine acceptance workflow. It cooks
 signed terrain and schema-3 object sources directly, validates explicit presentation,
 deterministic presentation time, fixed camera-visible directional object shadows, canonical
 runtime and timeline ownership, successful-frame transactions, deterministic host input/replay,
-strict configured canonical readiness,
+strict configured canonical readiness, shared reference-host ownership, plain prototype
+startup/restart/cleanup,
 composition, fault rollback,
 traversal/prefetch/rollover, the 64-publication
 resource plateau, and 16 complete lifecycle cycles without invoking an older experiment workflow.

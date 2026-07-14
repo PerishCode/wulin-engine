@@ -1,21 +1,26 @@
-mod bootstrap;
 mod capture;
-mod input;
 mod inspect;
 mod perception;
-mod window;
 
 use std::sync::mpsc::SyncSender;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use engine_runtime::{FrameRequest, Runtime};
 use inspect::ProtocolError;
+use reference_host::{HostInput, bootstrap, window};
 use serde_json::json;
-use windows::Win32::UI::WindowsAndMessaging::*;
 
 const DEFAULT_CLEAR_COLOR: [f32; 4] = [0.035, 0.105, 0.14, 1.0];
+pub(crate) const WINDOW_WIDTH: u32 = 1280;
+pub(crate) const WINDOW_HEIGHT: u32 = 720;
+const WINDOW_CONFIG: window::Config = window::Config {
+    class_name: "WulinEngineWorkbenchWindow",
+    title: "Wulin Engine Workbench",
+    width: WINDOW_WIDTH,
+    height: WINDOW_HEIGHT,
+};
 
 fn main() {
     if let Err(error) = unsafe { run() } {
@@ -26,8 +31,8 @@ fn main() {
 
 unsafe fn run() -> Result<()> {
     let arguments = bootstrap::Arguments::parse()?;
-    let hwnd = unsafe { window::create()? };
-    let mut runtime = unsafe { Runtime::new(hwnd, window::WIDTH, window::HEIGHT)? };
+    let hwnd = window::create(WINDOW_CONFIG)?;
+    let mut runtime = unsafe { Runtime::new(hwnd, WINDOW_WIDTH, WINDOW_HEIGHT)? };
     let (inspect, commands) = inspect::InspectServer::start()?;
     let startup = arguments
         .bootstrap
@@ -36,7 +41,12 @@ unsafe fn run() -> Result<()> {
     let mut state = WorkbenchState::new(arguments.launched_by_sidecar, startup);
 
     if let Some(plan) = arguments.bootstrap {
-        state.startup = unsafe { bootstrap_runtime(hwnd, &mut runtime, &mut state, &plan)? };
+        let ready =
+            unsafe { bootstrap::drive(&mut runtime, &mut state.input, &plan, state.clear_color)? };
+        state.frame_index = ready.frame_count;
+        state.last_frame_ms = ready.last_frame_duration.as_secs_f64() * 1_000.0;
+        state.startup = ready.status;
+        unsafe { window::show(hwnd) };
     } else {
         unsafe {
             window::show(hwnd);
@@ -60,10 +70,9 @@ unsafe fn run() -> Result<()> {
         })
     );
 
-    let mut message = MSG::default();
     let mut pending = PendingOperations::default();
     'running: loop {
-        if !unsafe { pump_messages(&mut message) } {
+        if !window::pump_messages() {
             break 'running;
         }
 
@@ -101,69 +110,8 @@ unsafe fn run() -> Result<()> {
     }
 
     unsafe { runtime.wait_idle()? };
-    unsafe { window::teardown()? };
+    window::teardown()?;
     Ok(())
-}
-
-unsafe fn bootstrap_runtime(
-    hwnd: windows::Win32::Foundation::HWND,
-    runtime: &mut Runtime,
-    state: &mut WorkbenchState,
-    plan: &bootstrap::Plan,
-) -> Result<serde_json::Value> {
-    runtime
-        .open_terrain_pack(plan.terrain_path().to_path_buf())
-        .context("bootstrap terrain source failed")?;
-    runtime
-        .open_cooked_object_pack(plan.object_path().to_path_buf())
-        .context("bootstrap object source failed")?;
-    let schedule = unsafe { runtime.schedule_global_composition(plan.global_config()) }
-        .context("bootstrap canonical schedule failed")?;
-    let started = Instant::now();
-    let mut message = MSG::default();
-    loop {
-        if !unsafe { pump_messages(&mut message) } {
-            bail!("workbench closed during canonical bootstrap");
-        }
-        state.input.ingest(window::drain_input());
-        let frame_start = Instant::now();
-        unsafe {
-            let _ = runtime.frame(FrameRequest {
-                clear_color: state.clear_color,
-                capture: false,
-                capture_object_ids: false,
-                probe: false,
-            })?;
-        }
-        state.record_frame_with_duration(frame_start.elapsed());
-        if runtime.composition_enabled() {
-            unsafe { window::show(hwnd) };
-            return Ok(plan.ready_json(schedule, state.frame_index, started.elapsed()));
-        }
-        let status = runtime.composition_status();
-        if !status["lastFailure"].is_null() {
-            bail!("canonical bootstrap pair failed: {}", status["lastFailure"]);
-        }
-        if started.elapsed() >= bootstrap::TIMEOUT {
-            bail!(
-                "canonical bootstrap did not publish within {} seconds",
-                bootstrap::TIMEOUT.as_secs()
-            );
-        }
-    }
-}
-
-unsafe fn pump_messages(message: &mut MSG) -> bool {
-    while unsafe { PeekMessageW(message, None, 0, 0, PM_REMOVE) }.as_bool() {
-        if message.message == WM_QUIT {
-            return false;
-        }
-        unsafe {
-            let _ = TranslateMessage(message);
-            DispatchMessageW(message);
-        }
-    }
-    true
 }
 
 struct PendingCapture {
@@ -193,7 +141,7 @@ struct WorkbenchState {
     clear_color: [f32; 4],
     last_error: Option<String>,
     launched_by_sidecar: bool,
-    input: input::HostInput,
+    input: HostInput,
     startup: serde_json::Value,
 }
 
@@ -207,7 +155,7 @@ impl WorkbenchState {
             clear_color: DEFAULT_CLEAR_COLOR,
             last_error: None,
             launched_by_sidecar,
-            input: input::HostInput::new(),
+            input: HostInput::new(),
             startup,
         }
     }

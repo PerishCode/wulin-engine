@@ -1,7 +1,8 @@
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::input::PostedMessage;
+use reference_host::input::PostedMessage;
+
 use crate::perception::{PixelPoint, PixelRegion};
 
 pub enum ControlKind {
