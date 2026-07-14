@@ -1,4 +1,4 @@
-use animation_catalog::{CLIP_COUNT, Catalog as AnimationCatalog};
+use animation_catalog::{CLIP_COUNT, Catalog as AnimationCatalog, RIG_COUNT};
 use anyhow::{Result, ensure};
 use meshlet_catalog::Catalog as MeshletCatalog;
 use windows::Win32::Graphics::Direct3D12::*;
@@ -16,7 +16,7 @@ use crate::rendering::meshlet_scene::CatalogBuffers;
 use crate::rendering::resident::{transition, uav_barrier};
 use crate::rendering::terrain::TerrainProjection;
 
-pub const SKELETAL_REVISION: &str = "gpu-skeletal-crowds-v1";
+pub const SKELETAL_REVISION: &str = "gpu-skeletal-crowds-v2-rig-bank";
 
 #[derive(Clone, Copy)]
 pub struct SkeletalSettings {
@@ -392,7 +392,7 @@ impl SkeletalSceneRenderer {
             );
             constants[20 + index] = instance_slot | (terrain_slot << 6) | (semantic_region << 12);
         }
-        constants[48] = 0;
+        constants[48] = RIG_COUNT;
         constants[49] = self.settings.bone_count;
         constants[50] = self.settings.phase_count;
         constants[51] = self.settings.time_tick;

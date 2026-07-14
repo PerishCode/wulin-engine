@@ -58,11 +58,13 @@ for (
         "experiments/0033-deterministic-temporal-presentation/README.md",
         "experiments/0034-cooked-gltf-geometry/README.md",
         "experiments/0035-cooked-gltf-material/README.md",
+        "experiments/0036-cooked-gltf-skeletal-animation/README.md",
         "assets/third-party/khronos-fox/README.md",
         "docs/adr/0035-authored-object-presentation.md",
         "docs/adr/0036-deterministic-temporal-presentation.md",
         "docs/adr/0037-cooked-gltf-geometry.md",
         "docs/adr/0038-cooked-gltf-material.md",
+        "docs/adr/0039-cooked-gltf-skeletal-animation.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",
@@ -76,6 +78,7 @@ for (
         ".runseal/wrappers/workbench.ts",
         ".runseal/wrappers/canonical-runtime.ts",
         ".runseal/support/canonical-runtime.ts",
+        ".runseal/support/cooked-gltf-presentation.ts",
         ".runseal/support/temporal-presentation.ts",
     ]
 ) await requireFile(file);

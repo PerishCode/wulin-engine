@@ -7,6 +7,7 @@ use region_format::{
 
 pub const ORDER_A_REVISION: &str = "authored-object-presentation-order-a-v1";
 pub const ORDER_B_REVISION: &str = "authored-object-presentation-order-b-v1";
+pub const IMPORTED_PRESENTATION_CLIP: u32 = 1;
 
 #[derive(Clone, Copy)]
 pub enum PhysicalOrder {
@@ -126,6 +127,15 @@ pub fn author_presentations(
                 PresentationProfile::Imported => {
                     presentation.archetype = PRESENTATION_ARCHETYPE_COUNT - 1;
                     presentation.material = PRESENTATION_MATERIAL_COUNT - 1;
+                    presentation.animation = PresentationRecord::animated(
+                        presentation.archetype,
+                        presentation.material,
+                        presentation.yaw_q16,
+                        IMPORTED_PRESENTATION_CLIP,
+                        key.rotate_right(9) % PRESENTATION_ANIMATION_PHASE_COUNT,
+                        0,
+                    )
+                    .animation;
                 }
             }
             presentation

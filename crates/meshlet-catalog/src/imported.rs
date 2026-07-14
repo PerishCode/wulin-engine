@@ -1,19 +1,20 @@
 use sha2::{Digest, Sha256};
 
-use super::{ImportedMetadata, Vertex, VertexSurface};
+use super::{ImportedMetadata, ImportedVertexBinding, Vertex, VertexSurface};
 
 const PAYLOAD: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/khronos-fox.wlm"));
-const HEADER_BYTES: usize = 8 + 32 * 3 + 4 * 2 + 8 * 3;
+const HEADER_BYTES: usize = 8 + 32 * 3 + 4 * 4 + 8 * 3;
 
 pub(super) struct ImportedGeometry {
     pub vertices: Vec<Vertex>,
     pub surfaces: Vec<VertexSurface>,
+    pub bindings: Vec<ImportedVertexBinding>,
     pub lod_indices: [Vec<u32>; 3],
     pub metadata: ImportedMetadata,
 }
 
 pub(super) fn decode() -> Result<ImportedGeometry, String> {
-    if PAYLOAD.len() < HEADER_BYTES || &PAYLOAD[..8] != b"WLFOX001" {
+    if PAYLOAD.len() < HEADER_BYTES || &PAYLOAD[..8] != b"WLFOX002" {
         return Err("imported geometry header is invalid".into());
     }
     let mut offset = 8;
@@ -22,7 +23,9 @@ pub(super) fn decode() -> Result<ImportedGeometry, String> {
     let source_texture_sha256 = take_hash(PAYLOAD, &mut offset)?;
     let vertex_count = take_u32(PAYLOAD, &mut offset)? as usize;
     let lod_count = take_u32(PAYLOAD, &mut offset)? as usize;
-    if vertex_count == 0 || lod_count != 3 {
+    let source_joint_count = take_u32(PAYLOAD, &mut offset)?;
+    let maximum_joint_depth = take_u32(PAYLOAD, &mut offset)?;
+    if vertex_count == 0 || lod_count != 3 || source_joint_count != 24 || maximum_joint_depth > 7 {
         return Err("imported geometry shape is invalid".into());
     }
     let mut lod_index_counts = [0u32; 3];
@@ -45,6 +48,7 @@ pub(super) fn decode() -> Result<ImportedGeometry, String> {
 
     let mut vertices = Vec::with_capacity(vertex_count);
     let mut surfaces = Vec::with_capacity(vertex_count);
+    let mut bindings = Vec::with_capacity(vertex_count);
     let mut bounds_min = [f32::INFINITY; 3];
     let mut bounds_max = [f32::NEG_INFINITY; 3];
     for index in 0..vertex_count {
@@ -60,6 +64,10 @@ pub(super) fn decode() -> Result<ImportedGeometry, String> {
             take_f32(PAYLOAD, &mut offset)?,
             take_f32(PAYLOAD, &mut offset)?,
         ];
+        let binding = ImportedVertexBinding {
+            indices: take_u32(PAYLOAD, &mut offset)?,
+            weights: take_u32(PAYLOAD, &mut offset)?,
+        };
         if !position.into_iter().all(f32::is_finite)
             || position[3] != 1.0
             || !normal_uv.into_iter().all(f32::is_finite)
@@ -76,6 +84,7 @@ pub(super) fn decode() -> Result<ImportedGeometry, String> {
         }
         vertices.push(Vertex { position });
         surfaces.push(VertexSurface { normal_uv });
+        bindings.push(binding);
     }
     if bounds_min[1].abs() > f32::EPSILON || (bounds_max[1] - 1.0).abs() > f32::EPSILON {
         return Err("imported geometry height is not normalized to [0,1]".into());
@@ -108,15 +117,18 @@ pub(super) fn decode() -> Result<ImportedGeometry, String> {
     Ok(ImportedGeometry {
         vertices,
         surfaces,
+        bindings,
         lod_indices,
         metadata: ImportedMetadata {
-            revision: "cooked-gltf-geometry-v1",
+            revision: "cooked-gltf-geometry-v2-skin",
             source_json_sha256,
             source_bin_sha256,
             source_texture_sha256,
             cooked_sha256,
             vertex_start: 0,
             vertex_count: vertex_count as u32,
+            source_joint_count,
+            maximum_joint_depth,
             lod_index_counts,
             lod_errors,
             bounds_min,

@@ -125,6 +125,7 @@ await run("deno check", "deno", [
     ".runseal/wrappers/workbench.ts",
     ".runseal/wrappers/canonical-runtime.ts",
     ".runseal/support/canonical-runtime.ts",
+    ".runseal/support/cooked-gltf-presentation.ts",
     ".runseal/support/temporal-presentation.ts",
 ]);
 await run("flavor", "flavor", ["check", "--root", ".", "--config", "flavor.toml"]);

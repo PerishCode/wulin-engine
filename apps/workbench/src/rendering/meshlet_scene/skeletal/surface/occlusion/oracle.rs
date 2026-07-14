@@ -1,4 +1,6 @@
-use animation_catalog::{BONE_COUNT, CLIP_COUNT, Catalog as AnimationCatalog, unpack_bytes};
+use animation_catalog::{
+    BONE_COUNT, CLIP_COUNT, Catalog as AnimationCatalog, RIG_COUNT, unpack_bytes,
+};
 use anyhow::{Result, ensure};
 use glam::{Vec3, Vec4};
 use meshlet_catalog::Catalog;
@@ -60,26 +62,47 @@ pub fn validate_fixture_bound(mesh: &Catalog, animation: &AnimationCatalog) -> R
     for clip in 0..CLIP_COUNT {
         for phase in 0..64 {
             for bone_count in BONE_COUNTS {
-                let palette = animation.evaluate_pose(clip, phase, bone_count, 0);
+                let fixture_palette = animation.evaluate_pose(clip, phase, bone_count, 0);
+                let imported_palette = animation.evaluate_pose_for_archetype(
+                    meshlet_catalog::IMPORTED_ARCHETYPE,
+                    clip,
+                    phase,
+                    bone_count,
+                    0,
+                );
                 for height in HEIGHTS {
                     for (vertex_index, vertex) in mesh.vertices.iter().enumerate() {
+                        let imported = imported_range.contains(&(vertex_index as u32));
+                        if imported && bone_count < mesh.imported.source_joint_count {
+                            continue;
+                        }
                         let mut local = vertex.position;
-                        local[1] *= height;
+                        if !imported {
+                            local[1] *= height;
+                        }
                         let binding = animation.skin_bindings[vertex_index];
                         let mut skinned = Vec3::ZERO;
                         for (bone, weight) in unpack_bytes(binding.indices)
                             .into_iter()
                             .zip(unpack_bytes(binding.weights))
                         {
+                            let palette = if imported {
+                                &imported_palette
+                            } else {
+                                &fixture_palette
+                            };
                             skinned += Vec3::from_array(
                                 palette[usize::from(bone) % bone_count as usize]
                                     .transform_point(local[..3].try_into().unwrap()),
                             ) * (f32::from(weight) / 255.0);
                         }
+                        if imported {
+                            skinned.y *= height;
+                        }
                         maximum_radial_extent = maximum_radial_extent
                             .max(Vec3::new(skinned.x, 0.0, skinned.z).length());
                         let radial = Vec3::new(skinned.x, 0.0, skinned.z).length();
-                        let radial_bound = if imported_range.contains(&(vertex_index as u32)) {
+                        let radial_bound = if imported {
                             IMPORTED_BOUND_RADIAL
                         } else {
                             BOUND_RADIAL_SCALE * height + BOUND_RADIAL_BIAS
@@ -105,7 +128,7 @@ pub fn validate_fixture_bound(mesh: &Catalog, animation: &AnimationCatalog) -> R
         "generated skeletal vertical extent [{minimum_vertical_pad}, {maximum_vertical_pad}] exceeds {BOUND_VERTICAL_PAD}"
     );
     ensure!(
-        animation.bones.len() == BONE_COUNT as usize,
+        animation.bones.len() == (RIG_COUNT * BONE_COUNT) as usize,
         "animation hierarchy is incomplete"
     );
     Ok(BoundProof {

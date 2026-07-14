@@ -40,9 +40,10 @@ import {
     temporalGates,
     temporalHold,
 } from "../support/temporal-presentation.ts";
+import { importedPresentationGates } from "../support/cooked-gltf-presentation.ts";
 
-const REVISION = "cooked-gltf-material-v1";
-const COLLECTION = "0035-cooked-gltf-material";
+const REVISION = "cooked-gltf-skeletal-animation-v1";
+const COLLECTION = "0036-cooked-gltf-skeletal-animation";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -189,99 +190,16 @@ try {
         presentationMutations.push({ label, publication, frame: mutated });
     }
 
-    console.log("==> cooked glTF geometry/material gate");
-    await event("source.objects.open", { path: OBJECTS_IMPORTED });
-    const importedPublication = await publish(target(BASE));
-    assertObjectCopies(importedPublication, 25, "imported source publication");
-    const importedFrame = await frame("presentation-imported", COLLECTION);
-    const baseStable = object(orderA, "stable");
-    const importedStable = object(importedFrame, "stable");
-    same(
-        presentationInvariant(importedStable),
-        presentationInvariant(baseStable),
-        "imported geometry spatial/identity invariants",
+    console.log("==> cooked glTF geometry/material/skeletal animation gate");
+    const imported = await importedPresentationGates(
+        orderA,
+        OBJECTS_IMPORTED,
+        BASE,
+        COLLECTION,
     );
-    const importedSkeletal = object(importedStable, "skeletal");
-    const importedGeometry = object(importedSkeletal, "importedGeometry");
-    if (
-        string(importedGeometry, "revision") !== "cooked-gltf-geometry-v1" ||
-        string(importedGeometry, "sourceJsonSha256") !==
-            "6ddcabf511c0257b87dedf6ac51f1bdb6f21e570eee5fa7c4fa6162d055cb002" ||
-        string(importedGeometry, "sourceBinSha256") !==
-            "c7d0d8de28a84d5b25623037f88e063e1502495a2ee6c55f182c61161ad12f80" ||
-        string(importedGeometry, "sourceTextureSha256") !==
-            "61c8b109ee7f8bf262791933380fafb1465f7b51cbe6472c2d21eff0b31f83a1" ||
-        string(importedGeometry, "cookedSha256") !==
-            "a4dc1dbf84171f62cc61e522d43068f67d013467d3bdb591c733fab666f06124" ||
-        number(importedGeometry, "archetype") !== 7 ||
-        number(importedGeometry, "vertexCount") !== 434 ||
-        JSON.stringify(importedGeometry.lodTriangleCounts) !== JSON.stringify([576, 288, 144])
-    ) fail("imported geometry source/cook metadata diverged");
-    const importedGpu = object(importedSkeletal, "gpu");
-    if (
-        number(importedGpu, "observedArchetypeMask") !== 128 ||
-        JSON.stringify(importedGpu) ===
-            JSON.stringify(object(object(baseStable, "skeletal"), "gpu"))
-    ) fail("imported geometry did not become catalog-bound GPU work");
-    const importedSurface = object(importedStable, "surface");
-    const importedMaterial = object(importedSurface, "importedMaterial");
-    if (
-        string(importedSurface, "surfaceCatalogSha256") !==
-            "4267365c1d71e96beaff2ece04d6a94c450fd86131ebe65c2447c7b95cb8c15d" ||
-        string(importedMaterial, "revision") !== "cooked-gltf-material-v1" ||
-        string(importedMaterial, "sourceJsonSha256") !==
-            "6ddcabf511c0257b87dedf6ac51f1bdb6f21e570eee5fa7c4fa6162d055cb002" ||
-        string(importedMaterial, "sourceTextureSha256") !==
-            "61c8b109ee7f8bf262791933380fafb1465f7b51cbe6472c2d21eff0b31f83a1" ||
-        string(importedMaterial, "cookedSha256") !==
-            "5c18b4a6c9f13f79d5b6714ece3d0ef3e4ee20c181b1a169c7eb6a8392e41f0c" ||
-        string(importedMaterial, "fixtureTextureSha256") !==
-            "3f6256268867bf270268e7478145e12ab7e3216612b550cd1a412bf440357c8b" ||
-        number(importedMaterial, "materialIndex") !== 63 ||
-        number(importedMaterial, "textureLayer") !== 63 ||
-        number(importedMaterial, "textureSide") !== 64 ||
-        number(importedMaterial, "catalogGpuBytes") !== 1_500_416 ||
-        JSON.stringify(importedMaterial.sourceSize) !== JSON.stringify([1024, 1024]) ||
-        JSON.stringify(importedMaterial.mipSizes) !==
-            JSON.stringify([16384, 4096, 1024, 256, 64, 16, 4])
-    ) fail("imported material source/cook metadata diverged");
-    const importedStats = object(importedSurface, "stats");
-    if (
-        number(importedStats, "observedMaterialCount") !== 1 ||
-        JSON.stringify(importedStats.observedMaterialMask) !== JSON.stringify([0, 2147483648])
-    ) fail("imported presentation did not select only authored material 63");
-    const importedSamples = importedSurface.samples;
-    if (!Array.isArray(importedSamples)) fail("imported surface samples are not an array");
-    const visibleImportedSamples = importedSamples.filter((sample) =>
-        typeof sample === "object" && sample !== null &&
-        (sample as Json).materialIndex !== null
-    ) as Json[];
-    if (
-        visibleImportedSamples.length === 0 ||
-        visibleImportedSamples.some((sample) => sample.materialIndex !== 63)
-    ) fail("imported surface samples did not use authored material 63");
-    const rawImportedSkeletal = object(
-        object(object(importedFrame, "probe"), "surface"),
-        "skeletal",
-    );
-    for (
-        const dispatch of [
-            "resetDispatchCount",
-            "cullDispatchCount",
-            "poseCompactDispatchCount",
-            "indirectPoseDispatchCount",
-            "indirectMeshDispatchCount",
-        ]
-    ) {
-        if (number(rawImportedSkeletal, dispatch) !== 1) {
-            fail(`imported geometry changed fixed ${dispatch}`);
-        }
-    }
-    const baseCapture = object(baseStable, "capture");
-    const importedCapture = object(importedStable, "capture");
-    if (
-        importedCapture.color === baseCapture.color && importedCapture.png === baseCapture.png
-    ) fail("imported geometry did not change rendered color evidence");
+    const importedPublication = object(imported, "publication");
+    const importedFrame = object(imported, "tickZero");
+    const importedTickSixteen = object(imported, "tickSixteen");
 
     await event("source.objects.open", { path: OBJECTS_A });
     await publish(target(BASE));
@@ -459,6 +377,7 @@ try {
             presentationMutations,
             importedPublication,
             importedFrame,
+            importedTickSixteen,
             orderBPublication,
             orderB,
             revisitPublication,

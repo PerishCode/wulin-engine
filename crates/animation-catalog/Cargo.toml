@@ -8,3 +8,8 @@ rust-version.workspace = true
 [dependencies]
 meshlet-catalog.workspace = true
 sha2.workspace = true
+
+[build-dependencies]
+glam.workspace = true
+gltf.workspace = true
+sha2.workspace = true

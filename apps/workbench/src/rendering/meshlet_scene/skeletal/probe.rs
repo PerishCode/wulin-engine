@@ -1,10 +1,11 @@
 use std::mem::size_of;
 
-use animation_catalog::{CLIP_COUNT, Catalog as AnimationCatalog};
+use animation_catalog::{CLIP_COUNT, Catalog as AnimationCatalog, RIG_COUNT};
 use anyhow::{Result, bail, ensure};
 use meshlet_catalog::{Catalog as MeshletCatalog, IMPORTED_ARCHETYPE, LOD_COUNT};
 use serde::Serialize;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 use crate::load::LoadConfig;
 use crate::rendering::async_resident::PublishedSnapshot;
@@ -20,6 +21,7 @@ const PALETTE_TOLERANCE: f32 = 0.00002;
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PaletteSample {
+    pub rig: u32,
     pub clip: u32,
     pub phase: u32,
     pub bone_count: u32,
@@ -41,6 +43,10 @@ pub struct ImportedGeometryProbe {
     pub cooked_sha256: String,
     pub vertex_start: u32,
     pub vertex_count: u32,
+    pub source_joint_count: u32,
+    pub maximum_joint_depth: u32,
+    pub binding_count: u32,
+    pub binding_sha256: String,
     pub lod_index_counts: [u32; 3],
     pub lod_triangle_counts: [u32; 3],
     pub lod_meshlet_counts: [u32; 3],
@@ -48,6 +54,26 @@ pub struct ImportedGeometryProbe {
     pub lod_errors: [f32; 3],
     pub bounds_min: [f32; 3],
     pub bounds_max: [f32; 3],
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportedRigProbe {
+    pub revision: &'static str,
+    pub rig: u32,
+    pub source_json_sha256: String,
+    pub source_bin_sha256: String,
+    pub cooked_sha256: String,
+    pub source_joint_count: u32,
+    pub maximum_joint_depth: u32,
+    pub source_clip_names: [&'static str; 3],
+    pub source_clip_durations: [f32; 3],
+    pub source_clip_key_counts: [u32; 3],
+    pub clip_aliases: [u32; 8],
+    pub fixture_rig_sha256: String,
+    pub imported_rig_sha256: String,
+    pub catalog_gpu_bytes: usize,
+    pub pose_key_capacity: u32,
 }
 
 #[derive(Serialize)]
@@ -69,6 +95,7 @@ pub struct SkeletalProbe {
     pub palette_write_bytes: u64,
     pub palette_sample: Option<PaletteSample>,
     pub imported_geometry: ImportedGeometryProbe,
+    pub imported_rig: ImportedRigProbe,
     pub meshlet_catalog_sha256: String,
     pub animation_catalog_sha256: String,
     pub gpu_cull_classify_ms: f64,
@@ -183,6 +210,7 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
             * size_of::<animation_catalog::Affine>() as u64,
         palette_sample,
         imported_geometry: imported_geometry_probe(input.mesh_catalog),
+        imported_rig: imported_rig_probe(input.animation_catalog),
         meshlet_catalog_sha256: input.mesh_catalog_sha256.to_owned(),
         animation_catalog_sha256: input.animation_catalog_sha256.to_owned(),
         gpu_cull_classify_ms: milliseconds(0, 1),
@@ -210,6 +238,10 @@ fn imported_geometry_probe(catalog: &MeshletCatalog) -> ImportedGeometryProbe {
         cooked_sha256: catalog.imported.cooked_sha256.clone(),
         vertex_start: catalog.imported.vertex_start,
         vertex_count: catalog.imported.vertex_count,
+        source_joint_count: catalog.imported.source_joint_count,
+        maximum_joint_depth: catalog.imported.maximum_joint_depth,
+        binding_count: catalog.imported_vertex_bindings.len() as u32,
+        binding_sha256: hex(Sha256::digest(catalog.imported_vertex_binding_bytes())),
         lod_index_counts: catalog.imported.lod_index_counts,
         lod_triangle_counts: catalog.imported.lod_index_counts.map(|count| count / 3),
         lod_meshlet_counts,
@@ -217,6 +249,26 @@ fn imported_geometry_probe(catalog: &MeshletCatalog) -> ImportedGeometryProbe {
         lod_errors: catalog.imported.lod_errors,
         bounds_min: catalog.imported.bounds_min,
         bounds_max: catalog.imported.bounds_max,
+    }
+}
+
+fn imported_rig_probe(catalog: &AnimationCatalog) -> ImportedRigProbe {
+    ImportedRigProbe {
+        revision: catalog.imported.revision,
+        rig: animation_catalog::IMPORTED_RIG,
+        source_json_sha256: catalog.imported.source_json_sha256.clone(),
+        source_bin_sha256: catalog.imported.source_bin_sha256.clone(),
+        cooked_sha256: catalog.imported.cooked_sha256.clone(),
+        source_joint_count: catalog.imported.source_joint_count,
+        maximum_joint_depth: catalog.imported.maximum_joint_depth,
+        source_clip_names: catalog.imported.source_clip_names,
+        source_clip_durations: catalog.imported.source_clip_durations,
+        source_clip_key_counts: catalog.imported.source_clip_key_counts,
+        clip_aliases: catalog.imported.clip_aliases,
+        fixture_rig_sha256: catalog.rig_sha256(animation_catalog::FIXTURE_RIG),
+        imported_rig_sha256: catalog.rig_sha256(animation_catalog::IMPORTED_RIG),
+        catalog_gpu_bytes: catalog.gpu_bytes(),
+        pose_key_capacity: animation_catalog::MAX_POSE_KEYS,
     }
 }
 
@@ -243,13 +295,13 @@ unsafe fn read_palette_sample(
     catalog: &AnimationCatalog,
 ) -> Result<PaletteSample> {
     let words = unsafe { read_values::<u32>(&resources.sample_readback, 56) }?;
-    let (clip, phase, bone_count, variant, pose_slot) =
-        (words[0], words[1], words[2], words[3], words[4]);
+    let (clip, phase, bone_count, variant, pose_slot, rig) =
+        (words[0], words[1], words[2], words[3], words[4], words[5]);
     ensure!(
-        clip < CLIP_COUNT && phase < 64,
+        rig < RIG_COUNT && clip < CLIP_COUNT && phase < 64,
         "skeletal sample metadata is invalid"
     );
-    let expected = catalog.evaluate_pose(clip, phase, bone_count, variant);
+    let expected = catalog.evaluate_pose_for_rig(rig, clip, phase, bone_count, variant);
     let sampled_bones = bone_count.min(4);
     let mut maximum_absolute_delta = 0.0f32;
     for bone in 0..sampled_bones as usize {
@@ -264,6 +316,7 @@ unsafe fn read_palette_sample(
         "skeletal palette sample delta {maximum_absolute_delta} exceeds {PALETTE_TOLERANCE}"
     );
     Ok(PaletteSample {
+        rig,
         clip,
         phase,
         bone_count,
@@ -273,4 +326,12 @@ unsafe fn read_palette_sample(
         maximum_absolute_delta,
         tolerance: PALETTE_TOLERANCE,
     })
+}
+
+fn hex(bytes: impl AsRef<[u8]>) -> String {
+    bytes
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
