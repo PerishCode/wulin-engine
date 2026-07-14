@@ -56,6 +56,29 @@ fn imported_profile_selects_the_imported_archetype_and_material() {
 }
 
 #[test]
+fn imported_duration_profile_has_one_authored_walk_phase() {
+    let source = (0..RECORDS_PER_REGION)
+        .map(|local_id| InstanceRecord {
+            position: [local_id as f32, 0.0, 0.0],
+            height: 1.0,
+            region_id: 571,
+        })
+        .collect::<Vec<_>>();
+    let imported = author_presentations(&source, PresentationProfile::ImportedDuration);
+    for presentation in imported {
+        assert_eq!(presentation.archetype, PRESENTATION_ARCHETYPE_COUNT - 1);
+        assert_eq!(presentation.material, PRESENTATION_MATERIAL_COUNT - 1);
+        assert!(presentation.is_animated());
+        assert_eq!(
+            presentation.animation_clip(),
+            Some(IMPORTED_PRESENTATION_CLIP)
+        );
+        assert_eq!(presentation.animation_phase_offset(), Some(0));
+        assert_eq!(presentation.animation_variant(), Some(0));
+    }
+}
+
+#[test]
 fn mutation_profiles_change_only_the_selected_property() {
     let source = (0..RECORDS_PER_REGION)
         .map(|local_id| InstanceRecord {

@@ -11,7 +11,7 @@ const COMPACT_SHADER: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/skeletal_scene.compact.dxil"));
 const POSE_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/skeletal_scene.pose.dxil"));
 
-pub const SKELETAL_CONSTANT_COUNT: u32 = 56;
+pub const SKELETAL_CONSTANT_COUNT: u32 = 60;
 
 pub struct SkeletalPipeline {
     pub root: ID3D12RootSignature,

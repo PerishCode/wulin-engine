@@ -55,8 +55,16 @@ function assertImportedMetadata(stable: Json): void {
         number(rig, "maximumJointDepth") !== 7 ||
         number(rig, "poseKeyCapacity") !== 1024 ||
         JSON.stringify(rig.sourceClipNames) !== JSON.stringify(["Survey", "Walk", "Run"]) ||
+        JSON.stringify(rig.sourceClipDurationUnits) !==
+            JSON.stringify([16400, 3400, 5560]) ||
         JSON.stringify(rig.sourceClipKeyCounts) !== JSON.stringify([83, 18, 25]) ||
         JSON.stringify(rig.clipAliases) !== JSON.stringify([0, 1, 2, 0, 1, 2, 0, 1]) ||
+        JSON.stringify(rig.clipDurationUnits) !==
+            JSON.stringify([16400, 3400, 5560, 16400, 3400, 5560, 16400, 3400]) ||
+        number(rig, "rootConstantDwords") !== 60 ||
+        number(rig, "clockFramePeriod") !== 31_002_560 ||
+        number(rig, "timeUnitsPerFrame") !== 80 ||
+        number(rig, "timeUnitsPerSecond") !== 4_800 ||
         string(skeletal, "animationCatalogSha256") !==
             "4201d5d51820957df83700e7fbc22631e41b3fa8fca6ec076bf727bc61558f82"
     ) fail("imported skeletal animation metadata diverged");
@@ -96,7 +104,11 @@ function assertImportedMaterial(stable: Json): void {
     }
 }
 
-function assertImportedGpu(frameValue: Json): void {
+function assertImportedGpu(
+    frameValue: Json,
+    activePoses = 64,
+    expectedPhase: number | null = null,
+): void {
     const stable = object(frameValue, "stable");
     const skeletal = object(stable, "skeletal");
     const gpu = object(skeletal, "gpu");
@@ -104,7 +116,7 @@ function assertImportedGpu(frameValue: Json): void {
         number(gpu, "observedArchetypeMask") !== 128 ||
         number(gpu, "animated") !== number(gpu, "visible") ||
         number(gpu, "staticCount") !== 0 ||
-        number(gpu, "activePoses") !== 64
+        number(gpu, "activePoses") !== activePoses
     ) fail("imported authored animation did not become bounded rig-1 GPU work");
     const raw = object(object(object(frameValue, "probe"), "surface"), "skeletal");
     const sample = object(raw, "paletteSample");
@@ -112,6 +124,9 @@ function assertImportedGpu(frameValue: Json): void {
         number(sample, "rig") !== 1 || number(sample, "clip") !== 1 ||
         number(sample, "variant") !== 0 || number(sample, "maximumAbsoluteDelta") > 0.00002
     ) fail("imported GPU palette sample diverged from the CPU rig oracle");
+    if (expectedPhase !== null && number(sample, "phase") !== expectedPhase) {
+        fail("imported GPU palette phase diverged from source-duration time");
+    }
     for (
         const dispatch of [
             "resetDispatchCount",
@@ -123,6 +138,84 @@ function assertImportedGpu(frameValue: Json): void {
     ) {
         if (number(raw, dispatch) !== 1) fail(`imported rig changed fixed ${dispatch}`);
     }
+}
+
+function durationRepeatEvidence(frameValue: Json): Json {
+    const stable = object(frameValue, "stable");
+    const skeletal = object(stable, "skeletal");
+    return {
+        invariant: presentationInvariant(stable),
+        objects: object(stable, "objects"),
+        skeletal: {
+            gpu: skeletal.gpu,
+            cpuOracle: skeletal.cpuOracle,
+            paletteWriteBytes: skeletal.paletteWriteBytes,
+            importedGeometry: skeletal.importedGeometry,
+            importedRig: skeletal.importedRig,
+            meshletCatalogSha256: skeletal.meshletCatalogSha256,
+            animationCatalogSha256: skeletal.animationCatalogSha256,
+        },
+        surface: stable.surface,
+        capture: stable.capture,
+    };
+}
+
+export async function sourceDurationGates(
+    baseline: Json,
+    objectPath: string,
+    base: Coord,
+    collection: string,
+): Promise<Json> {
+    await event("source.objects.open", { path: objectPath });
+    const publication = await publish(target(base));
+    const objects = object(object(publication, "published"), "objects");
+    if (
+        number(objects, "uploadedRegionCount") !== 25 ||
+        number(objects, "identityCopyCount") !== 25 ||
+        number(objects, "presentationCopyCount") !== 25
+    ) fail("source-duration object triple copy count diverged");
+
+    const captures: Record<string, Json> = {};
+    for (const [tick, expectedPhase] of [[0, 0], [42, 63], [43, 0], [85, 0]]) {
+        await event("canonical.time.set", { tick });
+        const value = await frame(`source-duration-${tick}`, collection);
+        const stable = object(value, "stable");
+        same(
+            presentationInvariant(stable),
+            presentationInvariant(object(baseline, "stable")),
+            `source-duration tick ${tick} spatial/identity invariants`,
+        );
+        if (number(object(object(stable, "skeletal"), "settings"), "timeTick") !== tick) {
+            fail(`source-duration tick ${tick} was not observed by the renderer`);
+        }
+        assertImportedMetadata(stable);
+        assertImportedMaterial(stable);
+        assertImportedGpu(value, 1, expectedPhase);
+        captures[String(tick)] = value;
+    }
+    same(
+        durationRepeatEvidence(captures["43"]),
+        durationRepeatEvidence(captures["0"]),
+        "source-duration first sampled Walk loop",
+    );
+    same(
+        durationRepeatEvidence(captures["85"]),
+        durationRepeatEvidence(captures["0"]),
+        "source-duration second sampled Walk loop",
+    );
+    const zeroCapture = object(object(captures["0"], "stable"), "capture");
+    const endCapture = object(object(captures["42"], "stable"), "capture");
+    if (zeroCapture.color === endCapture.color || zeroCapture.png === endCapture.png) {
+        fail("source-duration Walk end pose did not change rendered evidence");
+    }
+    await event("canonical.time.set", { tick: 0 });
+    return {
+        publication,
+        tickZero: captures["0"],
+        tick42: captures["42"],
+        tick43: captures["43"],
+        tick85: captures["85"],
+    };
 }
 
 export async function importedPresentationGates(

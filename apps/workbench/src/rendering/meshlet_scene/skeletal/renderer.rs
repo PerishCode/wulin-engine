@@ -16,7 +16,7 @@ use crate::rendering::meshlet_scene::CatalogBuffers;
 use crate::rendering::resident::{transition, uav_barrier};
 use crate::rendering::terrain::TerrainProjection;
 
-pub const SKELETAL_REVISION: &str = "gpu-skeletal-crowds-v2-rig-bank";
+pub const SKELETAL_REVISION: &str = "gpu-skeletal-crowds-v3-source-duration";
 
 #[derive(Clone, Copy)]
 pub struct SkeletalSettings {
@@ -145,9 +145,9 @@ impl SkeletalSceneRenderer {
             "presentation clock must be paused before setting time"
         );
         ensure!(
-            tick < self.settings.phase_count,
+            tick < animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD,
             "presentation tick must be below {}",
-            self.settings.phase_count
+            animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD
         );
         self.settings.time_tick = tick;
         Ok(())
@@ -175,11 +175,10 @@ impl SkeletalSceneRenderer {
     }
 
     fn advance_presentation_ticks(&mut self, ticks: u32) {
-        let total = self.settings.time_tick + ticks;
-        self.time_wrap_count = self
-            .time_wrap_count
-            .wrapping_add(u64::from(total / self.settings.phase_count));
-        self.settings.time_tick = total % self.settings.phase_count;
+        let total = u64::from(self.settings.time_tick) + u64::from(ticks);
+        let period = u64::from(animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD);
+        self.time_wrap_count = self.time_wrap_count.wrapping_add(total / period);
+        self.settings.time_tick = (total % period) as u32;
     }
 
     pub unsafe fn record(
@@ -400,6 +399,7 @@ impl SkeletalSceneRenderer {
         constants[53] = MAX_SKELETAL_VISIBLE;
         constants[54] = MAX_SHARED_POSES;
         constants[55] = grounding_mode;
+        constants[56..59].copy_from_slice(&animation_catalog::IMPORTED_SOURCE_CLIP_DURATION_UNITS);
         Ok(constants)
     }
 }

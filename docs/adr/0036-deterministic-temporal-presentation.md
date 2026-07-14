@@ -1,9 +1,9 @@
 # ADR 0036: Deterministic Temporal Presentation
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-07-14
 - Supersedes: None
-- Superseded by: None
+- Superseded by: ADR 0040
 
 ## Context
 

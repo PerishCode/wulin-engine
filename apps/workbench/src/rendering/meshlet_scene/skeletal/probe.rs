@@ -68,12 +68,18 @@ pub struct ImportedRigProbe {
     pub maximum_joint_depth: u32,
     pub source_clip_names: [&'static str; 3],
     pub source_clip_durations: [f32; 3],
+    pub source_clip_duration_units: [u32; 3],
     pub source_clip_key_counts: [u32; 3],
     pub clip_aliases: [u32; 8],
+    pub clip_duration_units: [u32; 8],
     pub fixture_rig_sha256: String,
     pub imported_rig_sha256: String,
     pub catalog_gpu_bytes: usize,
     pub pose_key_capacity: u32,
+    pub root_constant_dwords: u32,
+    pub clock_frame_period: u32,
+    pub time_units_per_frame: u32,
+    pub time_units_per_second: u32,
 }
 
 #[derive(Serialize)]
@@ -263,12 +269,18 @@ fn imported_rig_probe(catalog: &AnimationCatalog) -> ImportedRigProbe {
         maximum_joint_depth: catalog.imported.maximum_joint_depth,
         source_clip_names: catalog.imported.source_clip_names,
         source_clip_durations: catalog.imported.source_clip_durations,
+        source_clip_duration_units: animation_catalog::IMPORTED_SOURCE_CLIP_DURATION_UNITS,
         source_clip_key_counts: catalog.imported.source_clip_key_counts,
         clip_aliases: catalog.imported.clip_aliases,
+        clip_duration_units: animation_catalog::IMPORTED_CLIP_DURATION_UNITS,
         fixture_rig_sha256: catalog.rig_sha256(animation_catalog::FIXTURE_RIG),
         imported_rig_sha256: catalog.rig_sha256(animation_catalog::IMPORTED_RIG),
         catalog_gpu_bytes: catalog.gpu_bytes(),
         pose_key_capacity: animation_catalog::MAX_POSE_KEYS,
+        root_constant_dwords: super::pipeline::SKELETAL_CONSTANT_COUNT,
+        clock_frame_period: animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD,
+        time_units_per_frame: animation_catalog::PRESENTATION_TIME_UNITS_PER_FRAME,
+        time_units_per_second: animation_catalog::PRESENTATION_TIME_UNITS_PER_SECOND,
     }
 }
 
