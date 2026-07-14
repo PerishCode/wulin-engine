@@ -55,7 +55,9 @@ for (
         "tools/terrain-cooker/src/main.rs",
         "experiments/0031-canonical-runtime-convergence/README.md",
         "experiments/0032-authored-object-presentation/README.md",
+        "experiments/0033-deterministic-temporal-presentation/README.md",
         "docs/adr/0035-authored-object-presentation.md",
+        "docs/adr/0036-deterministic-temporal-presentation.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",
@@ -69,6 +71,7 @@ for (
         ".runseal/wrappers/workbench.ts",
         ".runseal/wrappers/canonical-runtime.ts",
         ".runseal/support/canonical-runtime.ts",
+        ".runseal/support/temporal-presentation.ts",
     ]
 ) await requireFile(file);
 

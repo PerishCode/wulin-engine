@@ -60,4 +60,16 @@ impl SkeletalSceneRenderer {
             "uniquePoses": self.settings.unique_poses,
         })
     }
+
+    pub(in crate::rendering) fn presentation_time_json(&self) -> Value {
+        json!({
+            "revision": "deterministic-presentation-time-v1",
+            "tick": self.settings.time_tick,
+            "phaseCount": self.settings.phase_count,
+            "running": self.time_running,
+            "automaticAdvanceCount": self.automatic_time_advance_count,
+            "manualStepCount": self.manual_time_step_count,
+            "wrapCount": self.time_wrap_count,
+        })
+    }
 }

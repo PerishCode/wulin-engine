@@ -311,7 +311,7 @@ impl Renderer {
         }?;
         Ok(CompositionProbe {
             revision: COMPOSITION_REVISION,
-            pair: self.composition.status_json(),
+            pair: self.composition_status(),
             canonical_objects,
             grounding: GroundingProbe {
                 authority: authority::NAME,

@@ -69,6 +69,15 @@ pub(crate) fn handle_commands(
                     .map_err(|error| protocol_error("pack_open_failed", error))
             }
             ControlKind::CanonicalStatus => Ok(renderer.composition_status()),
+            ControlKind::CanonicalTimeStatus => Ok(renderer.presentation_time_status()),
+            ControlKind::CanonicalTimePause => Ok(renderer.pause_presentation_time()),
+            ControlKind::CanonicalTimeResume => Ok(renderer.resume_presentation_time()),
+            ControlKind::CanonicalTimeSet { tick } => renderer
+                .set_presentation_time(tick)
+                .map_err(|error| protocol_error("invalid_presentation_time", error)),
+            ControlKind::CanonicalTimeStep { ticks } => renderer
+                .step_presentation_time(ticks)
+                .map_err(|error| protocol_error("invalid_presentation_time", error)),
             ControlKind::CanonicalSchedule {
                 origin_x,
                 origin_z,

@@ -35,9 +35,14 @@ import {
     useSidecar,
     waitStatus,
 } from "../support/canonical-runtime.ts";
+import {
+    presentationInvariant,
+    temporalGates,
+    temporalHold,
+} from "../support/temporal-presentation.ts";
 
-const REVISION = "authored-object-presentation-v1";
-const COLLECTION = "0032-authored-object-presentation";
+const REVISION = "deterministic-temporal-presentation-v1";
+const COLLECTION = "0033-deterministic-temporal-presentation";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -57,21 +62,6 @@ if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     Deno.exit(0);
 }
 if (Deno.args.length !== 0) fail(`canonical-runtime: unexpected argument ${Deno.args[0]}`);
-
-function presentationInvariant(stable: Json): Json {
-    const objects = object(stable, "objects");
-    return {
-        objects: {
-            identityKeyedSha256: objects.identityKeyedSha256,
-            stableKeySha256: objects.stableKeySha256,
-            stableSeedSha256: objects.stableSeedSha256,
-            entries: objects.entries,
-        },
-        grounding: stable.grounding,
-        contact: stable.contact,
-        terrain: stable.terrain,
-    };
-}
 
 function assertObjectCopies(publication: Json, expected: number, label: string): void {
     const objects = object(object(publication, "published"), "objects");
@@ -147,6 +137,9 @@ try {
     assertObjectCopies(basePublication, 25, "cold publication");
     const orderA = await frame("order-a", COLLECTION);
 
+    console.log("==> deterministic presentation time gates");
+    const temporal = await temporalGates(orderA, COLLECTION);
+
     const presentationMutations: Json[] = [];
     for (
         const [label, path] of [
@@ -221,6 +214,12 @@ try {
     same(alias.stable, orderA.stable, "compensated alias frame");
     await event("camera.reset");
     await publish(target(BASE));
+
+    const temporalHeld = await temporalHold(
+        await frame("temporal-hold-before", COLLECTION),
+        COLLECTION,
+        BASE,
+    );
 
     const holds: Json[] = [];
     for (
@@ -353,6 +352,7 @@ try {
             idle,
             basePublication,
             orderA,
+            temporal,
             presentationMutations,
             orderBPublication,
             orderB,
@@ -367,6 +367,7 @@ try {
             returned,
             aliasPublication,
             alias,
+            temporalHeld,
             holds,
             objectFailure,
             terrainFailure,
