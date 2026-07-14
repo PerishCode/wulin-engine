@@ -58,11 +58,32 @@ pub struct SurfaceSample {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ImportedMaterialProbe {
+    pub revision: &'static str,
+    pub source_json_sha256: String,
+    pub source_texture_sha256: String,
+    pub cooked_sha256: String,
+    pub material_index: u32,
+    pub texture_layer: u32,
+    pub source_size: [u32; 2],
+    pub texture_side: u32,
+    pub mip_sizes: [u32; 7],
+    pub mip_sha256: [String; 7],
+    pub base_color: [f32; 4],
+    pub roughness: f32,
+    pub metallic: f32,
+    pub fixture_texture_sha256: String,
+    pub catalog_gpu_bytes: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SurfaceProbe {
     pub revision: &'static str,
     pub settings: Value,
     pub skeletal: SkeletalProbe,
     pub surface_catalog_sha256: String,
+    pub imported_material: ImportedMaterialProbe,
     pub visibility_sha256: String,
     pub visibility_width: u32,
     pub visibility_height: u32,
@@ -253,6 +274,7 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {
         settings: input.settings_json,
         skeletal,
         surface_catalog_sha256: input.resources.catalog_sha256.clone(),
+        imported_material: imported_material_probe(&input.resources.catalog),
         visibility_sha256: format!("{:x}", Sha256::digest(&visibility.bytes)),
         visibility_width: visibility.width,
         visibility_height: visibility.height,
@@ -279,6 +301,27 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {
         gpu_hierarchy_ms: milliseconds(6, 7),
         gpu_total_ms: milliseconds(0, 7),
     })
+}
+
+fn imported_material_probe(catalog: &surface_catalog::Catalog) -> ImportedMaterialProbe {
+    let imported = &catalog.imported_material;
+    ImportedMaterialProbe {
+        revision: imported.revision,
+        source_json_sha256: imported.source_json_sha256.clone(),
+        source_texture_sha256: imported.source_texture_sha256.clone(),
+        cooked_sha256: imported.cooked_sha256.clone(),
+        material_index: imported.material_index,
+        texture_layer: imported.texture_layer,
+        source_size: imported.source_size,
+        texture_side: imported.texture_side,
+        mip_sizes: imported.mip_sizes,
+        mip_sha256: imported.mip_sha256.clone(),
+        base_color: imported.base_color,
+        roughness: imported.roughness,
+        metallic: imported.metallic,
+        fixture_texture_sha256: catalog.fixture_texture_sha256(),
+        catalog_gpu_bytes: catalog.gpu_bytes(),
+    }
 }
 
 fn validate_visibility(bytes: &[u8], primitive_count: u32) -> (u32, u32) {

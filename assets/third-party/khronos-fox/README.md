@@ -24,5 +24,5 @@ CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/
 CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
 
 No endorsement by the original authors or Khronos Group is implied. Experiment 0034
-uses geometry only; retaining the complete source keeps provenance intact for later,
-separately accepted texture or skeletal import work.
+uses the geometry, and Experiment 0035 uses the base-color material and texture. The
+source rig and animation remain reserved for separately accepted import work.

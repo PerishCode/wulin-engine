@@ -9,3 +9,8 @@ publish = false
 [dependencies]
 meshlet-catalog.workspace = true
 sha2.workspace = true
+
+[build-dependencies]
+gltf.workspace = true
+png.workspace = true
+sha2.workspace = true

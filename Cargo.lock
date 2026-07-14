@@ -402,7 +402,9 @@ checksum = "703d5c7ef118737c72f1af64ad2f6f8c5e1921f818cdcb97b8fe6fc69bf66214"
 name = "surface-catalog"
 version = "0.0.0"
 dependencies = [
+ "gltf",
  "meshlet-catalog",
+ "png",
  "sha2",
 ]
 
