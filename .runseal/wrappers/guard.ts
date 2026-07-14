@@ -45,6 +45,14 @@ async function requireRuntimeBoundary(): Promise<void> {
             "apps/workbench/src/world.rs",
             "apps/workbench/shaders",
             "apps/workbench/build.rs",
+            "apps/prototype/src/rendering",
+            "apps/prototype/src/streaming",
+            "apps/prototype/src/scene",
+            "apps/prototype/src/bootstrap.rs",
+            "apps/prototype/src/input.rs",
+            "apps/prototype/src/window.rs",
+            "apps/prototype/shaders",
+            "apps/prototype/build.rs",
         ]
     ) {
         try {
@@ -61,7 +69,7 @@ async function requireRuntimeBoundary(): Promise<void> {
             "--no-index",
             "-n",
             "-E",
-            "crate::(capture|inspect|perception|window)|apps/workbench|mods/|experiments/",
+            "crate::(capture|inspect|perception|window)|reference[_-]host|apps/(workbench|prototype)|mods/|experiments/",
             "--",
             "crates/engine-runtime",
         ],
@@ -109,8 +117,8 @@ async function requireRuntimeBoundary(): Promise<void> {
         stderr: "inherit",
     }).output();
     if (!tree.success) fail(`guard: engine-runtime dependency tree failed with ${tree.code}`);
-    if (/^workbench\s/m.test(new TextDecoder().decode(tree.stdout))) {
-        fail("guard: engine-runtime dependency tree points back to workbench");
+    if (/^(workbench|prototype|reference-host)\s/m.test(new TextDecoder().decode(tree.stdout))) {
+        fail("guard: engine-runtime dependency tree points back to a host");
     }
 
     const rendererTimeAuthority = await new Deno.Command("git", {
@@ -176,7 +184,7 @@ async function requireRuntimeBoundary(): Promise<void> {
             "--no-index",
             "-n",
             "--fixed-strings",
-            "pub(crate) struct HostInput",
+            "pub struct HostInput",
             "--",
             "apps",
             "crates",
@@ -189,8 +197,55 @@ async function requireRuntimeBoundary(): Promise<void> {
         .filter((line) => line.length > 0);
     if (
         inputOwner.code !== 0 || inputOwnerLines.length !== 1 ||
-        !inputOwnerLines[0].startsWith("apps/workbench/src/input.rs:")
+        !inputOwnerLines[0].startsWith("crates/reference-host/src/input.rs:")
     ) fail(`guard: host input ownership diverged: ${JSON.stringify(inputOwnerLines)}`);
+
+    const hostTreeChecks = [
+        ["workbench", false],
+        ["prototype", true],
+    ] as const;
+    for (const [app, forbidWorkbench] of hostTreeChecks) {
+        const appTree = await new Deno.Command("cargo", {
+            args: ["tree", "-p", app, "--edges", "normal", "--prefix", "none"],
+            cwd: root,
+            stdout: "piped",
+            stderr: "inherit",
+        }).output();
+        if (!appTree.success) fail(`guard: ${app} dependency tree failed with ${appTree.code}`);
+        const dependencies = new TextDecoder().decode(appTree.stdout);
+        if (!/^reference-host\s/m.test(dependencies) || !/^engine-runtime\s/m.test(dependencies)) {
+            fail(`guard: ${app} does not consume the shared reference host and runtime`);
+        }
+        if (forbidWorkbench && /^workbench\s/m.test(dependencies)) {
+            fail("guard: prototype depends on the diagnostic workbench");
+        }
+    }
+
+    const prototypeDiagnostics = await new Deno.Command("git", {
+        args: [
+            "grep",
+            "--no-index",
+            "-n",
+            "-E",
+            "InspectServer|inspect_socket|workbench::|arm_.*_gate|perception|CapturedFrame",
+            "--",
+            "apps/prototype",
+            "sidecar.prototype.toml",
+        ],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    if (prototypeDiagnostics.code === 0) {
+        fail(
+            `guard: prototype depends on diagnostic behavior\n${
+                new TextDecoder().decode(prototypeDiagnostics.stdout)
+            }`,
+        );
+    }
+    if (prototypeDiagnostics.code !== 1) {
+        fail(`guard: prototype diagnostic scan failed with ${prototypeDiagnostics.code}`);
+    }
 
     const engineHostInput = await new Deno.Command("git", {
         args: [
@@ -338,6 +393,7 @@ await run("deno check", "deno", [
     ".runseal/support/canonical-runtime.ts",
     ".runseal/support/host-input-replay.ts",
     ".runseal/support/runtime-bootstrap.ts",
+    ".runseal/support/prototype-host.ts",
     ".runseal/support/cooked-gltf-presentation.ts",
     ".runseal/support/temporal-presentation.ts",
 ]);
@@ -361,6 +417,14 @@ await run("sidecar bootstrap plan", "sidecar", [
     "plan",
     "--config",
     "sidecar.bootstrap.toml",
+    "--format",
+    "json",
+]);
+await run("sidecar prototype doctor", "sidecar", ["doctor", "--config", "sidecar.prototype.toml"]);
+await run("sidecar prototype plan", "sidecar", [
+    "plan",
+    "--config",
+    "sidecar.prototype.toml",
     "--format",
     "json",
 ]);

@@ -1,10 +1,16 @@
 use std::sync::mpsc::Receiver;
 
 use engine_runtime::{GlobalRegionConfig, Runtime};
+use reference_host::{
+    bootstrap::{PackKind, validate_pack_path},
+    window,
+};
 use serde_json::json;
 use windows::Win32::Foundation::HWND;
 
-use crate::{PendingCapture, PendingOperations, WorkbenchState, perception, window};
+use crate::{
+    PendingCapture, PendingOperations, WINDOW_HEIGHT, WINDOW_WIDTH, WorkbenchState, perception,
+};
 
 use super::protocol::{ControlKind, ControlResult, ProtocolError};
 use super::server::ControlCommand;
@@ -63,16 +69,12 @@ pub(crate) fn handle_commands(
             | ControlKind::WorldRebase { .. }
             | ControlKind::WorldReset
             | ControlKind::WorldProbe) => super::world_control::dispatch(runtime, world),
-            ControlKind::TerrainSourceOpen { path } => {
-                super::validate_pack_path(&path, super::PackKind::Terrain)
-                    .and_then(|path| runtime.open_terrain_pack(path))
-                    .map_err(|error| protocol_error("pack_open_failed", error))
-            }
-            ControlKind::ObjectSourceOpen { path } => {
-                super::validate_pack_path(&path, super::PackKind::Objects)
-                    .and_then(|path| runtime.open_cooked_object_pack(path))
-                    .map_err(|error| protocol_error("pack_open_failed", error))
-            }
+            ControlKind::TerrainSourceOpen { path } => validate_pack_path(&path, PackKind::Terrain)
+                .and_then(|path| runtime.open_terrain_pack(path))
+                .map_err(|error| protocol_error("pack_open_failed", error)),
+            ControlKind::ObjectSourceOpen { path } => validate_pack_path(&path, PackKind::Objects)
+                .and_then(|path| runtime.open_cooked_object_pack(path))
+                .map_err(|error| protocol_error("pack_open_failed", error)),
             ControlKind::CanonicalStatus => Ok(runtime.composition_status()),
             ControlKind::CanonicalTimeStatus => Ok(runtime.presentation_time_status()),
             ControlKind::CanonicalTimePause => Ok(runtime.pause_presentation_time()),
@@ -158,7 +160,7 @@ pub(crate) fn handle_commands(
                 collection,
                 region,
                 samples,
-            } => match perception::Request::new(region, samples, window::WIDTH, window::HEIGHT) {
+            } => match perception::Request::new(region, samples, WINDOW_WIDTH, WINDOW_HEIGHT) {
                 Ok(perception) if pending.is_idle() => {
                     pending.capture = Some(PendingCapture {
                         id,

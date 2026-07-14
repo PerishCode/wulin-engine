@@ -137,3 +137,14 @@ fn invalid_record_lifecycle_operations_do_not_change_state() {
     assert!(input.replay().is_err());
     assert_eq!(input.held, initial);
 }
+
+#[test]
+fn held_query_exposes_only_normalized_live_state() {
+    let mut input = HostInput::new();
+    assert!(!input.is_held(0));
+    assert!(!input.is_held(27));
+    input.ingest(vec![key(27, true), key(27, true)]);
+    assert!(input.is_held(27));
+    input.ingest(vec![NativeMessage::FocusLost]);
+    assert!(!input.is_held(27));
+}

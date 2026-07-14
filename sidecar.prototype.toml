@@ -1,0 +1,22 @@
+[project]
+name = "wulin-engine"
+namespace = "prototype"
+root = "."
+
+[app]
+name = "prototype"
+command = "cargo"
+args = [
+  "run",
+  "--locked",
+  "-p",
+  "prototype",
+  "--",
+  "--bootstrap=out/cooked/bootstrap/runtime.json",
+]
+cwd = "."
+mode = "prototype"
+
+[app.ready]
+role = "prototype"
+timeout_secs = 120

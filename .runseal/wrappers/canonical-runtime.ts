@@ -46,9 +46,10 @@ import {
 } from "../support/cooked-gltf-presentation.ts";
 import { hostInputGates } from "../support/host-input-replay.ts";
 import { bootstrapGates } from "../support/runtime-bootstrap.ts";
+import { prototypeHostGates } from "../support/prototype-host.ts";
 
-const REVISION = "declarative-runtime-bootstrap-v1";
-const COLLECTION = "0042-declarative-runtime-bootstrap";
+const REVISION = "thin-prototype-host-v1";
+const COLLECTION = "0043-thin-prototype-host";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -88,6 +89,8 @@ useSidecar("sidecar.benchmark.toml");
 await lifecycle("stop");
 useSidecar("sidecar.bootstrap.toml");
 await lifecycle("stop");
+useSidecar("sidecar.prototype.toml");
+await lifecycle("stop");
 useSidecar("sidecar.toml");
 
 await run(
@@ -109,8 +112,17 @@ await run(
         "surface-catalog",
         "-p",
         "animation-catalog",
+        "-p",
+        "reference-host",
+        "-p",
+        "prototype",
     ],
     "canonical codec and cooker tests",
+);
+await run(
+    "cargo",
+    ["build", "--locked", "-p", "prototype"],
+    "thin prototype host build",
 );
 
 const centers: Coord[] = [];
@@ -157,6 +169,7 @@ try {
         BASE,
         COLLECTION,
     );
+    const prototype = await prototypeHostGates(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE);
     const hostInput = await hostInputGates();
     const idle = await status();
     if (object(idle, "workload").mode !== "idle-shell") {
@@ -424,6 +437,7 @@ try {
         },
         correctness: {
             bootstrap,
+            prototype,
             hostInput,
             idle,
             basePublication,
@@ -468,6 +482,8 @@ try {
     useSidecar("sidecar.benchmark.toml");
     await lifecycle("stop");
     useSidecar("sidecar.bootstrap.toml");
+    await lifecycle("stop");
+    useSidecar("sidecar.prototype.toml");
     await lifecycle("stop");
 }
 

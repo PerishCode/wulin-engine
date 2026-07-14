@@ -4,24 +4,24 @@ use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail, ensure};
-use engine_runtime::GlobalRegionConfig;
+use engine_runtime::{FrameRequest, GlobalRegionConfig, Runtime};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::inspect::{PackKind, validate_pack_path};
+use crate::{HostInput, window};
 
-pub(crate) const REVISION: &str = "declarative-runtime-bootstrap-v1";
-pub(crate) const TIMEOUT: Duration = Duration::from_secs(120);
+pub const REVISION: &str = "declarative-runtime-bootstrap-v1";
+pub const TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_CONFIG_BYTES: usize = 64 * 1024;
 
-pub(crate) struct Arguments {
-    pub(crate) launched_by_sidecar: bool,
-    pub(crate) bootstrap: Option<Plan>,
+pub struct Arguments {
+    pub launched_by_sidecar: bool,
+    pub bootstrap: Option<Plan>,
 }
 
 impl Arguments {
-    pub(crate) fn parse() -> Result<Self> {
+    pub fn parse() -> Result<Self> {
         let parsed = parse_arguments(std::env::args_os().skip(1))?;
         let bootstrap = parsed.bootstrap.map(Plan::load).transpose()?;
         Ok(Self {
@@ -43,7 +43,7 @@ fn parse_arguments(arguments: impl IntoIterator<Item = OsString>) -> Result<Pars
     for argument in arguments {
         let argument = argument
             .into_string()
-            .map_err(|_| anyhow::anyhow!("workbench arguments must be valid Unicode"))?;
+            .map_err(|_| anyhow::anyhow!("host arguments must be valid Unicode"))?;
         if argument.starts_with("--sidecar-stamp=") {
             ensure!(!launched_by_sidecar, "duplicate --sidecar-stamp argument");
             launched_by_sidecar = true;
@@ -52,7 +52,7 @@ fn parse_arguments(arguments: impl IntoIterator<Item = OsString>) -> Result<Pars
             ensure!(!value.is_empty(), "--bootstrap requires a path");
             bootstrap = Some(PathBuf::from(value));
         } else {
-            bail!("unsupported workbench argument {argument:?}");
+            bail!("unsupported host argument {argument:?}");
         }
     }
     Ok(ParsedArguments {
@@ -79,7 +79,7 @@ struct Coordinate {
     z: i64,
 }
 
-pub(crate) struct Plan {
+pub struct Plan {
     config_path: PathBuf,
     config_bytes: usize,
     config_sha256: String,
@@ -134,19 +134,19 @@ impl Plan {
         })
     }
 
-    pub(crate) fn terrain_path(&self) -> &Path {
+    pub fn terrain_path(&self) -> &Path {
         &self.terrain_path
     }
 
-    pub(crate) fn object_path(&self) -> &Path {
+    pub fn object_path(&self) -> &Path {
         &self.object_path
     }
 
-    pub(crate) fn global_config(&self) -> GlobalRegionConfig {
+    pub fn global_config(&self) -> GlobalRegionConfig {
         self.global_config
     }
 
-    pub(crate) fn pending_json(&self) -> Value {
+    pub fn pending_json(&self) -> Value {
         json!({
             "revision": REVISION,
             "mode": "canonical-bootstrap-pending",
@@ -159,12 +159,7 @@ impl Plan {
         })
     }
 
-    pub(crate) fn ready_json(
-        &self,
-        schedule: Value,
-        ready_frame_index: u64,
-        elapsed: Duration,
-    ) -> Value {
+    fn ready_json(&self, schedule: Value, ready_frame_index: u64, elapsed: Duration) -> Value {
         let mut value = self.pending_json();
         value["mode"] = json!("canonical-bootstrap");
         value["schedule"] = schedule;
@@ -174,11 +169,108 @@ impl Plan {
     }
 }
 
-pub(crate) fn idle_json() -> Value {
+pub fn idle_json() -> Value {
     json!({
         "revision": REVISION,
         "mode": "idle-shell",
     })
+}
+
+#[derive(Clone, Copy)]
+pub enum PackKind {
+    Terrain,
+    Objects,
+}
+
+pub fn validate_pack_path(value: &str, kind: PackKind) -> Result<PathBuf> {
+    let path = Path::new(value);
+    ensure!(!path.is_absolute(), "pack path must be repository-relative");
+    ensure!(
+        path.components()
+            .all(|component| matches!(component, Component::Normal(_))),
+        "pack path contains an invalid component"
+    );
+    let components = path.components().collect::<Vec<_>>();
+    ensure!(
+        components.len() >= 3
+            && components[0].as_os_str() == "out"
+            && components[1].as_os_str() == "cooked",
+        "pack path must be under out/cooked"
+    );
+    let expected = match kind {
+        PackKind::Terrain => "wlt",
+        PackKind::Objects => "wlr",
+    };
+    ensure!(
+        path.extension()
+            .is_some_and(|extension| extension == expected),
+        "pack must use the .{expected} extension"
+    );
+    Ok(path.to_path_buf())
+}
+
+pub struct Ready {
+    pub status: Value,
+    pub frame_count: u64,
+    pub last_frame_duration: Duration,
+}
+
+/// Opens the exact configured sources and advances hidden canonical frames until publication.
+///
+/// # Safety
+///
+/// `runtime` must own a live window on the calling thread and retain exclusive access to its
+/// native GPU objects for the duration of this call.
+pub unsafe fn drive(
+    runtime: &mut Runtime,
+    input: &mut HostInput,
+    plan: &Plan,
+    clear_color: [f32; 4],
+) -> Result<Ready> {
+    runtime
+        .open_terrain_pack(plan.terrain_path().to_path_buf())
+        .context("bootstrap terrain source failed")?;
+    runtime
+        .open_cooked_object_pack(plan.object_path().to_path_buf())
+        .context("bootstrap object source failed")?;
+    let schedule = unsafe { runtime.schedule_global_composition(plan.global_config()) }
+        .context("bootstrap canonical schedule failed")?;
+    let started = std::time::Instant::now();
+    let mut frame_count = 0_u64;
+    loop {
+        if !window::pump_messages() {
+            bail!("host closed during canonical bootstrap");
+        }
+        input.ingest(window::drain_input());
+        let frame_started = std::time::Instant::now();
+        unsafe {
+            let _ = runtime.frame(FrameRequest {
+                clear_color,
+                capture: false,
+                capture_object_ids: false,
+                probe: false,
+            })?;
+        }
+        let last_frame_duration = frame_started.elapsed();
+        frame_count += 1;
+        if runtime.composition_enabled() {
+            return Ok(Ready {
+                status: plan.ready_json(schedule, frame_count, started.elapsed()),
+                frame_count,
+                last_frame_duration,
+            });
+        }
+        let status = runtime.composition_status();
+        if !status["lastFailure"].is_null() {
+            bail!("canonical bootstrap pair failed: {}", status["lastFailure"]);
+        }
+        if started.elapsed() >= TIMEOUT {
+            bail!(
+                "canonical bootstrap did not publish within {} seconds",
+                TIMEOUT.as_secs()
+            );
+        }
+    }
 }
 
 fn validate_config_path(path: &Path) -> Result<()> {

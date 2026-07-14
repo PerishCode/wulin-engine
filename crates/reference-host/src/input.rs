@@ -10,13 +10,13 @@ const MAX_RECORD_TRANSITIONS: usize = 16_384;
 type HeldKeys = [u64; KEY_WORD_COUNT];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeMessage {
+pub enum NativeMessage {
     Key { key: usize, down: bool },
     FocusLost,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PostedMessage {
+pub enum PostedMessage {
     Key { key: u8, down: bool, system: bool },
     FocusLost,
 }
@@ -131,7 +131,7 @@ impl TransactionCounters {
     }
 }
 
-pub(crate) struct HostInput {
+pub struct HostInput {
     held: HeldKeys,
     counters: TransactionCounters,
     active_recording: Option<ActiveRecording>,
@@ -142,7 +142,7 @@ pub(crate) struct HostInput {
 }
 
 impl HostInput {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self::with_limits(MAX_RECORD_TRANSACTIONS, MAX_RECORD_TRANSITIONS)
     }
 
@@ -158,7 +158,7 @@ impl HostInput {
         }
     }
 
-    pub(crate) fn ingest(&mut self, messages: Vec<NativeMessage>) {
+    pub fn ingest(&mut self, messages: Vec<NativeMessage>) {
         if messages.is_empty() {
             return;
         }
@@ -186,7 +186,7 @@ impl HostInput {
         recording.transactions.push(transaction);
     }
 
-    pub(crate) fn start_recording(&mut self) -> Result<Value> {
+    pub fn start_recording(&mut self) -> Result<Value> {
         ensure!(
             self.active_recording.is_none(),
             "input recording is already active"
@@ -200,7 +200,7 @@ impl HostInput {
         Ok(self.status_json())
     }
 
-    pub(crate) fn stop_recording(&mut self) -> Result<Value> {
+    pub fn stop_recording(&mut self) -> Result<Value> {
         if let Some(fault) = &self.recording_fault {
             bail!("input recording failed: {fault}");
         }
@@ -214,7 +214,7 @@ impl HostInput {
         Ok(summary)
     }
 
-    pub(crate) fn replay(&self) -> Result<Value> {
+    pub fn replay(&self) -> Result<Value> {
         ensure!(
             self.active_recording.is_none(),
             "input recording must stop before replay"
@@ -252,7 +252,7 @@ impl HostInput {
         Ok(result)
     }
 
-    pub(crate) fn status_json(&self) -> Value {
+    pub fn status_json(&self) -> Value {
         let active = self.active_recording.as_ref();
         json!({
             "revision": REVISION,
@@ -279,6 +279,16 @@ impl HostInput {
                 .as_ref()
                 .map(CompletedRecording::summary_json),
         })
+    }
+
+    pub fn is_held(&self, key: u8) -> bool {
+        key != 0 && key_is_held(&self.held, key)
+    }
+}
+
+impl Default for HostInput {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

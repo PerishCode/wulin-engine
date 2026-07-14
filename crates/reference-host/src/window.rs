@@ -7,28 +7,35 @@ use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM}
 use windows::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT, SetConsoleCtrlHandler};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows::core::{BOOL, w};
+use windows::core::{BOOL, HSTRING, PCWSTR};
 
 use crate::input::{NativeMessage, PostedMessage};
 
-pub const WIDTH: u32 = 1280;
-pub const HEIGHT: u32 = 720;
 static WINDOW_HANDLE: AtomicIsize = AtomicIsize::new(0);
+
+#[derive(Clone, Copy)]
+pub struct Config {
+    pub class_name: &'static str,
+    pub title: &'static str,
+    pub width: u32,
+    pub height: u32,
+}
 
 thread_local! {
     static INPUT_MESSAGES: RefCell<Vec<NativeMessage>> = const { RefCell::new(Vec::new()) };
 }
 
-pub unsafe fn create() -> Result<HWND> {
+pub fn create(config: Config) -> Result<HWND> {
     let module = unsafe { GetModuleHandleW(None) }.context("GetModuleHandleW failed")?;
     let instance = HINSTANCE(module.0);
-    let class_name = w!("WulinEngineWorkbenchWindow");
+    let class_name = HSTRING::from(config.class_name);
+    let title = HSTRING::from(config.title);
     let window_class = WNDCLASSW {
         style: CS_HREDRAW | CS_VREDRAW,
         lpfnWndProc: Some(window_proc),
         hInstance: instance,
         hCursor: unsafe { LoadCursorW(None, IDC_ARROW) }.context("LoadCursorW failed")?,
-        lpszClassName: class_name,
+        lpszClassName: PCWSTR(class_name.as_ptr()),
         ..Default::default()
     };
     if unsafe { RegisterClassW(&window_class) } == 0 {
@@ -39,15 +46,15 @@ pub unsafe fn create() -> Result<HWND> {
     let mut rect = RECT {
         left: 0,
         top: 0,
-        right: WIDTH as i32,
-        bottom: HEIGHT as i32,
+        right: config.width as i32,
+        bottom: config.height as i32,
     };
     unsafe { AdjustWindowRect(&mut rect, style, false) }.context("AdjustWindowRect failed")?;
     let hwnd = unsafe {
         CreateWindowExW(
             WINDOW_EX_STYLE::default(),
-            class_name,
-            w!("Wulin Engine Workbench"),
+            PCWSTR(class_name.as_ptr()),
+            PCWSTR(title.as_ptr()),
             style,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
@@ -66,13 +73,37 @@ pub unsafe fn create() -> Result<HWND> {
     Ok(hwnd)
 }
 
+/// Makes the caller-owned reference window visible.
+///
+/// # Safety
+///
+/// `hwnd` must identify the live window returned by [`create`] on the calling thread.
 pub unsafe fn show(hwnd: HWND) {
     unsafe {
         let _ = ShowWindow(hwnd, SW_SHOW);
     }
 }
 
-pub unsafe fn teardown() -> Result<()> {
+pub fn pump_messages() -> bool {
+    let mut message = MSG::default();
+    while unsafe { PeekMessageW(&mut message, None, 0, 0, PM_REMOVE) }.as_bool() {
+        if message.message == WM_QUIT {
+            return false;
+        }
+        unsafe {
+            let _ = TranslateMessage(&message);
+            DispatchMessageW(&message);
+        }
+    }
+    true
+}
+
+pub fn request_close(hwnd: HWND) -> Result<()> {
+    unsafe { PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)) }
+        .context("posting window close failed")
+}
+
+pub fn teardown() -> Result<()> {
     WINDOW_HANDLE.store(0, Ordering::Release);
     unsafe { SetConsoleCtrlHandler(Some(console_ctrl_handler), false) }
         .context("removing console control handler failed")

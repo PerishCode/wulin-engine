@@ -1,10 +1,12 @@
 [workspace]
 members = [
+  "apps/prototype",
   "apps/workbench",
   "crates/animation-catalog",
   "crates/canonical-object-fixture",
   "crates/engine-runtime",
   "crates/meshlet-catalog",
+  "crates/reference-host",
   "crates/region-format",
   "crates/surface-catalog",
   "crates/terrain-format",
@@ -32,6 +34,7 @@ surface-catalog = { path = "crates/surface-catalog" }
 terrain-format = { path = "crates/terrain-format" }
 png = "0.18.0"
 region-format = { path = "crates/region-format" }
+reference-host = { path = "crates/reference-host" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 sha2 = "0.10.9"

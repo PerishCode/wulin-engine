@@ -95,7 +95,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0042 and the current ADR set through 0045 define one live content runtime
+Experiments 0031-0043 and the current ADR set through 0046 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one offline-cooked external geometry/material/rig source, and one deterministic object-shadow
 path:
@@ -120,6 +120,10 @@ path:
   with isolated deterministic replay;
 - one optional strict schema-1 bootstrap document that selects both sources and one signed global
   target, hides async progress, and emits readiness only after a canonical frame;
+- one concrete Windows reference-host owner for the single window/message lifecycle, normalized
+  input journal, bootstrap parser, and canonical-ready driver;
+- one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
+  Escape limited to host exit;
 - one compact `source.*` / `canonical.*` inspect vocabulary;
 - one non-recursive `runseal :canonical-runtime` acceptance workflow.
 
@@ -138,6 +142,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `sidecar.toml` | Debug-layer workbench lifecycle. |
 | `sidecar.benchmark.toml` | Release workbench lifecycle. |
 | `sidecar.bootstrap.toml` | Configured canonical-readiness workbench lifecycle. |
+| `sidecar.prototype.toml` | Non-diagnostic configured prototype lifecycle. |
 | `docs/architecture/repository-model.md` | Ownership and dependency direction. |
 | `docs/adr/README.md` | ADR naming, status, and maintenance rules. |
 | `docs/adr/0034-canonical-runtime-convergence.md` | Accepted single-runtime, operator-surface, and attachment contract. |
@@ -152,6 +157,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0043-runtime-frame-transaction.md` | Accepted runtime timeline ownership, immutable render input, and successful-frame commit contract. |
 | `docs/adr/0044-normalized-host-input-journal.md` | Accepted host-native keyboard normalization, bounded journal, focus cleanup, and isolated replay contract. |
 | `docs/adr/0045-canonical-bootstrap-readiness.md` | Accepted strict bootstrap schema, terminal failure, hidden progress, and canonical-ready contract. |
+| `docs/adr/0046-reference-platform-host.md` | Accepted concrete Windows host ownership, workbench/prototype separation, and non-diagnostic composition contract. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -165,12 +171,16 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0040-runtime-frame-transaction/README.md` | Accepted runtime-owned timeline, immutable tick consumption, and successful-frame transaction evidence. |
 | `experiments/0041-deterministic-host-input/README.md` | Accepted native keyboard/focus normalization, process-local replay, restart, and host-order evidence. |
 | `experiments/0042-declarative-runtime-bootstrap/README.md` | Accepted configured source/target startup, no-ready failure, canonical readiness, and restart evidence. |
+| `experiments/0043-thin-prototype-host/README.md` | Accepted shared reference host, plain prototype startup, terminal failure, and lifecycle evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
 | `crates/engine-runtime/src/lib.rs` | Public runtime, capture, semantic, and signed-address surface. |
 | `crates/engine-runtime/src/runtime.rs` | Sole renderer/scene facade and frame-transaction coordinator. |
 | `crates/engine-runtime/src/timeline.rs` | Deterministic presentation timeline state, controls, counters, and successful-frame commit. |
+| `crates/reference-host/src/window.rs` | Concrete single-window Win32 lifecycle, message pump, native input capture, and close signaling. |
+| `crates/reference-host/src/input.rs` | Normalized key state, bounded record lifecycle, canonical hashing, isolated replay, and held-state query. |
+| `crates/reference-host/src/bootstrap.rs` | Strict arguments/config/pack paths and hidden canonical-ready bootstrap driver. |
 | `crates/meshlet-catalog/build.rs` | Verified build-time glTF geometry/joint/weight cook, normalization, normals, LOD simplification, and canonical payload emission. |
 | `crates/meshlet-catalog/src/imported.rs` | Strict canonical imported-geometry/binding payload decoder and metadata owner. |
 | `crates/meshlet-catalog/src/procedural.rs` | Retained deterministic fixture generation for procedural archetypes 0 through 6. |
@@ -184,9 +194,8 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/canonical-object-fixture/src/lib.rs` | Deterministic arbitrary-Q8 authored object fixture. |
 | `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
-| `apps/workbench/src/main.rs` | Native host message/frame loop and pending operator dispatch. |
-| `apps/workbench/src/bootstrap.rs` | Strict argument/config parsing, source/target selection, bounded document hashing, and startup status. |
-| `apps/workbench/src/input.rs` | Host-owned normalized key state, bounded record lifecycle, canonical hashing, and isolated replay. |
+| `apps/prototype/src/main.rs` | Mandatory-bootstrap non-diagnostic composition root, continuous frame loop, and host-exit input consumer. |
+| `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch. |
 | `crates/engine-runtime/src/streaming/address.rs` | Signed global window and bounded projection. |
@@ -203,10 +212,11 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository, runtime/timeline ownership, dependency, and forbidden-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0042 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0043 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
+| `.runseal/support/prototype-host.ts` | Prototype no-ready failure, exact readiness, restart, and no-inspect lifecycle support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
 | `.runseal/support/temporal-presentation.ts` | Fixed-quantum duration time, common-period, and held-pair acceptance support. |
 
@@ -232,12 +242,12 @@ This workflow cooks fresh signed sources and directly validates canonical correc
 source reordering, movement, aliasing, failure rollback, all four fault gates, reactive
 and prepared traversal, rollover, the runtime-owned frame transaction and deterministic
 presentation time, deterministic host input and process-restart replay, configured canonical
-readiness, fixed camera-visible
+readiness, shared reference-host ownership, prototype startup/restart/cleanup, fixed camera-visible
 directional object shadows, a same-process 64-publication resource plateau, and 16 complete
 lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0042-declarative-runtime-bootstrap/` and remains ignored.
+`out/captures/0043-thin-prototype-host/` and remains ignored.
 
 ### 6.3 Manual workbench
 
@@ -258,7 +268,19 @@ The only frame outcomes are `idle-shell` before a pair is published and
 `canonical-runtime` afterward. Manual controls do not select renderer modes, fixture
 variants, pass order, or local schedules.
 
-### 6.4 Experiment lifecycle
+### 6.4 Plain prototype
+
+```powershell
+# With out/cooked/bootstrap/runtime.json prepared:
+sidecar start --config sidecar.prototype.toml
+sidecar stop --config sidecar.prototype.toml
+```
+
+The prototype has no inspect endpoint or idle-shell mode. It shows the same canonical runtime only
+after configured content is ready; window close, Escape, and Sidecar stop are its current lifecycle
+controls. Camera actions, simulation, terrain contact, and actors are not part of this workflow.
+
+### 6.5 Experiment lifecycle
 
 1. State the hypothesis, workload, controlled variables, metrics, pass criteria, and
    evidence path before implementation.
@@ -267,7 +289,7 @@ variants, pass order, or local schedules.
 4. Promote only proven reusable ownership into `crates/` or `benchmarks/`.
 5. Update this file when core ownership or stable workflows change.
 
-### 6.5 Core implementation change
+### 6.6 Core implementation change
 
 1. Inspect the working tree and relevant owner files.
 2. Change the narrowest responsible boundary without compatibility scaffolding.
@@ -275,7 +297,7 @@ variants, pass order, or local schedules.
 4. Run `runseal :guard` before accepting the change.
 5. Run the active GPU experiment workflow when GPU behavior or lifecycle changes.
 
-### 6.6 Mod content workflow
+### 6.7 Mod content workflow
 
 - Add Wulin-specific content only after its engine dependency has passed its experiment.
 - Keep Wulin code and data under `mods/wulin/`.
