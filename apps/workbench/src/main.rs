@@ -1,3 +1,4 @@
+mod bootstrap;
 mod capture;
 mod input;
 mod inspect;
@@ -8,7 +9,7 @@ use std::sync::mpsc::SyncSender;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use engine_runtime::{FrameRequest, Runtime};
 use inspect::ProtocolError;
 use serde_json::json;
@@ -24,43 +25,46 @@ fn main() {
 }
 
 unsafe fn run() -> Result<()> {
+    let arguments = bootstrap::Arguments::parse()?;
     let hwnd = unsafe { window::create()? };
     let mut runtime = unsafe { Runtime::new(hwnd, window::WIDTH, window::HEIGHT)? };
     let (inspect, commands) = inspect::InspectServer::start()?;
-    let launched_by_sidecar = std::env::args().any(|arg| arg.starts_with("--sidecar-stamp="));
-    let mut state = WorkbenchState::new(launched_by_sidecar);
+    let startup = arguments
+        .bootstrap
+        .as_ref()
+        .map_or_else(bootstrap::idle_json, bootstrap::Plan::pending_json);
+    let mut state = WorkbenchState::new(arguments.launched_by_sidecar, startup);
 
-    unsafe {
-        window::show(hwnd);
-        let _ = runtime.frame(FrameRequest {
-            clear_color: state.clear_color,
-            capture: false,
-            capture_object_ids: false,
-            probe: false,
-        })?;
+    if let Some(plan) = arguments.bootstrap {
+        state.startup = unsafe { bootstrap_runtime(hwnd, &mut runtime, &mut state, &plan)? };
+    } else {
+        unsafe {
+            window::show(hwnd);
+            let _ = runtime.frame(FrameRequest {
+                clear_color: state.clear_color,
+                capture: false,
+                capture_object_ids: false,
+                probe: false,
+            })?;
+        }
+        state.record_frame();
     }
-    state.record_frame();
 
     println!(
         "{}",
         json!({
             "role": "workbench",
             "endpoint": inspect.endpoint(),
-            "instance_id": std::process::id().to_string()
+            "instance_id": std::process::id().to_string(),
+            "startup": state.startup["mode"]
         })
     );
 
     let mut message = MSG::default();
     let mut pending = PendingOperations::default();
     'running: loop {
-        while unsafe { PeekMessageW(&mut message, None, 0, 0, PM_REMOVE) }.as_bool() {
-            if message.message == WM_QUIT {
-                break 'running;
-            }
-            unsafe {
-                let _ = TranslateMessage(&message);
-                DispatchMessageW(&message);
-            }
+        if !unsafe { pump_messages(&mut message) } {
+            break 'running;
         }
 
         state.input.ingest(window::drain_input());
@@ -101,6 +105,67 @@ unsafe fn run() -> Result<()> {
     Ok(())
 }
 
+unsafe fn bootstrap_runtime(
+    hwnd: windows::Win32::Foundation::HWND,
+    runtime: &mut Runtime,
+    state: &mut WorkbenchState,
+    plan: &bootstrap::Plan,
+) -> Result<serde_json::Value> {
+    runtime
+        .open_terrain_pack(plan.terrain_path().to_path_buf())
+        .context("bootstrap terrain source failed")?;
+    runtime
+        .open_cooked_object_pack(plan.object_path().to_path_buf())
+        .context("bootstrap object source failed")?;
+    let schedule = unsafe { runtime.schedule_global_composition(plan.global_config()) }
+        .context("bootstrap canonical schedule failed")?;
+    let started = Instant::now();
+    let mut message = MSG::default();
+    loop {
+        if !unsafe { pump_messages(&mut message) } {
+            bail!("workbench closed during canonical bootstrap");
+        }
+        state.input.ingest(window::drain_input());
+        let frame_start = Instant::now();
+        unsafe {
+            let _ = runtime.frame(FrameRequest {
+                clear_color: state.clear_color,
+                capture: false,
+                capture_object_ids: false,
+                probe: false,
+            })?;
+        }
+        state.record_frame_with_duration(frame_start.elapsed());
+        if runtime.composition_enabled() {
+            unsafe { window::show(hwnd) };
+            return Ok(plan.ready_json(schedule, state.frame_index, started.elapsed()));
+        }
+        let status = runtime.composition_status();
+        if !status["lastFailure"].is_null() {
+            bail!("canonical bootstrap pair failed: {}", status["lastFailure"]);
+        }
+        if started.elapsed() >= bootstrap::TIMEOUT {
+            bail!(
+                "canonical bootstrap did not publish within {} seconds",
+                bootstrap::TIMEOUT.as_secs()
+            );
+        }
+    }
+}
+
+unsafe fn pump_messages(message: &mut MSG) -> bool {
+    while unsafe { PeekMessageW(message, None, 0, 0, PM_REMOVE) }.as_bool() {
+        if message.message == WM_QUIT {
+            return false;
+        }
+        unsafe {
+            let _ = TranslateMessage(message);
+            DispatchMessageW(message);
+        }
+    }
+    true
+}
+
 struct PendingCapture {
     id: String,
     collection: String,
@@ -129,10 +194,11 @@ struct WorkbenchState {
     last_error: Option<String>,
     launched_by_sidecar: bool,
     input: input::HostInput,
+    startup: serde_json::Value,
 }
 
 impl WorkbenchState {
-    fn new(launched_by_sidecar: bool) -> Self {
+    fn new(launched_by_sidecar: bool, startup: serde_json::Value) -> Self {
         Self {
             started_at: Instant::now(),
             frame_index: 0,
@@ -142,6 +208,7 @@ impl WorkbenchState {
             last_error: None,
             launched_by_sidecar,
             input: input::HostInput::new(),
+            startup,
         }
     }
 

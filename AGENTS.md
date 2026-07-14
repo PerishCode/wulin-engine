@@ -95,7 +95,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0041 and the current ADR set through 0044 define one live content runtime
+Experiments 0031-0042 and the current ADR set through 0045 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one offline-cooked external geometry/material/rig source, and one deterministic object-shadow
 path:
@@ -118,6 +118,8 @@ path:
   a successful canonical frame;
 - one host-owned Win32 keyboard/focus adapter and bounded process-local normalized input journal
   with isolated deterministic replay;
+- one optional strict schema-1 bootstrap document that selects both sources and one signed global
+  target, hides async progress, and emits readiness only after a canonical frame;
 - one compact `source.*` / `canonical.*` inspect vocabulary;
 - one non-recursive `runseal :canonical-runtime` acceptance workflow.
 
@@ -135,6 +137,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `runseal.toml` | Runseal permissions and local resource injection. |
 | `sidecar.toml` | Debug-layer workbench lifecycle. |
 | `sidecar.benchmark.toml` | Release workbench lifecycle. |
+| `sidecar.bootstrap.toml` | Configured canonical-readiness workbench lifecycle. |
 | `docs/architecture/repository-model.md` | Ownership and dependency direction. |
 | `docs/adr/README.md` | ADR naming, status, and maintenance rules. |
 | `docs/adr/0034-canonical-runtime-convergence.md` | Accepted single-runtime, operator-surface, and attachment contract. |
@@ -148,6 +151,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0042-canonical-runtime-host-separation.md` | Accepted engine-runtime ownership, facade, host responsibilities, and dependency direction. |
 | `docs/adr/0043-runtime-frame-transaction.md` | Accepted runtime timeline ownership, immutable render input, and successful-frame commit contract. |
 | `docs/adr/0044-normalized-host-input-journal.md` | Accepted host-native keyboard normalization, bounded journal, focus cleanup, and isolated replay contract. |
+| `docs/adr/0045-canonical-bootstrap-readiness.md` | Accepted strict bootstrap schema, terminal failure, hidden progress, and canonical-ready contract. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -160,6 +164,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0039-canonical-runtime-host-separation/README.md` | Accepted behavior-neutral runtime promotion, host separation, and exact regression evidence. |
 | `experiments/0040-runtime-frame-transaction/README.md` | Accepted runtime-owned timeline, immutable tick consumption, and successful-frame transaction evidence. |
 | `experiments/0041-deterministic-host-input/README.md` | Accepted native keyboard/focus normalization, process-local replay, restart, and host-order evidence. |
+| `experiments/0042-declarative-runtime-bootstrap/README.md` | Accepted configured source/target startup, no-ready failure, canonical readiness, and restart evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -180,6 +185,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
 | `apps/workbench/src/main.rs` | Native host message/frame loop and pending operator dispatch. |
+| `apps/workbench/src/bootstrap.rs` | Strict argument/config parsing, source/target selection, bounded document hashing, and startup status. |
 | `apps/workbench/src/input.rs` | Host-owned normalized key state, bounded record lifecycle, canonical hashing, and isolated replay. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch. |
@@ -197,9 +203,10 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository, runtime/timeline ownership, dependency, and forbidden-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0041 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0042 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
+| `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
 | `.runseal/support/temporal-presentation.ts` | Fixed-quantum duration time, common-period, and held-pair acceptance support. |
 
@@ -224,12 +231,13 @@ runseal :canonical-runtime
 This workflow cooks fresh signed sources and directly validates canonical correctness,
 source reordering, movement, aliasing, failure rollback, all four fault gates, reactive
 and prepared traversal, rollover, the runtime-owned frame transaction and deterministic
-presentation time, deterministic host input and process-restart replay, fixed camera-visible
+presentation time, deterministic host input and process-restart replay, configured canonical
+readiness, fixed camera-visible
 directional object shadows, a same-process 64-publication resource plateau, and 16 complete
 lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0041-deterministic-host-input/` and remains ignored.
+`out/captures/0042-declarative-runtime-bootstrap/` and remains ignored.
 
 ### 6.3 Manual workbench
 

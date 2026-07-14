@@ -64,12 +64,12 @@ pub(crate) fn handle_commands(
             | ControlKind::WorldReset
             | ControlKind::WorldProbe) => super::world_control::dispatch(runtime, world),
             ControlKind::TerrainSourceOpen { path } => {
-                super::pack_control::validate(&path, super::pack_control::PackKind::Terrain)
+                super::validate_pack_path(&path, super::PackKind::Terrain)
                     .and_then(|path| runtime.open_terrain_pack(path))
                     .map_err(|error| protocol_error("pack_open_failed", error))
             }
             ControlKind::ObjectSourceOpen { path } => {
-                super::pack_control::validate(&path, super::pack_control::PackKind::Objects)
+                super::validate_pack_path(&path, super::PackKind::Objects)
                     .and_then(|path| runtime.open_cooked_object_pack(path))
                     .map_err(|error| protocol_error("pack_open_failed", error))
             }

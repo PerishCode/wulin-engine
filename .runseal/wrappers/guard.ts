@@ -216,6 +216,31 @@ async function requireRuntimeBoundary(): Promise<void> {
     if (engineHostInput.code !== 1) {
         fail(`guard: host input dependency scan failed with ${engineHostInput.code}`);
     }
+
+    const engineBootstrap = await new Deno.Command("git", {
+        args: [
+            "grep",
+            "--no-index",
+            "-n",
+            "-E",
+            "declarative-runtime-bootstrap|--bootstrap",
+            "--",
+            "crates/engine-runtime",
+        ],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    if (engineBootstrap.code === 0) {
+        fail(
+            `guard: engine runtime depends on host bootstrap policy\n${
+                new TextDecoder().decode(engineBootstrap.stdout)
+            }`,
+        );
+    }
+    if (engineBootstrap.code !== 1) {
+        fail(`guard: host bootstrap dependency scan failed with ${engineBootstrap.code}`);
+    }
 }
 
 async function forbiddenScan(): Promise<void> {
@@ -312,6 +337,7 @@ await run("deno check", "deno", [
     ".runseal/wrappers/canonical-runtime.ts",
     ".runseal/support/canonical-runtime.ts",
     ".runseal/support/host-input-replay.ts",
+    ".runseal/support/runtime-bootstrap.ts",
     ".runseal/support/cooked-gltf-presentation.ts",
     ".runseal/support/temporal-presentation.ts",
 ]);
@@ -327,6 +353,14 @@ await run("sidecar benchmark plan", "sidecar", [
     "plan",
     "--config",
     "sidecar.benchmark.toml",
+    "--format",
+    "json",
+]);
+await run("sidecar bootstrap doctor", "sidecar", ["doctor", "--config", "sidecar.bootstrap.toml"]);
+await run("sidecar bootstrap plan", "sidecar", [
+    "plan",
+    "--config",
+    "sidecar.bootstrap.toml",
     "--format",
     "json",
 ]);
