@@ -25,25 +25,7 @@ reason = "Experiment 0001 remains an isolated executable proof."
 payload = { max_words = 6 }
 
 [[overrides]]
-match = "apps/workbench/src"
-kind = "dir"
-priority = 10
-
-[overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 11 }
-reason = "The native workbench root keeps its current scene, streaming, inspect, and rendering owners explicit."
-
-[[overrides]]
-match = "apps/workbench/src/rendering"
-kind = "dir"
-priority = 10
-
-[overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 11 }
-reason = "The rendering boundary keeps canonical composition and its reusable GPU subsystem owners explicit."
-
-[[overrides]]
-match = "apps/workbench/src/rendering/composition"
+match = "crates/engine-runtime/src/rendering/composition"
 kind = "dir"
 priority = 10
 
@@ -52,7 +34,7 @@ payload = { max_children = 12 }
 reason = "Atomic composition keeps pair state, probes, grounding, traversal, and publication policies separate."
 
 [[overrides]]
-match = "apps/workbench/src/rendering/terrain"
+match = "crates/engine-runtime/src/rendering/terrain"
 kind = "dir"
 priority = 10
 
@@ -71,7 +53,7 @@ payload = { max_lines = 700 }
 reason = "The direct acceptance owner keeps lifecycle, fault, traversal, and resource gates in one non-recursive workflow boundary."
 
 [[overrides]]
-match = "apps/workbench/src/scene/mod.rs"
+match = "crates/engine-runtime/src/scene/mod.rs"
 kind = "file"
 priority = 10
 
@@ -80,7 +62,7 @@ enabled = false
 reason = "Private scene constants are exercised beside their owner."
 
 [[overrides]]
-match = "apps/workbench/src/world.rs"
+match = "crates/engine-runtime/src/world.rs"
 kind = "file"
 priority = 10
 
@@ -89,7 +71,7 @@ enabled = false
 reason = "Split-coordinate invariants remain private to the world owner."
 
 [[overrides]]
-match = "apps/workbench/src/streaming/address.rs"
+match = "crates/engine-runtime/src/streaming/address.rs"
 kind = "file"
 priority = 10
 
@@ -98,7 +80,7 @@ enabled = false
 reason = "Signed-to-bounded projection tests exercise private checked arithmetic."
 
 [[overrides]]
-match = "apps/workbench/src/streaming/async_resident.rs"
+match = "crates/engine-runtime/src/streaming/async_resident.rs"
 kind = "file"
 priority = 10
 
@@ -107,7 +89,7 @@ enabled = false
 reason = "Source-addressed cache reuse tests require private cache state."
 
 [[overrides]]
-match = "apps/workbench/src/rendering/composition/traversal.rs"
+match = "crates/engine-runtime/src/rendering/composition/traversal.rs"
 kind = "file"
 priority = 10
 
@@ -116,7 +98,7 @@ enabled = false
 reason = "Traversal and rollover tests exercise the private bounded scheduler."
 
 [[overrides]]
-match = "apps/workbench/src/rendering/terrain/cache.rs"
+match = "crates/engine-runtime/src/rendering/terrain/cache.rs"
 kind = "file"
 priority = 10
 
@@ -125,7 +107,7 @@ enabled = false
 reason = "Terrain source-identity tests require private slot state."
 
 [[overrides]]
-match = "apps/workbench/src/rendering/terrain/projection.rs"
+match = "crates/engine-runtime/src/rendering/terrain/projection.rs"
 kind = "file"
 priority = 10
 
@@ -134,7 +116,7 @@ enabled = false
 reason = "Centered projection invariants remain private to the terrain renderer."
 
 [[overrides]]
-match = "apps/workbench/src/rendering/terrain/transfer.rs"
+match = "crates/engine-runtime/src/rendering/terrain/transfer.rs"
 kind = "file"
 priority = 10
 

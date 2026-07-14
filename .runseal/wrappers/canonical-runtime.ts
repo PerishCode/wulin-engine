@@ -45,8 +45,8 @@ import {
     sourceDurationGates,
 } from "../support/cooked-gltf-presentation.ts";
 
-const REVISION = "camera-visible-directional-shadows-v1";
-const COLLECTION = "0038-camera-visible-directional-shadows";
+const REVISION = "canonical-runtime-host-separation-v1";
+const COLLECTION = "0039-canonical-runtime-host-separation";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -163,15 +163,21 @@ try {
     ) fail("controlled directional shadow samples do not cover lit and shadowed receivers");
     const shadowCapture = object(orderStable, "capture");
     if (
-        shadowCapture.color ===
-            "aab74184ea059f3f640b4b1b529fc86c82783b8db23209ede5cafd65f64688f2" ||
-        shadowCapture.png ===
-            "670a0305a413e0f8e56af7133d97d05b5e18976b85ac72d9f50797f9ab697bf0"
-    ) fail("directional shadow did not change the accepted no-shadow color baseline");
-    if (
+        shadowCapture.color !==
+            "8b13d2146cd838cab9fee14049e4b2331b93127ee78ec07d5b50e12c99aa4135" ||
+        shadowCapture.png !==
+            "e96e44cc6c7cf05338433a05568e2a41e81f95f2f5ba8c52ce7baa26114450c6" ||
         shadowCapture.objectId !==
-            "01951615d1b4645bdfba68991c75b8ea333482d312f31f39ed3b907ca479da5b"
-    ) fail("directional shadow changed the accepted object-ID attachment");
+            "01951615d1b4645bdfba68991c75b8ea333482d312f31f39ed3b907ca479da5b" ||
+        shadowCapture.diagnostic !==
+            "5f6f2f195d9deadfc4db905692d22e805b4e7000f102537ad36a2e01bd319855"
+    ) fail("runtime host separation changed the accepted controlled attachments");
+    if (
+        orderShadow.lightViewProjectionSha256 !==
+            "480ef3365b258ea2a93b21942a800bfdc21d8d1f6241c45ef36fd2d5fa41fd65" ||
+        orderShadow.depthSha256 !==
+            "2415cfdd82a769056d4e91e4a6575de1a5f8628a7fedc5b630af00569d1233d5"
+    ) fail("runtime host separation changed the accepted shadow evidence");
 
     console.log("==> deterministic presentation time gates");
     const temporal = await temporalGates(orderA, COLLECTION);

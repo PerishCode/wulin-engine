@@ -8,4 +8,4 @@ mod renderer;
 mod resident;
 mod terrain;
 
-pub use renderer::{RenderOutcome, Renderer};
+pub use renderer::{CapturedFrame, RenderOutcome, Renderer};

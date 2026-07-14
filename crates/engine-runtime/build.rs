@@ -27,7 +27,7 @@ fn main() {
     cc::Build::new()
         .file(manifest_dir.join("src/agility_exports.c"))
         .warnings_into_errors(true)
-        .compile("workbench_agility_exports");
+        .compile("runtime_agility_exports");
     for (entry, profile, output) in [
         ("vs_main", "vs_6_6", "calibration.vs.dxil"),
         ("ps_main", "ps_6_6", "calibration.ps.dxil"),

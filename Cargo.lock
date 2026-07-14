@@ -114,6 +114,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "engine-runtime"
+version = "0.0.0"
+dependencies = [
+ "animation-catalog",
+ "anyhow",
+ "canonical-object-fixture",
+ "cc",
+ "glam",
+ "meshlet-catalog",
+ "region-format",
+ "serde",
+ "serde_json",
+ "sha2",
+ "surface-catalog",
+ "terrain-format",
+ "windows",
+]
+
+[[package]]
 name = "fdeflate"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -592,19 +611,12 @@ dependencies = [
 name = "workbench"
 version = "0.0.0"
 dependencies = [
- "animation-catalog",
  "anyhow",
- "canonical-object-fixture",
- "cc",
- "glam",
- "meshlet-catalog",
+ "engine-runtime",
  "png",
- "region-format",
  "serde",
  "serde_json",
  "sha2",
- "surface-catalog",
- "terrain-format",
  "windows",
 ]
 

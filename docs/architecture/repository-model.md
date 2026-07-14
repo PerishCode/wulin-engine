@@ -2,22 +2,17 @@
 
 ## State
 
-The repository has completed the native workbench cold start through exact-ground,
-LOD-rendered camera-driven terrain/object traversal. `crates/region-format`, its offline writer under
-`tools/region-cooker`, `crates/meshlet-catalog`, `crates/animation-catalog`, and
-`crates/surface-catalog` are promoted by Experiments 0008-0011 and ADRs 0011-0014.
-Experiment 0012 and ADR 0015 accept workbench-owned hierarchy, invalidation, query, and
-stable compaction contracts. Experiment 0013 and ADR 0016 promote the independent
-`crates/terrain-format` and `tools/terrain-cooker` owners while terrain streaming, GPU
-expansion, and probes remain workbench-owned. Experiments 0015-0016 and ADRs 0018-0019
-accept atomic terrain/object publication and exact arbitrary-position GPU sampling but
-keep composition workbench-owned. Experiment 0017 and ADR 0020 accept terrain render
-LOD with exact full-resolution object ground and bounded fixture contact error without
-promoting a new reusable owner. Experiment 0018 and ADR 0021 accept bounded
-camera-derived latest-wins pair scheduling and complete-old-snapshot continuity without
-promoting a new reusable owner. Other engine systems remain workbench-owned until an
-experiment establishes a reusable boundary. Directories are created only when they own
-real files.
+Experiments through 0039 and ADR 0042 promote the accepted canonical content runtime into
+`crates/engine-runtime`. It owns scene/world state, signed terrain/object streaming, atomic
+composition, traversal/prefetch/rollover, rendering, presentation time, shaders, probes, and GPU
+device/resource lifecycle. The format/catalog crates and offline cookers remain independent
+reusable owners below it.
+
+`apps/workbench` is now a native diagnostic host. It owns the Win32 message loop, inspect
+transport, operator capture persistence, perception response shaping, readiness, and process
+lifecycle, and consumes the runtime through one facade. Native input, simulation stepping,
+runtime actors, and a prototype host remain unpromoted until later experiments establish their
+boundaries. Directories are created only when they own real files.
 
 ## Dependency direction
 

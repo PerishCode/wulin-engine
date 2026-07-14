@@ -3,8 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
-use crate::rendering::gpu_capture::CapturedPixels;
-use crate::scene::semantic_object;
+use engine_runtime::{CapturedPixels, semantic_object};
 
 const MAX_SAMPLES: usize = 32;
 

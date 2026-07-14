@@ -9,7 +9,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::perception::{self, Evidence, Request};
-use crate::rendering::gpu_capture::CapturedPixels;
+use engine_runtime::CapturedPixels;
 
 const OUTPUT_ROOT: &str = "out/captures";
 
