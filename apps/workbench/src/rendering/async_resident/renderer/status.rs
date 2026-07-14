@@ -16,7 +16,9 @@ impl AsyncResidentRenderer {
     }
 
     pub fn status_json(&self) -> Value {
-        self.transfer.status_json(self.config())
+        let mut status = self.transfer.status_json(self.config());
+        status["payloadReadback"] = self.payload_readback_status();
+        status
     }
 
     pub fn config(&self) -> Option<LoadConfig> {

@@ -20,6 +20,7 @@ use super::super::resident::{create_buffer, transition};
 use super::resources::create_descriptor_heap;
 
 mod lifecycle;
+mod payload;
 mod status;
 
 pub struct AsyncTransfer {
@@ -357,6 +358,7 @@ impl AsyncTransfer {
             global_config: plan.layout.global_config,
             object_source_namespace: plan.layout.object_source_namespace,
             object_stable_seed_namespace: plan.layout.object_stable_seed_namespace,
+            object_page_checksums: None,
             counts: plan.layout.counts,
             uploaded_sha256: plan.uploaded_sha256,
             direct_release_fence,
@@ -376,6 +378,24 @@ impl AsyncTransfer {
             started_at: reservation.started_at,
         });
         Ok(report)
+    }
+
+    pub(super) fn bind_object_page_checksums(
+        &mut self,
+        transaction_id: u64,
+        checksums: Vec<[u8; 32]>,
+    ) -> Result<()> {
+        let pending = self
+            .pending
+            .as_mut()
+            .context("async transfer has no pending object copy")?;
+        ensure_transaction(pending.report.transaction_id, transaction_id)?;
+        anyhow::ensure!(
+            checksums.len() == pending.active_slots.len(),
+            "object page checksum count does not match the active mapping"
+        );
+        pending.report.object_page_checksums = Some(checksums);
+        Ok(())
     }
 
     pub unsafe fn poll_publication(

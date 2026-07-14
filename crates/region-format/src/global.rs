@@ -256,6 +256,10 @@ impl GlobalRegionPack {
         self.entries.keys().copied()
     }
 
+    pub fn region_sha256(&self, region: GlobalRegion) -> Option<[u8; 32]> {
+        self.entries.get(&region).map(|entry| entry.sha256)
+    }
+
     pub fn read_region(&mut self, region: GlobalRegion) -> Result<GlobalRegionRead> {
         let entry = self.entries.get(&region).with_context(|| {
             format!(

@@ -35,8 +35,8 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 31 }
-reason = "Runseal resolves named repository wrappers from one flat directory; the 31 current children are accepted operator entrypoints, including Experiment 0028."
+payload = { max_children = 32 }
+reason = "Runseal resolves named repository wrappers from one flat directory; the 32 current children are accepted operator entrypoints, including Experiment 0029."
 
 [[overrides]]
 match = ".runseal/support"
@@ -101,6 +101,10 @@ priority = 10
 enabled = false
 reason = "Signed object cache tests require private cache state to prove global aliases cannot false-hit and revisits remain resident."
 
+[overrides.rules."core/source/too-long"]
+payload = { max_lines = 505 }
+reason = "The bounded cache report carries private published-page checksums without exposing them through the serialized transaction contract."
+
 [[overrides]]
 match = "apps/workbench/src/rendering/composition/traversal.rs"
 kind = "file"
@@ -163,5 +167,5 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 11 }
-reason = "Composition keeps pair scheduling, state, probes, grounding, and the accepted traversal policy owners explicit under one atomic-publication boundary."
+payload = { max_children = 12 }
+reason = "Composition keeps pair scheduling, state, probes, grounding, traversal, and published-object evidence as explicit owners under one atomic-publication boundary."

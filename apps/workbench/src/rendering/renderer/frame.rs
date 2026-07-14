@@ -222,6 +222,10 @@ impl Renderer {
                 self.scene_renderer
                     .record(&self.command_list, scene, handle)?;
             }
+            if probe_load && self.composition_enabled() {
+                self.async_resident_renderer
+                    .record_active_payload_readback(&self.command_list)?;
+            }
             if capture_object_ids {
                 transition(
                     &self.command_list,

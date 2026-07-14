@@ -217,7 +217,15 @@ impl Renderer {
                 transaction_id,
                 uploads,
                 metrics,
-            } => unsafe { self.submit_object_completion(transaction_id, uploads, metrics) },
+                active_page_checksums,
+            } => unsafe {
+                self.submit_object_completion(
+                    transaction_id,
+                    uploads,
+                    metrics,
+                    active_page_checksums,
+                )
+            },
             ObjectCompletion::Failed {
                 transaction_id,
                 message,
@@ -245,17 +253,17 @@ impl Renderer {
         transaction_id: u64,
         uploads: Vec<RegionUpload>,
         metrics: ObjectIoMetrics,
+        active_page_checksums: Vec<[u8; 32]>,
     ) -> Result<()> {
         let release_fence = self.next_fence_value;
         self.next_fence_value += 1;
         match unsafe {
-            self.async_resident_renderer.submit(
+            self.async_resident_renderer.submit_canonical_cooked(
                 transaction_id,
                 uploads,
                 metrics.total_ms,
-                &self.queue,
-                &self.fence,
-                release_fence,
+                active_page_checksums,
+                (&self.queue, &self.fence, release_fence),
             )
         } {
             Ok(report) => self.cooked_object_streamer.mark_submitted(&report),

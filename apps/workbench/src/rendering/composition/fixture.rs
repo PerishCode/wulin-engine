@@ -126,7 +126,7 @@ pub(super) fn generate_fixture_region(
     let minimum_x = (region_x as i32 - 64) * 16 - 8;
     let minimum_z = (region_z as i32 - 64) * 16 - 8;
     for (local_index, record) in records.iter_mut().enumerate() {
-        let (u, v) = arbitrary_fractions(FractionRegion::Local(region_id), local_index);
+        let (u, v) = arbitrary_fractions(region_id, local_index);
         let cell_x = local_index as u32 % 32;
         let cell_z = local_index as u32 / 32;
         let x_q9 = cell_x * 256 + u;
@@ -153,7 +153,8 @@ pub(super) fn sample_ground(
     tile: &terrain_format::TerrainTile,
     local_index: usize,
     fixture: CompositionFixture,
-    global_region: Option<RegionCoord>,
+    position: [f32; 3],
+    semantic_region_id: u32,
 ) -> (i32, TriangleClass) {
     let cell_x = local_index % terrain_format::CELL_SIDE;
     let cell_z = local_index / terrain_format::CELL_SIDE;
@@ -165,11 +166,20 @@ pub(super) fn sample_ground(
         );
     }
 
-    let fraction_region = global_region.map_or(
-        FractionRegion::Local(tile.region_id),
-        FractionRegion::Global,
-    );
-    let (u, v) = arbitrary_fractions(fraction_region, local_index);
+    let region_x = semantic_region_id % MAX_REGION_SIDE;
+    let region_z = semantic_region_id / MAX_REGION_SIDE;
+    let minimum_x = (region_x as i32 - 64) * 16 - 8;
+    let minimum_z = (region_z as i32 - 64) * 16 - 8;
+    let x_q9 = ((position[0] - minimum_x as f32) * 512.0)
+        .round()
+        .clamp(0.0, 8192.0) as u32;
+    let z_q9 = ((position[2] - minimum_z as f32) * 512.0)
+        .round()
+        .clamp(0.0, 8192.0) as u32;
+    let cell_x = (x_q9 >> 8).min(31) as usize;
+    let cell_z = (z_q9 >> 8).min(31) as usize;
+    let u = x_q9 - cell_x as u32 * 256;
+    let v = z_q9 - cell_z as u32 * 256;
     let sum = u + v;
     let value = if sum <= 256 {
         at(cell_x, cell_z) * (256 - sum) as i32
@@ -188,25 +198,10 @@ pub(super) fn sample_ground(
     (value, triangle)
 }
 
-#[derive(Clone, Copy)]
-enum FractionRegion {
-    Local(u32),
-    Global(RegionCoord),
-}
-
-fn arbitrary_fractions(region: FractionRegion, local_index: usize) -> (u32, u32) {
+fn arbitrary_fractions(region_id: u32, local_index: usize) -> (u32, u32) {
     debug_assert!(local_index < INSTANCES_PER_REGION as usize);
     let local_x = local_index as u32 % 32;
     let local_z = local_index as u32 / 32;
-    if let FractionRegion::Global(region) = region {
-        return canonical_object_fixture::arbitrary_fractions(
-            region_format::GlobalRegion::new(region.x, region.z),
-            local_index,
-        );
-    }
-    let FractionRegion::Local(region_id) = region else {
-        unreachable!()
-    };
     let [region_x, region_z] = [
         i64::from(region_id % MAX_REGION_SIDE),
         i64::from(region_id / MAX_REGION_SIDE),

@@ -26,6 +26,19 @@ export function canonicalObjects(
     field<string>(value, "sourceNamespace", "string");
     field<string>(value, "contentSha256", "string");
     field<string>(value, "stableSeedSha256", "string");
+    if (value.payloadAuthority !== undefined) {
+        const authority = object(value, "payloadAuthority");
+        if (
+            authority.revision !== "cooked-object-payload-authority-v1" ||
+            authority.regionCount !== 25 || authority.recordCount !== 25_600 ||
+            authority.copyCount !== 25 || authority.readbackBytes !== 512_000 ||
+            authority.allocationBytes !== 524_288 || authority.chunkMismatchCount !== 0 ||
+            authority.expectedIndexSha256 !== authority.observedIndexSha256
+        ) fail("cooked object payload authority failed");
+        field<string>(authority, "payloadSha256", "string");
+        field<number>(authority, "probeCount", "number");
+        field<number>(authority, "totalCopyCount", "number");
+    }
 
     const terrain = object(probe, "terrain");
     const terrainEntries = array(terrainProjection(terrain), "entries");

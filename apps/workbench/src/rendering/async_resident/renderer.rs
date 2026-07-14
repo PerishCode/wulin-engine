@@ -22,7 +22,10 @@ use crate::rendering::resident::{
 use crate::rendering::terrain::TerrainProjection;
 
 mod global;
+mod payload;
 mod status;
+
+pub(in crate::rendering) use payload::ActivePayloadReadback;
 
 pub struct AsyncResidentRenderer {
     pipeline: AsyncResidentPipeline,
@@ -32,6 +35,10 @@ pub struct AsyncResidentRenderer {
     query_heap: ID3D12QueryHeap,
     timestamp_readback: ID3D12Resource,
     argument_readback: ID3D12Resource,
+    active_payload_readback: ID3D12Resource,
+    active_payload_allocation_bytes: u64,
+    active_payload_probe_count: u64,
+    active_payload_copy_count: u64,
     timestamp_frequency: u64,
     width: u32,
     height: u32,
@@ -44,6 +51,7 @@ pub(in crate::rendering) struct PublishedSnapshot {
     pub global_config: Option<GlobalRegionConfig>,
     pub object_source_namespace: Option<ObjectSourceNamespace>,
     pub object_stable_seed_namespace: Option<ObjectSourceNamespace>,
+    pub object_page_checksums: Option<Vec<[u8; 32]>>,
     pub active_slots: Vec<u32>,
 }
 
@@ -99,6 +107,8 @@ impl AsyncResidentRenderer {
                 D3D12_RESOURCE_FLAG_NONE,
             )
         }?;
+        let (active_payload_readback, active_payload_allocation_bytes) =
+            unsafe { payload::create_readback(device) }?;
         Ok(Self {
             pipeline,
             transfer,
@@ -107,6 +117,10 @@ impl AsyncResidentRenderer {
             query_heap,
             timestamp_readback,
             argument_readback,
+            active_payload_readback,
+            active_payload_allocation_bytes,
+            active_payload_probe_count: 0,
+            active_payload_copy_count: 0,
             timestamp_frequency,
             width,
             height,
@@ -223,11 +237,13 @@ impl AsyncResidentRenderer {
         let global_config = report.global_config;
         let object_source_namespace = report.object_source_namespace;
         let object_stable_seed_namespace = report.object_stable_seed_namespace;
+        let object_page_checksums = report.object_page_checksums.clone();
         self.published = Some(PublishedSnapshot {
             config,
             global_config,
             object_source_namespace,
             object_stable_seed_namespace,
+            object_page_checksums,
             active_slots,
         });
         Some(report)

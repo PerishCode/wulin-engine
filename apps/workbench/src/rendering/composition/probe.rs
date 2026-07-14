@@ -5,15 +5,14 @@ use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::async_resident::{ObjectSourceNamespace, canonical_stable_seed};
-use crate::world::RegionCoord;
-
 use super::super::meshlet_scene::SkeletalProbe;
 use super::super::renderer::Renderer;
 use super::super::terrain::TerrainProbe;
 use super::contact::{self, ContactProbe};
 use super::fixture::{self, CompositionFixture, TriangleClass};
 use super::{COMPOSITION_REVISION, CompositionOrder};
+
+mod objects;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,7 +21,7 @@ pub struct CompositionProbe {
     order: CompositionOrder,
     pair: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
-    canonical_objects: Option<CanonicalObjectEvidence>,
+    canonical_objects: Option<objects::CanonicalObjectEvidence>,
     grounding: GroundingProbe,
     contact: ContactProbe,
     terrain: TerrainProbe,
@@ -31,31 +30,6 @@ pub struct CompositionProbe {
     fixed_terrain_dispatches: u32,
     fixed_skeletal_dispatches: u32,
     timing: CompositionTiming,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CanonicalObjectEvidence {
-    revision: &'static str,
-    source_namespace: ObjectSourceNamespace,
-    entry_count: usize,
-    semantic_collision_count: usize,
-    stable_seed_collision_count: usize,
-    mismatch_count: usize,
-    content_sha256: String,
-    stable_seed_sha256: String,
-    entries: Vec<CanonicalObjectEntry>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CanonicalObjectEntry {
-    active_index: u32,
-    global_region: RegionCoord,
-    semantic_region_id: u32,
-    object_id: u32,
-    stable_seed: u32,
-    render_offset_regions: [i32; 2],
 }
 
 #[derive(Serialize)]
@@ -75,6 +49,9 @@ struct GroundingProbe {
     first_mismatch: Option<GroundMismatch>,
     readback_bytes: u64,
     allocation_bytes: u64,
+    instance_readback_bytes: u64,
+    instance_readback_allocation_bytes: u64,
+    instance_readback_copy_count: u32,
     cull_write_count: u32,
     mesh_read_count: u32,
     gpu_fused_cull_ms: f64,
@@ -179,13 +156,19 @@ impl Renderer {
             );
         }
 
+        let payload_readback = unsafe { self.async_resident_renderer.read_active_payload() }?;
+        let records = &payload_readback.records;
+        ensure!(
+            records.len() == assignments.len(),
+            "composition payload readback does not match the active mapping"
+        );
+
         let candidate_count = snapshot.config.candidate_instance_count() as usize;
         let gpu = unsafe {
             self.skeletal_scene_renderer
                 .read_ground_numerators(candidate_count)
         }?;
         let mut cpu = Vec::with_capacity(candidate_count);
-        let mut records = Vec::with_capacity(assignments.len());
         let mut position_digest = Sha256::new();
         let mut triangles = TriangleCoverage {
             first: 0,
@@ -197,20 +180,12 @@ impl Renderer {
                 assignment.region_id == tile.region_id,
                 "composition terrain tile does not match its logical mapping"
             );
-            let region_records = match (
-                snapshot.object_stable_seed_namespace,
-                assignment.global_region,
-            ) {
-                (Some(source), Some(global)) => fixture::generate_canonical_fixture_region(
-                    global,
-                    canonical_stable_seed(source, global),
-                    fixture,
-                ),
-                (None, _) => fixture::generate_fixture_region(assignment.region_id, fixture),
-                (Some(_), None) => {
-                    anyhow::bail!("canonical object mapping has no signed region")
-                }
-            };
+            let region_records = &records[active_index];
+            ensure!(
+                region_records.len() == crate::load::INSTANCES_PER_REGION as usize,
+                "composition payload page has the wrong record count"
+            );
+            let semantic_region_id = projection.region_id(active_index, assignment.region_id)?;
             for (local_index, record) in region_records.iter().enumerate() {
                 let position = projection.position(active_index, record.position)?;
                 position_digest.update(position[0].to_bits().to_le_bytes());
@@ -219,9 +194,8 @@ impl Renderer {
                     tile,
                     local_index,
                     fixture,
-                    snapshot
-                        .object_stable_seed_namespace
-                        .and(assignment.global_region),
+                    position,
+                    semantic_region_id,
                 );
                 cpu.push(ground);
                 match triangle {
@@ -230,7 +204,6 @@ impl Renderer {
                     TriangleClass::Second => triangles.second += 1,
                 }
             }
-            records.push(region_records);
         }
         ensure!(
             gpu.len() == candidate_count && cpu.len() == candidate_count,
@@ -261,7 +234,7 @@ impl Renderer {
             mismatch_count == 0,
             "composition GPU ground numerators differ from the CPU oracle"
         );
-        let boundaries = boundary_probe(assignments, &records, &cpu, fixture, projection)?;
+        let boundaries = boundary_probe(assignments, records, &cpu, fixture, projection)?;
         ensure!(
             boundaries.position_mismatch_count == 0 && boundaries.ground_mismatch_count == 0,
             "composition boundary samples diverged"
@@ -279,7 +252,14 @@ impl Renderer {
             .object_source_namespace
             .zip(snapshot.object_stable_seed_namespace)
             .map(|(source, stable_seed)| {
-                canonical_object_evidence(source, stable_seed, assignments, &records, projection)
+                objects::canonical_object_evidence(
+                    source,
+                    stable_seed,
+                    assignments,
+                    records,
+                    projection,
+                    &payload_readback,
+                )
             })
             .transpose()?;
         let terrain = unsafe { self.terrain_renderer.read_probe(scene) }?;
@@ -289,13 +269,13 @@ impl Renderer {
                 scene,
                 &cpu,
                 fixture.ground_denominator(),
-                &records,
+                records,
             )
         }?;
         let contact = contact::evaluate(contact::ContactInput {
             assignments,
             tiles,
-            records: &records,
+            records,
             exact_ground: &cpu,
             ground_denominator: fixture.ground_denominator(),
             scene,
@@ -325,6 +305,9 @@ impl Renderer {
                 first_mismatch,
                 readback_bytes: candidate_count as u64 * 4,
                 allocation_bytes: super::super::meshlet_scene::GROUND_BYTES,
+                instance_readback_bytes: payload_readback.readback_bytes,
+                instance_readback_allocation_bytes: payload_readback.allocation_bytes,
+                instance_readback_copy_count: payload_readback.copy_count,
                 cull_write_count: candidate_count as u32,
                 mesh_read_count,
                 gpu_fused_cull_ms: skeletal_timing[0],
@@ -348,68 +331,6 @@ impl Renderer {
             },
         })
     }
-}
-
-fn canonical_object_evidence(
-    source_namespace: ObjectSourceNamespace,
-    stable_seed_namespace: ObjectSourceNamespace,
-    assignments: &[crate::terrain::TerrainAssignment],
-    records: &[Vec<crate::resident::InstanceRecord>],
-    projection: super::super::terrain::TerrainProjection,
-) -> Result<CanonicalObjectEvidence> {
-    ensure!(
-        projection.is_canonical() && assignments.len() == records.len(),
-        "canonical object evidence requires one projected payload per region"
-    );
-    let mut content_hash = Sha256::new();
-    let mut seed_hash = Sha256::new();
-    let mut semantic_ids = std::collections::BTreeSet::new();
-    let mut stable_seeds = std::collections::BTreeSet::new();
-    let mut mismatch_count = 0;
-    let mut entries = Vec::with_capacity(assignments.len());
-    for (index, (assignment, region_records)) in assignments.iter().zip(records).enumerate() {
-        let global = assignment
-            .global_region
-            .context("canonical object assignment has no signed region")?;
-        let stable_seed = canonical_stable_seed(stable_seed_namespace, global);
-        let semantic_region_id = projection.region_id(index, assignment.region_id)?;
-        let object_id = crate::load::REGION_OBJECT_ID_BASE
-            .checked_add(semantic_region_id)
-            .and_then(|value| value.checked_add(1))
-            .context("canonical object ID overflowed")?;
-        let render_offset_regions = projection.render_offset(index)?;
-        mismatch_count += region_records
-            .iter()
-            .filter(|record| record.region_id != stable_seed)
-            .count();
-        semantic_ids.insert(semantic_region_id);
-        stable_seeds.insert(stable_seed);
-        content_hash.update(source_namespace.as_bytes());
-        content_hash.update(global.x.to_le_bytes());
-        content_hash.update(global.z.to_le_bytes());
-        content_hash.update(stable_seed.to_le_bytes());
-        content_hash.update(crate::resident::as_bytes(region_records));
-        seed_hash.update(stable_seed.to_le_bytes());
-        entries.push(CanonicalObjectEntry {
-            active_index: index as u32,
-            global_region: global,
-            semantic_region_id,
-            object_id,
-            stable_seed,
-            render_offset_regions,
-        });
-    }
-    Ok(CanonicalObjectEvidence {
-        revision: "canonical-generated-object-v1",
-        source_namespace,
-        entry_count: entries.len(),
-        semantic_collision_count: entries.len() - semantic_ids.len(),
-        stable_seed_collision_count: entries.len() - stable_seeds.len(),
-        mismatch_count,
-        content_sha256: format!("{:x}", content_hash.finalize()),
-        stable_seed_sha256: format!("{:x}", seed_hash.finalize()),
-        entries,
-    })
 }
 
 fn boundary_probe(

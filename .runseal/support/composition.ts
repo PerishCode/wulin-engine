@@ -39,6 +39,9 @@ export function stableCompositionProbe(
             firstMismatch: grounding.firstMismatch,
             readbackBytes: grounding.readbackBytes,
             allocationBytes: grounding.allocationBytes,
+            instanceReadbackBytes: grounding.instanceReadbackBytes,
+            instanceReadbackAllocationBytes: grounding.instanceReadbackAllocationBytes,
+            instanceReadbackCopyCount: grounding.instanceReadbackCopyCount,
             cullWriteCount: grounding.cullWriteCount,
             meshReadCount: grounding.meshReadCount,
             triangles: grounding.triangles,
@@ -125,6 +128,9 @@ export function validateCompositionProbe(
         grounding.candidateCount !== 25_600 || grounding.gpuSha256 !== grounding.cpuSha256 ||
         grounding.mismatchCount !== 0 || grounding.firstMismatch !== null ||
         grounding.readbackBytes !== 102_400 || grounding.allocationBytes !== 102_400 ||
+        grounding.instanceReadbackBytes !== 512_000 ||
+        grounding.instanceReadbackAllocationBytes !== 524_288 ||
+        grounding.instanceReadbackCopyCount !== 25 ||
         grounding.cullWriteCount !== 25_600 ||
         field<number>(grounding, "meshReadCount", "number") > 25_600 ||
         (requireVisible && field<number>(grounding, "meshReadCount", "number") <= 0)
