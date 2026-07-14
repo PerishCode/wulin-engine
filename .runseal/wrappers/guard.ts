@@ -169,6 +169,53 @@ async function requireRuntimeBoundary(): Promise<void> {
         timelineOwner.code !== 0 || timelineLines.length !== 1 ||
         !timelineLines[0].startsWith("crates/engine-runtime/src/timeline.rs:")
     ) fail(`guard: presentation timeline ownership diverged: ${JSON.stringify(timelineLines)}`);
+
+    const inputOwner = await new Deno.Command("git", {
+        args: [
+            "grep",
+            "--no-index",
+            "-n",
+            "--fixed-strings",
+            "pub(crate) struct HostInput",
+            "--",
+            "apps",
+            "crates",
+        ],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    const inputOwnerLines = new TextDecoder().decode(inputOwner.stdout).trim().split(/\r?\n/)
+        .filter((line) => line.length > 0);
+    if (
+        inputOwner.code !== 0 || inputOwnerLines.length !== 1 ||
+        !inputOwnerLines[0].startsWith("apps/workbench/src/input.rs:")
+    ) fail(`guard: host input ownership diverged: ${JSON.stringify(inputOwnerLines)}`);
+
+    const engineHostInput = await new Deno.Command("git", {
+        args: [
+            "grep",
+            "--no-index",
+            "-n",
+            "-E",
+            "HostInput|NativeMessage|PostedMessage|WM_(SYS)?KEY|WM_KILLFOCUS",
+            "--",
+            "crates/engine-runtime",
+        ],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    if (engineHostInput.code === 0) {
+        fail(
+            `guard: engine runtime depends on host-native input\n${
+                new TextDecoder().decode(engineHostInput.stdout)
+            }`,
+        );
+    }
+    if (engineHostInput.code !== 1) {
+        fail(`guard: host input dependency scan failed with ${engineHostInput.code}`);
+    }
 }
 
 async function forbiddenScan(): Promise<void> {
@@ -264,6 +311,7 @@ await run("deno check", "deno", [
     ".runseal/wrappers/workbench.ts",
     ".runseal/wrappers/canonical-runtime.ts",
     ".runseal/support/canonical-runtime.ts",
+    ".runseal/support/host-input-replay.ts",
     ".runseal/support/cooked-gltf-presentation.ts",
     ".runseal/support/temporal-presentation.ts",
 ]);

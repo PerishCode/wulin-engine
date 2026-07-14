@@ -95,7 +95,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0040 and the current ADR set through 0043 define one live content runtime
+Experiments 0031-0041 and the current ADR set through 0044 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one offline-cooked external geometry/material/rig source, and one deterministic object-shadow
 path:
@@ -116,6 +116,8 @@ path:
   presentation-time, shader, and GPU lifecycle owners;
 - one runtime frame transaction that renders an immutable pre-commit tick and advances only after
   a successful canonical frame;
+- one host-owned Win32 keyboard/focus adapter and bounded process-local normalized input journal
+  with isolated deterministic replay;
 - one compact `source.*` / `canonical.*` inspect vocabulary;
 - one non-recursive `runseal :canonical-runtime` acceptance workflow.
 
@@ -145,6 +147,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0041-camera-visible-directional-shadows.md` | Accepted fixed camera-visible object shadow map, indirect depth reuse, and deterministic receiver contract. |
 | `docs/adr/0042-canonical-runtime-host-separation.md` | Accepted engine-runtime ownership, facade, host responsibilities, and dependency direction. |
 | `docs/adr/0043-runtime-frame-transaction.md` | Accepted runtime timeline ownership, immutable render input, and successful-frame commit contract. |
+| `docs/adr/0044-normalized-host-input-journal.md` | Accepted host-native keyboard normalization, bounded journal, focus cleanup, and isolated replay contract. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -156,6 +159,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0038-camera-visible-directional-shadows/README.md` | Accepted camera-visible animated-object hard shadows, exact CPU oracle, and bounded resource evidence. |
 | `experiments/0039-canonical-runtime-host-separation/README.md` | Accepted behavior-neutral runtime promotion, host separation, and exact regression evidence. |
 | `experiments/0040-runtime-frame-transaction/README.md` | Accepted runtime-owned timeline, immutable tick consumption, and successful-frame transaction evidence. |
+| `experiments/0041-deterministic-host-input/README.md` | Accepted native keyboard/focus normalization, process-local replay, restart, and host-order evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -176,6 +180,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
 | `apps/workbench/src/main.rs` | Native host message/frame loop and pending operator dispatch. |
+| `apps/workbench/src/input.rs` | Host-owned normalized key state, bounded record lifecycle, canonical hashing, and isolated replay. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch. |
 | `crates/engine-runtime/src/streaming/address.rs` | Signed global window and bounded projection. |
@@ -192,8 +197,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository, runtime/timeline ownership, dependency, and forbidden-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0040 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0041 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
+| `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
 | `.runseal/support/temporal-presentation.ts` | Fixed-quantum duration time, common-period, and held-pair acceptance support. |
 
@@ -218,17 +224,21 @@ runseal :canonical-runtime
 This workflow cooks fresh signed sources and directly validates canonical correctness,
 source reordering, movement, aliasing, failure rollback, all four fault gates, reactive
 and prepared traversal, rollover, the runtime-owned frame transaction and deterministic
-presentation time, fixed camera-visible
+presentation time, deterministic host input and process-restart replay, fixed camera-visible
 directional object shadows, a same-process 64-publication resource plateau, and 16 complete
 lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0040-runtime-frame-transaction/` and remains ignored.
+`out/captures/0041-deterministic-host-input/` and remains ignored.
 
 ### 6.3 Manual workbench
 
 ```powershell
 runseal :workbench start
+runseal :workbench input
+runseal :workbench input-record-start
+runseal :workbench input-record-stop
+runseal :workbench input-replay
 runseal :workbench terrain-open out/cooked/example/terrain.wlt
 runseal :workbench objects-open out/cooked/example/objects.wlr
 runseal :workbench schedule 0 0 0 0 2
