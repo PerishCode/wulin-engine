@@ -5,19 +5,19 @@ use windows::Win32::Graphics::Direct3D12::*;
 use windows::core::Interface;
 
 use crate::async_resident::{
-    ASYNC_CACHE_CAPACITY, ASYNC_RESIDENT_REVISION, AsyncTransactionReport, PayloadPreparation,
+    ASYNC_CACHE_CAPACITY, ASYNC_RESIDENT_REVISION, AsyncTransactionReport,
 };
 use crate::rendering::resident::transition;
 use crate::resident::{REGION_IDENTITY_BYTES, REGION_INSTANCE_BYTES, RegionUpload, as_bytes};
 
-use super::{AsyncTransfer, IdentityKind, PendingTransfer, ensure_transaction};
+use super::{AsyncTransfer, PendingTransfer, ensure_transaction};
 
 impl AsyncTransfer {
     pub unsafe fn submit(
         &mut self,
         transaction_id: u64,
         uploads: Vec<RegionUpload>,
-        preparation: PayloadPreparation,
+        payload_preparation_ms: f64,
         direct_queue: &ID3D12CommandQueue,
         direct_fence: &ID3D12Fence,
         direct_release_fence: u64,
@@ -32,27 +32,9 @@ impl AsyncTransfer {
             .take()
             .expect("async reservation disappeared");
         let plan = reservation.layout.materialize(uploads)?;
-        let identity_updates = plan
-            .uploads
-            .iter()
-            .map(|upload| {
-                (
-                    upload.slot,
-                    if upload.local_ids.is_some() {
-                        IdentityKind::Explicit
-                    } else {
-                        IdentityKind::Ordinal
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
         let identity_copy_slots = plan
             .uploads
             .iter()
-            .filter(|upload| {
-                upload.local_ids.is_some()
-                    || self.identity_kinds[upload.slot as usize] != IdentityKind::Ordinal
-            })
             .map(|upload| upload.slot)
             .collect::<Vec<_>>();
         unsafe { self.write_uploads(&plan.uploads, &identity_copy_slots) }?;
@@ -148,7 +130,7 @@ impl AsyncTransfer {
             global_config: plan.layout.global_config,
             object_source_namespace: plan.layout.object_source_namespace,
             object_stable_seed_namespace: plan.layout.object_stable_seed_namespace,
-            object_page_checksums: None,
+            object_page_checksums: Vec::new(),
             counts: plan.layout.counts,
             uploaded_sha256: plan.uploaded_sha256,
             identity_copy_count: identity_copy_slots.len(),
@@ -156,9 +138,7 @@ impl AsyncTransfer {
             direct_release_fence,
             copy_fence,
             gate_fence,
-            payload_source: preparation.source,
-            payload_preparation_ms: preparation.total_ms,
-            generation_ms: preparation.generation_ms,
+            payload_preparation_ms,
             schedule_ms: reservation.started_at.elapsed().as_secs_f64() * 1_000.0,
             pending_ms: 0.0,
         };
@@ -172,7 +152,6 @@ impl AsyncTransfer {
                 .map(|upload| upload.slot)
                 .filter(|slot| !self.identity_shader_slots[*slot as usize])
                 .collect(),
-            identity_updates,
             report: report.clone(),
             started_at: reservation.started_at,
         });
@@ -231,19 +210,8 @@ impl AsyncTransfer {
             }
             let offset = upload.slot as usize * REGION_IDENTITY_BYTES;
             let destination = unsafe { identity_mapped.cast::<u8>().add(offset) };
-            if let Some(local_ids) = &upload.local_ids {
-                let bytes = as_bytes(local_ids);
-                unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), destination, bytes.len()) };
-            } else {
-                for local_id in 0..crate::load::INSTANCES_PER_REGION {
-                    unsafe {
-                        destination
-                            .cast::<u32>()
-                            .add(local_id as usize)
-                            .write(local_id)
-                    };
-                }
-            }
+            let bytes = as_bytes(&upload.local_ids);
+            unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), destination, bytes.len()) };
         }
         unsafe {
             self.identity_upload.Unmap(

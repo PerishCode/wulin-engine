@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, bail};
 use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND, WAIT_OBJECT_0};
 use windows::Win32::Graphics::Direct3D::D3D_FEATURE_LEVEL_12_1;
 use windows::Win32::Graphics::Direct3D12::*;
@@ -9,9 +9,7 @@ use windows::Win32::Graphics::Dxgi::*;
 use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
 use windows::core::Interface;
 
-use crate::cooked::CookedStreamer;
 use crate::objects::CookedObjectStreamer;
-use crate::resident::StreamReport;
 use crate::terrain::TerrainStreamer;
 
 use super::async_resident::AsyncResidentRenderer;
@@ -21,12 +19,8 @@ use super::device::{
     DeviceCapabilities, enable_debug_layer, query_required_capabilities, select_reference_adapter,
 };
 use super::gpu_capture::{CapturedPixels, Readback};
-use super::load::{LoadProbe, LoadRenderer};
-use super::meshlet_scene::{
-    MeshletProbe, MeshletSceneRenderer, SkeletalProbe, SkeletalSceneRenderer, SurfaceProbe,
-};
-use super::resident::ResidentRenderer;
-use super::terrain::{TerrainProbe, TerrainRenderer};
+use super::meshlet_scene::SkeletalSceneRenderer;
+use super::terrain::TerrainRenderer;
 
 mod frame;
 mod modes;
@@ -53,12 +47,8 @@ pub struct Renderer {
     capture: Readback,
     object_id_capture: Readback,
     scene_renderer: SceneRenderer,
-    pub(super) load_renderer: LoadRenderer,
-    pub(super) resident_renderer: ResidentRenderer,
-    pub(super) cooked_streamer: CookedStreamer,
     pub(super) cooked_object_streamer: CookedObjectStreamer,
     pub(super) async_resident_renderer: AsyncResidentRenderer,
-    pub(super) meshlet_scene_renderer: MeshletSceneRenderer,
     pub(super) skeletal_scene_renderer: SkeletalSceneRenderer,
     pub(super) terrain_streamer: TerrainStreamer,
     pub(super) terrain_renderer: TerrainRenderer,
@@ -75,13 +65,7 @@ pub struct CapturedFrame {
 
 pub struct RenderOutcome {
     pub capture: Option<CapturedFrame>,
-    pub load_probe: Option<LoadProbe>,
-    pub meshlet_probe: Option<MeshletProbe>,
-    pub skeletal_probe: Option<SkeletalProbe>,
-    pub surface_probe: Option<SurfaceProbe>,
-    pub terrain_probe: Option<TerrainProbe>,
     pub composition_probe: Option<CompositionProbe>,
-    pub resident_stream: Option<StreamReport>,
 }
 
 impl Renderer {
@@ -168,15 +152,7 @@ impl Renderer {
         let scene_renderer = unsafe { SceneRenderer::new(&device, width, height) }?;
         let object_id_capture =
             unsafe { Readback::new(&device, scene_renderer.object_id_resource()) }?;
-        let load_renderer =
-            unsafe { LoadRenderer::new(&device, timestamp_frequency, width, height) }?;
-        let resident_renderer =
-            unsafe { ResidentRenderer::new(&device, timestamp_frequency, width, height) }?;
-        let async_resident_renderer =
-            unsafe { AsyncResidentRenderer::new(&device, timestamp_frequency, width, height) }?;
-        let meshlet_scene_renderer = unsafe {
-            MeshletSceneRenderer::new(&device, &queue, timestamp_frequency, width, height)
-        }?;
+        let async_resident_renderer = unsafe { AsyncResidentRenderer::new(&device) }?;
         let terrain_renderer =
             unsafe { TerrainRenderer::new(&device, timestamp_frequency, width, height) }?;
         let skeletal_scene_renderer = unsafe {
@@ -225,12 +201,8 @@ impl Renderer {
             capture,
             object_id_capture,
             scene_renderer,
-            load_renderer,
-            resident_renderer,
-            cooked_streamer: CookedStreamer::default(),
             cooked_object_streamer: CookedObjectStreamer::default(),
             async_resident_renderer,
-            meshlet_scene_renderer,
             skeletal_scene_renderer,
             terrain_streamer: TerrainStreamer::default(),
             terrain_renderer,
@@ -321,12 +293,4 @@ impl Drop for Renderer {
             let _ = CloseHandle(self.fence_event);
         }
     }
-}
-
-fn ensure_no_composition_pair(composition: &CompositionCoordinator) -> Result<()> {
-    ensure!(
-        !composition.has_pending(),
-        "composition pair transaction is active"
-    );
-    Ok(())
 }

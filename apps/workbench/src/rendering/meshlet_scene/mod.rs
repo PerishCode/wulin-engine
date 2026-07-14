@@ -1,13 +1,7 @@
-mod oracle;
-mod pipeline;
-mod renderer;
 mod resources;
 mod skeletal;
 
-pub use renderer::{MeshletFrame, MeshletProbe, MeshletSceneRenderer};
 pub(in crate::rendering) use resources::CatalogBuffers;
 pub(in crate::rendering) use skeletal::GROUND_BYTES;
-pub use skeletal::{
-    SkeletalFrame, SkeletalProbe, SkeletalSceneRenderer, SkeletalSettings, SurfaceProbe,
-    SurfaceSettings,
-};
+pub(in crate::rendering) use skeletal::{CompositionSurfaceInput, SurfaceProbe};
+pub use skeletal::{SkeletalFrame, SkeletalSceneRenderer};

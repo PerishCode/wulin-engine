@@ -5,12 +5,12 @@ use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use super::super::meshlet_scene::SkeletalProbe;
+use super::super::meshlet_scene::SurfaceProbe;
 use super::super::renderer::Renderer;
 use super::super::terrain::TerrainProbe;
+use super::COMPOSITION_REVISION;
+use super::authority::{self, TriangleClass};
 use super::contact::{self, ContactProbe};
-use super::fixture::{self, CompositionFixture, TriangleClass};
-use super::{COMPOSITION_REVISION, CompositionOrder};
 
 mod objects;
 
@@ -18,14 +18,12 @@ mod objects;
 #[serde(rename_all = "camelCase")]
 pub struct CompositionProbe {
     revision: &'static str,
-    order: CompositionOrder,
     pair: Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    canonical_objects: Option<objects::CanonicalObjectEvidence>,
+    canonical_objects: objects::CanonicalObjectEvidence,
     grounding: GroundingProbe,
     contact: ContactProbe,
     terrain: TerrainProbe,
-    skeletal: SkeletalProbe,
+    surface: SurfaceProbe,
     clear_count: u32,
     fixed_terrain_dispatches: u32,
     fixed_skeletal_dispatches: u32,
@@ -35,7 +33,7 @@ pub struct CompositionProbe {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GroundingProbe {
-    fixture: CompositionFixture,
+    authority: &'static str,
     grounding_mode: u32,
     ground_denominator: u32,
     position_lattice_denominator: u32,
@@ -117,6 +115,7 @@ impl Renderer {
     pub(in crate::rendering) unsafe fn read_composition_probe(
         &self,
         scene: &crate::scene::SceneState,
+        background_color: [f32; 4],
     ) -> Result<CompositionProbe> {
         let snapshot = self
             .async_resident_renderer
@@ -134,29 +133,15 @@ impl Renderer {
             assignments.len() == tiles.len(),
             "composition terrain mapping shape differs from tile shape"
         );
-        let fixture = self
-            .composition
+        self.composition
             .published
             .as_ref()
-            .context("composition probe has no published pair")?
-            .fixture;
+            .context("composition probe has no published pair")?;
         let projection = self.terrain_renderer.projection()?;
-        let object_projection = snapshot.projection()?;
         ensure!(
-            projection.is_canonical() == object_projection.is_canonical(),
-            "composition terrain and object projection modes differ"
+            snapshot.object_stable_seed_namespace == authority::object_source_namespace(),
+            "composition object stable-seed namespace does not match its authority"
         );
-        ensure!(
-            snapshot.object_source_namespace.is_some()
-                == snapshot.object_stable_seed_namespace.is_some(),
-            "canonical object source and stable-seed namespace presence differs"
-        );
-        if let Some(namespace) = snapshot.object_stable_seed_namespace {
-            ensure!(
-                namespace == fixture.object_source_namespace(),
-                "composition object stable-seed namespace does not match its fixture"
-            );
-        }
 
         let payload_readback = unsafe { self.async_resident_renderer.read_active_payload() }?;
         let records = &payload_readback.records;
@@ -190,18 +175,13 @@ impl Renderer {
                     && region_local_ids.len() == region_records.len(),
                 "composition payload page has the wrong record or identity count"
             );
-            let semantic_region_id = projection.region_id(active_index, assignment.region_id)?;
+            let semantic_region_id = projection.region_id(active_index)?;
             for (local_index, record) in region_records.iter().enumerate() {
                 let position = projection.position(active_index, record.position)?;
                 position_digest.update(position[0].to_bits().to_le_bytes());
                 position_digest.update(position[2].to_bits().to_le_bytes());
-                let (ground, triangle) = fixture::sample_ground(
-                    tile,
-                    local_index,
-                    fixture,
-                    position,
-                    semantic_region_id,
-                );
+                let (ground, triangle) =
+                    authority::sample_ground(tile, position, semantic_region_id);
                 cpu.push(ground);
                 identity_evidence.push((
                     active_index as u32,
@@ -251,7 +231,6 @@ impl Renderer {
             records,
             &payload_readback.local_ids,
             &cpu,
-            fixture,
             projection,
         )?;
         ensure!(
@@ -280,27 +259,21 @@ impl Renderer {
             identity_position.update(z.to_le_bytes());
             identity_ground.update(ground.to_le_bytes());
         }
-        let canonical_objects = snapshot
-            .object_source_namespace
-            .zip(snapshot.object_stable_seed_namespace)
-            .map(|(source, stable_seed)| {
-                objects::canonical_object_evidence(
-                    source,
-                    stable_seed,
-                    assignments,
-                    records,
-                    projection,
-                    &payload_readback,
-                )
-            })
-            .transpose()?;
+        let canonical_objects = objects::canonical_object_evidence(
+            snapshot.object_source_namespace,
+            snapshot.object_stable_seed_namespace,
+            assignments,
+            records,
+            projection,
+            &payload_readback,
+        )?;
         let terrain = unsafe { self.terrain_renderer.read_probe(scene) }?;
         let skeletal = unsafe {
-            self.skeletal_scene_renderer.read_grounded_probe(
+            self.skeletal_scene_renderer.read_composition_probe(
                 snapshot,
                 scene,
                 &cpu,
-                fixture.ground_denominator(),
+                authority::GROUND_DENOMINATOR,
                 records,
                 &payload_readback.local_ids,
             )
@@ -311,24 +284,36 @@ impl Renderer {
             records,
             local_ids: &payload_readback.local_ids,
             exact_ground: &cpu,
-            ground_denominator: fixture.ground_denominator(),
+            ground_denominator: authority::GROUND_DENOMINATOR,
             scene,
-            settings: self.terrain_renderer.lod_settings(),
             projection,
         })?;
         let mesh_read_count = skeletal.visible_count();
         let skeletal_timing = skeletal.gpu_timing();
         let terrain_total_ms = terrain.total_gpu_ms();
+        let surface = unsafe {
+            self.skeletal_scene_renderer.read_composition_surface_probe(
+                skeletal,
+                super::super::meshlet_scene::CompositionSurfaceInput {
+                    scene,
+                    background_color,
+                    instance_records: records,
+                    local_ids: &payload_readback.local_ids,
+                    projection,
+                    ground_numerators: &cpu,
+                    ground_denominator: authority::GROUND_DENOMINATOR,
+                },
+            )
+        }?;
         Ok(CompositionProbe {
             revision: COMPOSITION_REVISION,
-            order: self.composition.order,
             pair: self.composition.status_json(),
             canonical_objects,
             grounding: GroundingProbe {
-                fixture,
-                grounding_mode: fixture.grounding_mode(),
-                ground_denominator: fixture.ground_denominator(),
-                position_lattice_denominator: fixture.position_denominator(),
+                authority: authority::NAME,
+                grounding_mode: authority::GROUNDING_MODE,
+                ground_denominator: authority::GROUND_DENOMINATOR,
+                position_lattice_denominator: authority::POSITION_DENOMINATOR,
                 position_sha256: format!("{:x}", position_digest.finalize()),
                 identity_keyed_position_sha256: format!("{:x}", identity_position.finalize()),
                 identity_keyed_ground_sha256: format!("{:x}", identity_ground.finalize()),
@@ -352,9 +337,9 @@ impl Renderer {
             },
             contact,
             terrain,
-            skeletal,
+            surface,
             clear_count: 1,
-            fixed_terrain_dispatches: 3 + u32::from(self.terrain_renderer.lod_settings().enabled),
+            fixed_terrain_dispatches: 4,
             fixed_skeletal_dispatches: 5,
             timing: CompositionTiming {
                 terrain_total_ms,
@@ -374,24 +359,14 @@ fn boundary_probe(
     records: &[Vec<crate::resident::InstanceRecord>],
     local_ids: &[Vec<u32>],
     ground: &[i32],
-    fixture: CompositionFixture,
     projection: super::super::terrain::TerrainProjection,
 ) -> Result<BoundaryProbe> {
-    if fixture == CompositionFixture::CellCenter {
-        return Ok(BoundaryProbe {
-            logical_neighbor_edges: 0,
-            pair_comparisons: 0,
-            position_mismatch_count: 0,
-            ground_mismatch_count: 0,
-            first_mismatch: None,
-        });
-    }
     let active = assignments
         .iter()
         .enumerate()
-        .map(|(index, assignment)| {
+        .map(|(index, _)| {
             projection
-                .region_id(index, assignment.region_id)
+                .region_id(index)
                 .map(|region_id| (region_id, index))
         })
         .collect::<Result<BTreeMap<_, _>>>()?;
@@ -402,8 +377,8 @@ fn boundary_probe(
         ground_mismatch_count: 0,
         first_mismatch: None,
     };
-    for (first_index, assignment) in assignments.iter().enumerate() {
-        let region_id = projection.region_id(first_index, assignment.region_id)?;
+    for first_index in 0..assignments.len() {
+        let region_id = projection.region_id(first_index)?;
         let region_x = region_id % crate::load::MAX_REGION_SIDE;
         for (second_region_id, x_edge) in [
             (region_id + 1, true),

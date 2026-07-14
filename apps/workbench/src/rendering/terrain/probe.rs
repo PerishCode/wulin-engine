@@ -16,16 +16,13 @@ use super::{
 pub struct TerrainProbe {
     revision: &'static str,
     config: LoadConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    global_addressing: Option<GlobalAddressEvidence>,
+    global_addressing: GlobalAddressEvidence,
     generation: u64,
     active_mapping: Vec<TerrainAssignment>,
     active_mapping_sha256: String,
     payload_sha256: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    global_content: Option<GlobalContentEvidence>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    canonical_projection: Option<CanonicalProjectionEvidence>,
+    global_content: GlobalContentEvidence,
+    canonical_projection: CanonicalProjectionEvidence,
     cpu_edges: terrain_format::EdgeValidation,
     gpu_edges: GpuEdges,
     geometry: TerrainGeometry,
@@ -150,13 +147,13 @@ struct TerrainLodEvidence {
 #[serde(rename_all = "camelCase")]
 struct GpuLod {
     lod_counts: [u32; 3],
-    patch_edges: Option<u32>,
-    same_lod_edges: Option<u32>,
-    transition_edges: Option<u32>,
-    adjusted_vertices: Option<u32>,
-    sample_comparisons: Option<u32>,
-    max_lod_delta: Option<u32>,
-    mismatch_count: Option<u32>,
+    patch_edges: u32,
+    same_lod_edges: u32,
+    transition_edges: u32,
+    adjusted_vertices: u32,
+    sample_comparisons: u32,
+    max_lod_delta: u32,
+    mismatch_count: u32,
     first_mismatch: Option<u32>,
 }
 
@@ -189,15 +186,13 @@ impl TerrainRenderer {
                 QUERY_COUNT as usize,
             )
         }?;
-        let projection =
-            TerrainProjection::for_terrain(snapshot.config, snapshot.report.source_namespace)?;
+        let projection = TerrainProjection::for_terrain(snapshot.config)?;
         let projected_camera = projection.camera(scene.camera());
         let lod_oracle = super::lod::evaluate(
             snapshot.config,
             &snapshot.active,
             &snapshot.tiles,
             projected_camera,
-            self.lod_settings,
             projection,
         )?;
         let oracle_patches = lod_oracle.geometry.patches;
@@ -238,63 +233,53 @@ impl TerrainRenderer {
             lod_stats[..3] == lod_oracle.lod_counts,
             "terrain GPU LOD counts mismatch"
         );
-        if self.lod_settings.enabled {
-            ensure!(
-                lod_stats[3] == lod_oracle.edges.patch_edges,
-                "terrain LOD edge count mismatch"
-            );
-            ensure!(
-                lod_stats[4] == lod_oracle.edges.same_lod_edges,
-                "terrain same-LOD edge count mismatch"
-            );
-            ensure!(
-                lod_stats[5] == lod_oracle.edges.transition_edges,
-                "terrain transition edge count mismatch"
-            );
-            ensure!(
-                lod_stats[6] == lod_oracle.edges.adjusted_vertices,
-                "terrain adjusted vertex count mismatch"
-            );
-            ensure!(
-                lod_stats[7] == lod_oracle.edges.sample_comparisons,
-                "terrain LOD sample count mismatch"
-            );
-            ensure!(
-                lod_stats[8] == lod_oracle.edges.max_lod_delta,
-                "terrain maximum LOD delta mismatch"
-            );
-            ensure!(lod_stats[9] == 0, "terrain LOD geometric mismatch");
-        }
+        ensure!(
+            lod_stats[3] == lod_oracle.edges.patch_edges,
+            "terrain LOD edge count mismatch"
+        );
+        ensure!(
+            lod_stats[4] == lod_oracle.edges.same_lod_edges,
+            "terrain same-LOD edge count mismatch"
+        );
+        ensure!(
+            lod_stats[5] == lod_oracle.edges.transition_edges,
+            "terrain transition edge count mismatch"
+        );
+        ensure!(
+            lod_stats[6] == lod_oracle.edges.adjusted_vertices,
+            "terrain adjusted vertex count mismatch"
+        );
+        ensure!(
+            lod_stats[7] == lod_oracle.edges.sample_comparisons,
+            "terrain LOD sample count mismatch"
+        );
+        ensure!(
+            lod_stats[8] == lod_oracle.edges.max_lod_delta,
+            "terrain maximum LOD delta mismatch"
+        );
+        ensure!(lod_stats[9] == 0, "terrain LOD geometric mismatch");
         let mut mapping_hash = Sha256::new();
         for entry in &snapshot.active {
             mapping_hash.update(entry.slot.to_le_bytes());
             mapping_hash.update(entry.region_id.to_le_bytes());
         }
-        let global_addressing = snapshot
-            .global_config
-            .map(|config| global_evidence(config, &snapshot.active))
-            .transpose()?;
+        let global_addressing = global_evidence(snapshot.global_config, &snapshot.active)?;
         let mut payload_hash = Sha256::new();
         for tile in &snapshot.tiles {
             payload_hash.update(terrain_format::encode_tile(tile)?);
         }
-        let global_content = snapshot
-            .report
-            .source_namespace
-            .map(|namespace| global_content_evidence(namespace, &snapshot.active, &snapshot.tiles))
-            .transpose()?;
-        let canonical_projection = projection
-            .is_canonical()
-            .then(|| {
-                canonical_projection_evidence(
-                    projection,
-                    scene,
-                    &snapshot.active,
-                    self.width,
-                    self.height,
-                )
-            })
-            .transpose()?;
+        let global_content = global_content_evidence(
+            snapshot.report.source_namespace,
+            &snapshot.active,
+            &snapshot.tiles,
+        )?;
+        let canonical_projection = canonical_projection_evidence(
+            projection,
+            scene,
+            &snapshot.active,
+            self.width,
+            self.height,
+        )?;
         let milliseconds = |start: usize, end: usize| {
             timestamps[end].saturating_sub(timestamps[start]) as f64 * 1_000.0
                 / self.timestamp_frequency as f64
@@ -350,18 +335,17 @@ impl TerrainRenderer {
                 oracle: lod_oracle,
                 gpu: GpuLod {
                     lod_counts: [lod_stats[0], lod_stats[1], lod_stats[2]],
-                    patch_edges: self.lod_settings.enabled.then_some(lod_stats[3]),
-                    same_lod_edges: self.lod_settings.enabled.then_some(lod_stats[4]),
-                    transition_edges: self.lod_settings.enabled.then_some(lod_stats[5]),
-                    adjusted_vertices: self.lod_settings.enabled.then_some(lod_stats[6]),
-                    sample_comparisons: self.lod_settings.enabled.then_some(lod_stats[7]),
-                    max_lod_delta: self.lod_settings.enabled.then_some(lod_stats[8]),
-                    mismatch_count: self.lod_settings.enabled.then_some(lod_stats[9]),
-                    first_mismatch: (self.lod_settings.enabled && lod_stats[10] != u32::MAX)
-                        .then_some(lod_stats[10]),
+                    patch_edges: lod_stats[3],
+                    same_lod_edges: lod_stats[4],
+                    transition_edges: lod_stats[5],
+                    adjusted_vertices: lod_stats[6],
+                    sample_comparisons: lod_stats[7],
+                    max_lod_delta: lod_stats[8],
+                    mismatch_count: lod_stats[9],
+                    first_mismatch: (lod_stats[10] != u32::MAX).then_some(lod_stats[10]),
                 },
                 submission: LodSubmission {
-                    dispatch_count: u32::from(self.lod_settings.enabled),
+                    dispatch_count: 1,
                     dispatch_groups: [PATCH_GROUP_COUNT, 2, 1],
                 },
                 resources: LodResources {
@@ -379,10 +363,6 @@ fn canonical_projection_evidence(
     width: u32,
     height: u32,
 ) -> Result<CanonicalProjectionEvidence> {
-    ensure!(
-        projection.is_canonical(),
-        "canonical terrain projection evidence requires a signed source"
-    );
     let camera = projection.camera(scene.camera());
     let view_projection =
         crate::scene::view_projection(camera, width as f32 / height as f32).to_cols_array();
@@ -393,10 +373,8 @@ fn canonical_projection_evidence(
     let mut mismatch_count = active.len().abs_diff(projection.active_count());
     let mut entries = Vec::with_capacity(active.len());
     for (index, assignment) in active.iter().enumerate() {
-        let global = assignment
-            .global_region
-            .context("canonical terrain projection has no signed region")?;
-        let semantic_region_id = projection.region_id(index, assignment.region_id)?;
+        let global = assignment.global_region;
+        let semantic_region_id = projection.region_id(index)?;
         let object_id = crate::load::TERRAIN_OBJECT_ID_BASE
             .checked_add(semantic_region_id)
             .and_then(|value| value.checked_add(1))
@@ -450,9 +428,7 @@ fn global_content_evidence(
     );
     let mut hash = Sha256::new();
     for (assignment, tile) in active.iter().zip(tiles) {
-        let global = assignment
-            .global_region
-            .context("canonical terrain content has no global assignment")?;
+        let global = assignment.global_region;
         hash.update(global.x.to_le_bytes());
         hash.update(global.z.to_le_bytes());
         for height in tile.heights {
@@ -476,9 +452,7 @@ fn global_evidence(
     let mut globals = std::collections::BTreeSet::new();
     let mut mismatch_count = 0;
     for (index, assignment) in active.iter().enumerate() {
-        let global = assignment
-            .global_region
-            .context("global terrain assignment has no signed key")?;
+        let global = assignment.global_region;
         mapping_hash.update(global.x.to_le_bytes());
         mapping_hash.update(global.z.to_le_bytes());
         mapping_hash.update(assignment.region_id.to_le_bytes());

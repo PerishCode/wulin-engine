@@ -1,8 +1,7 @@
 use anyhow::{Context, Result, ensure};
-use serde_json::{Value, json};
 use windows::Win32::Graphics::Direct3D12::*;
 
-use crate::async_resident::{AsyncTransactionReport, PayloadPreparation};
+use crate::async_resident::AsyncTransactionReport;
 use crate::load::INSTANCES_PER_REGION;
 use crate::rendering::resident::{create_buffer, read_values};
 use crate::resident::{
@@ -18,7 +17,7 @@ pub const ACTIVE_IDENTITY_BYTES: u64 = (ACTIVE_REGION_CAPACITY * REGION_IDENTITY
 pub(in crate::rendering) struct ActivePayloadReadback {
     pub records: Vec<Vec<InstanceRecord>>,
     pub local_ids: Vec<Vec<u32>>,
-    pub expected_checksums: Option<Vec<[u8; 32]>>,
+    pub expected_checksums: Vec<[u8; 32]>,
     pub readback_bytes: u64,
     pub allocation_bytes: u64,
     pub copy_count: u32,
@@ -75,7 +74,7 @@ impl AsyncResidentRenderer {
             self.transfer.submit(
                 transaction_id,
                 uploads,
-                PayloadPreparation::cooked(preparation_ms),
+                preparation_ms,
                 direct_queue,
                 direct_fence,
                 direct_release_fence,
@@ -83,7 +82,7 @@ impl AsyncResidentRenderer {
         }?;
         self.transfer
             .bind_object_page_checksums(transaction_id, object_page_checksums.clone())?;
-        report.object_page_checksums = Some(object_page_checksums);
+        report.object_page_checksums = object_page_checksums;
         Ok(report)
     }
 
@@ -132,12 +131,10 @@ impl AsyncResidentRenderer {
             page_count == ACTIVE_REGION_CAPACITY,
             "active payload readback page count is not canonical"
         );
-        if let Some(expected) = &snapshot.object_page_checksums {
-            ensure!(
-                expected.len() == page_count,
-                "published object checksum count differs from active pages"
-            );
-        }
+        ensure!(
+            snapshot.object_page_checksums.len() == page_count,
+            "published object checksum count differs from active pages"
+        );
         let flat = unsafe {
             read_values::<InstanceRecord>(
                 &self.active_payload_readback,
@@ -182,25 +179,6 @@ impl AsyncResidentRenderer {
             identity_copy_count: page_count as u32,
             identity_probe_count: self.active_identity_probe_count,
             identity_total_copy_count: self.active_identity_copy_count,
-        })
-    }
-
-    pub(in crate::rendering) fn payload_readback_status(&self) -> Value {
-        json!({
-            "resourceCount": 1,
-            "capacityPages": ACTIVE_REGION_CAPACITY,
-            "capacityBytes": ACTIVE_PAYLOAD_BYTES,
-            "allocationBytes": self.active_payload_allocation_bytes,
-            "probeCount": self.active_payload_probe_count,
-            "copyCount": self.active_payload_copy_count,
-            "identity": {
-                "resourceCount": 1,
-                "capacityPages": ACTIVE_REGION_CAPACITY,
-                "capacityBytes": ACTIVE_IDENTITY_BYTES,
-                "allocationBytes": self.active_identity_allocation_bytes,
-                "probeCount": self.active_identity_probe_count,
-                "copyCount": self.active_identity_copy_count,
-            },
         })
     }
 }

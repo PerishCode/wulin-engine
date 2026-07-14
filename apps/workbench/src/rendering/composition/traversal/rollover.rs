@@ -55,9 +55,7 @@ impl RolloverPolicy {
         basis: TraversalBasis,
         config: LoadConfig,
     ) -> Result<TraversalTarget> {
-        let origin = basis
-            .global_origin
-            .context("canonical rollover basis has no signed origin")?;
+        let origin = basis.global_origin;
         let center = basis.global_center(config.active_center_x, config.active_center_z)?;
         let recenter_x = !(self.minimum_local_center..=self.maximum_local_center)
             .contains(&config.active_center_x);
@@ -94,19 +92,20 @@ impl RolloverPolicy {
         );
         Ok(TraversalTarget {
             config: next_local,
-            global_config: Some(global_config),
+            global_config,
         })
     }
 }
 
 impl RolloverState {
-    pub(super) fn activate(&mut self, active: bool) {
-        self.active = active;
+    pub(super) fn activate(&mut self) {
+        self.active = true;
         self.camera_delta = None;
     }
 
     pub(super) fn deactivate(&mut self) {
-        self.activate(false);
+        self.active = false;
+        self.camera_delta = None;
     }
 
     pub(super) fn commit(
@@ -115,19 +114,12 @@ impl RolloverState {
         basis: &mut TraversalBasis,
         target: TraversalTarget,
     ) -> Result<()> {
-        if basis.rollover.is_none() {
-            return Ok(());
-        }
-        let global = target
-            .global_config
-            .context("canonical rollover publication has no signed target")?;
+        let global = target.global_config;
         ensure!(
             global.local_config()? == target.config,
             "canonical rollover publication local/global configs diverged"
         );
-        let old_origin = basis
-            .global_origin
-            .context("canonical rollover basis has no signed origin")?;
+        let old_origin = basis.global_origin;
         let new_origin = global.global_origin;
         if old_origin == new_origin {
             return Ok(());
@@ -145,7 +137,7 @@ impl RolloverState {
                 .checked_mul(region_meters)
                 .context("rollover Z camera delta overflowed meters")?,
         ];
-        basis.global_origin = Some(new_origin);
+        basis.global_origin = new_origin;
         self.count += 1;
         self.cumulative_camera_delta_regions[0] += i64::from(delta[0]);
         self.cumulative_camera_delta_regions[1] += i64::from(delta[1]);

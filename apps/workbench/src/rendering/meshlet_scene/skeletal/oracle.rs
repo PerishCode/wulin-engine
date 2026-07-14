@@ -1,13 +1,12 @@
 use std::collections::BTreeSet;
 
-use anyhow::Result;
+use anyhow::{Result, ensure};
 use glam::{Vec3, Vec4};
 use meshlet_catalog::Catalog;
 use serde::Serialize;
 
-use crate::load::LoadConfig;
 use crate::rendering::terrain::TerrainProjection;
-use crate::resident::{InstanceRecord, active_region_ids, canonical_stable_key, generate_region};
+use crate::resident::{InstanceRecord, canonical_stable_key};
 use crate::scene::SceneState;
 
 use super::renderer::SkeletalSettings;
@@ -31,14 +30,13 @@ pub struct WorkloadCounts {
 }
 
 pub struct GroundingInput<'a> {
-    pub numerators: Option<&'a [i32]>,
+    pub numerators: &'a [i32],
     pub denominator: u32,
-    pub instance_records: Option<&'a [Vec<InstanceRecord>]>,
-    pub local_ids: Option<&'a [Vec<u32>]>,
+    pub instance_records: &'a [Vec<InstanceRecord>],
+    pub local_ids: &'a [Vec<u32>],
 }
 
 pub struct EvaluationInput<'a> {
-    pub config: LoadConfig,
     pub scene: &'a SceneState,
     pub viewport: [u32; 2],
     pub projection: TerrainProjection,
@@ -51,12 +49,16 @@ pub fn evaluate(
     input: EvaluationInput<'_>,
 ) -> Result<WorkloadCounts> {
     let EvaluationInput {
-        config,
         scene,
         viewport: [width, height],
         projection,
         grounding,
     } = input;
+    ensure!(
+        grounding.instance_records.len() == grounding.local_ids.len()
+            && grounding.instance_records.len() == projection.active_count(),
+        "skeletal canonical payload shapes differ"
+    );
     let camera = projection.camera(scene.camera());
     let matrix = crate::scene::view_projection(camera, width as f32 / height as f32);
     let mut counts = WorkloadCounts {
@@ -75,31 +77,20 @@ pub fn evaluate(
         observed_archetype_mask: 0,
     };
     let mut shared_poses = BTreeSet::new();
-    for (active_index, region_id) in active_region_ids(config)?.into_iter().enumerate() {
-        let generated;
-        let records = if let Some(records) = grounding.instance_records {
-            &records[active_index]
-        } else {
-            generated = generate_region(region_id);
-            &generated
-        };
+    for (active_index, records) in grounding.instance_records.iter().enumerate() {
+        ensure!(
+            records.len() == grounding.local_ids[active_index].len(),
+            "skeletal canonical record and local-ID counts differ"
+        );
         for (local_index, instance) in records.iter().enumerate() {
-            let local_id = grounding
-                .local_ids
-                .map_or(local_index as u32, |ids| ids[active_index][local_index]);
+            let local_id = grounding.local_ids[active_index][local_index];
             let logical_index =
                 active_index * crate::load::INSTANCES_PER_REGION as usize + local_index;
-            let ground = grounding.numerators.map_or(0.0, |values| {
-                values[logical_index] as f32 / grounding.denominator as f32
-            });
+            let ground = grounding.numerators[logical_index] as f32 / grounding.denominator as f32;
             let position = projection.position(active_index, instance.position)?;
             let center = Vec3::from_array(position) + Vec3::Y * (ground + instance.height * 0.5);
             let clip = matrix * Vec4::new(center.x, center.y, center.z, 1.0);
-            let stable_key = if projection.is_canonical() {
-                canonical_stable_key(instance.region_id, local_id)
-            } else {
-                region_id * 1024 + local_id
-            };
+            let stable_key = canonical_stable_key(instance.region_id, local_id);
             let archetype = stable_key & 7;
             let visible = clip.w > 0.0
                 && clip.x.abs() <= clip.w
@@ -110,13 +101,13 @@ pub fn evaluate(
                 counts.rejected += 1;
                 continue;
             }
-            let lod = settings.forced_lod.unwrap_or(if clip.w < 42.0 {
+            let lod = if clip.w < 42.0 {
                 0
             } else if clip.w < 70.0 {
                 1
             } else {
                 2
-            });
+            };
             let descriptor = catalog.lod(archetype, lod);
             counts.visible += 1;
             counts.lod_counts[lod as usize] += 1;

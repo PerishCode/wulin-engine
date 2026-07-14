@@ -8,8 +8,9 @@
 
 ## Status
 
-**Cooked 规范对象基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
-Sidecar 生命周期和项目自有 inspect 协议已经形成可重复的可见控制闭环。
+**Canonical runtime 收敛已完成**：signed terrain、schema-2 authored objects、固定 50 槽
+GPU residency、terrain-first composition、Sidecar 生命周期和项目自有 inspect 协议已经形成
+唯一、可重复的内容运行闭环。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
 两档 Compute benchmark。Experiment 0002 已通过同进程重复捕获、可见状态变化和 Sidecar
@@ -78,6 +79,14 @@ Experiment 0028 已引入可替换运行时生成的 signed V2 object pack：完
 负责缓存来源身份，独立 authored namespace 保持 stable seed 与 generated payload 逐字节一致。
 相邻/对角/回访严格读取 `5/9/0` 个 chunk，terrain/object 可独立换源且不会交叉失效；object I/O
 与 copy promotion、缺块/损坏回滚、disable/restart 和 32+32 release 扫描均保持既有 GPU 合同。
+Experiment 0029 已让 cooked object record 成为 GPU-published authority，只对活动页做有界
+readback，并以 pack-index checksum 连接磁盘来源、GPU 槽和 oracle；运行时不再从程序化 fixture
+重建权威 payload。Experiment 0030 又加入与 record 原子发布的 authored local-ID plane，使
+stable key、动画、材质和语义行为不受 pack 内物理记录顺序影响。
+Experiment 0031 最终删除 local/schema-1/generated/standalone 与递归 wrapper 路径，只保留 idle
+shell 和 canonical composition。直接 403 秒验收通过 reordered source、完整附件、四类 hold、
+损坏回滚、rollover、32+32 traversal、额外 64 次同进程资源平台和 16 次完整生命周期；Runseal
+现仅保留五个 wrapper 与一个 support 文件。
 
 ## Project model
 
@@ -95,42 +104,16 @@ runseal :init
 runseal :guard
 runseal :gpu-lab correctness
 runseal :gpu-lab benchmark
-runseal :visual-loop
-runseal :spatial-scene
-runseal :object-id
-runseal :region-load
-runseal :resident-stream
-runseal :async-region
-runseal :cooked-region
-runseal :meshlet-scene
-runseal :skeletal-crowds
-runseal :surface-resolve
-runseal :occlusion
-runseal :terrain
-runseal :terrain-lod
-runseal :composition
-runseal :terrain-sampling
-runseal :lod-composition
-runseal :region-traversal
-runseal :global-space
-runseal :global-terrain
-runseal :global-composition
-runseal :global-traversal
-runseal :signed-terrain-storage
-runseal :camera-relative-terrain
-runseal :canonical-object-composition
-runseal :canonical-origin-rollover
-runseal :canonical-traversal-prefetch
-runseal :cooked-canonical-objects
+runseal :canonical-runtime
 runseal :workbench start
 runseal :workbench inspect
-runseal :workbench color 0.08 0.42 0.24
+runseal :workbench terrain-open out/cooked/my-source/terrain.wlt
+runseal :workbench objects-open out/cooked/my-source/objects.wlr
+runseal :workbench schedule 0 0 0 0 2
+runseal :workbench probe
 runseal :workbench capture operator-check
 runseal :workbench perception operator-perception
 runseal :workbench camera
-runseal :workbench scene
-runseal :workbench world
-runseal :workbench world-probe
 runseal :workbench stop
 ```
 
@@ -138,6 +121,11 @@ runseal :workbench stop
 owns the release measurement workbench. Sidecar starts each process tree,
 waits for renderer and inspect readiness, discovers stamped processes, and closes the
 entire local runtime through one manifest.
+
+`runseal :canonical-runtime` is the only end-to-end engine acceptance workflow. It cooks
+signed terrain and schema-2 object sources directly, validates canonical composition,
+fault rollback, traversal/prefetch/rollover, the 64-publication resource plateau, and 16
+complete lifecycle cycles without invoking an older experiment workflow.
 
 ## Scope
 

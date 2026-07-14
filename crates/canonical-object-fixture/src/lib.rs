@@ -1,55 +1,25 @@
 use region_format::{GlobalRegion, InstanceRecord, RECORDS_PER_REGION, canonical_stable_seed};
 use sha2::{Digest, Sha256};
 
-pub const CELL_CENTER_REVISION: &str = "canonical-generated-object-cell-center-v1";
-pub const ARBITRARY_Q8_REVISION: &str = "canonical-generated-object-arbitrary-q8-v1";
+pub const AUTHORITY_REVISION: &str = "canonical-object-arbitrary-q8-v1";
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Fixture {
-    #[default]
-    CellCenter,
-    ArbitraryQ8,
+pub fn stable_seed_namespace() -> [u8; 32] {
+    Sha256::digest(AUTHORITY_REVISION.as_bytes()).into()
 }
 
-impl Fixture {
-    pub const fn revision(self) -> &'static str {
-        match self {
-            Self::CellCenter => CELL_CENTER_REVISION,
-            Self::ArbitraryQ8 => ARBITRARY_Q8_REVISION,
-        }
-    }
-
-    pub fn stable_seed_namespace(self) -> [u8; 32] {
-        Sha256::digest(self.revision().as_bytes()).into()
-    }
+pub fn generate_region(region: GlobalRegion) -> Vec<InstanceRecord> {
+    let stable_seed = canonical_stable_seed(stable_seed_namespace(), region);
+    generate_region_with_seed(region, stable_seed)
 }
 
-pub fn generate_region(region: GlobalRegion, fixture: Fixture) -> Vec<InstanceRecord> {
-    let stable_seed = canonical_stable_seed(fixture.stable_seed_namespace(), region);
-    generate_region_with_seed(region, stable_seed, fixture)
-}
-
-pub fn generate_region_with_seed(
-    region: GlobalRegion,
-    stable_seed: u32,
-    fixture: Fixture,
-) -> Vec<InstanceRecord> {
+pub fn generate_region_with_seed(region: GlobalRegion, stable_seed: u32) -> Vec<InstanceRecord> {
     (0..RECORDS_PER_REGION as usize)
         .map(|local_index| {
             let local_x = local_index as u32 % 32;
             let local_z = local_index as u32 / 32;
-            let (position_x, position_z) = if fixture == Fixture::CellCenter {
-                (
-                    ((local_x as f32 + 0.5) / 32.0 - 0.5) * 16.0,
-                    ((local_z as f32 + 0.5) / 32.0 - 0.5) * 16.0,
-                )
-            } else {
-                let (u, v) = arbitrary_fractions(region, local_index);
-                (
-                    -8.0 + (local_x * 256 + u) as f32 / 512.0,
-                    -8.0 + (local_z * 256 + v) as f32 / 512.0,
-                )
-            };
+            let (u, v) = arbitrary_fractions(region, local_index);
+            let position_x = -8.0 + (local_x * 256 + u) as f32 / 512.0;
+            let position_z = -8.0 + (local_z * 256 + v) as f32 / 512.0;
             InstanceRecord {
                 position: [position_x, 0.0, position_z],
                 height: instance_height(canonical_stable_key(stable_seed, local_index as u32)),

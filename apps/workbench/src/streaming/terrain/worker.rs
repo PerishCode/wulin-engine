@@ -1,14 +1,13 @@
+use std::path::Path;
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
-use std::{fs::File, io::Read, path::Path};
 
 use anyhow::{Context, Result, bail, ensure};
-use terrain_format::{GlobalRegion, GlobalTerrainPack, TerrainPack, TerrainTile};
+use terrain_format::{GlobalRegion, GlobalTerrainPack, TerrainTile};
 
 use super::{
-    PackAddressing, PackDescriptor, TerrainAssignment, TerrainIoMetrics, TerrainSourceNamespace,
-    TerrainUpload,
+    PackDescriptor, TerrainAssignment, TerrainIoMetrics, TerrainSourceNamespace, TerrainUpload,
 };
 
 #[derive(Clone, Default)]
@@ -22,10 +21,7 @@ pub(super) struct PackWorker {
     thread: Option<JoinHandle<()>>,
 }
 
-pub(super) enum PackFile {
-    Local(TerrainPack),
-    Signed(GlobalTerrainPack),
-}
+pub(super) struct PackFile(GlobalTerrainPack);
 
 pub(super) struct ReadRequest {
     pub transaction_id: u64,
@@ -98,84 +94,42 @@ impl PackWorker {
 impl PackFile {
     pub fn open(path: impl AsRef<Path>) -> Result<(Self, PackDescriptor)> {
         let path = path.as_ref();
-        let mut file = File::open(path)
-            .with_context(|| format!("failed to open terrain pack {}", path.display()))?;
-        let mut magic = [0u8; 8];
-        file.read_exact(&mut magic)
-            .context("terrain pack magic is truncated")?;
-        if magic == terrain_format::MAGIC {
-            let pack = TerrainPack::open(path)?;
-            let descriptor = PackDescriptor {
-                metadata: serde_json::to_value(pack.metadata())?,
-                addressing: PackAddressing::LocalAlias {
-                    region_ids: pack.region_ids().collect(),
-                },
-            };
-            Ok((Self::Local(pack), descriptor))
-        } else if magic == terrain_format::GLOBAL_MAGIC {
-            let pack = GlobalTerrainPack::open(path)?;
-            let descriptor = PackDescriptor {
-                metadata: serde_json::to_value(pack.metadata())?,
-                addressing: PackAddressing::SignedGlobal {
-                    regions: pack
-                        .regions()
-                        .map(|region| crate::world::RegionCoord::new(region.x, region.z))
-                        .collect(),
-                    source_namespace: TerrainSourceNamespace(pack.source_namespace()),
-                },
-            };
-            Ok((Self::Signed(pack), descriptor))
-        } else {
-            bail!("terrain pack magic is invalid")
-        }
+        let pack = GlobalTerrainPack::open(path)?;
+        let descriptor = PackDescriptor {
+            metadata: serde_json::to_value(pack.metadata())?,
+            regions: pack
+                .regions()
+                .map(|region| crate::world::RegionCoord::new(region.x, region.z))
+                .collect(),
+            source_namespace: TerrainSourceNamespace(pack.source_namespace()),
+        };
+        Ok((Self(pack), descriptor))
     }
 
     fn read(&mut self, assignment: TerrainAssignment) -> Result<(TerrainUpload, u32, f64, f64)> {
-        match self {
-            Self::Local(pack) => {
-                let read = pack.read_region(assignment.region_id)?;
-                Ok((
-                    TerrainUpload {
-                        slot: assignment.slot,
-                        region_id: assignment.region_id,
-                        global_region: assignment.global_region,
-                        payload: read.payload,
-                        tile: read.tile,
-                        sha256: read.sha256,
-                    },
-                    read.payload_bytes,
-                    read.read_ms,
-                    read.verify_ms,
-                ))
-            }
-            Self::Signed(pack) => {
-                let global = assignment
-                    .global_region
-                    .context("signed terrain read has no global region")?;
-                let read = pack.read_region(GlobalRegion::new(global.x, global.z))?;
-                ensure!(
-                    read.tile.region == GlobalRegion::new(global.x, global.z),
-                    "signed terrain read identity mismatch"
-                );
-                Ok((
-                    TerrainUpload {
-                        slot: assignment.slot,
-                        region_id: assignment.region_id,
-                        global_region: Some(global),
-                        payload: read.payload,
-                        tile: TerrainTile {
-                            region_id: assignment.region_id,
-                            heights: read.tile.heights,
-                            materials: read.tile.materials,
-                        },
-                        sha256: read.sha256,
-                    },
-                    read.payload_bytes,
-                    read.read_ms,
-                    read.verify_ms,
-                ))
-            }
-        }
+        let global = assignment.global_region;
+        let read = self.0.read_region(GlobalRegion::new(global.x, global.z))?;
+        ensure!(
+            read.tile.region == GlobalRegion::new(global.x, global.z),
+            "signed terrain read identity mismatch"
+        );
+        Ok((
+            TerrainUpload {
+                slot: assignment.slot,
+                region_id: assignment.region_id,
+                global_region: global,
+                payload: read.payload,
+                tile: TerrainTile {
+                    region_id: assignment.region_id,
+                    heights: read.tile.heights,
+                    materials: read.tile.materials,
+                },
+                sha256: read.sha256,
+            },
+            read.payload_bytes,
+            read.read_ms,
+            read.verify_ms,
+        ))
     }
 }
 

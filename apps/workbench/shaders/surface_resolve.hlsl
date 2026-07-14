@@ -97,6 +97,7 @@ StructuredBuffer<MaterialRecord> surface_materials : register(t65);
 Texture2D<uint2> visibility_texture : register(t66);
 Texture2DArray<float4> material_texture : register(t67);
 StructuredBuffer<uint> candidate_to_visible_in : register(t68);
+StructuredBuffer<int> ground_numerators : register(t113);
 
 RWStructuredBuffer<uint> candidate_to_visible_out : register(u7);
 RWTexture2D<float4> resolved_color : register(u8);
@@ -111,6 +112,34 @@ struct MeshPayload
 };
 
 groupshared MeshPayload amplification_payload;
+
+uint active_side()
+{
+    return uint(round(sqrt(float(surface_animation.y))));
+}
+
+int2 active_offset(uint candidate_index)
+{
+    uint side = active_side();
+    uint active_index = candidate_index / INSTANCES_PER_REGION;
+    return int2(
+        int(active_index % side) - int(side / 2u),
+        int(active_index / side) - int(side / 2u)
+    );
+}
+
+float3 canonical_position(InstanceRecord instance, uint candidate_index)
+{
+    int2 offset = active_offset(candidate_index);
+    float ground = float(ground_numerators[candidate_index]) / float(surface_animation.z);
+    return instance.position + float3(float(offset.x * 16), ground, float(offset.y * 16));
+}
+
+uint semantic_region(uint candidate_index)
+{
+    int2 offset = active_offset(candidate_index);
+    return uint(64 + offset.y) * 128u + uint(64 + offset.x);
+}
 
 [numthreads(1, 1, 1)]
 void as_main(uint3 group_id : SV_GroupID)
@@ -162,6 +191,7 @@ void ms_main(
     uint slot = visible.physical_index / INSTANCES_PER_REGION;
     uint local_index = visible.physical_index % INSTANCES_PER_REGION;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
+    float3 position = canonical_position(instance, visible.candidate_index);
     float angle = float((visible.stable_key * 747796405u) & 65535u) * 6.28318530718 / 65536.0;
     float sine;
     float cosine;
@@ -194,9 +224,9 @@ void ms_main(
             local.x * sine + local.z * cosine
         );
         MeshVertexOutput output;
-        output.position = mul(view_projection, float4(instance.position + rotated, 1.0));
+        output.position = mul(view_projection, float4(position + rotated, 1.0));
         output.candidate_index = visible.candidate_index;
-        output.object_id = REGION_OBJECT_ID_BASE + instance.region_id + 1;
+        output.object_id = REGION_OBJECT_ID_BASE + semantic_region(visible.candidate_index) + 1;
         output_vertices[group_thread] = output;
     }
     for (
@@ -433,7 +463,10 @@ void shade_main(
     {
         InterlockedAdd(group_background, 1);
     }
-    resolved_color[pixel] = color;
+    if ((payload.x & 0x7fffu) != 0)
+    {
+        resolved_color[pixel] = color;
+    }
 
     int selected_sample = sample_index(pixel);
     if (selected_sample >= 0)

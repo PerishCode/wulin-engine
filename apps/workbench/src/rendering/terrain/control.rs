@@ -1,7 +1,6 @@
 use anyhow::Result;
 
-use crate::load::LoadConfig;
-use crate::terrain::{GlobalTerrainConfig, TerrainCompletion, TerrainScheduleReport};
+use crate::terrain::TerrainCompletion;
 
 use super::super::renderer::Renderer;
 
@@ -19,98 +18,6 @@ impl Renderer {
         path: impl AsRef<std::path::Path>,
     ) -> Result<serde_json::Value> {
         self.terrain_streamer.open(path)
-    }
-
-    pub fn schedule_terrain(&mut self, config: LoadConfig) -> Result<TerrainScheduleReport> {
-        anyhow::ensure!(
-            !self.composition.has_pending(),
-            "composition pair transaction is active"
-        );
-        self.terrain_streamer.ensure_local_source()?;
-        self.disable_composition();
-        let reservation = self.terrain_renderer.reserve(config)?;
-        let transaction_id = reservation.transaction_id;
-        match self.terrain_streamer.schedule(reservation) {
-            Ok(report) => Ok(report),
-            Err(error) => {
-                let _ = self.terrain_renderer.cancel(transaction_id);
-                Err(error)
-            }
-        }
-    }
-
-    pub fn schedule_global_terrain(
-        &mut self,
-        config: GlobalTerrainConfig,
-    ) -> Result<TerrainScheduleReport> {
-        anyhow::ensure!(
-            !self.composition.has_pending(),
-            "composition pair transaction is active"
-        );
-        self.disable_composition();
-        let reservation = match self.terrain_streamer.source_namespace()? {
-            Some(namespace) => self
-                .terrain_renderer
-                .reserve_canonical_global(config, namespace)?,
-            None => self.terrain_renderer.reserve_global(config)?,
-        };
-        let transaction_id = reservation.transaction_id;
-        match self.terrain_streamer.schedule(reservation) {
-            Ok(report) => Ok(report),
-            Err(error) => {
-                let _ = self.terrain_renderer.cancel(transaction_id);
-                Err(error)
-            }
-        }
-    }
-
-    pub fn terrain_status(&self) -> serde_json::Value {
-        serde_json::json!({
-            "stream": self.terrain_streamer.status_json(),
-            "renderer": self.terrain_renderer.status_json(),
-        })
-    }
-
-    pub fn enable_terrain(&mut self) -> Result<()> {
-        self.disable_composition();
-        self.disable_meshlet_scene();
-        self.disable_skeletal_scene();
-        self.terrain_renderer.enable()
-    }
-
-    pub fn disable_terrain(&mut self) {
-        self.terrain_renderer.disable();
-    }
-
-    pub fn terrain_mode_enabled(&self) -> bool {
-        self.terrain_renderer.is_enabled()
-    }
-
-    pub fn terrain_config(&self) -> Option<LoadConfig> {
-        self.terrain_renderer.config()
-    }
-
-    pub fn terrain_lod_status(&self) -> serde_json::Value {
-        serde_json::to_value(self.terrain_renderer.lod_settings())
-            .expect("terrain LOD settings should serialize")
-    }
-
-    pub fn configure_terrain_lod(
-        &mut self,
-        near_patch_radius: u32,
-        middle_patch_radius: u32,
-        forced_lod: Option<u32>,
-    ) -> Result<()> {
-        self.terrain_renderer
-            .configure_lod(near_patch_radius, middle_patch_radius, forced_lod)
-    }
-
-    pub fn enable_terrain_lod(&mut self) {
-        self.terrain_renderer.enable_lod();
-    }
-
-    pub fn disable_terrain_lod(&mut self) {
-        self.terrain_renderer.disable_lod();
     }
 
     pub fn arm_terrain_io_gate(&mut self) -> Result<u64> {

@@ -26,8 +26,7 @@ pub(super) struct CanonicalObjectEvidence {
     identity_keyed_sha256: String,
     stable_key_sha256: String,
     stable_seed_sha256: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    payload_authority: Option<CookedPayloadAuthority>,
+    payload_authority: CookedPayloadAuthority,
     entries: Vec<CanonicalObjectEntry>,
 }
 
@@ -77,7 +76,7 @@ pub(super) fn canonical_object_evidence(
     readback: &ActivePayloadReadback,
 ) -> Result<CanonicalObjectEvidence> {
     ensure!(
-        projection.is_canonical() && assignments.len() == records.len(),
+        assignments.len() == records.len(),
         "canonical object evidence requires one projected payload per region"
     );
     let mut content_hash = Sha256::new();
@@ -96,11 +95,9 @@ pub(super) fn canonical_object_evidence(
             local_ids.len() == region_records.len(),
             "canonical object identity page differs from its record page"
         );
-        let global = assignment
-            .global_region
-            .context("canonical object assignment has no signed region")?;
+        let global = assignment.global_region;
         let stable_seed = canonical_stable_seed(stable_seed_namespace, global);
-        let semantic_region_id = projection.region_id(index, assignment.region_id)?;
+        let semantic_region_id = projection.region_id(index)?;
         let object_id = crate::load::REGION_OBJECT_ID_BASE
             .checked_add(semantic_region_id)
             .and_then(|value| value.checked_add(1))
@@ -145,7 +142,7 @@ pub(super) fn canonical_object_evidence(
         });
     }
     Ok(CanonicalObjectEvidence {
-        revision: "canonical-generated-object-v1",
+        revision: "canonical-object-authority-v1",
         source_namespace,
         entry_count: entries.len(),
         semantic_collision_count: entries.len() - semantic_ids.len(),
@@ -166,10 +163,8 @@ fn cooked_payload_authority(
     assignments: &[TerrainAssignment],
     records: &[Vec<InstanceRecord>],
     readback: &ActivePayloadReadback,
-) -> Result<Option<CookedPayloadAuthority>> {
-    let Some(expected) = &readback.expected_checksums else {
-        return Ok(None);
-    };
+) -> Result<CookedPayloadAuthority> {
+    let expected = &readback.expected_checksums;
     ensure!(
         assignments.len() == records.len() && expected.len() == records.len(),
         "cooked payload authority shapes differ"
@@ -178,35 +173,16 @@ fn cooked_payload_authority(
     let mut observed_index = Sha256::new();
     let mut payload = Sha256::new();
     let mut chunk_mismatch_count = 0;
-    let mut payload_schema = None;
     for (active_index, ((assignment, region_records), expected_checksum)) in
         assignments.iter().zip(records).zip(expected).enumerate()
     {
-        let global = assignment
-            .global_region
-            .context("cooked payload authority has no signed region")?;
+        let global = assignment.global_region;
         let bytes = crate::resident::as_bytes(region_records);
         let identity_bytes = crate::resident::as_bytes(&readback.local_ids[active_index]);
-        let record_checksum: [u8; 32] = Sha256::digest(bytes).into();
         let mut combined = Sha256::new();
         combined.update(bytes);
         combined.update(identity_bytes);
-        let identity_checksum: [u8; 32] = combined.finalize().into();
-        let (schema, observed_checksum) = if record_checksum == *expected_checksum {
-            (region_format::GLOBAL_PAYLOAD_SCHEMA, record_checksum)
-        } else {
-            (
-                region_format::GLOBAL_IDENTITY_PAYLOAD_SCHEMA,
-                identity_checksum,
-            )
-        };
-        if let Some(previous) = payload_schema {
-            ensure!(
-                previous == schema,
-                "published cooked object pages mix payload schemas"
-            );
-        }
-        payload_schema = Some(schema);
+        let observed_checksum: [u8; 32] = combined.finalize().into();
         chunk_mismatch_count += usize::from(observed_checksum != *expected_checksum);
         for digest in [&mut expected_index, &mut observed_index] {
             digest.update(global.x.to_le_bytes());
@@ -215,50 +191,22 @@ fn cooked_payload_authority(
         expected_index.update(expected_checksum);
         observed_index.update(observed_checksum);
         payload.update(bytes);
-        if schema == region_format::GLOBAL_IDENTITY_PAYLOAD_SCHEMA {
-            payload.update(identity_bytes);
-        }
+        payload.update(identity_bytes);
     }
     ensure!(
         chunk_mismatch_count == 0,
         "published cooked object pages differ from the pack index"
     );
-    let payload_schema = payload_schema.context("cooked payload authority has no pages")?;
-    let identity_schema = payload_schema == region_format::GLOBAL_IDENTITY_PAYLOAD_SCHEMA;
-    Ok(Some(CookedPayloadAuthority {
-        revision: if identity_schema {
-            "cooked-object-payload-authority-v2"
-        } else {
-            "cooked-object-payload-authority-v1"
-        },
-        payload_schema,
+    Ok(CookedPayloadAuthority {
+        revision: "cooked-object-payload-authority-v2",
+        payload_schema: region_format::GLOBAL_PAYLOAD_SCHEMA,
         region_count: records.len(),
         record_count: records.iter().map(Vec::len).sum(),
-        copy_count: readback.copy_count
-            + if identity_schema {
-                readback.identity_copy_count
-            } else {
-                0
-            },
-        readback_bytes: readback.readback_bytes
-            + if identity_schema {
-                readback.identity_readback_bytes
-            } else {
-                0
-            },
-        allocation_bytes: readback.allocation_bytes
-            + if identity_schema {
-                readback.identity_allocation_bytes
-            } else {
-                0
-            },
+        copy_count: readback.copy_count + readback.identity_copy_count,
+        readback_bytes: readback.readback_bytes + readback.identity_readback_bytes,
+        allocation_bytes: readback.allocation_bytes + readback.identity_allocation_bytes,
         probe_count: readback.probe_count,
-        total_copy_count: readback.total_copy_count
-            + if identity_schema {
-                readback.identity_total_copy_count
-            } else {
-                0
-            },
+        total_copy_count: readback.total_copy_count + readback.identity_total_copy_count,
         chunk_mismatch_count,
         expected_index_sha256: format!("{:x}", expected_index.finalize()),
         observed_index_sha256: format!("{:x}", observed_index.finalize()),
@@ -271,5 +219,5 @@ fn cooked_payload_authority(
         identity_copy_count: readback.identity_copy_count,
         identity_probe_count: readback.identity_probe_count,
         identity_total_copy_count: readback.identity_total_copy_count,
-    }))
+    })
 }

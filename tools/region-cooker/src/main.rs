@@ -2,18 +2,14 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
-use canonical_object_fixture::{Fixture, generate_region as generate_canonical_region};
-use region_cooker::{IdentityOrder, reorder_identity_records};
-use region_format::{
-    GlobalRegion, InstanceRecord, RECORDS_PER_REGION, file_sha256, write_global_identity_pack,
-    write_global_pack, write_pack,
+use canonical_object_fixture::{
+    generate_region as generate_canonical_region, stable_seed_namespace,
 };
+use region_cooker::{IdentityOrder, reorder_identity_records};
+use region_format::{GlobalRegion, InstanceRecord, file_sha256, write_global_pack};
 use serde::Serialize;
 
-const WORLD_REGION_SIDE: u32 = 128;
 const ACTIVE_RADIUS: u32 = 2;
-const REGION_SIDE_METERS: f32 = 16.0;
-const AUTHORITY_REVISION: &str = "canonical-authored-object-authority-q9-v1";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,33 +18,19 @@ struct CookReport {
     source_revision: &'static str,
     output: String,
     file_sha256: String,
-    metadata: region_format::PackMetadata,
-    centers: [[u32; 2]; 4],
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SignedCookReport {
-    schema_version: u32,
-    source_revision: &'static str,
-    output: String,
-    file_sha256: String,
     metadata: region_format::GlobalPackMetadata,
     centers: Vec<GlobalRegion>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    identity_order: Option<&'static str>,
+    identity_order: &'static str,
 }
 
 fn main() -> Result<()> {
     let mut args = std::env::args_os().skip(1);
-    let usage = "usage: region-cooker <output.wlr> [--authority] [--identity-order <a|b>] [--global-center <i64> <i64>]...";
+    let usage = "usage: region-cooker <output.wlr> --identity-order <a|b> --global-center <i64> <i64> [--global-center <i64> <i64>]...";
     let output = PathBuf::from(args.next().context(usage)?);
     let mut global_centers = Vec::new();
-    let mut authority = false;
     let mut identity_order = None;
     while let Some(flag) = args.next() {
         match flag.to_string_lossy().as_ref() {
-            "--authority" if !authority => authority = true,
             "--identity-order" if identity_order.is_none() => {
                 let value = args.next().context(usage)?;
                 identity_order = Some(IdentityOrder::parse(&value.to_string_lossy())?);
@@ -61,55 +43,12 @@ fn main() -> Result<()> {
             _ => bail!(usage),
         }
     }
-    if !global_centers.is_empty() {
-        return cook_signed(output, global_centers, authority, identity_order);
-    }
-    anyhow::ensure!(
-        !authority && identity_order.is_none(),
-        "--authority and --identity-order require at least one --global-center"
-    );
-    cook_local(output)
+    anyhow::ensure!(!global_centers.is_empty(), usage);
+    let identity_order = identity_order.context(usage)?;
+    cook(output, global_centers, identity_order)
 }
 
-fn cook_local(output: PathBuf) -> Result<()> {
-    let centers = [[64, 64], [65, 64], [65, 65], [96, 96]];
-    let mut region_ids = BTreeSet::new();
-    for [center_x, center_z] in centers {
-        for offset_z in 0..=ACTIVE_RADIUS * 2 {
-            for offset_x in 0..=ACTIVE_RADIUS * 2 {
-                let x = center_x + offset_x - ACTIVE_RADIUS;
-                let z = center_z + offset_z - ACTIVE_RADIUS;
-                region_ids.insert(z * WORLD_REGION_SIDE + x);
-            }
-        }
-    }
-    let regions = region_ids
-        .into_iter()
-        .map(|region_id| (region_id, generate_region(region_id)));
-    let metadata = write_pack(&output, regions)?;
-    let file_sha256 = file_sha256(&output)?;
-    let report = CookReport {
-        schema_version: 1,
-        source_revision: "procedural-region-v1",
-        output: output.display().to_string(),
-        file_sha256,
-        metadata,
-        centers,
-    };
-    println!("{}", serde_json::to_string_pretty(&report)?);
-    Ok(())
-}
-
-fn cook_signed(
-    output: PathBuf,
-    centers: Vec<GlobalRegion>,
-    authority: bool,
-    identity_order: Option<IdentityOrder>,
-) -> Result<()> {
-    anyhow::ensure!(
-        identity_order.is_none() || authority,
-        "--identity-order requires --authority"
-    );
+fn cook(output: PathBuf, centers: Vec<GlobalRegion>, identity_order: IdentityOrder) -> Result<()> {
     let radius = i64::from(ACTIVE_RADIUS);
     let mut regions = BTreeSet::new();
     for center in &centers {
@@ -128,50 +67,27 @@ fn cook_signed(
             }
         }
     }
-    let fixture = Fixture::ArbitraryQ8;
-    let regions = regions.into_iter().collect::<Vec<_>>();
-    let metadata = if let Some(order) = identity_order {
-        let payloads = regions.into_iter().map(|region| {
-            let records = generate_authority_region(region, fixture);
-            let (records, local_ids) = reorder_identity_records(records, order);
-            (region, records, local_ids)
-        });
-        write_global_identity_pack(&output, fixture.stable_seed_namespace(), payloads)?
-    } else {
-        let payloads = regions.into_iter().map(|region| {
-            let records = if authority {
-                generate_authority_region(region, fixture)
-            } else {
-                generate_canonical_region(region, fixture)
-            };
-            (region, records)
-        });
-        write_global_pack(&output, fixture.stable_seed_namespace(), payloads)?
-    };
-    let report = SignedCookReport {
-        schema_version: 1,
-        source_revision: identity_order.map_or_else(
-            || {
-                if authority {
-                    AUTHORITY_REVISION
-                } else {
-                    fixture.revision()
-                }
-            },
-            IdentityOrder::revision,
-        ),
+    let payloads = regions.into_iter().map(|region| {
+        let records = generate_authority_region(region);
+        let (records, local_ids) = reorder_identity_records(records, identity_order);
+        (region, records, local_ids)
+    });
+    let metadata = write_global_pack(&output, stable_seed_namespace(), payloads)?;
+    let report = CookReport {
+        schema_version: 2,
+        source_revision: identity_order.revision(),
         output: output.display().to_string(),
         file_sha256: file_sha256(&output)?,
         metadata,
         centers,
-        identity_order: identity_order.map(IdentityOrder::label),
+        identity_order: identity_order.label(),
     };
     println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())
 }
 
-fn generate_authority_region(region: GlobalRegion, fixture: Fixture) -> Vec<InstanceRecord> {
-    let mut records = generate_canonical_region(region, fixture);
+fn generate_authority_region(region: GlobalRegion) -> Vec<InstanceRecord> {
+    let mut records = generate_canonical_region(region);
     for (local_index, record) in records.iter_mut().enumerate() {
         let local_x = local_index as u32 % 32;
         let local_z = local_index as u32 / 32;
@@ -201,34 +117,4 @@ where
         .to_string_lossy()
         .parse()
         .with_context(|| format!("{name} is invalid"))
-}
-
-fn generate_region(region_id: u32) -> Vec<InstanceRecord> {
-    let region_x = region_id % WORLD_REGION_SIDE;
-    let region_z = region_id / WORLD_REGION_SIDE;
-    (0..RECORDS_PER_REGION)
-        .map(|local_index| {
-            let local_x = local_index % 32;
-            let local_z = local_index / 32;
-            let position_x = (region_x as i32 - 64) as f32 * REGION_SIDE_METERS
-                + ((local_x as f32 + 0.5) / 32.0 - 0.5) * REGION_SIDE_METERS;
-            let position_z = (region_z as i32 - 64) as f32 * REGION_SIDE_METERS
-                + ((local_z as f32 + 0.5) / 32.0 - 0.5) * REGION_SIDE_METERS;
-            let reference = region_id * RECORDS_PER_REGION + local_index;
-            InstanceRecord {
-                position: [position_x, 0.0, position_z],
-                height: instance_height(reference),
-                region_id,
-            }
-        })
-        .collect()
-}
-
-fn instance_height(reference: u32) -> f32 {
-    let mut value = reference
-        .wrapping_mul(747_796_405)
-        .wrapping_add(2_891_336_453);
-    value = ((value >> ((value >> 28) + 4)) ^ value).wrapping_mul(277_803_737);
-    value = (value >> 22) ^ value;
-    0.7 + (value & 1023) as f32 / 1023.0 * 2.3
 }

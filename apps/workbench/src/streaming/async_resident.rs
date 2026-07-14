@@ -3,9 +3,9 @@ use std::collections::BTreeSet;
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 
-use crate::address::{AddressedRegion, GlobalRegionConfig};
+use crate::address::GlobalRegionConfig;
 use crate::load::LoadConfig;
-use crate::resident::{REGION_INSTANCE_BYTES, RegionUpload, active_region_ids, hash_uploads};
+use crate::resident::{REGION_INSTANCE_BYTES, RegionUpload, hash_uploads};
 use crate::world::RegionCoord;
 
 pub const ASYNC_RESIDENT_REVISION: &str = "async-resident-v1";
@@ -28,16 +28,9 @@ struct CacheEntry {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum CacheKey {
-    Local(u32),
-    LegacyGlobal {
-        global_region: RegionCoord,
-        local_region_id: u32,
-    },
-    CanonicalGlobal {
-        source_namespace: ObjectSourceNamespace,
-        global_region: RegionCoord,
-    },
+struct CacheKey {
+    source_namespace: ObjectSourceNamespace,
+    global_region: RegionCoord,
 }
 
 #[derive(Clone, Copy)]
@@ -58,9 +51,9 @@ impl Default for AsyncRegionCache {
 #[derive(Clone)]
 pub struct AsyncLayoutPlan {
     pub config: LoadConfig,
-    pub global_config: Option<GlobalRegionConfig>,
-    pub object_source_namespace: Option<ObjectSourceNamespace>,
-    pub object_stable_seed_namespace: Option<ObjectSourceNamespace>,
+    pub global_config: GlobalRegionConfig,
+    pub object_source_namespace: ObjectSourceNamespace,
+    pub object_stable_seed_namespace: ObjectSourceNamespace,
     pub next_cache: AsyncRegionCache,
     pub assignments: Vec<RegionAssignment>,
     pub active_slots: Vec<u32>,
@@ -79,10 +72,8 @@ pub struct AsyncStreamPlan {
 pub struct RegionAssignment {
     pub slot: u32,
     pub region_id: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub global_region: Option<RegionCoord>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stable_seed: Option<u32>,
+    pub global_region: RegionCoord,
+    pub stable_seed: u32,
 }
 
 #[derive(Clone, Copy, Serialize)]
@@ -103,14 +94,12 @@ pub struct AsyncTransactionReport {
     pub revision: &'static str,
     pub transaction_id: u64,
     pub config: LoadConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub global_config: Option<GlobalRegionConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub object_source_namespace: Option<ObjectSourceNamespace>,
+    pub global_config: GlobalRegionConfig,
+    pub object_source_namespace: ObjectSourceNamespace,
     #[serde(skip)]
-    pub object_stable_seed_namespace: Option<ObjectSourceNamespace>,
+    pub object_stable_seed_namespace: ObjectSourceNamespace,
     #[serde(skip)]
-    pub object_page_checksums: Option<Vec<[u8; 32]>>,
+    pub object_page_checksums: Vec<[u8; 32]>,
     #[serde(flatten)]
     pub counts: AsyncPlanCounts,
     pub uploaded_sha256: String,
@@ -119,9 +108,7 @@ pub struct AsyncTransactionReport {
     pub direct_release_fence: u64,
     pub copy_fence: u64,
     pub gate_fence: Option<u64>,
-    pub payload_source: &'static str,
     pub payload_preparation_ms: f64,
-    pub generation_ms: f64,
     pub schedule_ms: f64,
     pub pending_ms: f64,
 }
@@ -132,81 +119,16 @@ pub struct AsyncReservationReport {
     pub revision: &'static str,
     pub transaction_id: u64,
     pub config: LoadConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub global_config: Option<GlobalRegionConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub object_source_namespace: Option<ObjectSourceNamespace>,
+    pub global_config: GlobalRegionConfig,
+    pub object_source_namespace: ObjectSourceNamespace,
     #[serde(skip)]
-    pub object_stable_seed_namespace: Option<ObjectSourceNamespace>,
+    pub object_stable_seed_namespace: ObjectSourceNamespace,
     #[serde(flatten)]
     pub counts: AsyncPlanCounts,
     pub assignments: Vec<RegionAssignment>,
 }
 
-#[derive(Clone, Copy)]
-pub struct PayloadPreparation {
-    pub source: &'static str,
-    pub total_ms: f64,
-    pub generation_ms: f64,
-}
-
-impl PayloadPreparation {
-    pub fn generated(generation_ms: f64) -> Self {
-        Self {
-            source: "generated",
-            total_ms: generation_ms,
-            generation_ms,
-        }
-    }
-
-    pub fn cooked(total_ms: f64) -> Self {
-        Self {
-            source: "cooked-pack",
-            total_ms,
-            generation_ms: 0.0,
-        }
-    }
-}
-
 impl AsyncRegionCache {
-    pub fn plan_layout(
-        &self,
-        config: LoadConfig,
-        protected_slots: &BTreeSet<u32>,
-    ) -> Result<AsyncLayoutPlan> {
-        let desired = active_region_ids(config)?
-            .into_iter()
-            .map(local_region)
-            .collect();
-        self.plan_layout_ordered(config, None, None, desired, protected_slots, false)
-    }
-
-    pub fn plan_composition_layout(
-        &self,
-        config: LoadConfig,
-        protected_slots: &BTreeSet<u32>,
-    ) -> Result<AsyncLayoutPlan> {
-        let desired = active_region_ids(config)?
-            .into_iter()
-            .map(local_region)
-            .collect();
-        self.plan_layout_ordered(config, None, None, desired, protected_slots, true)
-    }
-
-    pub fn plan_global_composition_layout(
-        &self,
-        config: GlobalRegionConfig,
-        protected_slots: &BTreeSet<u32>,
-    ) -> Result<AsyncLayoutPlan> {
-        let local = config.local_config()?;
-        let desired = config
-            .addressed_regions()?
-            .into_iter()
-            .map(global_region)
-            .collect();
-        self.plan_layout_ordered(local, Some(config), None, desired, protected_slots, true)
-    }
-
     pub fn plan_canonical_layout(
         &self,
         config: GlobalRegionConfig,
@@ -222,12 +144,7 @@ impl AsyncRegionCache {
             .collect::<Vec<_>>();
         let unique_seeds = desired
             .iter()
-            .map(|region| {
-                region
-                    .assignment
-                    .stable_seed
-                    .expect("canonical seed is absent")
-            })
+            .map(|region| region.assignment.stable_seed)
             .collect::<BTreeSet<_>>();
         ensure!(
             unique_seeds.len() == desired.len(),
@@ -235,26 +152,23 @@ impl AsyncRegionCache {
         );
         self.plan_layout_ordered(
             local,
-            Some(config),
-            Some((source_namespace, stable_seed_namespace)),
+            config,
+            source_namespace,
+            stable_seed_namespace,
             desired,
             protected_slots,
-            true,
         )
     }
 
     fn plan_layout_ordered(
         &self,
         config: LoadConfig,
-        global_config: Option<GlobalRegionConfig>,
-        object_namespaces: Option<(ObjectSourceNamespace, ObjectSourceNamespace)>,
+        global_config: GlobalRegionConfig,
+        object_source_namespace: ObjectSourceNamespace,
+        object_stable_seed_namespace: ObjectSourceNamespace,
         desired: Vec<DesiredRegion>,
         protected_slots: &BTreeSet<u32>,
-        high_slots_first: bool,
     ) -> Result<AsyncLayoutPlan> {
-        let (object_source_namespace, object_stable_seed_namespace) = object_namespaces
-            .map(|(source, stable_seed)| (Some(source), Some(stable_seed)))
-            .unwrap_or((None, None));
         let desired_set = desired
             .iter()
             .map(|region| region.key)
@@ -276,11 +190,7 @@ impl AsyncRegionCache {
             if next.slot_for(region.key).is_some() {
                 continue;
             }
-            let free_slot = if high_slots_first {
-                next.slots.iter().rposition(Option::is_none)
-            } else {
-                next.slots.iter().position(Option::is_none)
-            };
+            let free_slot = next.slots.iter().rposition(Option::is_none);
             let slot = if let Some(slot) = free_slot {
                 slot
             } else {
@@ -348,33 +258,6 @@ impl AsyncRegionCache {
     }
 }
 
-fn local_region(region_id: u32) -> DesiredRegion {
-    DesiredRegion {
-        key: CacheKey::Local(region_id),
-        assignment: RegionAssignment {
-            slot: 0,
-            region_id,
-            global_region: None,
-            stable_seed: None,
-        },
-    }
-}
-
-fn global_region(region: AddressedRegion) -> DesiredRegion {
-    DesiredRegion {
-        key: CacheKey::LegacyGlobal {
-            global_region: region.global_region,
-            local_region_id: region.local_region_id,
-        },
-        assignment: RegionAssignment {
-            slot: 0,
-            region_id: region.local_region_id,
-            global_region: Some(region.global_region),
-            stable_seed: None,
-        },
-    }
-}
-
 impl AsyncLayoutPlan {
     pub fn materialize(self, uploads: Vec<RegionUpload>) -> Result<AsyncStreamPlan> {
         ensure!(
@@ -392,24 +275,24 @@ impl AsyncLayoutPlan {
                 "async region payload has an invalid record count"
             );
             ensure!(
-                upload.records.iter().all(|record| {
-                    record.region_id == assignment.stable_seed.unwrap_or(assignment.region_id)
-                }),
+                upload
+                    .records
+                    .iter()
+                    .all(|record| { record.region_id == assignment.stable_seed }),
                 "async payload region does not match the cache reservation"
             );
-            if let Some(local_ids) = &upload.local_ids {
-                ensure!(
-                    local_ids.len() == crate::load::INSTANCES_PER_REGION as usize,
-                    "async identity payload has an invalid local-ID count"
-                );
-                let unique = local_ids.iter().copied().collect::<BTreeSet<_>>();
-                ensure!(
-                    unique.len() == local_ids.len()
-                        && unique.first() == Some(&0)
-                        && unique.last() == Some(&(crate::load::INSTANCES_PER_REGION - 1)),
-                    "async identity payload is not a canonical local-ID permutation"
-                );
-            }
+            let local_ids = &upload.local_ids;
+            ensure!(
+                local_ids.len() == crate::load::INSTANCES_PER_REGION as usize,
+                "async identity payload has an invalid local-ID count"
+            );
+            let unique = local_ids.iter().copied().collect::<BTreeSet<_>>();
+            ensure!(
+                unique.len() == local_ids.len()
+                    && unique.first() == Some(&0)
+                    && unique.last() == Some(&(crate::load::INSTANCES_PER_REGION - 1)),
+                "async identity payload is not a canonical local-ID permutation"
+            );
         }
         let uploaded_sha256 = hash_uploads(&uploads);
         Ok(AsyncStreamPlan {
@@ -432,52 +315,6 @@ mod tests {
 
     fn protected(plan: &AsyncLayoutPlan) -> BTreeSet<u32> {
         plan.active_slots.iter().copied().collect()
-    }
-
-    #[test]
-    fn global_alias_misses() {
-        let zero = GlobalRegionConfig::new(0, 0, 0, 0, 2).unwrap();
-        let first = AsyncRegionCache::default()
-            .plan_global_composition_layout(zero, &BTreeSet::new())
-            .unwrap();
-        let far = 1_i64 << 40;
-        let shifted = GlobalRegionConfig::new(far, -far, far, -far, 2).unwrap();
-        let second = first
-            .next_cache
-            .plan_global_composition_layout(shifted, &protected(&first))
-            .unwrap();
-        assert_eq!(second.counts.retained_region_count, 0);
-        assert_eq!(second.counts.uploaded_region_count, 25);
-        assert_eq!(second.counts.resident_region_count, 50);
-        assert!(
-            second
-                .assignments
-                .iter()
-                .all(|assignment| assignment.global_region.is_some())
-        );
-    }
-
-    #[test]
-    fn global_revisit_hits() {
-        let base = GlobalRegionConfig::new(0, 0, 0, 0, 2).unwrap();
-        let first = AsyncRegionCache::default()
-            .plan_global_composition_layout(base, &BTreeSet::new())
-            .unwrap();
-        let adjacent_config = GlobalRegionConfig::new(0, 0, 1, 0, 2).unwrap();
-        let adjacent = first
-            .next_cache
-            .plan_global_composition_layout(adjacent_config, &protected(&first))
-            .unwrap();
-        assert_eq!(adjacent.counts.retained_region_count, 20);
-        assert_eq!(adjacent.counts.uploaded_region_count, 5);
-
-        let revisit = adjacent
-            .next_cache
-            .plan_global_composition_layout(base, &protected(&adjacent))
-            .unwrap();
-        assert_eq!(revisit.counts.retained_region_count, 25);
-        assert_eq!(revisit.counts.uploaded_region_count, 0);
-        assert_eq!(revisit.counts.instance_bytes, 0);
     }
 
     #[test]

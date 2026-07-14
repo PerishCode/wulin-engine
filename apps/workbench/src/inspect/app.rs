@@ -1,14 +1,14 @@
-use std::sync::mpsc::{Receiver, SyncSender};
+use std::sync::mpsc::Receiver;
 
 use serde_json::json;
 use windows::Win32::Foundation::HWND;
 
+use crate::address::GlobalRegionConfig;
 use crate::rendering::Renderer;
-use crate::{PendingCapture, PendingOperations, WorkbenchState, load, perception, scene, window};
+use crate::{PendingCapture, PendingOperations, WorkbenchState, perception, scene, window};
 
 use super::protocol::{ControlKind, ControlResult, ProtocolError};
 use super::server::ControlCommand;
-use super::status::load_status;
 
 pub(crate) fn handle_commands(
     hwnd: HWND,
@@ -51,190 +51,56 @@ pub(crate) fn handle_commands(
                     renderer.calibration_mode_active(),
                 )
                 .map(|_| scene.camera_json())
-                .map_err(|error| ProtocolError {
-                    code: "invalid_camera",
-                    message: error.to_string(),
-                }),
+                .map_err(|error| protocol_error("invalid_camera", error)),
             ControlKind::SceneListObjects => Ok(scene.objects_json()),
             world @ (ControlKind::WorldStatus
             | ControlKind::WorldRelocate { .. }
             | ControlKind::WorldRebase { .. }
             | ControlKind::WorldReset
             | ControlKind::WorldProbe) => super::world_control::dispatch(renderer, scene, world),
-            ControlKind::LoadStatus | ControlKind::ResidentStatus => Ok(load_status(renderer)),
-            ControlKind::AsyncResidentStatus => Ok(renderer.async_resident_status()),
-            ControlKind::AsyncCopyGateArm => renderer
-                .arm_async_copy_gate()
-                .map(|fence| json!({"gateFence": fence}))
-                .map_err(|error| ProtocolError {
-                    code: "gate_failed",
-                    message: error.to_string(),
-                }),
-            ControlKind::AsyncCopyGateRelease => unsafe { renderer.release_async_copy_gate() }
-                .map(|fence| json!({"gateFence": fence}))
-                .map_err(|error| ProtocolError {
-                    code: "gate_failed",
-                    message: error.to_string(),
-                }),
-            ControlKind::CookedStatus => Ok(renderer.cooked_status()),
-            ControlKind::CookedOpen { path } => super::pack_control::validate_cooked(&path)
-                .and_then(|path| renderer.open_cooked_pack(path))
-                .and_then(|metadata| serde_json::to_value(metadata).map_err(Into::into))
-                .map_err(|error| ProtocolError {
-                    code: "pack_open_failed",
-                    message: error.to_string(),
-                }),
-            ControlKind::CookedIoGateArm => renderer
-                .arm_cooked_io_gate()
-                .map(|fence| json!({"gateFence": fence}))
-                .map_err(|error| ProtocolError {
-                    code: "gate_failed",
-                    message: error.to_string(),
-                }),
-            ControlKind::CookedIoGateRelease => renderer
-                .release_cooked_io_gate()
-                .map(|fence| json!({"gateFence": fence}))
-                .map_err(|error| ProtocolError {
-                    code: "gate_failed",
-                    message: error.to_string(),
-                }),
-            object @ (ControlKind::CookedObjectStatus
-            | ControlKind::CookedObjectOpen { .. }
-            | ControlKind::CookedObjectDisable
-            | ControlKind::CookedObjectIoGateArm
-            | ControlKind::CookedObjectIoGateRelease) => {
-                super::pack_control::dispatch_object(renderer, object)
+            ControlKind::TerrainSourceOpen { path } => {
+                super::pack_control::validate(&path, super::pack_control::PackKind::Terrain)
+                    .and_then(|path| renderer.open_terrain_pack(path))
+                    .map_err(|error| protocol_error("pack_open_failed", error))
             }
-            terrain @ (ControlKind::TerrainStatus
-            | ControlKind::TerrainOpen { .. }
-            | ControlKind::TerrainEnable
-            | ControlKind::TerrainDisable
-            | ControlKind::TerrainIoGateArm
-            | ControlKind::TerrainIoGateRelease
-            | ControlKind::TerrainCopyGateArm
-            | ControlKind::TerrainCopyGateRelease
-            | ControlKind::TerrainLodStatus
-            | ControlKind::TerrainLodConfigure { .. }
-            | ControlKind::TerrainLodEnable
-            | ControlKind::TerrainLodDisable
-            | ControlKind::TerrainGlobalSchedule { .. }
-            | ControlKind::TerrainSchedule { .. }) => {
-                super::terrain_control::dispatch(renderer, terrain)
+            ControlKind::ObjectSourceOpen { path } => {
+                super::pack_control::validate(&path, super::pack_control::PackKind::Objects)
+                    .and_then(|path| renderer.open_cooked_object_pack(path))
+                    .map_err(|error| protocol_error("pack_open_failed", error))
             }
-            composition @ (ControlKind::CompositionStatus
-            | ControlKind::CompositionSchedule { .. }
-            | ControlKind::CompositionGlobalSchedule(..)
-            | ControlKind::CompositionEnable
-            | ControlKind::CompositionDisable
-            | ControlKind::CompositionTraversalEnable
-            | ControlKind::CompositionTraversalDisable
-            | ControlKind::CompositionPrefetchEnable
-            | ControlKind::CompositionPrefetchDisable
-            | ControlKind::CompositionOrder { .. }
-            | ControlKind::CompositionFixture { .. }) => {
-                super::composition_control::dispatch(renderer, composition)
-            }
-            ControlKind::MeshletStatus => Ok(renderer.meshlet_scene_status()),
-            ControlKind::MeshletConfigure {
-                archetype_mask,
-                forced_lod,
-            } => renderer
-                .configure_meshlet_scene(archetype_mask, forced_lod)
-                .map(|()| renderer.meshlet_scene_status())
-                .map_err(|error| ProtocolError {
-                    code: "invalid_meshlet_config",
-                    message: error.to_string(),
-                }),
-            ControlKind::MeshletEnable => renderer
-                .enable_meshlet_scene()
-                .map(|()| renderer.meshlet_scene_status())
-                .map_err(|error| ProtocolError {
-                    code: "meshlet_unavailable",
-                    message: error.to_string(),
-                }),
-            ControlKind::MeshletDisable => {
-                renderer.disable_meshlet_scene();
-                Ok(renderer.meshlet_scene_status())
-            }
-            ControlKind::SkeletalStatus => Ok(renderer.skeletal_scene_status()),
-            ControlKind::SkeletalConfigure {
-                animated_percent,
-                bone_count,
-                phase_count,
-                time_tick,
-                unique_poses,
-                forced_lod,
-            } => renderer
-                .configure_skeletal_scene(
-                    animated_percent,
-                    bone_count,
-                    phase_count,
-                    time_tick,
-                    unique_poses,
-                    forced_lod,
-                )
-                .map(|()| renderer.skeletal_scene_status())
-                .map_err(|error| ProtocolError {
-                    code: "invalid_skeletal_config",
-                    message: error.to_string(),
-                }),
-            ControlKind::SkeletalEnable => renderer
-                .enable_skeletal_scene()
-                .map(|()| renderer.skeletal_scene_status())
-                .map_err(|error| ProtocolError {
-                    code: "skeletal_unavailable",
-                    message: error.to_string(),
-                }),
-            ControlKind::SkeletalDisable => {
-                renderer.disable_skeletal_scene();
-                Ok(renderer.skeletal_scene_status())
-            }
-            ControlKind::SurfaceStatus => super::surface_control::status(renderer),
-            ControlKind::SurfaceConfigure {
-                material_count,
-                mip_level,
-            } => super::surface_control::configure(renderer, material_count, mip_level),
-            ControlKind::SurfaceEnable => super::surface_control::enable(renderer),
-            ControlKind::SurfaceDisable => super::surface_control::disable(renderer),
-            ControlKind::SurfaceOcclusionEnable => {
-                super::surface_control::enable_occlusion(renderer)
-            }
-            ControlKind::SurfaceOcclusionDisable => {
-                super::surface_control::disable_occlusion(renderer)
-            }
-            ControlKind::SurfaceOcclusionReset => super::surface_control::reset_occlusion(renderer),
-            ControlKind::LoadDisable => renderer
-                .disable_load()
-                .map(|()| load_status(renderer))
-                .map_err(|error| ProtocolError {
-                    code: "stream_busy",
-                    message: error.to_string(),
-                }),
-            ControlKind::LoadConfigure {
-                world_region_side,
-                active_center_x,
-                active_center_z,
+            ControlKind::CanonicalStatus => Ok(renderer.composition_status()),
+            ControlKind::CanonicalSchedule {
+                origin_x,
+                origin_z,
+                center_x,
+                center_z,
                 active_radius,
-            } => load::LoadConfig::new(
-                world_region_side,
-                active_center_x,
-                active_center_z,
-                active_radius,
-            )
-            .and_then(|config| {
-                renderer
-                    .configure_load(config)
-                    .map(|()| load_status(renderer))
-            })
-            .map_err(|error| ProtocolError {
-                code: "invalid_load_config",
-                message: error.to_string(),
-            }),
-            ControlKind::LoadProbe => {
-                if renderer.load_config().is_none() {
+            } => GlobalRegionConfig::new(origin_x, origin_z, center_x, center_z, active_radius)
+                .map_err(|error| protocol_error("invalid_global_config", error))
+                .and_then(|config| {
+                    unsafe { renderer.schedule_global_composition(config) }.map_err(stream_error)
+                }),
+            ControlKind::CanonicalTraversalEnable => renderer
+                .enable_composition_traversal()
+                .map(|()| renderer.composition_status())
+                .map_err(stream_error),
+            ControlKind::CanonicalTraversalDisable => {
+                renderer.disable_composition_traversal();
+                Ok(renderer.composition_status())
+            }
+            ControlKind::CanonicalPrefetchEnable => renderer
+                .enable_composition_prefetch()
+                .map(|()| renderer.composition_status())
+                .map_err(stream_error),
+            ControlKind::CanonicalPrefetchDisable => renderer
+                .disable_composition_prefetch()
+                .map(|()| renderer.composition_status())
+                .map_err(stream_error),
+            ControlKind::CanonicalProbe => {
+                if !renderer.composition_enabled() {
                     Err(ProtocolError {
-                        code: "load_disabled",
-                        message: "load mode must be configured before probing".into(),
+                        code: "canonical_unavailable",
+                        message: "canonical composition must be published before probing".into(),
                     })
                 } else if pending.is_idle() {
                     pending.probe = Some(response);
@@ -246,47 +112,18 @@ pub(crate) fn handle_commands(
                     })
                 }
             }
-            ControlKind::ResidentStream {
-                world_region_side,
-                active_center_x,
-                active_center_z,
-                active_radius,
-            } => match begin_resident_stream(
-                renderer,
-                pending,
-                &response,
-                world_region_side,
-                active_center_x,
-                active_center_z,
-                active_radius,
-            ) {
-                Some(result) => result,
-                None => continue,
-            },
-            ControlKind::AsyncResidentSchedule {
-                world_region_side,
-                active_center_x,
-                active_center_z,
-                active_radius,
-            } => begin_async_stream(
-                renderer,
-                world_region_side,
-                active_center_x,
-                active_center_z,
-                active_radius,
-            ),
-            ControlKind::CookedSchedule {
-                world_region_side,
-                active_center_x,
-                active_center_z,
-                active_radius,
-            } => begin_cooked_stream(
-                renderer,
-                world_region_side,
-                active_center_x,
-                active_center_z,
-                active_radius,
-            ),
+            ControlKind::ObjectIoGateArm => gate(renderer.arm_object_io_gate()),
+            ControlKind::ObjectIoGateRelease => gate(renderer.release_object_io_gate()),
+            ControlKind::ObjectCopyGateArm => gate(renderer.arm_async_copy_gate()),
+            ControlKind::ObjectCopyGateRelease => {
+                gate(unsafe { renderer.release_async_copy_gate() })
+            }
+            ControlKind::TerrainIoGateArm => gate(renderer.arm_terrain_io_gate()),
+            ControlKind::TerrainIoGateRelease => gate(renderer.release_terrain_io_gate()),
+            ControlKind::TerrainCopyGateArm => gate(renderer.arm_terrain_copy_gate()),
+            ControlKind::TerrainCopyGateRelease => {
+                gate(unsafe { renderer.release_terrain_copy_gate() })
+            }
             ControlKind::Capture { id, collection } => {
                 if pending.is_idle() {
                     pending.capture = Some(PendingCapture {
@@ -299,7 +136,7 @@ pub(crate) fn handle_commands(
                 }
                 Err(ProtocolError {
                     code: "capture_busy",
-                    message: "a capture request is already pending".into(),
+                    message: "a capture or probe request is already pending".into(),
                 })
             }
             ControlKind::PerceptionCapture {
@@ -319,123 +156,33 @@ pub(crate) fn handle_commands(
                 }
                 Ok(_) => Err(ProtocolError {
                     code: "capture_busy",
-                    message: "a capture request is already pending".into(),
+                    message: "a capture or probe request is already pending".into(),
                 }),
-                Err(error) => Err(ProtocolError {
-                    code: "invalid_region",
-                    message: error.to_string(),
-                }),
+                Err(error) => Err(protocol_error("invalid_region", error)),
             },
         };
         let _ = response.send(result);
     }
 }
 
-fn begin_resident_stream(
-    renderer: &mut Renderer,
-    pending: &mut PendingOperations,
-    response: &SyncSender<ControlResult>,
-    world_region_side: u32,
-    active_center_x: u32,
-    active_center_z: u32,
-    active_radius: u32,
-) -> Option<ControlResult> {
-    let config = match load::LoadConfig::new(
-        world_region_side,
-        active_center_x,
-        active_center_z,
-        active_radius,
-    ) {
-        Ok(config) => config,
-        Err(error) => {
-            return Some(Err(ProtocolError {
-                code: "invalid_load_config",
-                message: error.to_string(),
-            }));
-        }
+fn gate(result: anyhow::Result<u64>) -> ControlResult {
+    result
+        .map(|fence| json!({"gateFence": fence}))
+        .map_err(|error| protocol_error("gate_failed", error))
+}
+
+fn stream_error(error: anyhow::Error) -> ProtocolError {
+    let code = if error.to_string().contains("busy") {
+        "stream_busy"
+    } else {
+        "stream_failed"
     };
-    if !pending.is_idle() {
-        return Some(Err(ProtocolError {
-            code: "capture_busy",
-            message: "a capture, probe, or stream request is already pending".into(),
-        }));
-    }
-    match unsafe { renderer.stream_resident(config) } {
-        Ok(()) => {
-            pending.stream = Some(response.clone());
-            None
-        }
-        Err(error) => Some(Err(ProtocolError {
-            code: "stream_failed",
-            message: error.to_string(),
-        })),
-    }
+    protocol_error(code, error)
 }
 
-fn begin_async_stream(
-    renderer: &mut Renderer,
-    world_region_side: u32,
-    active_center_x: u32,
-    active_center_z: u32,
-    active_radius: u32,
-) -> ControlResult {
-    let config = load::LoadConfig::new(
-        world_region_side,
-        active_center_x,
-        active_center_z,
-        active_radius,
-    )
-    .map_err(|error| ProtocolError {
-        code: "invalid_load_config",
+fn protocol_error(code: &'static str, error: impl std::fmt::Display) -> ProtocolError {
+    ProtocolError {
+        code,
         message: error.to_string(),
-    })?;
-    let report = unsafe { renderer.stream_async_resident(config) }.map_err(|error| {
-        let message = error.to_string();
-        ProtocolError {
-            code: if message.contains("stream_busy") {
-                "stream_busy"
-            } else {
-                "stream_failed"
-            },
-            message,
-        }
-    })?;
-    serde_json::to_value(report).map_err(|error| ProtocolError {
-        code: "stream_failed",
-        message: error.to_string(),
-    })
-}
-
-fn begin_cooked_stream(
-    renderer: &mut Renderer,
-    world_region_side: u32,
-    active_center_x: u32,
-    active_center_z: u32,
-    active_radius: u32,
-) -> ControlResult {
-    let config = load::LoadConfig::new(
-        world_region_side,
-        active_center_x,
-        active_center_z,
-        active_radius,
-    )
-    .map_err(|error| ProtocolError {
-        code: "invalid_load_config",
-        message: error.to_string(),
-    })?;
-    let report = renderer.stream_cooked_resident(config).map_err(|error| {
-        let message = error.to_string();
-        ProtocolError {
-            code: if message.contains("stream_busy") {
-                "stream_busy"
-            } else {
-                "stream_failed"
-            },
-            message,
-        }
-    })?;
-    serde_json::to_value(report).map_err(|error| ProtocolError {
-        code: "stream_failed",
-        message: error.to_string(),
-    })
+    }
 }

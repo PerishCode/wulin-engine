@@ -163,8 +163,6 @@ fn read_request(
     gate: &IoGate,
     shutdown: &AtomicBool,
 ) -> std::result::Result<(Vec<RegionUpload>, ObjectIoMetrics), (String, ObjectIoMetrics)> {
-    let explicit_local_ids =
-        pack.metadata().payload_schema == region_format::GLOBAL_IDENTITY_PAYLOAD_SCHEMA;
     let started = Instant::now();
     let mut metrics = ObjectIoMetrics {
         worker_queue_ms: request.queued_at.elapsed().as_secs_f64() * 1_000.0,
@@ -182,13 +180,7 @@ fn read_request(
 
     let mut uploads = Vec::with_capacity(request.assignments.len());
     for assignment in request.assignments {
-        let Some(global) = assignment.global_region else {
-            metrics.total_ms = started.elapsed().as_secs_f64() * 1_000.0;
-            return Err((
-                "cooked object assignment has no signed region".into(),
-                metrics,
-            ));
-        };
+        let global = assignment.global_region;
         metrics.chunk_count += 1;
         metrics.seek_count += 1;
         let read = match pack.read_region(region_format::GlobalRegion::new(global.x, global.z)) {
@@ -200,12 +192,10 @@ fn read_request(
         };
         metrics.payload_bytes += u64::from(read.payload_bytes);
         metrics.record_bytes += u64::from(region_format::REGION_BYTES);
-        if explicit_local_ids {
-            metrics.identity_bytes += u64::from(region_format::IDENTITY_PLANE_BYTES);
-        }
+        metrics.identity_bytes += u64::from(region_format::IDENTITY_PLANE_BYTES);
         metrics.read_ms += read.read_ms;
         metrics.verify_ms += read.verify_ms;
-        if assignment.stable_seed != Some(read.stable_seed) {
+        if assignment.stable_seed != read.stable_seed {
             metrics.total_ms = started.elapsed().as_secs_f64() * 1_000.0;
             return Err((
                 format!(
@@ -218,7 +208,7 @@ fn read_request(
         uploads.push(RegionUpload {
             slot: assignment.slot,
             records: read.records,
-            local_ids: explicit_local_ids.then_some(read.local_ids),
+            local_ids: read.local_ids,
         });
     }
     metrics.total_ms = started.elapsed().as_secs_f64() * 1_000.0;

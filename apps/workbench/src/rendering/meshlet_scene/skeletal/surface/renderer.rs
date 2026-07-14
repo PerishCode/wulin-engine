@@ -1,18 +1,16 @@
 mod recording;
 
 use animation_catalog::Catalog as AnimationCatalog;
-use anyhow::{Result, ensure};
+use anyhow::Result;
 use meshlet_catalog::Catalog as MeshletCatalog;
 use serde_json::{Value, json};
-use surface_catalog::{MATERIAL_COUNT, MIP_COUNT};
+use surface_catalog::MATERIAL_COUNT;
 use windows::Win32::Graphics::Direct3D12::*;
 
-use crate::load::LoadConfig;
 use crate::rendering::resident::{transition, uav_barrier};
 
 use super::super::pipeline::SKELETAL_CONSTANT_COUNT;
 use super::super::probe::SkeletalProbe;
-use super::occlusion::OCCLUSION_GROUPS;
 use super::occlusion::{self, BoundProof};
 use super::pipeline::{SURFACE_CONSTANT_COUNT, SurfacePipeline};
 use super::probe::{self, ProbeInput, SurfaceProbe};
@@ -40,9 +38,7 @@ pub struct SurfaceRenderer {
     pub resources: SurfaceResources,
     width: u32,
     height: u32,
-    enabled: bool,
     settings: SurfaceSettings,
-    occlusion_enabled: bool,
     history_signature: Option<[u32; SKELETAL_CONSTANT_COUNT as usize]>,
     last_history_queried: bool,
     history_reset_count: u64,
@@ -65,7 +61,11 @@ pub struct SurfaceProbeContext<'a> {
     pub mesh_catalog: &'a MeshletCatalog,
     pub scene: &'a crate::scene::SceneState,
     pub skeletal_settings: super::super::renderer::SkeletalSettings,
-    pub config: LoadConfig,
+    pub instance_records: &'a [Vec<crate::resident::InstanceRecord>],
+    pub local_ids: &'a [Vec<u32>],
+    pub projection: crate::rendering::terrain::TerrainProjection,
+    pub ground_numerators: &'a [i32],
+    pub ground_denominator: u32,
     pub background_color: [f32; 4],
     pub timestamp_readback: &'a ID3D12Resource,
     pub timestamp_frequency: u64,
@@ -102,9 +102,7 @@ impl SurfaceRenderer {
             }?,
             width,
             height,
-            enabled: false,
             settings: SurfaceSettings::default(),
-            occlusion_enabled: false,
             history_signature: None,
             last_history_queried: false,
             history_reset_count: 0,
@@ -114,96 +112,8 @@ impl SurfaceRenderer {
         })
     }
 
-    pub fn configure(&mut self, settings: SurfaceSettings) -> Result<()> {
-        ensure!(
-            matches!(settings.material_count, 1 | 8 | 64),
-            "materialCount must be one of 1, 8, or 64"
-        );
-        ensure!(
-            matches!(settings.mip_level, 0 | 3 | 6) && settings.mip_level < MIP_COUNT,
-            "mipLevel must be one of 0, 3, or 6"
-        );
-        self.settings = settings;
-        Ok(())
-    }
-
-    pub fn enable(&mut self) {
-        self.enabled = true;
-        self.invalidate_occlusion_history("surface-enable");
-    }
-
-    pub fn disable(&mut self) {
-        self.enabled = false;
-        self.invalidate_occlusion_history("surface-disable");
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
-    }
-
-    pub fn status_json(&self) -> Value {
-        json!({
-            "revision": SURFACE_REVISION,
-            "enabled": self.enabled,
-            "settings": self.settings_json(),
-            "catalog": {
-                "sha256": self.resources.catalog_sha256,
-                "vertexCount": self.resources.catalog.vertices.len(),
-                "primitiveCount": self.resources.catalog.primitives.len(),
-                "materialCount": self.resources.catalog.materials.len(),
-                "textureMipCount": self.resources.catalog.texture_mips.len(),
-                "gpuBytes": self.resources.uploaded.total_bytes,
-            },
-            "resources": {
-                "width": self.width,
-                "height": self.height,
-                "visibilityFormat": "R32G32_UINT",
-                "colorFormat": "R8G8B8A8_UNORM",
-                "executionBytes": self.resources.execution_bytes,
-            },
-            "submission": {
-                "indirectVisibilityDispatchCount": 1,
-                "resolveDispatchCount": 1,
-                "resolveGroups": [self.width.div_ceil(8), self.height.div_ceil(8), 1],
-            },
-            "occlusion": {
-                "enabled": self.occlusion_enabled,
-                "historyAvailable": self.history_signature.is_some(),
-                "lastHistoryQueried": self.last_history_queried,
-                "resetCount": self.history_reset_count,
-                "lastBypassReason": self.last_bypass_reason,
-                "resources": {
-                    "hierarchyFormat": "R32_UINT",
-                    "hierarchyMipCount": self.resources.occlusion.mip_count,
-                    "hierarchyBytes": self.resources.occlusion.hierarchy_bytes,
-                    "executionBytes": self.resources.occlusion.execution_bytes,
-                    "totalSurfaceExecutionBytes": self.resources.total_execution_bytes,
-                },
-                "submission": {
-                    "queryDispatchCount": 1,
-                    "queryGroups": OCCLUSION_GROUPS,
-                    "prefixDispatchCount": 1,
-                    "prefixGroups": 1,
-                    "scatterDispatchCount": 1,
-                    "scatterGroups": OCCLUSION_GROUPS,
-                    "compactionDispatchCount": 3,
-                    "hierarchyDispatchCount": self.resources.occlusion.mip_count,
-                },
-                "boundProof": self.bound_proof,
-            },
-        })
-    }
-
-    pub fn enable_occlusion(&mut self) {
-        self.occlusion_enabled = true;
-    }
-
-    pub fn disable_occlusion(&mut self) {
-        self.occlusion_enabled = false;
-    }
-
-    pub fn reset_occlusion_history(&mut self) {
-        self.invalidate_occlusion_history("explicit-reset");
+    pub fn activate_canonical(&mut self) {
+        self.invalidate_occlusion_history("canonical-activation");
     }
 
     fn invalidate_occlusion_history(&mut self, reason: &'static str) {
@@ -298,7 +208,41 @@ impl SurfaceRenderer {
         }
     }
 
-    unsafe fn copy_resolved_color(
+    unsafe fn preserve_composed_color(
+        &self,
+        command_list: &ID3D12GraphicsCommandList,
+        back_buffer: &ID3D12Resource,
+    ) {
+        unsafe {
+            transition(
+                command_list,
+                &self.resources.color,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_COPY_DEST,
+            );
+            transition(
+                command_list,
+                back_buffer,
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+            );
+            command_list.CopyResource(&self.resources.color, back_buffer);
+            transition(
+                command_list,
+                back_buffer,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
+            );
+            transition(
+                command_list,
+                &self.resources.color,
+                D3D12_RESOURCE_STATE_COPY_DEST,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            );
+        }
+    }
+
+    unsafe fn publish_resolved_color(
         &self,
         command_list: &ID3D12GraphicsCommandList,
         back_buffer: &ID3D12Resource,
@@ -427,13 +371,17 @@ impl SurfaceRenderer {
                 mesh_catalog: context.mesh_catalog,
                 scene: context.scene,
                 skeletal_settings: context.skeletal_settings,
-                config: context.config,
+                instance_records: context.instance_records,
+                local_ids: context.local_ids,
+                projection: context.projection,
+                ground_numerators: context.ground_numerators,
+                ground_denominator: context.ground_denominator,
                 background_color: context.background_color,
                 timestamp_readback: context.timestamp_readback,
                 timestamp_frequency: context.timestamp_frequency,
                 width: self.width,
                 height: self.height,
-                occlusion_enabled: self.occlusion_enabled,
+                occlusion_enabled: true,
                 history_queried: self.last_history_queried,
                 history_reset_count: self.history_reset_count,
                 bypass_reason: self.last_bypass_reason,
@@ -460,6 +408,8 @@ impl SurfaceRenderer {
             *destination = channel.to_bits();
         }
         constants[24] = skeletal[49];
+        constants[25] = skeletal[16];
+        constants[26] = 65_536;
         constants[28..32].copy_from_slice(&[
             u32::from(history_queried),
             self.resources.occlusion.mip_count,

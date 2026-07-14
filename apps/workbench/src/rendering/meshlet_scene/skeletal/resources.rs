@@ -32,7 +32,6 @@ pub struct AnimationBuffers {
     pub inverse_bind: ID3D12Resource,
     pub samples: ID3D12Resource,
     pub skin: ID3D12Resource,
-    pub total_bytes: usize,
 }
 
 impl AnimationBuffers {
@@ -54,7 +53,6 @@ impl AnimationBuffers {
             inverse_bind: resources.next().unwrap(),
             samples: resources.next().unwrap(),
             skin: resources.next().unwrap(),
-            total_bytes: payloads.iter().map(Vec::len).sum(),
         })
     }
 }
@@ -74,7 +72,6 @@ pub struct ExecutionResources {
     pub counter_readback: ID3D12Resource,
     pub sample_readback: ID3D12Resource,
     pub ground_readback: ID3D12Resource,
-    pub execution_bytes: u64,
 }
 
 impl ExecutionResources {
@@ -143,12 +140,6 @@ impl ExecutionResources {
             counter_readback,
             sample_readback,
             ground_readback,
-            execution_bytes: MAX_SKELETAL_VISIBLE as u64 * (24 + 4)
-                + COUNTER_BYTES
-                + MAX_SHARED_POSES as u64 / 8
-                + MAX_SHARED_POSES as u64 * 4
-                + PALETTE_BYTES
-                + SAMPLE_BYTES,
         })
     }
 }

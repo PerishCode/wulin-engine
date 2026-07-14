@@ -12,7 +12,7 @@ use super::super::occlusion::{OCCLUSION_COUNTER_BYTES, OCCLUSION_GROUPS, Occlusi
 use super::upload::UploadedSurface;
 use super::{CANDIDATE_CAPACITY, SAMPLE_BYTES, STATS_BYTES};
 
-const DESCRIPTOR_COUNT: u32 = 96;
+const DESCRIPTOR_COUNT: u32 = 97;
 const COPIED_DESCRIPTOR_COUNT: u32 = 61;
 
 pub struct HeapInputs<'a> {
@@ -52,6 +52,16 @@ pub unsafe fn create_heap(
             COPIED_DESCRIPTOR_COUNT,
             start,
             inputs.source_heap.GetCPUDescriptorHandleForHeapStart(),
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+        );
+        device.CopyDescriptorsSimple(
+            1,
+            cpu_handle(start, increment, 96),
+            cpu_handle(
+                inputs.source_heap.GetCPUDescriptorHandleForHeapStart(),
+                increment,
+                118,
+            ),
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
         );
         structured_srv(

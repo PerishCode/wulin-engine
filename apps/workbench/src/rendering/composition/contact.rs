@@ -9,7 +9,7 @@ use crate::scene::SceneState;
 use crate::terrain::TerrainAssignment;
 
 use super::super::terrain::{
-    PATCH_CELL_SIDE, PATCHES_PER_REGION_SIDE, TerrainLodSettings, TerrainProjection, selected_lod,
+    PATCH_CELL_SIDE, PATCHES_PER_REGION_SIDE, TerrainProjection, selected_lod,
 };
 
 const Q18_DENOMINATOR: u32 = 262_144;
@@ -65,7 +65,6 @@ pub(super) struct ContactInput<'a> {
     pub exact_ground: &'a [i32],
     pub ground_denominator: u32,
     pub scene: &'a SceneState,
-    pub settings: TerrainLodSettings,
     pub projection: TerrainProjection,
 }
 
@@ -78,7 +77,6 @@ pub(super) fn evaluate(input: ContactInput<'_>) -> Result<ContactProbe> {
         exact_ground,
         ground_denominator,
         scene,
-        settings,
         projection,
     } = input;
     ensure!(
@@ -119,13 +117,13 @@ pub(super) fn evaluate(input: ContactInput<'_>) -> Result<ContactProbe> {
             assignment.region_id == tile.region_id,
             "composition contact tile mapping mismatch"
         );
-        let region_id = projection.region_id(active_index, assignment.region_id)?;
+        let region_id = projection.region_id(active_index)?;
         for (local_index, record) in region_records.iter().enumerate() {
             let local_id = local_ids[active_index][local_index];
             let position = projection.position(active_index, record.position)?;
             let q8 = position_q8(position, region_id)?;
             let (selected_q18, owner_lod) =
-                selected_surface_q18(tile, region_id, q8, &active_patches, camera, settings);
+                selected_surface_q18(tile, region_id, q8, &active_patches, camera);
             let logical_index =
                 active_index * crate::load::INSTANCES_PER_REGION as usize + local_index;
             let exact_q18 = exact_ground[logical_index] * ground_scale;
@@ -206,8 +204,8 @@ fn active_patch_set(
     projection: TerrainProjection,
 ) -> Result<BTreeSet<(i32, i32)>> {
     let mut patches = BTreeSet::new();
-    for (index, assignment) in assignments.iter().enumerate() {
-        let region_id = projection.region_id(index, assignment.region_id)?;
+    for index in 0..assignments.len() {
+        let region_id = projection.region_id(index)?;
         let region_x = (region_id % terrain_format::WORLD_REGION_SIDE) as i32;
         let region_z = (region_id / terrain_format::WORLD_REGION_SIDE) as i32;
         for patch_z in 0..PATCHES_PER_REGION_SIDE {
@@ -251,7 +249,6 @@ fn selected_surface_q18(
     q8: [u32; 2],
     active_patches: &BTreeSet<(i32, i32)>,
     camera: crate::scene::Camera,
-    settings: TerrainLodSettings,
 ) -> (i32, u32) {
     let patch_x = (q8[0] / PATCH_Q8_SIDE).min(PATCHES_PER_REGION_SIDE - 1);
     let patch_z = (q8[1] / PATCH_Q8_SIDE).min(PATCHES_PER_REGION_SIDE - 1);
@@ -261,7 +258,7 @@ fn selected_surface_q18(
         region_x * PATCHES_PER_REGION_SIDE as i32 + patch_x as i32,
         region_z * PATCHES_PER_REGION_SIDE as i32 + patch_z as i32,
     );
-    let owner_lod = selected_lod(global_patch.0, global_patch.1, camera, settings);
+    let owner_lod = selected_lod(global_patch.0, global_patch.1, camera);
     let x_edge = q8[0].is_multiple_of(PATCH_Q8_SIDE);
     let z_edge = q8[1].is_multiple_of(PATCH_Q8_SIDE);
     if x_edge && z_edge {
@@ -274,9 +271,9 @@ fn selected_surface_q18(
             -1
         };
         let neighbor = (global_patch.0 + direction, global_patch.1);
-        let edge_lod = active_patches.get(&neighbor).map_or(owner_lod, |_| {
-            selected_lod(neighbor.0, neighbor.1, camera, settings)
-        });
+        let edge_lod = active_patches
+            .get(&neighbor)
+            .map_or(owner_lod, |_| selected_lod(neighbor.0, neighbor.1, camera));
         return (
             edge_q18(tile, q8, patch_z, true, owner_lod.max(edge_lod)),
             owner_lod,
@@ -289,9 +286,9 @@ fn selected_surface_q18(
             -1
         };
         let neighbor = (global_patch.0, global_patch.1 + direction);
-        let edge_lod = active_patches.get(&neighbor).map_or(owner_lod, |_| {
-            selected_lod(neighbor.0, neighbor.1, camera, settings)
-        });
+        let edge_lod = active_patches
+            .get(&neighbor)
+            .map_or(owner_lod, |_| selected_lod(neighbor.0, neighbor.1, camera));
         return (
             edge_q18(tile, q8, patch_x, false, owner_lod.max(edge_lod)),
             owner_lod,

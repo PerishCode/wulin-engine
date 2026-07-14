@@ -86,10 +86,10 @@ pub struct ProbeInput<'a> {
     pub height: u32,
     pub snapshot: &'a PublishedSnapshot,
     pub scene: &'a SceneState,
-    pub ground_numerators: Option<&'a [i32]>,
+    pub ground_numerators: &'a [i32],
     pub ground_denominator: u32,
-    pub instance_records: Option<&'a [Vec<crate::resident::InstanceRecord>]>,
-    pub local_ids: Option<&'a [Vec<u32>]>,
+    pub instance_records: &'a [Vec<crate::resident::InstanceRecord>],
+    pub local_ids: &'a [Vec<u32>],
 }
 
 pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
@@ -118,7 +118,6 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
         input.mesh_catalog,
         input.settings,
         oracle::EvaluationInput {
-            config: input.snapshot.config,
             scene: input.scene,
             viewport: [input.width, input.height],
             projection,
