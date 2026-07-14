@@ -1,7 +1,9 @@
 use region_cooker::{
     PhysicalOrder, PresentationProfile, author_presentations, reorder_object_triples,
 };
-use region_format::{InstanceRecord, PRESENTATION_ARCHETYPE_COUNT, RECORDS_PER_REGION};
+use region_format::{
+    InstanceRecord, PRESENTATION_ARCHETYPE_COUNT, PRESENTATION_MATERIAL_COUNT, RECORDS_PER_REGION,
+};
 
 #[test]
 fn orders_are_distinct_triple_preserving_permutations() {
@@ -32,7 +34,7 @@ fn orders_are_distinct_triple_preserving_permutations() {
 }
 
 #[test]
-fn imported_profile_selects_only_the_imported_archetype() {
+fn imported_profile_selects_the_imported_archetype_and_material() {
     let source = (0..RECORDS_PER_REGION)
         .map(|local_id| InstanceRecord {
             position: [local_id as f32, 0.0, 0.0],
@@ -44,7 +46,7 @@ fn imported_profile_selects_only_the_imported_archetype() {
     let imported = author_presentations(&source, PresentationProfile::Imported);
     for (before, after) in base.iter().zip(imported) {
         assert_eq!(after.archetype, PRESENTATION_ARCHETYPE_COUNT - 1);
-        assert_eq!(after.material, before.material);
+        assert_eq!(after.material, PRESENTATION_MATERIAL_COUNT - 1);
         assert_eq!(after.yaw_q16, before.yaw_q16);
         assert_eq!(after.animation, before.animation);
     }

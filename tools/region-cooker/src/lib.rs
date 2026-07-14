@@ -125,6 +125,7 @@ pub fn author_presentations(
                 }
                 PresentationProfile::Imported => {
                     presentation.archetype = PRESENTATION_ARCHETYPE_COUNT - 1;
+                    presentation.material = PRESENTATION_MATERIAL_COUNT - 1;
                 }
             }
             presentation

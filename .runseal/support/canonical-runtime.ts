@@ -483,6 +483,8 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
             stats: surface.stats,
             samples: surfaceSamples,
             maximumSampleChannelDelta: surface.maximumSampleChannelDelta,
+            surfaceCatalogSha256: surface.surfaceCatalogSha256,
+            importedMaterial: surface.importedMaterial,
         },
         capture: captureValue,
     };
