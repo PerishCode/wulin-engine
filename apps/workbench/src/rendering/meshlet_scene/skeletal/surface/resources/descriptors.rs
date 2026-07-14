@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 use surface_catalog::{MATERIAL_COUNT, MIP_COUNT, Material, SurfacePrimitive, SurfaceVertex};
 use windows::Win32::Graphics::Direct3D12::*;
 use windows::Win32::Graphics::Dxgi::Common::{
-    DXGI_FORMAT, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R32_TYPELESS, DXGI_FORMAT_R32_UINT,
-    DXGI_FORMAT_R32G32_UINT, DXGI_FORMAT_UNKNOWN,
+    DXGI_FORMAT, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R32_FLOAT, DXGI_FORMAT_R32_TYPELESS,
+    DXGI_FORMAT_R32_UINT, DXGI_FORMAT_R32G32_UINT, DXGI_FORMAT_UNKNOWN,
 };
 
 use super::super::super::resources::VISIBLE_OBJECT_BYTES;
@@ -13,7 +13,7 @@ use super::super::occlusion::{OCCLUSION_COUNTER_BYTES, OCCLUSION_GROUPS, Occlusi
 use super::upload::UploadedSurface;
 use super::{CANDIDATE_CAPACITY, SAMPLE_BYTES, STATS_BYTES};
 
-const DESCRIPTOR_COUNT: u32 = 97;
+const DESCRIPTOR_COUNT: u32 = 98;
 const COPIED_DESCRIPTOR_COUNT: u32 = 61;
 
 pub struct HeapInputs<'a> {
@@ -26,6 +26,7 @@ pub struct HeapInputs<'a> {
     pub candidate: &'a ID3D12Resource,
     pub stats: &'a ID3D12Resource,
     pub samples: &'a ID3D12Resource,
+    pub shadow: &'a ID3D12Resource,
     pub source_visible: &'a ID3D12Resource,
     pub source_counters: &'a ID3D12Resource,
     pub occlusion: &'a OcclusionResources,
@@ -207,6 +208,13 @@ pub unsafe fn create_heap(
             DXGI_FORMAT_R32_UINT,
             inputs.occlusion.mip_count,
             cpu_handle(start, increment, 95),
+        );
+        texture_srv(
+            device,
+            inputs.shadow,
+            DXGI_FORMAT_R32_FLOAT,
+            D3D12_SRV_DIMENSION_TEXTURE2D,
+            cpu_handle(start, increment, 97),
         );
     }
     Ok((heap, increment))

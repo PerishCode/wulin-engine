@@ -188,7 +188,7 @@ pub(in crate::rendering::meshlet_scene::skeletal::surface) unsafe fn read(
         scatter_groups: OCCLUSION_GROUPS,
         compaction_dispatch_count: 3,
         hierarchy_dispatch_count: input.resources.occlusion.mip_count,
-        gpu_query_ms: milliseconds(3, 4),
+        gpu_query_ms: milliseconds(4, 5),
         cpu_oracle,
         bound_proof: input.bound_proof,
     })

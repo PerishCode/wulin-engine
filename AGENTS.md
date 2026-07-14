@@ -95,9 +95,10 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0037 and the current ADR set through 0040 define one live content runtime
+Experiments 0031-0038 and the current ADR set through 0041 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
-and one offline-cooked external geometry/material/rig source:
+one offline-cooked external geometry/material/rig source, and one deterministic object-shadow
+path:
 
 - signed `i64` terrain packs (`.wlt`);
 - signed schema-3 object packs (`.wlr`) with explicit authored local IDs and presentation;
@@ -110,6 +111,7 @@ and one offline-cooked external geometry/material/rig source:
 - one pinned PNG/PBR material cooked into reserved surface material/layer 63;
 - one pinned 24-joint/three-clip skin cooked into imported fixed rig bank 1;
 - exact source-duration phase mapping over the existing 64 sampled poses;
+- one fixed camera-visible directional hard-shadow map and depth-only object pass;
 - one compact `source.*` / `canonical.*` inspect vocabulary;
 - one non-recursive `runseal :canonical-runtime` acceptance workflow.
 
@@ -136,6 +138,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0038-cooked-gltf-material.md` | Accepted pinned PNG/PBR join, deterministic mip cook, reserved fixed-array material, and runtime isolation contract. |
 | `docs/adr/0039-cooked-gltf-skeletal-animation.md` | Accepted pinned skin/clip cook, dual fixed rig banks, rig-aware pose identity, and normalized-space skinning contract. |
 | `docs/adr/0040-source-duration-presentation-time.md` | Accepted fixed-quantum source-duration clock, exact common period, and integer phase contract. |
+| `docs/adr/0041-camera-visible-directional-shadows.md` | Accepted fixed camera-visible object shadow map, indirect depth reuse, and deterministic receiver contract. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -144,6 +147,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0035-cooked-gltf-material/README.md` | Accepted offline Fox base-color/material cook, fixed surface-array integration, and exact GPU visual evidence. |
 | `experiments/0036-cooked-gltf-skeletal-animation/README.md` | Accepted offline Fox skin/clip cook, dual-bank GPU deformation, bounded pose reuse, and articulated visual evidence. |
 | `experiments/0037-source-duration-playback/README.md` | Accepted deterministic source-duration playback, common-period control, and exact Walk-loop evidence. |
+| `experiments/0038-camera-visible-directional-shadows/README.md` | Accepted camera-visible animated-object hard shadows, exact CPU oracle, and bounded resource evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/meshlet-catalog/build.rs` | Verified build-time glTF geometry/joint/weight cook, normalization, normals, LOD simplification, and canonical payload emission. |
 | `crates/meshlet-catalog/src/imported.rs` | Strict canonical imported-geometry/binding payload decoder and metadata owner. |
@@ -170,11 +174,12 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `apps/workbench/src/rendering/composition/traversal.rs` | Latest-wins traversal, prefetch, and rollover policy. |
 | `apps/workbench/src/rendering/composition/probe.rs` | Canonical attachment and oracle evidence. |
 | `apps/workbench/src/rendering/renderer/frame.rs` | Idle-shell/canonical frame dispatch. |
+| `apps/workbench/src/rendering/meshlet_scene/skeletal/surface/shadow.rs` | Fixed directional-light projection and shadow probe oracle. |
 | `.runseal/wrappers/init.ts` | Toolchain and repository initialization. |
 | `.runseal/wrappers/guard.ts` | Repository validation and forbidden-symbol gate. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0037 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0038 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
 | `.runseal/support/temporal-presentation.ts` | Fixed-quantum duration time, common-period, and held-pair acceptance support. |
@@ -199,12 +204,12 @@ runseal :canonical-runtime
 
 This workflow cooks fresh signed sources and directly validates canonical correctness,
 source reordering, movement, aliasing, failure rollback, all four fault gates, reactive
-and prepared traversal, rollover, deterministic presentation time, a same-process
-64-publication resource plateau, and 16 complete lifecycle cycles. It must not invoke an
-older experiment wrapper.
+and prepared traversal, rollover, deterministic presentation time, fixed camera-visible
+directional object shadows, a same-process 64-publication resource plateau, and 16 complete
+lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0033-deterministic-temporal-presentation/` and remains ignored.
+`out/captures/0038-camera-visible-directional-shadows/` and remains ignored.
 
 ### 6.3 Manual workbench
 

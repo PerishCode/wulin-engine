@@ -30,6 +30,7 @@ impl SurfaceRenderer {
             self.constants(skeletal_constants, frame.background_color, history_queried);
         let gpu_start = unsafe { self.resources.gpu_start() };
         let visibility_target = unsafe { self.resources.visibility_handle() };
+        let shadow_target = unsafe { self.resources.shadow_handle() };
         unsafe {
             transition(
                 command_list,
@@ -43,13 +44,39 @@ impl SurfaceRenderer {
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
             );
+            command_list.SetDescriptorHeaps(&[Some(self.resources.heap.clone())]);
+            command_list.OMSetRenderTargets(0, None, false, Some(&shadow_target));
+            command_list.ClearDepthStencilView(shadow_target, D3D12_CLEAR_FLAG_DEPTH, 1.0, 0, None);
+            set_viewport(
+                command_list,
+                super::super::shadow::MAP_SIDE,
+                super::super::shadow::MAP_SIDE,
+            );
+            self.bind_graphics(command_list, surface_constants, gpu_start);
+            command_list.SetPipelineState(&self.pipeline.shadow);
+            command_list.ExecuteIndirect(
+                &self.pipeline.mesh_signature,
+                1,
+                &execution.counters,
+                0,
+                None,
+                0,
+            );
+            if frame.probe {
+                command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 4);
+            }
+            transition(
+                command_list,
+                &self.resources.shadow,
+                D3D12_RESOURCE_STATE_DEPTH_WRITE,
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+            );
             transition(
                 command_list,
                 &execution.counters,
                 D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
             );
-            command_list.SetDescriptorHeaps(&[Some(self.resources.heap.clone())]);
             self.bind_compute(command_list, surface_constants, gpu_start);
             let (counter_gpu, counter_cpu) = self.resources.occlusion_counter_uav_handles();
             command_list.ClearUnorderedAccessViewUint(
@@ -100,7 +127,7 @@ impl SurfaceRenderer {
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
             );
             if frame.probe {
-                command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 4);
+                command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 5);
             }
             transition(
                 command_list,
@@ -145,7 +172,7 @@ impl SurfaceRenderer {
             uav_barrier(command_list, &self.resources.candidate_to_visible);
             uav_barrier(command_list, &self.resources.visibility_winner);
             if frame.probe {
-                command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 5);
+                command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 6);
             }
 
             transition(
@@ -181,11 +208,11 @@ impl SurfaceRenderer {
             }
             self.publish_resolved_color(command_list, frame.back_buffer);
             if frame.probe {
-                command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 6);
+                command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 7);
             }
             self.build_hierarchy(command_list, surface_constants, gpu_start);
             if frame.probe {
-                command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 7);
+                command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 8);
             }
             if frame.probe {
                 self.record_probe_copies(command_list);
@@ -195,6 +222,12 @@ impl SurfaceRenderer {
                     &self.resources.visibility,
                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                     D3D12_RESOURCE_STATE_RENDER_TARGET,
+                );
+                transition(
+                    command_list,
+                    &self.resources.shadow,
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                    D3D12_RESOURCE_STATE_DEPTH_WRITE,
                 );
             }
             transition(

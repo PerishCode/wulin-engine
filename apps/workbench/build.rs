@@ -93,6 +93,8 @@ fn main() {
         ("as_main", "as_6_6", "surface_resolve.as.dxil"),
         ("ms_main", "ms_6_6", "surface_resolve.ms.dxil"),
         ("ps_main", "ps_6_6", "surface_resolve.ps.dxil"),
+        ("shadow_as_main", "as_6_6", "surface_resolve.shadow_as.dxil"),
+        ("shadow_ms_main", "ms_6_6", "surface_resolve.shadow_ms.dxil"),
         ("shade_main", "cs_6_6", "surface_resolve.shade.dxil"),
     ] {
         compile_shader(
