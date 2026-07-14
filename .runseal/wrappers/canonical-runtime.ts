@@ -45,8 +45,8 @@ import {
     sourceDurationGates,
 } from "../support/cooked-gltf-presentation.ts";
 
-const REVISION = "source-duration-playback-v1";
-const COLLECTION = "0037-source-duration-playback";
+const REVISION = "camera-visible-directional-shadows-v1";
+const COLLECTION = "0038-camera-visible-directional-shadows";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -155,6 +155,23 @@ try {
     const basePublication = await publish(target(BASE));
     assertObjectCopies(basePublication, 25, "cold publication");
     const orderA = await frame("order-a", COLLECTION);
+    const orderStable = object(orderA, "stable");
+    const orderShadow = object(object(orderStable, "surface"), "shadow");
+    if (
+        number(orderShadow, "sampleShadowedCount") <= 0 ||
+        number(orderShadow, "sampleLitCount") <= 0
+    ) fail("controlled directional shadow samples do not cover lit and shadowed receivers");
+    const shadowCapture = object(orderStable, "capture");
+    if (
+        shadowCapture.color ===
+            "aab74184ea059f3f640b4b1b529fc86c82783b8db23209ede5cafd65f64688f2" ||
+        shadowCapture.png ===
+            "670a0305a413e0f8e56af7133d97d05b5e18976b85ac72d9f50797f9ab697bf0"
+    ) fail("directional shadow did not change the accepted no-shadow color baseline");
+    if (
+        shadowCapture.objectId !==
+            "01951615d1b4645bdfba68991c75b8ea333482d312f31f39ed3b907ca479da5b"
+    ) fail("directional shadow changed the accepted object-ID attachment");
 
     console.log("==> deterministic presentation time gates");
     const temporal = await temporalGates(orderA, COLLECTION);

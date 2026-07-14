@@ -107,6 +107,12 @@ duration。Survey/Walk/Run 精确映射到 16,400/3,400/5,560 units，并与 fix
 31,002,560-frame 公共周期；539.4 秒直接验收确认 Walk frame 0/42/43/85 对应 phase 0/63/0/0，
 公共周期回环、全部 traversal/rollback、64 次资源平台和 16 次生命周期均通过。时钟仍由
 renderer 按提交帧驱动，不引入 wall clock、clip transition 或 root motion。
+Experiment 0038 复用遮挡前的 10,538 个 camera-visible animated object、既有 camera LOD、
+grounding 与 pose palette，以一次间接 depth-only mesh dispatch 生成固定 1024² D32 方向硬阴影。
+562 秒直接验收中，受控阴影图包含 88,557 个占用 texel，六个 receiver 的 GPU/CPU 阴影判定、
+texel 与最终颜色全部精确一致；source-duration 循环、alias/revisit、32+32 traversal、64 次资源
+平台和 16 次生命周期均保持确定性与有界资源。该能力不增加 CPU draw list、light-space cull、
+第二套 LOD/pose authority，也尚未定义地形阴影、离屏 caster、级联或过滤。
 
 ## Project model
 
@@ -144,9 +150,9 @@ entire local runtime through one manifest.
 
 `runseal :canonical-runtime` is the only end-to-end engine acceptance workflow. It cooks
 signed terrain and schema-3 object sources directly, validates explicit presentation,
-deterministic presentation time, canonical composition,
-fault rollback, traversal/prefetch/rollover, the 64-publication resource plateau, and 16
-complete lifecycle cycles without invoking an older experiment workflow.
+deterministic presentation time, fixed camera-visible directional object shadows, canonical
+composition, fault rollback, traversal/prefetch/rollover, the 64-publication resource plateau,
+and 16 complete lifecycle cycles without invoking an older experiment workflow.
 
 ## Scope
 

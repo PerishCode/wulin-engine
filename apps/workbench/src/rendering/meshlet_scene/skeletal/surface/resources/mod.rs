@@ -11,8 +11,8 @@ use crate::rendering::gpu_capture::Readback;
 
 use self::descriptors::{HeapInputs, cpu_handle, create_heap};
 use self::targets::{
-    color_target, create_visibility_rtv, readback_buffer, uav_buffer, visibility_target,
-    winner_target,
+    color_target, create_shadow_dsv, create_visibility_rtv, readback_buffer, shadow_target,
+    uav_buffer, visibility_target, winner_target,
 };
 use self::upload::UploadedSurface;
 use super::occlusion::OcclusionResources;
@@ -20,7 +20,7 @@ use super::occlusion::OcclusionResources;
 pub const CANDIDATE_CAPACITY: u32 = 25_600;
 pub const STATS_BYTES: u64 = 32;
 pub const SAMPLE_COUNT: u32 = 6;
-pub const SAMPLE_STRIDE: u64 = 32;
+pub const SAMPLE_STRIDE: u64 = 48;
 pub const SAMPLE_BYTES: u64 = SAMPLE_COUNT as u64 * SAMPLE_STRIDE;
 
 pub struct SurfaceResources {
@@ -33,13 +33,16 @@ pub struct SurfaceResources {
     pub candidate_to_visible: ID3D12Resource,
     pub stats: ID3D12Resource,
     pub samples: ID3D12Resource,
+    pub shadow: ID3D12Resource,
     pub occlusion: OcclusionResources,
     pub heap: ID3D12DescriptorHeap,
     pub visibility_rtv: ID3D12DescriptorHeap,
+    pub shadow_dsv: ID3D12DescriptorHeap,
     pub visibility_readback: Readback,
     pub winner_readback: Readback,
     pub stats_readback: ID3D12Resource,
     pub sample_readback: ID3D12Resource,
+    pub shadow_readback: Readback,
     descriptor_increment: usize,
 }
 
@@ -64,6 +67,7 @@ impl SurfaceResources {
         let candidate_to_visible = unsafe { uav_buffer(device, CANDIDATE_CAPACITY as u64 * 4) }?;
         let stats = unsafe { uav_buffer(device, STATS_BYTES) }?;
         let samples = unsafe { uav_buffer(device, SAMPLE_BYTES) }?;
+        let shadow = unsafe { shadow_target(device, super::shadow::MAP_SIDE) }?;
         let occlusion = unsafe { OcclusionResources::new(device, width, height) }?;
         let (heap, descriptor_increment) = unsafe {
             create_heap(
@@ -78,6 +82,7 @@ impl SurfaceResources {
                     candidate: &candidate_to_visible,
                     stats: &stats,
                     samples: &samples,
+                    shadow: &shadow,
                     source_visible: input.source_visible,
                     source_counters: input.source_counters,
                     occlusion: &occlusion,
@@ -85,12 +90,14 @@ impl SurfaceResources {
             )
         }?;
         let visibility_rtv = unsafe { create_visibility_rtv(device, &visibility) }?;
+        let shadow_dsv = unsafe { create_shadow_dsv(device, &shadow) }?;
         let visibility_readback =
             unsafe { Readback::new_with_pixel_bytes(device, &visibility, 8) }?;
         let winner_readback =
             unsafe { Readback::new_with_pixel_bytes(device, &visibility_winner, 8) }?;
         let stats_readback = unsafe { readback_buffer(device, STATS_BYTES) }?;
         let sample_readback = unsafe { readback_buffer(device, SAMPLE_BYTES) }?;
+        let shadow_readback = unsafe { Readback::new_with_pixel_bytes(device, &shadow, 4) }?;
         Ok(Self {
             catalog,
             catalog_sha256,
@@ -101,19 +108,26 @@ impl SurfaceResources {
             candidate_to_visible,
             stats,
             samples,
+            shadow,
             occlusion,
             heap,
             visibility_rtv,
+            shadow_dsv,
             visibility_readback,
             winner_readback,
             stats_readback,
             sample_readback,
+            shadow_readback,
             descriptor_increment,
         })
     }
 
     pub unsafe fn visibility_handle(&self) -> D3D12_CPU_DESCRIPTOR_HANDLE {
         unsafe { self.visibility_rtv.GetCPUDescriptorHandleForHeapStart() }
+    }
+
+    pub unsafe fn shadow_handle(&self) -> D3D12_CPU_DESCRIPTOR_HANDLE {
+        unsafe { self.shadow_dsv.GetCPUDescriptorHandleForHeapStart() }
     }
 
     pub unsafe fn gpu_start(&self) -> D3D12_GPU_DESCRIPTOR_HANDLE {

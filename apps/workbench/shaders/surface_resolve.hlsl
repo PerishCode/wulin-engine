@@ -4,6 +4,8 @@ static const uint REGION_OBJECT_ID_BASE = 65536;
 static const uint MAX_BONES = 128;
 static const uint MATERIAL_TEXTURE_SIDE = 64;
 static const uint SAMPLE_COUNT = 6;
+static const uint SHADOW_MAP_SIDE = 1024;
+static const float SHADOW_RECEIVER_BIAS = 0.0015;
 
 struct InstanceRecord
 {
@@ -83,6 +85,7 @@ cbuffer SurfaceResolveConstants : register(b0)
     uint4 hierarchy_shape;
     float4 occlusion_params;
     float4 occlusion_bias;
+    column_major float4x4 light_view_projection;
 };
 
 StructuredBuffer<InstanceRecord> region_instances[REGION_SLOT_CAPACITY] : register(t0);
@@ -100,6 +103,8 @@ StructuredBuffer<MaterialRecord> surface_materials : register(t65);
 Texture2D<uint2> visibility_texture : register(t66);
 Texture2DArray<float4> material_texture : register(t67);
 StructuredBuffer<uint> candidate_to_visible_in : register(t68);
+StructuredBuffer<VisibleObject> source_visible : register(t60);
+Texture2D<float> shadow_depth : register(t71);
 StructuredBuffer<int> ground_numerators : register(t113);
 
 RWStructuredBuffer<uint> candidate_to_visible_out : register(u7);
@@ -175,6 +180,48 @@ float3 transform_point(AffineTransform transform, float3 local_position)
         dot(transform.row1, homogeneous),
         dot(transform.row2, homogeneous)
     );
+}
+
+float3 resolve_world_position(
+    uint vertex_index,
+    VisibleObject visible,
+    InstanceRecord instance,
+    float sine,
+    float cosine)
+{
+    float3 local = catalog_vertices[vertex_index].xyz;
+    bool imported = visible.archetype == 7u;
+    if (!imported)
+    {
+        local.y *= instance.height;
+    }
+    if (visible.pose_slot != 0xffffffffu)
+    {
+        SkinBinding binding = catalog_skin[vertex_index];
+        float3 skinned = 0.0;
+        [unroll]
+        for (uint influence = 0; influence < 4; influence++)
+        {
+            uint bone = ((binding.indices >> (influence * 8u)) & 255u)
+                % surface_animation.x;
+            float weight = float((binding.weights >> (influence * 8u)) & 255u) / 255.0;
+            skinned += transform_point(
+                palette_in[visible.pose_slot * MAX_BONES + bone],
+                local
+            ) * weight;
+        }
+        local = skinned;
+    }
+    if (imported)
+    {
+        local.y *= instance.height;
+    }
+    float3 rotated = float3(
+        local.x * cosine - local.z * sine,
+        local.y,
+        local.x * sine + local.z * cosine
+    );
+    return canonical_position(instance, visible.candidate_index) + rotated;
 }
 
 [outputtopology("triangle")]
@@ -257,6 +304,65 @@ void ms_main(
     }
 }
 
+struct ShadowVertexOutput
+{
+    float4 position : SV_POSITION;
+};
+
+[numthreads(1, 1, 1)]
+void shadow_as_main(uint3 group_id : SV_GroupID)
+{
+    VisibleObject visible = source_visible[group_id.x];
+    LodDescriptor descriptor = catalog_lods[visible.archetype * 3u + visible.lod];
+    amplification_payload.visible_index = group_id.x;
+    amplification_payload.meshlet_offset = descriptor.meshlet_offset;
+    DispatchMesh(descriptor.meshlet_count, 1, 1, amplification_payload);
+}
+
+[outputtopology("triangle")]
+[numthreads(64, 1, 1)]
+void shadow_ms_main(
+    uint group_thread : SV_GroupIndex,
+    uint3 group_id : SV_GroupID,
+    in payload MeshPayload payload,
+    out vertices ShadowVertexOutput output_vertices[64],
+    out indices uint3 output_triangles[126])
+{
+    VisibleObject visible = source_visible[payload.visible_index];
+    MeshletDescriptor meshlet = catalog_meshlets[payload.meshlet_offset + group_id.x];
+    SetMeshOutputCounts(meshlet.vertex_count, meshlet.primitive_count);
+    uint slot = visible.physical_index / INSTANCES_PER_REGION;
+    uint local_index = visible.physical_index % INSTANCES_PER_REGION;
+    InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
+    float angle = float(visible.yaw_q16) * 6.28318530718 / 65536.0;
+    float sine;
+    float cosine;
+    sincos(angle, sine, cosine);
+    if (group_thread < meshlet.vertex_count)
+    {
+        uint vertex_index = catalog_meshlet_vertices[meshlet.vertex_offset + group_thread];
+        ShadowVertexOutput output;
+        output.position = mul(
+            light_view_projection,
+            float4(resolve_world_position(vertex_index, visible, instance, sine, cosine), 1.0)
+        );
+        output_vertices[group_thread] = output;
+    }
+    for (
+        uint primitive_index = group_thread;
+        primitive_index < meshlet.primitive_count;
+        primitive_index += 64
+    )
+    {
+        uint primitive = catalog_primitives[meshlet.primitive_offset + primitive_index];
+        output_triangles[primitive_index] = uint3(
+            primitive & 0xffu,
+            (primitive >> 8) & 0xffu,
+            (primitive >> 16) & 0xffu
+        );
+    }
+}
+
 struct VisibilityOutput
 {
     uint2 visibility : SV_TARGET0;
@@ -316,9 +422,17 @@ void resolve_vertex(
     InstanceRecord instance,
     float sine,
     float cosine,
+    out float3 world_position,
     out float3 normal,
     out float2 uv)
 {
+    world_position = resolve_world_position(
+        vertex_index,
+        visible,
+        instance,
+        sine,
+        cosine
+    );
     SurfaceVertex surface = surface_vertices[vertex_index];
     normal = decode_octahedral(surface.oct_normal_uv.xy);
     bool imported = visible.archetype == 7u;
@@ -408,6 +522,10 @@ void shade_main(
     uint stable_key = 0xffffffffu;
     uint material_index = 0xffffffffu;
     uint packed_texel = 0xffffffffu;
+    uint shadowed = 0u;
+    uint packed_shadow_texel = 0xffffffffu;
+    float receiver_shadow_depth = 1.0;
+    float stored_shadow_depth = 1.0;
     if ((payload.x & 0x7fffu) != 0)
     {
         uint candidate = (payload.x & 0x7fffu) - 1u;
@@ -426,6 +544,7 @@ void shade_main(
         float cosine;
         sincos(angle, sine, cosine);
         float3 normals[3];
+        float3 world_positions[3];
         float2 uvs[3];
         [unroll]
         for (uint vertex = 0; vertex < 3; vertex++)
@@ -436,6 +555,7 @@ void shade_main(
                 instance,
                 sine,
                 cosine,
+                world_positions[vertex],
                 normals[vertex],
                 uvs[vertex]
             );
@@ -444,6 +564,9 @@ void shade_main(
             normals[0] * bary.x + normals[1] * bary.y + normals[2] * bary.z
         );
         float2 uv = uvs[0] * bary.x + uvs[1] * bary.y + uvs[2] * bary.z;
+        float3 world_position = world_positions[0] * bary.x
+            + world_positions[1] * bary.y
+            + world_positions[2] * bary.z;
         stable_key = visible.stable_key;
         material_index = visible.material;
         MaterialRecord material = surface_materials[material_index];
@@ -461,8 +584,31 @@ void shade_main(
         );
         float3 light_direction = normalize(float3(-0.45, 0.8, 0.3));
         float diffuse = saturate(dot(normal, light_direction));
-        float lighting = 0.22 + diffuse * (0.78 - material.roughness * 0.18);
-        float metallic_lift = material.metallic * pow(saturate(normal.y), 4.0) * 0.25;
+        float4 shadow_clip = mul(light_view_projection, float4(world_position, 1.0));
+        float3 shadow_ndc = shadow_clip.xyz / shadow_clip.w;
+        bool shadow_address_valid = all(shadow_ndc.xy >= -1.0)
+            && all(shadow_ndc.xy <= 1.0)
+            && shadow_ndc.z >= 0.0
+            && shadow_ndc.z <= 1.0;
+        if (shadow_address_valid)
+        {
+            uint2 shadow_texel = min(
+                uint2(
+                    (shadow_ndc.x * 0.5 + 0.5) * float(SHADOW_MAP_SIDE),
+                    (-shadow_ndc.y * 0.5 + 0.5) * float(SHADOW_MAP_SIDE)
+                ),
+                SHADOW_MAP_SIDE - 1u
+            );
+            packed_shadow_texel = shadow_texel.x | (shadow_texel.y << 16u);
+            receiver_shadow_depth = shadow_ndc.z;
+            stored_shadow_depth = shadow_depth.Load(int3(shadow_texel, 0));
+            shadowed = receiver_shadow_depth > stored_shadow_depth + SHADOW_RECEIVER_BIAS;
+        }
+        float direct_visibility = shadowed == 0u ? 1.0 : 0.0;
+        float lighting = 0.22
+            + direct_visibility * diffuse * (0.78 - material.roughness * 0.18);
+        float metallic_lift = direct_visibility
+            * material.metallic * pow(saturate(normal.y), 4.0) * 0.25;
         color = float4(
             saturate(material.base_color.rgb * texture_value.rgb * lighting + metallic_lift),
             1.0
@@ -489,7 +635,7 @@ void shade_main(
     int selected_sample = sample_index(pixel);
     if (selected_sample >= 0)
     {
-        uint offset = uint(selected_sample) * 32u;
+        uint offset = uint(selected_sample) * 48u;
         surface_samples.Store(offset + 0, payload.x);
         surface_samples.Store(offset + 4, payload.y);
         surface_samples.Store(offset + 8, visible_index);
@@ -498,6 +644,10 @@ void shade_main(
         surface_samples.Store(offset + 20, surface_shape.y);
         surface_samples.Store(offset + 24, pack_rgba8(color));
         surface_samples.Store(offset + 28, packed_texel);
+        surface_samples.Store(offset + 32, shadowed);
+        surface_samples.Store(offset + 36, packed_shadow_texel);
+        surface_samples.Store(offset + 40, asuint(receiver_shadow_depth));
+        surface_samples.Store(offset + 44, asuint(stored_shadow_depth));
     }
     GroupMemoryBarrierWithGroupSync();
     if (group_thread == 0)

@@ -15,6 +15,10 @@ const AMPLIFICATION_SHADER: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/surface_resolve.as.dxil"));
 const MESH_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/surface_resolve.ms.dxil"));
 const PIXEL_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/surface_resolve.ps.dxil"));
+const SHADOW_AMPLIFICATION_SHADER: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/surface_resolve.shadow_as.dxil"));
+const SHADOW_MESH_SHADER: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/surface_resolve.shadow_ms.dxil"));
 const SHADE_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/surface_resolve.shade.dxil"));
 const OCCLUSION_CLASSIFY_SHADER: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/occlusion.classify.dxil"));
@@ -25,11 +29,12 @@ const OCCLUSION_SCATTER_SHADER: &[u8] =
 const HIZ_MIP0_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/occlusion.mip0.dxil"));
 const HIZ_REDUCE_SHADER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/occlusion.reduce.dxil"));
 
-pub const SURFACE_CONSTANT_COUNT: u32 = 44;
+pub const SURFACE_CONSTANT_COUNT: u32 = 60;
 
 pub struct SurfacePipeline {
     pub root: ID3D12RootSignature,
     pub visibility: ID3D12PipelineState,
+    pub shadow: ID3D12PipelineState,
     pub shade: ID3D12PipelineState,
     pub occlusion_classify: ID3D12PipelineState,
     pub occlusion_prefix: ID3D12PipelineState,
@@ -43,6 +48,7 @@ impl SurfacePipeline {
     pub unsafe fn new(device: &ID3D12Device) -> Result<Self> {
         let root = unsafe { create_root(device) }?;
         let visibility = unsafe { create_mesh_pipeline(device, &root) }?;
+        let shadow = unsafe { create_shadow_pipeline(device, &root) }?;
         let shade = unsafe { create_compute_pipeline(device, &root, SHADE_SHADER) }?;
         let occlusion_classify =
             unsafe { create_compute_pipeline(device, &root, OCCLUSION_CLASSIFY_SHADER) }?;
@@ -56,6 +62,7 @@ impl SurfacePipeline {
         Ok(Self {
             root,
             visibility,
+            shadow,
             shade,
             occlusion_classify,
             occlusion_prefix,
@@ -77,6 +84,7 @@ unsafe fn create_root(device: &ID3D12Device) -> Result<ID3D12RootSignature> {
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 69, 79),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 70, 95),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 113, 96),
+        descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 71, 97),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 4, 7, 74),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 11, 78),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 2, 12, 80),
@@ -289,6 +297,86 @@ unsafe fn create_mesh_pipeline(
     let device: ID3D12Device2 = device.cast().context("ID3D12Device2 is unavailable")?;
     unsafe { device.CreatePipelineState(&raw const desc) }
         .context("surface graphics pipeline creation failed")
+}
+
+unsafe fn create_shadow_pipeline(
+    device: &ID3D12Device,
+    root: &ID3D12RootSignature,
+) -> Result<ID3D12PipelineState> {
+    let mut stream = MeshPipelineStream {
+        root: Subobject::new(
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE,
+            root.as_raw(),
+        ),
+        amplification: Subobject::new(
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_AS,
+            shader_bytecode(SHADOW_AMPLIFICATION_SHADER),
+        ),
+        mesh: Subobject::new(
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_MS,
+            shader_bytecode(SHADOW_MESH_SHADER),
+        ),
+        pixel: Subobject::new(
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PS,
+            D3D12_SHADER_BYTECODE {
+                pShaderBytecode: ptr::null(),
+                BytecodeLength: 0,
+            },
+        ),
+        blend: Subobject::new(
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_BLEND,
+            D3D12_BLEND_DESC::default(),
+        ),
+        sample_mask: Subobject::new(D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_MASK, u32::MAX),
+        rasterizer: Subobject::new(
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER,
+            D3D12_RASTERIZER_DESC {
+                FillMode: D3D12_FILL_MODE_SOLID,
+                CullMode: D3D12_CULL_MODE_NONE,
+                DepthClipEnable: true.into(),
+                ..Default::default()
+            },
+        ),
+        depth_stencil: Subobject::new(
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL,
+            D3D12_DEPTH_STENCIL_DESC {
+                DepthEnable: true.into(),
+                DepthWriteMask: D3D12_DEPTH_WRITE_MASK_ALL,
+                DepthFunc: D3D12_COMPARISON_FUNC_LESS_EQUAL,
+                StencilEnable: false.into(),
+                ..Default::default()
+            },
+        ),
+        topology: Subobject::new(
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PRIMITIVE_TOPOLOGY,
+            D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+        ),
+        render_targets: Subobject::new(
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RENDER_TARGET_FORMATS,
+            D3D12_RT_FORMAT_ARRAY {
+                RTFormats: [DXGI_FORMAT_UNKNOWN; 8],
+                NumRenderTargets: 0,
+            },
+        ),
+        depth_format: Subobject::new(
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT,
+            DXGI_FORMAT_D32_FLOAT,
+        ),
+        sample: Subobject::new(
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_DESC,
+            DXGI_SAMPLE_DESC {
+                Count: 1,
+                Quality: 0,
+            },
+        ),
+    };
+    let desc = D3D12_PIPELINE_STATE_STREAM_DESC {
+        SizeInBytes: size_of::<MeshPipelineStream>(),
+        pPipelineStateSubobjectStream: (&raw mut stream).cast(),
+    };
+    let device: ID3D12Device2 = device.cast().context("ID3D12Device2 is unavailable")?;
+    unsafe { device.CreatePipelineState(&raw const desc) }
+        .context("surface shadow pipeline creation failed")
 }
 
 unsafe fn create_mesh_signature(device: &ID3D12Device) -> Result<ID3D12CommandSignature> {

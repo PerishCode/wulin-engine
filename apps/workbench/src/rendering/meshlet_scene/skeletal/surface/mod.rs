@@ -4,6 +4,7 @@ mod pipeline;
 mod probe;
 mod renderer;
 mod resources;
+mod shadow;
 
 pub use probe::SurfaceProbe;
 pub use renderer::{SurfaceFrame, SurfaceProbeContext, SurfaceRenderer, SurfaceRendererInput};

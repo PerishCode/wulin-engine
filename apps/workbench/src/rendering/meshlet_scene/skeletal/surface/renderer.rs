@@ -16,7 +16,7 @@ use super::pipeline::{SURFACE_CONSTANT_COUNT, SurfacePipeline};
 use super::probe::{self, ProbeInput, SurfaceProbe};
 use super::resources::{SAMPLE_BYTES, STATS_BYTES, SurfaceResourceInput, SurfaceResources};
 
-pub const SURFACE_REVISION: &str = "gpu-surface-resolve-v1";
+pub const SURFACE_REVISION: &str = "gpu-surface-resolve-v2-directional-shadow";
 
 #[derive(Clone, Copy)]
 pub struct SurfaceSettings {
@@ -85,6 +85,7 @@ pub struct SurfaceRendererInput<'a> {
 impl SurfaceRenderer {
     pub unsafe fn new(device: &ID3D12Device, input: SurfaceRendererInput<'_>) -> Result<Self> {
         let [width, height] = input.extent;
+        super::shadow::validate_projection()?;
         let bound_proof = occlusion::validate_fixture_bound(input.mesh, input.animation)?;
         Ok(Self {
             pipeline: unsafe { SurfacePipeline::new(device) }?,
@@ -325,6 +326,21 @@ impl SurfaceRenderer {
                 D3D12_RESOURCE_STATE_COPY_SOURCE,
                 D3D12_RESOURCE_STATE_RENDER_TARGET,
             );
+            transition(
+                command_list,
+                &self.resources.shadow,
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+            );
+            self.resources
+                .shadow_readback
+                .record(command_list, &self.resources.shadow);
+            transition(
+                command_list,
+                &self.resources.shadow,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+                D3D12_RESOURCE_STATE_DEPTH_WRITE,
+            );
             for (source, destination, bytes) in [
                 (
                     &self.resources.stats,
@@ -358,6 +374,8 @@ impl SurfaceRenderer {
         json!({
             "materialCount": self.settings.material_count,
             "mipLevel": self.settings.mip_level,
+            "shadowMapSide": super::shadow::MAP_SIDE,
+            "shadowReceiverBias": super::shadow::RECEIVER_BIAS,
         })
     }
 
@@ -426,6 +444,12 @@ impl SurfaceRenderer {
         ]);
         constants[40] = super::occlusion::DEPTH_BIAS.to_bits();
         constants[41] = super::occlusion::IMPORTED_BOUND_RADIAL.to_bits();
+        for (destination, value) in constants[44..60]
+            .iter_mut()
+            .zip(super::shadow::light_view_projection().to_cols_array())
+        {
+            *destination = value.to_bits();
+        }
         constants
     }
 }

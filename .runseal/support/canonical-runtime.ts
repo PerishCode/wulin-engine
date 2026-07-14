@@ -420,9 +420,20 @@ export function validateProbe(value: Json, allowPending = false): void {
         occlusion.enabled !== true || occlusion.invalidQueries !== 0 || occlusion.overflow !== 0 ||
         occlusion.stableCompactionMismatchCount !== 0 || occlusion.hierarchyMismatchCount !== 0
     ) fail("canonical occlusion diverged");
+    const shadow = object(surface, "shadow");
+    if (
+        shadow.enabled !== true || number(shadow, "mapSide") !== 1_024 ||
+        shadow.format !== "D32_FLOAT" || number(shadow, "mapBytes") !== 4_194_304 ||
+        number(shadow, "occupiedTexels") <= 0 || number(shadow, "clearTexels") <= 0 ||
+        number(shadow, "casterCount") !== number(object(skeletal, "gpu"), "visible") ||
+        number(shadow, "indirectDispatchCount") !== 1 ||
+        number(shadow, "rootConstantDwords") !== 60 ||
+        number(shadow, "descriptorCount") !== 98 ||
+        number(shadow, "sampleMismatchCount") !== 0
+    ) fail("canonical directional shadow diverged");
     if (
         value.clearCount !== 1 || value.fixedTerrainDispatches !== 4 ||
-        value.fixedSkeletalDispatches !== 5
+        value.fixedSkeletalDispatches !== 6
     ) fail("canonical fixed frame submission diverged");
 }
 
@@ -431,6 +442,7 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
     const grounding = object(probeValue, "grounding");
     const contact = object(probeValue, "contact");
     const surface = object(probeValue, "surface");
+    const shadow = object(surface, "shadow");
     const skeletal = object(surface, "skeletal");
     const terrain = object(probeValue, "terrain");
     const surfaceSamples = array(surface, "samples").map((value) => {
@@ -444,6 +456,12 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
             mipLevel: sample.mipLevel,
             texel: sample.texel,
             expectedTexel: sample.expectedTexel,
+            shadowed: sample.shadowed,
+            expectedShadowed: sample.expectedShadowed,
+            shadowTexel: sample.shadowTexel,
+            expectedShadowTexel: sample.expectedShadowTexel,
+            receiverShadowDepth: sample.receiverShadowDepth,
+            storedShadowDepth: sample.storedShadowDepth,
             rgba8: sample.rgba8,
             expectedRgba8: sample.expectedRgba8,
             maximumChannelDelta: sample.maximumChannelDelta,
@@ -493,6 +511,28 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
             maximumSampleChannelDelta: surface.maximumSampleChannelDelta,
             surfaceCatalogSha256: surface.surfaceCatalogSha256,
             importedMaterial: surface.importedMaterial,
+            shadow: {
+                revision: shadow.revision,
+                enabled: shadow.enabled,
+                direction: shadow.direction,
+                lightViewProjectionSha256: shadow.lightViewProjectionSha256,
+                mapSide: shadow.mapSide,
+                format: shadow.format,
+                mapBytes: shadow.mapBytes,
+                receiverBias: shadow.receiverBias,
+                depthSha256: shadow.depthSha256,
+                occupiedTexels: shadow.occupiedTexels,
+                clearTexels: shadow.clearTexels,
+                minimumOccupiedDepth: shadow.minimumOccupiedDepth,
+                maximumOccupiedDepth: shadow.maximumOccupiedDepth,
+                casterCount: shadow.casterCount,
+                indirectDispatchCount: shadow.indirectDispatchCount,
+                rootConstantDwords: shadow.rootConstantDwords,
+                descriptorCount: shadow.descriptorCount,
+                sampleShadowedCount: shadow.sampleShadowedCount,
+                sampleLitCount: shadow.sampleLitCount,
+                sampleMismatchCount: shadow.sampleMismatchCount,
+            },
         },
         capture: captureValue,
     };

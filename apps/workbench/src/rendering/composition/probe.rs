@@ -344,7 +344,7 @@ impl Renderer {
             surface,
             clear_count: 1,
             fixed_terrain_dispatches: 4,
-            fixed_skeletal_dispatches: 5,
+            fixed_skeletal_dispatches: 6,
             timing: CompositionTiming {
                 terrain_total_ms,
                 ground_and_cull_classify_ms: skeletal_timing[0],
