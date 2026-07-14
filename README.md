@@ -98,6 +98,15 @@ Experiment 0033 接管此前固定为 0 的 animation time tick，以 renderer-o
 clock 在每个 canonical frame 提交后推进。449.1 秒直接验收通过 tick 0/1/64 精确步进与回环、
 11 帧自动推进、事务挂起时旧 pair 持续动画、无内容重发布，以及全部既有 traversal、资源平台
 和生命周期回归；pause/set/step 让验收仍可冻结到逐字节确定帧。
+Experiments 0034-0036 将固定的 Khronos Fox 依次以离线 cooked geometry、material/texture 和
+24-joint/three-clip rig 接入同一 canonical meshlet/surface/occlusion 路径。运行时不解析 glTF、
+不合成 fallback，也不增加 imported renderer；10,538 个可见 Fox 压缩为 64 个共享 Walk pose，
+CPU/GPU palette 最大差异为 `2.3283064e-10`，完整动画边界与生命周期证据通过。
+Experiment 0037 以固定 4,800-unit presentation second 和每帧 80 unit 消费已 cooked 的 source
+duration。Survey/Walk/Run 精确映射到 16,400/3,400/5,560 units，并与 fixture 形成
+31,002,560-frame 公共周期；539.4 秒直接验收确认 Walk frame 0/42/43/85 对应 phase 0/63/0/0，
+公共周期回环、全部 traversal/rollback、64 次资源平台和 16 次生命周期均通过。时钟仍由
+renderer 按提交帧驱动，不引入 wall clock、clip transition 或 root motion。
 
 ## Project model
 

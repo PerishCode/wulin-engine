@@ -1,6 +1,9 @@
 use animation_catalog::{
-    BONE_COUNT, CLIP_COUNT, Catalog, FIXTURE_RIG, IMPORTED_RIG, RIG_COUNT, SAMPLE_COUNT,
-    unpack_bytes,
+    BONE_COUNT, CLIP_COUNT, Catalog, FIXTURE_CLIP_DURATION_UNITS, FIXTURE_RIG,
+    IMPORTED_CLIP_DURATION_UNITS, IMPORTED_RIG, IMPORTED_SOURCE_CLIP_DURATION_UNITS,
+    PRESENTATION_CLOCK_FRAME_PERIOD, PRESENTATION_CLOCK_UNIT_PERIOD,
+    PRESENTATION_TIME_UNITS_PER_FRAME, PRESENTATION_TIME_UNITS_PER_SECOND, RIG_COUNT, SAMPLE_COUNT,
+    clip_duration_units, phase_at_frame, unpack_bytes,
 };
 use meshlet_catalog::Catalog as MeshletCatalog;
 
@@ -102,4 +105,53 @@ fn pose_evaluation_is_deterministic_and_variant_sensitive() {
     assert_ne!(imported, imported_next);
     assert_eq!(imported, imported_variant);
     assert_eq!(imported, imported_alias);
+}
+
+#[test]
+fn source_durations_have_one_bounded_integer_clock() {
+    let catalog = Catalog::build();
+    assert_eq!(PRESENTATION_TIME_UNITS_PER_SECOND, 4_800);
+    assert_eq!(PRESENTATION_TIME_UNITS_PER_FRAME, 80);
+    assert_eq!(FIXTURE_CLIP_DURATION_UNITS, 5_120);
+    assert_eq!(IMPORTED_SOURCE_CLIP_DURATION_UNITS, [16_400, 3_400, 5_560]);
+    assert_eq!(
+        IMPORTED_CLIP_DURATION_UNITS,
+        [16_400, 3_400, 5_560, 16_400, 3_400, 5_560, 16_400, 3_400]
+    );
+    for (duration, units) in catalog
+        .imported
+        .source_clip_durations
+        .into_iter()
+        .zip(IMPORTED_SOURCE_CLIP_DURATION_UNITS)
+    {
+        assert!(
+            (duration * PRESENTATION_TIME_UNITS_PER_SECOND as f32 - units as f32).abs() <= 0.001
+        );
+    }
+    assert_eq!(
+        PRESENTATION_CLOCK_UNIT_PERIOD,
+        PRESENTATION_CLOCK_FRAME_PERIOD * PRESENTATION_TIME_UNITS_PER_FRAME
+    );
+    for duration in [FIXTURE_CLIP_DURATION_UNITS]
+        .into_iter()
+        .chain(IMPORTED_CLIP_DURATION_UNITS)
+    {
+        assert_eq!(PRESENTATION_CLOCK_UNIT_PERIOD % duration, 0);
+    }
+    for frame in 0..256 {
+        assert_eq!(phase_at_frame(FIXTURE_RIG, 3, frame), frame % SAMPLE_COUNT);
+    }
+    assert_eq!(phase_at_frame(IMPORTED_RIG, 1, 0), 0);
+    assert_eq!(phase_at_frame(IMPORTED_RIG, 1, 42), 63);
+    assert_eq!(phase_at_frame(IMPORTED_RIG, 1, 43), 0);
+    assert_eq!(phase_at_frame(IMPORTED_RIG, 1, 85), 0);
+    for rig in 0..RIG_COUNT {
+        for clip in 0..CLIP_COUNT {
+            assert_ne!(clip_duration_units(rig, clip), 0);
+            assert_eq!(
+                phase_at_frame(rig, clip, PRESENTATION_CLOCK_FRAME_PERIOD),
+                0
+            );
+        }
+    }
 }

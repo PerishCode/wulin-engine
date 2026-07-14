@@ -12,6 +12,8 @@ import {
     waitStatus,
 } from "./canonical-runtime.ts";
 
+const CLOCK_FRAME_PERIOD = 31_002_560;
+
 export function presentationInvariant(stable: Json): Json {
     const objects = object(stable, "objects");
     return {
@@ -35,7 +37,10 @@ function assertClock(
 ): void {
     if (
         number(value, "tick") !== expectedTick || value.running !== expectedRunning ||
-        number(value, "phaseCount") !== 64
+        number(value, "phaseCount") !== 64 ||
+        number(value, "framePeriod") !== CLOCK_FRAME_PERIOD ||
+        number(value, "timeUnitsPerFrame") !== 80 ||
+        number(value, "timeUnitsPerSecond") !== 4_800
     ) fail(`${label} presentation clock diverged`);
 }
 
@@ -85,16 +90,26 @@ export async function temporalGates(orderA: Json, collection: string): Promise<J
         "tick-one content movement",
     );
 
-    const timeWrappedClock = await event("canonical.time.step", { ticks: 63 });
-    assertClock(timeWrappedClock, 0, false, "wrapped tick zero");
+    const timeSixtyFourClock = await event("canonical.time.step", { ticks: 63 });
+    assertClock(timeSixtyFourClock, 64, false, "duration-aware tick 64");
     if (
-        number(timeWrappedClock, "manualStepCount") !== 64 ||
-        number(timeWrappedClock, "wrapCount") < 1
-    ) fail("manual 64-tick wrap counters diverged");
-    const timeWrapped = await frame("time-wrapped-zero", collection);
-    same(timeWrapped.stable, orderA.stable, "64-tick presentation wrap");
+        number(timeSixtyFourClock, "manualStepCount") !== 64 ||
+        number(timeSixtyFourClock, "wrapCount") !== 0
+    ) fail("manual 64-tick duration counters diverged");
+    const timeSixtyFour = await frame("time-sixty-four", collection);
+    assertTemporalChange(orderA, timeSixtyFour, "duration-aware tick 64");
 
-    const invalidSet = await rejectedEvent("canonical.time.set", { tick: 64 });
+    await event("canonical.time.set", { tick: CLOCK_FRAME_PERIOD - 1 });
+    const timeWrappedClock = await event("canonical.time.step", { ticks: 1 });
+    assertClock(timeWrappedClock, 0, false, "common-period wrapped tick zero");
+    if (
+        number(timeWrappedClock, "manualStepCount") !== 65 ||
+        number(timeWrappedClock, "wrapCount") !== 1
+    ) fail("common-period wrap counters diverged");
+    const timeWrapped = await frame("time-common-period-wrapped-zero", collection);
+    same(timeWrapped.stable, orderA.stable, "common-period presentation wrap");
+
+    const invalidSet = await rejectedEvent("canonical.time.set", { tick: CLOCK_FRAME_PERIOD });
     assertClock(await event("canonical.time.status"), 0, false, "invalid set rollback");
     await event("canonical.time.resume");
     const invalidStep = await rejectedEvent("canonical.time.step", { ticks: 1 });
@@ -135,6 +150,8 @@ export async function temporalGates(orderA: Json, collection: string): Promise<J
         timeOneClock,
         timeOne,
         timeOneStatus,
+        timeSixtyFourClock,
+        timeSixtyFour,
         timeWrappedClock,
         timeWrapped,
         invalidSet,

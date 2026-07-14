@@ -40,10 +40,13 @@ import {
     temporalGates,
     temporalHold,
 } from "../support/temporal-presentation.ts";
-import { importedPresentationGates } from "../support/cooked-gltf-presentation.ts";
+import {
+    importedPresentationGates,
+    sourceDurationGates,
+} from "../support/cooked-gltf-presentation.ts";
 
-const REVISION = "cooked-gltf-skeletal-animation-v1";
-const COLLECTION = "0036-cooked-gltf-skeletal-animation";
+const REVISION = "source-duration-playback-v1";
+const COLLECTION = "0037-source-duration-playback";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -53,6 +56,7 @@ const OBJECTS_MATERIAL = `${DIRECTORY}/objects-material.wlr`;
 const OBJECTS_YAW = `${DIRECTORY}/objects-yaw.wlr`;
 const OBJECTS_ANIMATION = `${DIRECTORY}/objects-animation.wlr`;
 const OBJECTS_IMPORTED = `${DIRECTORY}/objects-imported.wlr`;
+const OBJECTS_IMPORTED_DURATION = `${DIRECTORY}/objects-imported-duration.wlr`;
 const OBJECTS_CORRUPT = `${DIRECTORY}/objects-corrupt.wlr`;
 const TERRAIN_CORRUPT = `${DIRECTORY}/terrain-corrupt.wlt`;
 const REPORT = `out/captures/${COLLECTION}/acceptance.json`;
@@ -119,6 +123,12 @@ const objectCookMaterial = await cookObjects(OBJECTS_MATERIAL, centers, "a", "ma
 const objectCookYaw = await cookObjects(OBJECTS_YAW, centers, "a", "yaw");
 const objectCookAnimation = await cookObjects(OBJECTS_ANIMATION, centers, "a", "animation");
 const objectCookImported = await cookObjects(OBJECTS_IMPORTED, centers, "a", "imported");
+const objectCookImportedDuration = await cookObjects(
+    OBJECTS_IMPORTED_DURATION,
+    centers,
+    "a",
+    "imported-duration",
+);
 const metadataA = object(objectCookA, "metadata");
 const metadataB = object(objectCookB, "metadata");
 if (
@@ -200,6 +210,14 @@ try {
     const importedPublication = object(imported, "publication");
     const importedFrame = object(imported, "tickZero");
     const importedTickSixteen = object(imported, "tickSixteen");
+
+    console.log("==> source-duration Walk loop gate");
+    const sourceDuration = await sourceDurationGates(
+        importedFrame,
+        OBJECTS_IMPORTED_DURATION,
+        BASE,
+        COLLECTION,
+    );
 
     await event("source.objects.open", { path: OBJECTS_A });
     await publish(target(BASE));
@@ -366,6 +384,7 @@ try {
             objectsYaw: objectCookYaw,
             objectsAnimation: objectCookAnimation,
             objectsImported: objectCookImported,
+            objectsImportedDuration: objectCookImportedDuration,
             objectCorruption,
             terrainCorruption,
         },
@@ -378,6 +397,7 @@ try {
             importedPublication,
             importedFrame,
             importedTickSixteen,
+            sourceDuration,
             orderBPublication,
             orderB,
             revisitPublication,

@@ -15,6 +15,15 @@ pub const FIXTURE_RIG: u32 = 0;
 pub const IMPORTED_RIG: u32 = 1;
 pub const POSE_KEYS_PER_RIG: u32 = CLIP_COUNT * SAMPLE_COUNT;
 pub const MAX_POSE_KEYS: u32 = RIG_COUNT * POSE_KEYS_PER_RIG;
+pub const PRESENTATION_TIME_UNITS_PER_SECOND: u32 = 4_800;
+pub const PRESENTATION_TIME_UNITS_PER_FRAME: u32 = 80;
+pub const FIXTURE_CLIP_DURATION_UNITS: u32 = SAMPLE_COUNT * PRESENTATION_TIME_UNITS_PER_FRAME;
+pub const IMPORTED_SOURCE_CLIP_DURATION_UNITS: [u32; 3] = [16_400, 3_400, 5_560];
+pub const IMPORTED_CLIP_DURATION_UNITS: [u32; CLIP_COUNT as usize] =
+    [16_400, 3_400, 5_560, 16_400, 3_400, 5_560, 16_400, 3_400];
+pub const PRESENTATION_CLOCK_FRAME_PERIOD: u32 = 31_002_560;
+pub const PRESENTATION_CLOCK_UNIT_PERIOD: u32 =
+    PRESENTATION_CLOCK_FRAME_PERIOD * PRESENTATION_TIME_UNITS_PER_FRAME;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -111,6 +120,15 @@ impl Catalog {
             || self.imported.source_clip_names != ["Survey", "Walk", "Run"]
             || self.imported.source_clip_key_counts != [83, 18, 25]
             || self.imported.clip_aliases != [0, 1, 2, 0, 1, 2, 0, 1]
+            || self
+                .imported
+                .source_clip_durations
+                .into_iter()
+                .zip(IMPORTED_SOURCE_CLIP_DURATION_UNITS)
+                .any(|(duration, units)| {
+                    (duration * PRESENTATION_TIME_UNITS_PER_SECOND as f32 - units as f32).abs()
+                        > 0.001
+                })
         {
             return Err("imported rig metadata is invalid".into());
         }
@@ -289,6 +307,21 @@ pub const fn rig_for_archetype(archetype: u32) -> u32 {
     } else {
         FIXTURE_RIG
     }
+}
+
+pub const fn clip_duration_units(rig: u32, clip: u32) -> u32 {
+    assert!(rig < RIG_COUNT && clip < CLIP_COUNT);
+    if rig == FIXTURE_RIG {
+        FIXTURE_CLIP_DURATION_UNITS
+    } else {
+        IMPORTED_CLIP_DURATION_UNITS[clip as usize]
+    }
+}
+
+pub const fn phase_at_frame(rig: u32, clip: u32, frame: u32) -> u32 {
+    let duration = clip_duration_units(rig, clip) as u64;
+    let elapsed = (frame as u64 * PRESENTATION_TIME_UNITS_PER_FRAME as u64) % duration;
+    (elapsed * SAMPLE_COUNT as u64 / duration) as u32
 }
 
 fn affine_bytes(values: &[Affine]) -> Vec<u8> {

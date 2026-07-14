@@ -206,7 +206,14 @@ export async function cookObjects(
     path: string,
     centers: Coord[],
     order: "a" | "b",
-    presentation: "base" | "archetype" | "material" | "yaw" | "animation" | "imported" = "base",
+    presentation:
+        | "base"
+        | "archetype"
+        | "material"
+        | "yaw"
+        | "animation"
+        | "imported"
+        | "imported-duration" = "base",
 ): Promise<Json> {
     const args = [
         "run",

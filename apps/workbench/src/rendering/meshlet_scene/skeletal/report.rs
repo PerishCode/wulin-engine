@@ -63,9 +63,12 @@ impl SkeletalSceneRenderer {
 
     pub(in crate::rendering) fn presentation_time_json(&self) -> Value {
         json!({
-            "revision": "deterministic-presentation-time-v1",
+            "revision": "source-duration-presentation-time-v1",
             "tick": self.settings.time_tick,
             "phaseCount": self.settings.phase_count,
+            "framePeriod": animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD,
+            "timeUnitsPerFrame": animation_catalog::PRESENTATION_TIME_UNITS_PER_FRAME,
+            "timeUnitsPerSecond": animation_catalog::PRESENTATION_TIME_UNITS_PER_SECOND,
             "running": self.time_running,
             "automaticAdvanceCount": self.automatic_time_advance_count,
             "manualStepCount": self.manual_time_step_count,

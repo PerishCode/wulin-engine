@@ -149,10 +149,14 @@ pub fn pose_key(presentation: PresentationRecord, settings: SkeletalSettings) ->
 }
 
 pub fn pose_phase(presentation: PresentationRecord, settings: SkeletalSettings) -> u32 {
-    let bucket = (presentation
+    assert_eq!(settings.phase_count, animation_catalog::SAMPLE_COUNT);
+    let rig = animation_catalog::rig_for_archetype(presentation.archetype);
+    let clip = presentation
+        .animation_clip()
+        .expect("static object has no pose");
+    (presentation
         .animation_phase_offset()
         .expect("static object has no pose")
-        + settings.time_tick)
-        % settings.phase_count;
-    bucket * (64 / settings.phase_count)
+        + animation_catalog::phase_at_frame(rig, clip, settings.time_tick))
+        % animation_catalog::SAMPLE_COUNT
 }

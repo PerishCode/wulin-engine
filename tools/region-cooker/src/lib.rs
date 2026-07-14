@@ -47,6 +47,7 @@ pub enum PresentationProfile {
     Yaw,
     Animation,
     Imported,
+    ImportedDuration,
 }
 
 impl PresentationProfile {
@@ -58,8 +59,9 @@ impl PresentationProfile {
             "yaw" => Ok(Self::Yaw),
             "animation" => Ok(Self::Animation),
             "imported" => Ok(Self::Imported),
+            "imported-duration" => Ok(Self::ImportedDuration),
             _ => bail!(
-                "presentation profile must be base, archetype, material, yaw, animation, or imported"
+                "presentation profile must be base, archetype, material, yaw, animation, imported, or imported-duration"
             ),
         }
     }
@@ -72,6 +74,7 @@ impl PresentationProfile {
             Self::Yaw => "yaw",
             Self::Animation => "animation",
             Self::Imported => "imported",
+            Self::ImportedDuration => "imported-duration",
         }
     }
 }
@@ -124,15 +127,20 @@ pub fn author_presentations(
                         (key.rotate_left(17) & 0xffff) << 16 | phase << 8 | clip
                     };
                 }
-                PresentationProfile::Imported => {
+                PresentationProfile::Imported | PresentationProfile::ImportedDuration => {
                     presentation.archetype = PRESENTATION_ARCHETYPE_COUNT - 1;
                     presentation.material = PRESENTATION_MATERIAL_COUNT - 1;
+                    let phase = if matches!(profile, PresentationProfile::ImportedDuration) {
+                        0
+                    } else {
+                        key.rotate_right(9) % PRESENTATION_ANIMATION_PHASE_COUNT
+                    };
                     presentation.animation = PresentationRecord::animated(
                         presentation.archetype,
                         presentation.material,
                         presentation.yaw_q16,
                         IMPORTED_PRESENTATION_CLIP,
-                        key.rotate_right(9) % PRESENTATION_ANIMATION_PHASE_COUNT,
+                        phase,
                         0,
                     )
                     .animation;

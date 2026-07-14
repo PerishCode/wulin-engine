@@ -9,6 +9,7 @@ static const uint POSE_WORDS = MAX_POSE_KEYS / 32;
 static const uint COUNTER_DWORDS = 20;
 static const uint TERRAIN_HEIGHT_OFFSET = 16;
 static const uint TERRAIN_SAMPLE_SIDE = 33;
+static const uint PRESENTATION_TIME_UNITS_PER_FRAME = 80;
 
 struct InstanceRecord
 {
@@ -68,6 +69,7 @@ cbuffer SkeletalSceneConstants : register(b0)
     uint4 active_slot_groups[7];
     uint4 animation_shape;
     uint4 pose_shape;
+    uint4 imported_source_clip_duration_units;
 };
 
 StructuredBuffer<InstanceRecord> region_instances[REGION_SLOT_CAPACITY] : register(t0);
@@ -145,17 +147,23 @@ int terrain_ground_q16(
         : h10 * int(256u - v) + h01 * int(256u - u) + h11 * int(sum - 256u);
 }
 
-uint presentation_pose_phase(uint animation)
-{
-    uint phase_count = animation_shape.z;
-    uint phase_offset = (animation >> 8u) & 255u;
-    uint bucket = (phase_offset + animation_shape.w) % phase_count;
-    return bucket * (64u / phase_count);
-}
-
 uint presentation_rig(uint archetype)
 {
     return archetype == 7u ? 1u : 0u;
+}
+
+uint presentation_pose_phase(uint archetype, uint animation)
+{
+    uint rig = presentation_rig(archetype);
+    uint clip = animation & 255u;
+    uint duration_units = rig == 0u
+        ? animation_shape.z * PRESENTATION_TIME_UNITS_PER_FRAME
+        : imported_source_clip_duration_units[clip % 3u];
+    uint elapsed_units = (animation_shape.w * PRESENTATION_TIME_UNITS_PER_FRAME)
+        % duration_units;
+    uint phase = elapsed_units * animation_shape.z / duration_units;
+    uint phase_offset = (animation >> 8u) & 255u;
+    return (phase_offset + phase) % animation_shape.z;
 }
 
 [numthreads(64, 1, 1)]
@@ -274,7 +282,7 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
             uint rig = presentation_rig(archetype);
             pose_slot = rig * POSE_KEYS_PER_RIG
                 + clip * 64u
-                + presentation_pose_phase(presentation.animation);
+                + presentation_pose_phase(archetype, presentation.animation);
             uint ignored;
             pose_bitset.InterlockedOr((pose_slot / 32u) * 4u, 1u << (pose_slot % 32u), ignored);
         }
@@ -381,7 +389,7 @@ void pose_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         VisibleObject visible = visible_objects[visible_index];
         pose_slot = group_id.x;
         clip = visible.animation & 255u;
-        phase = presentation_pose_phase(visible.animation);
+        phase = presentation_pose_phase(visible.archetype, visible.animation);
         variant = visible.animation >> 16u;
         rig = presentation_rig(visible.archetype);
     }
