@@ -97,8 +97,12 @@ pub(in crate::rendering::meshlet_scene::skeletal::surface) unsafe fn read(
     let (cpu_oracle, cpu_mask) = oracle::evaluate(oracle::QueryInput {
         mesh: input.mesh_catalog,
         settings: input.skeletal_settings,
-        config: input.config,
         scene: input.scene,
+        projection: input.projection,
+        ground_numerators: input.ground_numerators,
+        ground_denominator: input.ground_denominator,
+        instance_records: input.instance_records,
+        local_ids: input.local_ids,
         extent: [input.width, input.height],
         hierarchy: &hierarchy,
         history_queried: input.history_queried,

@@ -1,15 +1,14 @@
 use std::fs;
 
 use region_format::{
-    GLOBAL_HEADER_BYTES, GLOBAL_IDENTITY_PAYLOAD_SCHEMA, GLOBAL_IDENTITY_REGION_BYTES,
-    GLOBAL_INDEX_ENTRY_BYTES, GLOBAL_PAYLOAD_SCHEMA, GlobalRegion, GlobalRegionPack,
-    IDENTITY_PLANE_BYTES, InstanceRecord, RECORDS_PER_REGION, REGION_BYTES, canonical_stable_seed,
-    write_global_identity_pack, write_global_pack,
+    GLOBAL_HEADER_BYTES, GLOBAL_INDEX_ENTRY_BYTES, GLOBAL_PAYLOAD_SCHEMA, GLOBAL_REGION_BYTES,
+    GlobalRegion, GlobalRegionPack, IDENTITY_PLANE_BYTES, InstanceRecord, RECORDS_PER_REGION,
+    REGION_BYTES, canonical_stable_seed, write_global_pack,
 };
 use sha2::{Digest, Sha256};
 
 fn namespace() -> [u8; 32] {
-    Sha256::digest(b"canonical-generated-object-arbitrary-q8-v1").into()
+    Sha256::digest(b"canonical-object-arbitrary-q8-v1").into()
 }
 
 fn records(region: GlobalRegion, variant: u32) -> Vec<InstanceRecord> {
@@ -25,6 +24,17 @@ fn records(region: GlobalRegion, variant: u32) -> Vec<InstanceRecord> {
             region_id: stable_seed,
         })
         .collect()
+}
+
+fn canonical_payload(
+    region: GlobalRegion,
+    variant: u32,
+) -> (GlobalRegion, Vec<InstanceRecord>, Vec<u32>) {
+    (
+        region,
+        records(region, variant),
+        (0..RECORDS_PER_REGION).collect(),
+    )
 }
 
 fn temp_path(name: &str) -> std::path::PathBuf {
@@ -46,7 +56,7 @@ fn signed_pack_round_trips_and_is_deterministic() {
     ];
     let contents = regions
         .into_iter()
-        .map(|region| (region, records(region, 0)))
+        .map(|region| canonical_payload(region, 0))
         .collect::<Vec<_>>();
     let first_metadata = write_global_pack(&path, namespace(), contents.clone()).unwrap();
     let second_metadata = write_global_pack(&second, namespace(), contents.clone()).unwrap();
@@ -65,14 +75,14 @@ fn signed_pack_round_trips_and_is_deterministic() {
     let mut pack = GlobalRegionPack::open(&path).unwrap();
     assert_eq!(pack.metadata().region_count, 3);
     assert_eq!(pack.stable_seed_namespace(), namespace());
-    for (region, expected) in contents {
+    for (region, expected, expected_ids) in contents {
         let read = pack.read_region(region).unwrap();
         assert_eq!(read.region, region);
         assert_eq!(read.stable_seed, canonical_stable_seed(namespace(), region));
-        assert_eq!(read.payload_bytes, REGION_BYTES);
+        assert_eq!(read.payload_bytes, GLOBAL_REGION_BYTES);
         assert_eq!(read.records, expected);
-        assert_eq!(read.local_ids, (0..RECORDS_PER_REGION).collect::<Vec<_>>());
-        assert_eq!(read.payload.len(), REGION_BYTES as usize);
+        assert_eq!(read.local_ids, expected_ids);
+        assert_eq!(read.payload.len(), GLOBAL_REGION_BYTES as usize);
         assert_eq!(
             pack.region_sha256(region),
             Some(Sha256::digest(&read.payload).into())
@@ -91,33 +101,27 @@ fn identity_pack_round_trips_reordered_pairs_deterministically() {
     let (records_a, local_ids_a) = permuted_records(region, 73);
     let (records_b, local_ids_b) = permuted_records(region, 419);
 
-    let first_metadata = write_global_identity_pack(
+    let first_metadata = write_global_pack(
         &path,
         namespace(),
         [(region, records_a.clone(), local_ids_a.clone())],
     )
     .unwrap();
-    let second_metadata = write_global_identity_pack(
+    let second_metadata = write_global_pack(
         &second,
         namespace(),
         [(region, records_a.clone(), local_ids_a.clone())],
     )
     .unwrap();
-    let reordered_metadata = write_global_identity_pack(
+    let reordered_metadata = write_global_pack(
         &reordered,
         namespace(),
         [(region, records_b.clone(), local_ids_b.clone())],
     )
     .unwrap();
 
-    assert_eq!(
-        first_metadata.payload_schema,
-        GLOBAL_IDENTITY_PAYLOAD_SCHEMA
-    );
-    assert_eq!(
-        first_metadata.payload_bytes,
-        u64::from(GLOBAL_IDENTITY_REGION_BYTES)
-    );
+    assert_eq!(first_metadata.payload_schema, GLOBAL_PAYLOAD_SCHEMA);
+    assert_eq!(first_metadata.payload_bytes, u64::from(GLOBAL_REGION_BYTES));
     assert_eq!(fs::read(&path).unwrap(), fs::read(&second).unwrap());
     assert_eq!(
         first_metadata.source_namespace_sha256,
@@ -134,11 +138,8 @@ fn identity_pack_round_trips_reordered_pairs_deterministically() {
 
     let mut first = GlobalRegionPack::open(&path).unwrap();
     let first_read = first.read_region(region).unwrap();
-    assert_eq!(first_read.payload_bytes, GLOBAL_IDENTITY_REGION_BYTES);
-    assert_eq!(
-        first_read.payload.len(),
-        GLOBAL_IDENTITY_REGION_BYTES as usize
-    );
+    assert_eq!(first_read.payload_bytes, GLOBAL_REGION_BYTES);
+    assert_eq!(first_read.payload.len(), GLOBAL_REGION_BYTES as usize);
     assert_eq!(first_read.records, records_a);
     assert_eq!(first_read.local_ids, local_ids_a);
     assert_eq!(
@@ -168,9 +169,9 @@ fn complete_index_changes_source_without_changing_seed_identity() {
     let second = temp_path("source-b");
     let region = GlobalRegion::new(-7, 11);
     let first_metadata =
-        write_global_pack(&first, namespace(), [(region, records(region, 0))]).unwrap();
+        write_global_pack(&first, namespace(), [canonical_payload(region, 0)]).unwrap();
     let second_metadata =
-        write_global_pack(&second, namespace(), [(region, records(region, 1))]).unwrap();
+        write_global_pack(&second, namespace(), [canonical_payload(region, 1)]).unwrap();
     assert_eq!(
         first_metadata.stable_seed_namespace_sha256,
         second_metadata.stable_seed_namespace_sha256
@@ -192,7 +193,7 @@ fn signed_metadata_padding_checksum_and_payload_are_rejected() {
     write_global_pack(
         &source,
         namespace(),
-        [(first, records(first, 0)), (second, records(second, 0))],
+        [canonical_payload(first, 0), canonical_payload(second, 0)],
     )
     .unwrap();
     let bytes = fs::read(&source).unwrap();
@@ -246,8 +247,9 @@ fn writer_rejects_invalid_seed_identity_and_empty_namespace() {
     let region = GlobalRegion::new(3, -9);
     let mut invalid = records(region, 0);
     invalid[0].region_id ^= 1;
-    assert!(write_global_pack(&path, namespace(), [(region, invalid)]).is_err());
-    assert!(write_global_pack(&path, [0; 32], [(region, records(region, 0))]).is_err());
+    let local_ids = (0..RECORDS_PER_REGION).collect::<Vec<_>>();
+    assert!(write_global_pack(&path, namespace(), [(region, invalid, local_ids)]).is_err());
+    assert!(write_global_pack(&path, [0; 32], [canonical_payload(region, 0)]).is_err());
 }
 
 #[test]
@@ -258,14 +260,11 @@ fn identity_writer_and_reader_reject_invalid_local_ids() {
 
     let mut duplicate = local_ids.clone();
     duplicate[1] = duplicate[0];
-    assert!(
-        write_global_identity_pack(&path, namespace(), [(region, records.clone(), duplicate)])
-            .is_err()
-    );
+    assert!(write_global_pack(&path, namespace(), [(region, records.clone(), duplicate)]).is_err());
     let mut out_of_range = local_ids.clone();
     out_of_range[0] = RECORDS_PER_REGION;
     assert!(
-        write_global_identity_pack(
+        write_global_pack(
             &path,
             namespace(),
             [(region, records.clone(), out_of_range)]
@@ -273,7 +272,7 @@ fn identity_writer_and_reader_reject_invalid_local_ids() {
         .is_err()
     );
     assert!(
-        write_global_identity_pack(
+        write_global_pack(
             &path,
             namespace(),
             [(
@@ -285,7 +284,7 @@ fn identity_writer_and_reader_reject_invalid_local_ids() {
         .is_err()
     );
 
-    write_global_identity_pack(&path, namespace(), [(region, records, local_ids.clone())]).unwrap();
+    write_global_pack(&path, namespace(), [(region, records, local_ids.clone())]).unwrap();
     let original = fs::read(&path).unwrap();
     let metadata = GlobalRegionPack::open(&path).unwrap().metadata().clone();
     let identity_offset = metadata.payload_offset as usize + REGION_BYTES as usize;
@@ -362,9 +361,8 @@ fn encode_local_ids(local_ids: &[u32]) -> Vec<u8> {
 }
 
 fn rewrite_first_payload_checksum(bytes: &mut [u8], payload_offset: usize) {
-    let digest = Sha256::digest(
-        &bytes[payload_offset..payload_offset + GLOBAL_IDENTITY_REGION_BYTES as usize],
-    );
+    let digest =
+        Sha256::digest(&bytes[payload_offset..payload_offset + GLOBAL_REGION_BYTES as usize]);
     let checksum_offset = GLOBAL_HEADER_BYTES as usize + 32;
     bytes[checksum_offset..checksum_offset + 32].copy_from_slice(&digest);
 }

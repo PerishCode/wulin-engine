@@ -2,16 +2,11 @@
 include = [
   ".runseal/**/*.ts",
   "apps/*/src/**",
-  "benchmarks/**",
   "crates/*/src/**",
   "experiments/*/src/**",
   "tools/*/src/**",
 ]
-exclude = [
-  "**/target/**",
-  ".local/**",
-  "out/**",
-]
+exclude = ["**/target/**", ".local/**", "out/**"]
 
 [[overrides]]
 match = "experiments/0001-gpu-lab/src/main.rs"
@@ -22,39 +17,12 @@ priority = 10
 severity = "warning"
 payload = { max_lines = 900 }
 
-[overrides.rules."core/naming/too-many-words"]
-payload = { max_words = 6 }
-
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "Experiment 0001 is an isolated executable proof; its tests remain local until promotion establishes a reusable owner."
+reason = "Experiment 0001 remains an isolated executable proof."
 
-[[overrides]]
-match = ".runseal/wrappers"
-kind = "dir"
-priority = 10
-
-[overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 33 }
-reason = "Runseal resolves named repository wrappers from one flat directory; the 33 current children are accepted operator entrypoints, including Experiment 0030."
-
-[[overrides]]
-match = ".runseal/support"
-kind = "dir"
-priority = 10
-
-[overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 20 }
-reason = "Shared Runseal helpers remain flat named owners; experiment-specific support may use a named child boundary."
-
-[[overrides]]
-match = "apps/workbench/src/rendering"
-kind = "dir"
-priority = 10
-
-[overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 12 }
-reason = "Rendering is the workbench composition boundary; each child is an accepted renderer or shared D3D12 owner with its own module boundary."
+[overrides.rules."core/naming/too-many-words"]
+payload = { max_words = 6 }
 
 [[overrides]]
 match = "apps/workbench/src"
@@ -63,7 +31,44 @@ priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
 payload = { max_children = 11 }
-reason = "The workbench composition root keeps the accepted scene and signed world-coordinate owners explicit while Experiment 0019 validates their boundary."
+reason = "The native workbench root keeps its current scene, streaming, inspect, and rendering owners explicit."
+
+[[overrides]]
+match = "apps/workbench/src/rendering"
+kind = "dir"
+priority = 10
+
+[overrides.rules."core/fs/too-many-children"]
+payload = { max_children = 11 }
+reason = "The rendering boundary keeps canonical composition and its reusable GPU subsystem owners explicit."
+
+[[overrides]]
+match = "apps/workbench/src/rendering/composition"
+kind = "dir"
+priority = 10
+
+[overrides.rules."core/fs/too-many-children"]
+payload = { max_children = 12 }
+reason = "Atomic composition keeps pair state, probes, grounding, traversal, and publication policies separate."
+
+[[overrides]]
+match = "apps/workbench/src/rendering/terrain"
+kind = "dir"
+priority = 10
+
+[overrides.rules."core/fs/too-many-children"]
+payload = { max_children = 12 }
+reason = "Terrain keeps cache, transfer, descriptors, pipeline, projection, LOD, and probe owners explicit."
+
+[[overrides]]
+match = ".runseal/support/canonical-runtime.ts"
+kind = "file"
+priority = 10
+
+[overrides.rules."core/source/too-long"]
+severity = "warning"
+payload = { max_lines = 700 }
+reason = "The direct acceptance owner keeps lifecycle, fault, traversal, and resource gates in one non-recursive workflow boundary."
 
 [[overrides]]
 match = "apps/workbench/src/scene/mod.rs"
@@ -72,7 +77,7 @@ priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "The calibration transform regression exercises private scene constants and stays beside its implementation as required for repository unit tests."
+reason = "Private scene constants are exercised beside their owner."
 
 [[overrides]]
 match = "apps/workbench/src/world.rs"
@@ -81,7 +86,7 @@ priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "Split-coordinate unit tests exercise private normalization and transaction invariants without promoting a public binary-crate test seam."
+reason = "Split-coordinate invariants remain private to the world owner."
 
 [[overrides]]
 match = "apps/workbench/src/streaming/address.rs"
@@ -90,7 +95,7 @@ priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "Signed streaming mapping tests exercise private format-V1 alias arithmetic beside the shared implementation that owns it."
+reason = "Signed-to-bounded projection tests exercise private checked arithmetic."
 
 [[overrides]]
 match = "apps/workbench/src/streaming/async_resident.rs"
@@ -99,21 +104,7 @@ priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "Signed object cache tests require private cache state to prove global aliases cannot false-hit and revisits remain resident."
-
-[overrides.rules."core/source/too-long"]
-payload = { max_lines = 525 }
-reason = "The bounded cache validates private published-page checksums and explicit local-ID permutations without exposing either through the public reservation contract."
-
-[[overrides]]
-match = "crates/region-format/src/global.rs"
-kind = "file"
-priority = 10
-
-[overrides.rules."core/source/too-long"]
-severity = "warning"
-payload = { max_lines = 600 }
-reason = "Signed object V2 keeps schema-1 compatibility, schema-2 identity planes, exact reader validation, and canonical writers in one format owner."
+reason = "Source-addressed cache reuse tests require private cache state."
 
 [[overrides]]
 match = "apps/workbench/src/rendering/composition/traversal.rs"
@@ -122,7 +113,7 @@ priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "Signed traversal tests exercise private frozen-origin and legacy status invariants beside the bounded policy implementation."
+reason = "Traversal and rollover tests exercise the private bounded scheduler."
 
 [[overrides]]
 match = "apps/workbench/src/rendering/terrain/cache.rs"
@@ -131,7 +122,7 @@ priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "Terrain cache identity tests require private slot state to prove signed keys cannot false-hit local aliases."
+reason = "Terrain source-identity tests require private slot state."
 
 [[overrides]]
 match = "apps/workbench/src/rendering/terrain/projection.rs"
@@ -140,7 +131,7 @@ priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "Terrain projection tests require private alias and semantic mapping state to prove V1 passthrough and V2 bit invariance."
+reason = "Centered projection invariants remain private to the terrain renderer."
 
 [[overrides]]
 match = "apps/workbench/src/rendering/terrain/transfer.rs"
@@ -150,7 +141,7 @@ priority = 10
 [overrides.rules."core/source/too-long"]
 severity = "warning"
 payload = { max_lines = 550 }
-reason = "The dedicated terrain copy queue keeps reservation, upload, fence, gate, and publication lifecycle in one explicit owner."
+reason = "The terrain transfer owner keeps reservation, copy, fence, gate, and publication lifecycle together."
 
 [[overrides]]
 match = "crates/terrain-format/src/global.rs"
@@ -160,22 +151,14 @@ priority = 10
 [overrides.rules."core/source/too-long"]
 severity = "warning"
 payload = { max_lines = 550 }
-reason = "Terrain V2 keeps its signed metadata, exact reader, canonical writer, and validation invariants in one format owner."
+reason = "The signed terrain format keeps metadata, index validation, exact reads, and writing in one owner."
 
 [[overrides]]
-match = "apps/workbench/src/rendering/terrain"
-kind = "dir"
+match = "crates/region-format/src/global.rs"
+kind = "file"
 priority = 10
 
-[overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 12 }
-reason = "Terrain keeps cache, transfer, pipeline, probe, and renderer-state owners explicit; the accepted composition stage adds state without merging those boundaries."
-
-[[overrides]]
-match = "apps/workbench/src/rendering/composition"
-kind = "dir"
-priority = 10
-
-[overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 12 }
-reason = "Composition keeps pair scheduling, state, probes, grounding, traversal, and published-object evidence as explicit owners under one atomic-publication boundary."
+[overrides.rules."core/source/too-long"]
+severity = "warning"
+payload = { max_lines = 600 }
+reason = "The schema-2 object format keeps dual-plane validation, exact reads, and writing in one owner."

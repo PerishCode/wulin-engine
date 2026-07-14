@@ -4,8 +4,8 @@ use glam::{Vec3, Vec4};
 use meshlet_catalog::Catalog;
 use serde::Serialize;
 
-use crate::load::LoadConfig;
-use crate::resident::{active_region_ids, generate_region};
+use crate::rendering::terrain::TerrainProjection;
+use crate::resident::{InstanceRecord, canonical_stable_key};
 use crate::scene::SceneState;
 
 use super::super::super::renderer::SkeletalSettings;
@@ -121,8 +121,12 @@ pub fn validate_fixture_bound(mesh: &Catalog, animation: &AnimationCatalog) -> R
 pub struct QueryInput<'a> {
     pub mesh: &'a Catalog,
     pub settings: SkeletalSettings,
-    pub config: LoadConfig,
     pub scene: &'a SceneState,
+    pub projection: TerrainProjection,
+    pub ground_numerators: &'a [i32],
+    pub ground_denominator: u32,
+    pub instance_records: &'a [Vec<InstanceRecord>],
+    pub local_ids: &'a [Vec<u32>],
     pub extent: [u32; 2],
     pub hierarchy: &'a [HierarchyMip],
     pub history_queried: bool,
@@ -130,15 +134,40 @@ pub struct QueryInput<'a> {
 
 pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
     let [width, height] = input.extent;
-    let matrix = input.scene.view_projection(width as f32 / height as f32);
+    ensure!(
+        input.instance_records.len() == input.local_ids.len()
+            && input.instance_records.len() == input.projection.active_count(),
+        "occlusion canonical payload shapes differ"
+    );
+    ensure!(
+        input.ground_numerators.len()
+            == input.instance_records.len() * crate::load::INSTANCES_PER_REGION as usize,
+        "occlusion ground plane shape differs from the canonical payload"
+    );
+    let camera = input.projection.camera(input.scene.camera());
+    let matrix = crate::scene::view_projection(camera, width as f32 / height as f32);
     let mut oracle = OcclusionOracle::default();
     let mut mask = vec![0; CANDIDATE_CAPACITY as usize];
-    for (region_ordinal, region_id) in active_region_ids(input.config)?.into_iter().enumerate() {
-        for (local_index, instance) in generate_region(region_id).into_iter().enumerate() {
+    for (region_ordinal, instances) in input.instance_records.iter().enumerate() {
+        ensure!(
+            instances.len() == input.local_ids[region_ordinal].len(),
+            "occlusion canonical record and local-ID counts differ"
+        );
+        for (local_index, instance) in instances.iter().copied().enumerate() {
             let candidate = region_ordinal as u32 * 1024 + local_index as u32;
-            let center = Vec3::from_array(instance.position) + Vec3::Y * instance.height * 0.5;
+            let logical_index = candidate as usize;
+            let ground =
+                input.ground_numerators[logical_index] as f32 / input.ground_denominator as f32;
+            let mut position = input
+                .projection
+                .position(region_ordinal, instance.position)?;
+            position[1] += ground;
+            let center = Vec3::from_array(position) + Vec3::Y * instance.height * 0.5;
             let clip = matrix * center.extend(1.0);
-            let stable_key = region_id * 1024 + local_index as u32;
+            let stable_key = canonical_stable_key(
+                instance.region_id,
+                input.local_ids[region_ordinal][local_index],
+            );
             let archetype = stable_key & 7;
             let visible = clip.w > 0.0
                 && clip.x.abs() <= clip.w
@@ -148,13 +177,13 @@ pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
             if !visible {
                 continue;
             }
-            let lod = input.settings.forced_lod.unwrap_or(if clip.w < 42.0 {
+            let lod = if clip.w < 42.0 {
                 0
             } else if clip.w < 70.0 {
                 1
             } else {
                 2
-            });
+            };
             let descriptor = input.mesh.lod(archetype, lod);
             let animated = stable_key % 100 < input.settings.animated_percent;
             oracle.source_visible += 1;
@@ -167,7 +196,7 @@ pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
             let occluded = input.history_queried
                 && query_occluded(
                     matrix,
-                    instance.position,
+                    position,
                     instance.height,
                     width,
                     height,

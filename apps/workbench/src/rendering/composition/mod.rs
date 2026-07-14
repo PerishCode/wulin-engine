@@ -15,8 +15,8 @@ use crate::world::RegionCoord;
 use super::renderer::Renderer;
 use super::terrain::control::TerrainPollOutcome;
 
+mod authority;
 mod contact;
-mod fixture;
 mod global;
 mod probe;
 mod schedule;
@@ -25,18 +25,9 @@ mod traversal;
 
 use traversal::TraversalTarget;
 
-pub use fixture::CompositionFixture;
 pub use probe::CompositionProbe;
 
 const COMPOSITION_REVISION: &str = "atomic-terrain-object-composition-v1";
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum CompositionOrder {
-    #[default]
-    TerrainFirst,
-    ObjectFirst,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -67,11 +58,10 @@ impl PairPurpose {
 struct PendingPair {
     token: u64,
     config: LoadConfig,
-    global_config: Option<GlobalRegionConfig>,
-    terrain_source_namespace: Option<TerrainSourceNamespace>,
-    object_source_namespace: Option<ObjectSourceNamespace>,
-    object_stable_seed_namespace: Option<ObjectSourceNamespace>,
-    fixture: CompositionFixture,
+    global_config: GlobalRegionConfig,
+    terrain_source_namespace: TerrainSourceNamespace,
+    object_source_namespace: ObjectSourceNamespace,
+    object_stable_seed_namespace: ObjectSourceNamespace,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
     terrain: HalfState,
@@ -83,11 +73,10 @@ struct PendingPair {
 
 struct PendingPairInput {
     config: LoadConfig,
-    global_config: Option<GlobalRegionConfig>,
-    terrain_source_namespace: Option<TerrainSourceNamespace>,
-    object_source_namespace: Option<ObjectSourceNamespace>,
-    object_stable_seed_namespace: Option<ObjectSourceNamespace>,
-    fixture: CompositionFixture,
+    global_config: GlobalRegionConfig,
+    terrain_source_namespace: TerrainSourceNamespace,
+    object_source_namespace: ObjectSourceNamespace,
+    object_stable_seed_namespace: ObjectSourceNamespace,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
     purpose: PairPurpose,
@@ -98,15 +87,10 @@ struct PendingPairInput {
 struct PublishedPair {
     token: u64,
     config: LoadConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    global_config: Option<GlobalRegionConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    terrain_source_namespace: Option<TerrainSourceNamespace>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    object_source_namespace: Option<ObjectSourceNamespace>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    object_stable_seed_namespace: Option<ObjectSourceNamespace>,
-    fixture: CompositionFixture,
+    global_config: GlobalRegionConfig,
+    terrain_source_namespace: TerrainSourceNamespace,
+    object_source_namespace: ObjectSourceNamespace,
+    object_stable_seed_namespace: ObjectSourceNamespace,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
     publication_count: u64,
@@ -116,18 +100,14 @@ struct PublishedPair {
     terrain_slots: Vec<u32>,
     instance_mapping_sha256: String,
     terrain_mapping_sha256: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    global_regions: Option<Vec<RegionCoord>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    global_mapping_sha256: Option<String>,
+    global_regions: Vec<RegionCoord>,
+    global_mapping_sha256: String,
     publication_ms: f64,
     camera_driven: bool,
 }
 
 pub(super) struct CompositionCoordinator {
     enabled: bool,
-    order: CompositionOrder,
-    fixture: CompositionFixture,
     next_token: u64,
     publication_count: u64,
     pending: Option<PendingPair>,
@@ -145,42 +125,8 @@ impl Renderer {
         self.composition.enabled
     }
 
-    pub(in crate::rendering) fn composition_order(&self) -> CompositionOrder {
-        self.composition.order
-    }
-
     pub(in crate::rendering) fn composition_grounding_mode(&self) -> u32 {
-        self.composition
-            .published
-            .as_ref()
-            .map_or(CompositionFixture::CellCenter.grounding_mode(), |pair| {
-                pair.fixture.grounding_mode()
-            })
-    }
-
-    pub fn set_composition_order(&mut self, terrain_first: bool) {
-        self.composition.order = if terrain_first {
-            CompositionOrder::TerrainFirst
-        } else {
-            CompositionOrder::ObjectFirst
-        };
-    }
-
-    pub fn set_composition_fixture(&mut self, fixture: CompositionFixture) -> Result<()> {
-        ensure!(
-            !self.composition.traversal.is_enabled(),
-            "composition fixture change requires traversal disable"
-        );
-        ensure!(self.composition.pending.is_none(), "composition_pair_busy");
-        ensure!(
-            self.composition
-                .published
-                .as_ref()
-                .is_none_or(|published| published.fixture == fixture),
-            "composition fixture change requires restart"
-        );
-        self.composition.fixture = fixture;
-        Ok(())
+        authority::GROUNDING_MODE
     }
 
     pub fn enable_composition(&mut self) -> Result<()> {
@@ -192,32 +138,20 @@ impl Renderer {
         ensure!(
             self.async_resident_renderer.config() == Some(published.config)
                 && self.terrain_renderer.config() == Some(published.config)
-                && self.async_resident_renderer.global_config() == published.global_config
-                && self.terrain_renderer.global_config() == published.global_config
+                && self.async_resident_renderer.global_config() == Some(published.global_config)
+                && self.terrain_renderer.global_config() == Some(published.global_config)
                 && self.async_resident_renderer.object_source_namespace()
-                    == published.object_source_namespace
+                    == Some(published.object_source_namespace)
                 && self.async_resident_renderer.object_stable_seed_namespace()
-                    == published
-                        .object_stable_seed_namespace
-                        .or(published.object_source_namespace)
-                && self.terrain_renderer.source_namespace() == published.terrain_source_namespace,
+                    == Some(published.object_stable_seed_namespace)
+                && self.terrain_renderer.source_namespace()
+                    == Some(published.terrain_source_namespace),
             "composition snapshots do not match the published pair"
         );
-        self.meshlet_scene_renderer.disable();
         self.terrain_renderer.enable()?;
-        self.skeletal_scene_renderer.enable();
+        self.skeletal_scene_renderer.enable_canonical_surface();
         self.composition.enabled = true;
         Ok(())
-    }
-
-    pub fn disable_composition(&mut self) {
-        self.composition.traversal.disable();
-        if !self.composition.enabled {
-            return;
-        }
-        self.composition.enabled = false;
-        self.terrain_renderer.disable();
-        self.skeletal_scene_renderer.disable();
     }
 
     pub(in crate::rendering) unsafe fn poll_composition_publication(
@@ -325,7 +259,7 @@ impl Renderer {
             .filter(|(instance, terrain)| instance != terrain)
             .count();
         let addressed = global::addressed(pending.global_config)?;
-        let logical_region_ids = global::local_ids(addressed.as_deref(), pending.config)?;
+        let logical_region_ids = global::local_ids(&addressed);
         let mapping_hash = |slots: &[u32]| {
             let mut digest = Sha256::new();
             for (region_id, slot) in logical_region_ids.iter().zip(slots) {
@@ -336,7 +270,7 @@ impl Renderer {
         };
         let instance_mapping_sha256 = mapping_hash(&instance_slots);
         let terrain_mapping_sha256 = mapping_hash(&terrain_slots);
-        let (global_regions, global_mapping_sha256) = global::evidence(addressed.as_deref());
+        let (global_regions, global_mapping_sha256) = global::evidence(&addressed);
         let instance_report = self
             .async_resident_renderer
             .commit_staged()
@@ -359,11 +293,7 @@ impl Renderer {
             global_config: pending.global_config,
             terrain_source_namespace: pending.terrain_source_namespace,
             object_source_namespace: pending.object_source_namespace,
-            object_stable_seed_namespace: (pending.object_stable_seed_namespace
-                != pending.object_source_namespace)
-                .then_some(pending.object_stable_seed_namespace)
-                .flatten(),
-            fixture: pending.fixture,
+            object_stable_seed_namespace: pending.object_stable_seed_namespace,
             terrain_transaction_id: pending.terrain_transaction_id,
             instance_transaction_id: pending.instance_transaction_id,
             publication_count: self.composition.publication_count,
@@ -378,6 +308,7 @@ impl Renderer {
             publication_ms: pending.started_at.elapsed().as_secs_f64() * 1_000.0,
             camera_driven: pending.purpose.camera_driven(),
         });
+        self.enable_composition()?;
         if pending.purpose == PairPurpose::Traversal {
             self.composition.traversal.mark_published(
                 pending.token,
@@ -414,7 +345,7 @@ impl Renderer {
         }
         if pending.terrain == HalfState::Staged && pending.instance == HalfState::Staged {
             let addressed = global::addressed(pending.global_config)?;
-            let expected_regions = global::local_ids(addressed.as_deref(), pending.config)?;
+            let expected_regions = global::local_ids(&addressed);
             let terrain = self
                 .terrain_renderer
                 .staged_assignments()
@@ -435,15 +366,13 @@ impl Renderer {
                     .all(|(assignment, region_id)| assignment.region_id == region_id),
                 "terrain mapping is not in canonical logical order"
             );
-            if let Some(addressed) = addressed {
-                ensure!(
-                    terrain.iter().zip(addressed).all(|(assignment, region)| {
-                        assignment.global_region == Some(region.global_region)
-                            && assignment.region_id == region.local_region_id
-                    }),
-                    "terrain mapping does not match signed composition order"
-                );
-            }
+            ensure!(
+                terrain.iter().zip(addressed).all(|(assignment, region)| {
+                    assignment.global_region == region.global_region
+                        && assignment.region_id == region.local_region_id
+                }),
+                "terrain mapping does not match signed composition order"
+            );
         }
         Ok(())
     }

@@ -6,9 +6,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use windows::Win32::Graphics::Direct3D12::ID3D12Resource;
 
-use crate::load::LoadConfig;
 use crate::rendering::meshlet_scene::skeletal::SkeletalProbe;
 use crate::rendering::resident::read_values;
+use crate::rendering::terrain::TerrainProjection;
 use crate::scene::SceneState;
 
 use super::super::renderer::SkeletalSettings;
@@ -137,7 +137,11 @@ pub struct ProbeInput<'a> {
     pub mesh_catalog: &'a MeshletCatalog,
     pub scene: &'a SceneState,
     pub skeletal_settings: SkeletalSettings,
-    pub config: LoadConfig,
+    pub instance_records: &'a [Vec<crate::resident::InstanceRecord>],
+    pub local_ids: &'a [Vec<u32>],
+    pub projection: TerrainProjection,
+    pub ground_numerators: &'a [i32],
+    pub ground_denominator: u32,
     pub background_color: [f32; 4],
     pub timestamp_readback: &'a ID3D12Resource,
     pub timestamp_frequency: u64,
@@ -202,7 +206,8 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {
                 animation: input.animation_catalog,
                 skeletal_settings: input.skeletal_settings,
                 surface_settings: input.settings,
-                config: input.config,
+                instance_records: input.instance_records,
+                local_ids: input.local_ids,
                 background_color: input.background_color,
             },
         )?;

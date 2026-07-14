@@ -6,6 +6,4 @@ mod renderer;
 mod resources;
 
 pub use probe::SurfaceProbe;
-pub use renderer::{
-    SurfaceFrame, SurfaceProbeContext, SurfaceRenderer, SurfaceRendererInput, SurfaceSettings,
-};
+pub use renderer::{SurfaceFrame, SurfaceProbeContext, SurfaceRenderer, SurfaceRendererInput};

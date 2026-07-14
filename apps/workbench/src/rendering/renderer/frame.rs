@@ -8,9 +8,8 @@ use windows::core::Interface;
 
 use crate::scene::SceneState;
 
-use super::super::composition::CompositionOrder;
 use super::super::device::transition;
-use super::super::meshlet_scene::{MeshletFrame, SkeletalFrame};
+use super::super::meshlet_scene::SkeletalFrame;
 use super::super::terrain::TerrainFrame;
 use super::{CapturedFrame, RenderOutcome, Renderer};
 
@@ -20,16 +19,14 @@ impl Renderer {
         color: [f32; 4],
         capture: bool,
         capture_object_ids: bool,
-        probe_load: bool,
+        probe: bool,
         scene: &mut SceneState,
     ) -> Result<RenderOutcome> {
         debug_assert!(!capture_object_ids || capture);
-        debug_assert!(!probe_load || self.load_config().is_some());
+        debug_assert!(!probe || self.composition_enabled());
         unsafe { self.drive_composition_traversal(scene.camera())? };
-        unsafe { self.poll_cooked_completion()? };
         unsafe { self.poll_cooked_object_completion()? };
         let terrain_outcome = unsafe { self.poll_terrain_completion()? };
-        let stream_resident = self.resident_renderer.has_pending_stream();
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() } as usize;
         unsafe { self.wait_for_buffer(index)? };
         unsafe { self.allocators[index].Reset() }.context("command allocator reset failed")?;
@@ -39,21 +36,6 @@ impl Renderer {
             unsafe {
                 self.poll_composition_publication(&self.command_list.clone(), terrain_outcome)?
             };
-        } else {
-            let publication = unsafe {
-                self.async_resident_renderer
-                    .prepare_frame(&self.command_list)
-            };
-            if let Some(report) = publication.as_ref()
-                && self.cooked_streamer.has_pending()
-            {
-                self.cooked_streamer.mark_published(report)?;
-            }
-            if let Some(report) =
-                unsafe { self.terrain_renderer.prepare_frame(&self.command_list) }?
-            {
-                self.terrain_streamer.mark_completed(&report)?;
-            }
         }
         if let Some(delta) = self.take_composition_camera_shift() {
             scene.translate_camera_regions(delta)?;
@@ -85,83 +67,17 @@ impl Renderer {
                     .async_resident_renderer
                     .snapshot()
                     .context("composition has no resident snapshot")?;
-                let grounding_mode = self.composition_grounding_mode();
                 let projection = self.terrain_renderer.projection()?;
-                match self.composition_order() {
-                    CompositionOrder::TerrainFirst => {
-                        self.terrain_renderer.record(
-                            &self.command_list,
-                            TerrainFrame {
-                                scene,
-                                render_targets: [handle, self.scene_renderer.object_id_handle()],
-                                depth_target: self.scene_renderer.depth_handle(),
-                                probe: probe_load,
-                                clear_depth_semantic: true,
-                            },
-                        )?;
-                        self.skeletal_scene_renderer.record(
-                            &self.command_list,
-                            SkeletalFrame {
-                                snapshot,
-                                scene,
-                                back_buffer: &self.back_buffers[index],
-                                render_targets: [handle, self.scene_renderer.object_id_handle()],
-                                depth_target: self.scene_renderer.depth_handle(),
-                                background_color: color,
-                                probe: probe_load,
-                                terrain_slots: Some(&terrain_slots),
-                                grounding_mode,
-                                projection,
-                                clear_depth_semantic: false,
-                            },
-                        )?;
-                    }
-                    CompositionOrder::ObjectFirst => {
-                        self.skeletal_scene_renderer.record(
-                            &self.command_list,
-                            SkeletalFrame {
-                                snapshot,
-                                scene,
-                                back_buffer: &self.back_buffers[index],
-                                render_targets: [handle, self.scene_renderer.object_id_handle()],
-                                depth_target: self.scene_renderer.depth_handle(),
-                                background_color: color,
-                                probe: probe_load,
-                                terrain_slots: Some(&terrain_slots),
-                                grounding_mode,
-                                projection,
-                                clear_depth_semantic: true,
-                            },
-                        )?;
-                        self.terrain_renderer.record(
-                            &self.command_list,
-                            TerrainFrame {
-                                scene,
-                                render_targets: [handle, self.scene_renderer.object_id_handle()],
-                                depth_target: self.scene_renderer.depth_handle(),
-                                probe: probe_load,
-                                clear_depth_semantic: false,
-                            },
-                        )?;
-                    }
-                }
-            } else if self.terrain_renderer.is_enabled() {
                 self.terrain_renderer.record(
                     &self.command_list,
                     TerrainFrame {
                         scene,
                         render_targets: [handle, self.scene_renderer.object_id_handle()],
                         depth_target: self.scene_renderer.depth_handle(),
-                        probe: probe_load,
+                        probe,
                         clear_depth_semantic: true,
                     },
                 )?;
-            } else if self.skeletal_scene_renderer.is_enabled() {
-                let snapshot = self
-                    .async_resident_renderer
-                    .snapshot()
-                    .context("skeletal scene has no published resident snapshot")?;
-                let projection = snapshot.projection()?;
                 self.skeletal_scene_renderer.record(
                     &self.command_list,
                     SkeletalFrame {
@@ -171,58 +87,17 @@ impl Renderer {
                         render_targets: [handle, self.scene_renderer.object_id_handle()],
                         depth_target: self.scene_renderer.depth_handle(),
                         background_color: color,
-                        probe: probe_load,
-                        terrain_slots: None,
-                        grounding_mode: 0,
+                        probe,
+                        terrain_slots: Some(&terrain_slots),
+                        grounding_mode: self.composition_grounding_mode(),
                         projection,
-                        clear_depth_semantic: true,
                     },
-                )?;
-            } else if self.meshlet_scene_renderer.is_enabled() {
-                let snapshot = self
-                    .async_resident_renderer
-                    .snapshot()
-                    .context("meshlet scene has no published resident snapshot")?;
-                self.meshlet_scene_renderer.record(
-                    &self.command_list,
-                    MeshletFrame {
-                        snapshot,
-                        region_heap: self.async_resident_renderer.descriptor_heap(),
-                        scene,
-                        render_targets: [handle, self.scene_renderer.object_id_handle()],
-                        depth_target: self.scene_renderer.depth_handle(),
-                        probe: probe_load,
-                    },
-                )?;
-            } else if self.async_resident_renderer.config().is_some() {
-                self.async_resident_renderer.record(
-                    &self.command_list,
-                    scene,
-                    [handle, self.scene_renderer.object_id_handle()],
-                    self.scene_renderer.depth_handle(),
-                    probe_load,
-                )?;
-            } else if self.resident_renderer.config().is_some() {
-                self.resident_renderer.record(
-                    &self.command_list,
-                    scene,
-                    [handle, self.scene_renderer.object_id_handle()],
-                    self.scene_renderer.depth_handle(),
-                    probe_load,
-                )?;
-            } else if self.load_renderer.config().is_some() {
-                self.load_renderer.record(
-                    &self.command_list,
-                    scene,
-                    [handle, self.scene_renderer.object_id_handle()],
-                    self.scene_renderer.depth_handle(),
-                    probe_load,
                 )?;
             } else {
                 self.scene_renderer
                     .record(&self.command_list, scene, handle)?;
             }
-            if probe_load && self.composition_enabled() {
+            if probe {
                 self.async_resident_renderer
                     .record_active_payload_readback(&self.command_list)?;
             }
@@ -280,7 +155,7 @@ impl Renderer {
         self.next_fence_value += 1;
         unsafe { self.queue.Signal(&self.fence, signal) }.context("queue signal failed")?;
         self.fence_values[index] = signal;
-        if capture || probe_load || stream_resident {
+        if capture || probe {
             unsafe { self.wait_for_value(signal)? };
             let captured_frame = if capture {
                 let color = unsafe { self.capture.read() }?;
@@ -293,96 +168,19 @@ impl Renderer {
             } else {
                 None
             };
-            let meshlet_probe = if probe_load && self.meshlet_scene_renderer.is_enabled() {
-                let snapshot = self
-                    .async_resident_renderer
-                    .snapshot()
-                    .context("meshlet probe has no published resident snapshot")?;
-                Some(unsafe { self.meshlet_scene_renderer.read_probe(snapshot, scene) }?)
-            } else {
-                None
-            };
-            let composition_probe = if probe_load && self.composition_enabled() {
-                Some(unsafe { self.read_composition_probe(scene) }?)
-            } else {
-                None
-            };
-            let terrain_probe = if probe_load
-                && self.terrain_renderer.is_enabled()
-                && !self.composition_enabled()
-            {
-                Some(unsafe { self.terrain_renderer.read_probe(scene) }?)
-            } else {
-                None
-            };
-            let surface_probe = if probe_load
-                && self.skeletal_scene_renderer.is_enabled()
-                && self.skeletal_scene_renderer.surface_is_enabled()
-            {
-                let snapshot = self
-                    .async_resident_renderer
-                    .snapshot()
-                    .context("surface probe has no published resident snapshot")?;
-                Some(unsafe {
-                    self.skeletal_scene_renderer
-                        .read_surface_probe(snapshot, scene, color)
-                }?)
-            } else {
-                None
-            };
-            let skeletal_probe = if probe_load
-                && self.skeletal_scene_renderer.is_enabled()
-                && !self.skeletal_scene_renderer.surface_is_enabled()
-                && !self.composition_enabled()
-            {
-                let snapshot = self
-                    .async_resident_renderer
-                    .snapshot()
-                    .context("skeletal probe has no published resident snapshot")?;
-                Some(unsafe { self.skeletal_scene_renderer.read_probe(snapshot, scene) }?)
-            } else {
-                None
-            };
-            let load_probe = if probe_load
-                && (self.terrain_renderer.is_enabled()
-                    || self.meshlet_scene_renderer.is_enabled()
-                    || self.skeletal_scene_renderer.is_enabled())
-            {
-                None
-            } else if probe_load && self.async_resident_renderer.config().is_some() {
-                Some(unsafe { self.async_resident_renderer.read_probe() }?)
-            } else if probe_load && self.resident_renderer.config().is_some() {
-                Some(unsafe { self.resident_renderer.read_probe() }?)
-            } else if probe_load {
-                Some(unsafe { self.load_renderer.read_probe() }?)
-            } else {
-                None
-            };
-            let resident_stream = if stream_resident {
-                Some(self.resident_renderer.complete_stream()?)
+            let composition_probe = if probe {
+                Some(unsafe { self.read_composition_probe(scene, color) }?)
             } else {
                 None
             };
             return Ok(RenderOutcome {
                 capture: captured_frame,
-                load_probe,
-                meshlet_probe,
-                skeletal_probe,
-                surface_probe,
-                terrain_probe,
                 composition_probe,
-                resident_stream,
             });
         }
         Ok(RenderOutcome {
             capture: None,
-            load_probe: None,
-            meshlet_probe: None,
-            skeletal_probe: None,
-            surface_probe: None,
-            terrain_probe: None,
             composition_probe: None,
-            resident_stream: None,
         })
     }
 }

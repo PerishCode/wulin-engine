@@ -15,7 +15,6 @@ pub struct CatalogBuffers {
     pub meshlet_vertices: ID3D12Resource,
     pub primitives: ID3D12Resource,
     pub lods: ID3D12Resource,
-    pub total_bytes: usize,
 }
 
 impl CatalogBuffers {
@@ -103,7 +102,6 @@ impl CatalogBuffers {
             meshlet_vertices: resources.next().unwrap(),
             primitives: resources.next().unwrap(),
             lods: resources.next().unwrap(),
-            total_bytes: payloads.iter().map(Vec::len).sum(),
         })
     }
 }

@@ -12,27 +12,91 @@ async function run(label: string, command: string, args: string[]): Promise<void
         stdout: "inherit",
         stderr: "inherit",
     }).spawn().status;
-    if (!status.success) {
-        fail(`guard: ${label} failed with exit code ${status.code}`);
+    if (!status.success) fail(`guard: ${label} failed with exit code ${status.code}`);
+}
+
+async function requireWrapperSet(): Promise<void> {
+    const names: string[] = [];
+    for await (const entry of Deno.readDir(`${root}/.runseal/wrappers`)) {
+        if (entry.isFile) names.push(entry.name);
     }
+    names.sort();
+    const expected = [
+        "canonical-runtime.ts",
+        "gpu-lab.ts",
+        "guard.ts",
+        "init.ts",
+        "workbench.ts",
+    ];
+    if (JSON.stringify(names) !== JSON.stringify(expected)) {
+        fail(`guard: Runseal wrapper set diverged: ${JSON.stringify(names)}`);
+    }
+}
+
+async function forbiddenScan(): Promise<void> {
+    console.log("==> forbidden compatibility scan");
+    const pattern = [
+        '"objects\\.disable"',
+        '"composition\\.(order|fixture|enable|disable)"',
+        '"terrain\\.(global\\.schedule|schedule|enable|disable|lod\\.[^"]*)"',
+        '"load\\.(configure|enable|disable|probe|status)"',
+        '"resident\\.(stream|status)"',
+        '"async\\.(schedule|status)"',
+        '"cooked\\.(open|schedule|status)"',
+        '"meshlet\\.(configure|enable|disable|status)"',
+        '"skeletal\\.(configure|enable|disable|status)"',
+        '"surface\\.(configure|enable|disable|status)"',
+        '"occlusion\\.(enable|disable|reset)"',
+        "PayloadPreparation",
+        "TerrainLodSettings",
+        "forced_lod",
+        "format-V1",
+        "schema-1",
+        "ordinal restoration",
+    ].join("|");
+    const output = await new Deno.Command("git", {
+        args: [
+            "grep",
+            "--no-index",
+            "-n",
+            "-E",
+            pattern,
+            "--",
+            "apps",
+            "crates",
+            "tools",
+            ".runseal/support",
+            ".runseal/wrappers/workbench.ts",
+            "flavor.toml",
+            "runseal.toml",
+        ],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    if (output.code === 0) {
+        fail(
+            `guard: forbidden compatibility symbol found\n${
+                new TextDecoder().decode(output.stdout)
+            }`,
+        );
+    }
+    if (output.code !== 1) fail(`guard: forbidden scan failed with exit code ${output.code}`);
 }
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log("Usage: runseal :guard");
-    console.log("");
-    console.log("Run the canonical repository validation path.");
+    console.log("\nRun the canonical repository validation path.");
     Deno.exit(0);
 }
-if (Deno.args.length > 0) {
-    fail(`guard: unexpected argument: ${Deno.args[0]}`);
-}
+if (Deno.args.length > 0) fail(`guard: unexpected argument: ${Deno.args[0]}`);
 
 const profilePath = Deno.env.get("RUNSEAL_PROFILE_PATH");
-if (!profilePath) {
-    fail("guard: RUNSEAL_PROFILE_PATH is not set");
-}
+if (!profilePath) fail("guard: RUNSEAL_PROFILE_PATH is not set");
 const root = profilePath.replace(/[\\/][^\\/]+$/, "");
 
+await requireWrapperSet();
+await run("git diff check", "git", ["diff", "--check"]);
 await run("cargo fmt", "cargo", ["fmt", "--all", "--check"]);
 await run("cargo clippy", "cargo", [
     "clippy",
@@ -55,49 +119,9 @@ await run("deno check", "deno", [
     ".runseal/wrappers/init.ts",
     ".runseal/wrappers/guard.ts",
     ".runseal/wrappers/gpu-lab.ts",
-    ".runseal/wrappers/visual-loop.ts",
     ".runseal/wrappers/workbench.ts",
-    ".runseal/wrappers/resident-stream.ts",
-    ".runseal/wrappers/async-region.ts",
-    ".runseal/wrappers/skeletal-crowds.ts",
-    ".runseal/wrappers/surface-resolve.ts",
-    ".runseal/wrappers/occlusion.ts",
-    ".runseal/wrappers/terrain.ts",
-    ".runseal/wrappers/terrain-lod.ts",
-    ".runseal/wrappers/composition.ts",
-    ".runseal/wrappers/terrain-sampling.ts",
-    ".runseal/wrappers/lod-composition.ts",
-    ".runseal/wrappers/region-traversal.ts",
-    ".runseal/wrappers/global-space.ts",
-    ".runseal/wrappers/global-terrain.ts",
-    ".runseal/wrappers/global-composition.ts",
-    ".runseal/wrappers/global-traversal.ts",
-    ".runseal/wrappers/signed-terrain-storage.ts",
-    ".runseal/wrappers/camera-relative-terrain.ts",
-    ".runseal/wrappers/canonical-object-composition.ts",
-    ".runseal/wrappers/canonical-origin-rollover.ts",
-    ".runseal/wrappers/canonical-traversal-prefetch.ts",
-    ".runseal/wrappers/cooked-canonical-objects.ts",
-    ".runseal/wrappers/authoritative-cooked-objects.ts",
-    ".runseal/wrappers/canonical-object-identity.ts",
-    ".runseal/support/global-terrain.ts",
-    ".runseal/support/global-composition.ts",
-    ".runseal/support/global-traversal.ts",
-    ".runseal/support/signed-terrain-storage.ts",
-    ".runseal/support/camera-relative-terrain.ts",
-    ".runseal/support/canonical-object-composition.ts",
-    ".runseal/support/canonical-origin-rollover.ts",
-    ".runseal/support/canonical-origin-rollover-evidence.ts",
-    ".runseal/support/canonical-origin-rollover-scenarios.ts",
-    ".runseal/support/canonical-traversal-prefetch.ts",
-    ".runseal/support/canonical-traversal-prefetch-evidence.ts",
-    ".runseal/support/canonical-traversal-prefetch-scenarios.ts",
-    ".runseal/support/cooked-canonical-objects/mod.ts",
-    ".runseal/support/authoritative-cooked-objects/mod.ts",
-    ".runseal/support/canonical-object-identity/mod.ts",
-    ".runseal/support/workbench/composition.ts",
-    ".runseal/support/workbench/terrain.ts",
-    ".runseal/support/workbench/world.ts",
+    ".runseal/wrappers/canonical-runtime.ts",
+    ".runseal/support/canonical-runtime.ts",
 ]);
 await run("flavor", "flavor", ["check", "--root", ".", "--config", "flavor.toml"]);
 await run("sidecar doctor", "sidecar", ["doctor", "--config", "sidecar.toml"]);
@@ -114,3 +138,4 @@ await run("sidecar benchmark plan", "sidecar", [
     "--format",
     "json",
 ]);
+await forbiddenScan();

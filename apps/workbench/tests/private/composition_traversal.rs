@@ -15,27 +15,15 @@ fn far_target_is_exact() {
     let global = GlobalRegionConfig::new(far, -far, far, -far, 2).unwrap();
     let published = TraversalTarget {
         config: global.local_config().unwrap(),
-        global_config: Some(global),
+        global_config: global,
     };
-    let basis = TraversalBasis::new(published, false).unwrap();
+    let basis = TraversalBasis::new(published).unwrap();
     let local = map_camera(camera(16.0, -16.0), &basis).unwrap();
     let target = basis.target(local).unwrap();
     assert_eq!((local.active_center_x, local.active_center_z), (65, 63));
-    let mapped = target.global_config.unwrap();
+    let mapped = target.global_config;
     assert_eq!(mapped.global_origin, RegionCoord::new(far, -far));
     assert_eq!(mapped.global_center, RegionCoord::new(far + 1, -far - 1));
-}
-
-#[test]
-fn legacy_status_is_unchanged() {
-    let config = LoadConfig::new(128, 64, 64, 2).unwrap();
-    let target = TraversalTarget {
-        config,
-        global_config: None,
-    };
-    assert_eq!(target.status_json(), json!(config));
-    let basis = TraversalBasis::new(target, false).unwrap();
-    assert_eq!(json!(basis).get("globalOrigin"), None);
 }
 
 #[test]
@@ -43,9 +31,10 @@ fn basis_rejects_extent_overflow() {
     let global = GlobalRegionConfig::new(i64::MAX, 0, i64::MAX, 0, 2).unwrap();
     let published = TraversalTarget {
         config: global.local_config().unwrap(),
-        global_config: Some(global),
+        global_config: global,
     };
-    assert!(TraversalBasis::new(published, false).is_err());
+    let basis = TraversalBasis::new(published).unwrap();
+    assert!(basis.global_center(u32::MAX, 64).is_err());
 }
 
 #[test]
@@ -54,16 +43,16 @@ fn rollover_preserves_center() {
     let global = GlobalRegionConfig::new(far - 33, -far, far, -far, 2).unwrap();
     let published = TraversalTarget {
         config: global.local_config().unwrap(),
-        global_config: Some(global),
+        global_config: global,
     };
-    let basis = TraversalBasis::new(published, true).unwrap();
+    let basis = TraversalBasis::new(published).unwrap();
     let local = map_camera(camera(528.0, 0.0), &basis).unwrap();
     let target = basis.camera_target(local).unwrap();
     assert_eq!(
         (target.config.active_center_x, target.config.active_center_z),
         (64, 64)
     );
-    let target_global = target.global_config.unwrap();
+    let target_global = target.global_config;
     assert_eq!(target_global.global_origin, RegionCoord::new(far, -far));
     assert_eq!(target_global.global_center, RegionCoord::new(far, -far));
 }
@@ -74,10 +63,10 @@ fn rollover_shifts_at_commit() {
     let global = GlobalRegionConfig::new(far - 33, -far, far, -far, 2).unwrap();
     let published = TraversalTarget {
         config: global.local_config().unwrap(),
-        global_config: Some(global),
+        global_config: global,
     };
     let mut traversal = CameraTraversal::default();
-    traversal.enable(published, true).unwrap();
+    traversal.enable(published).unwrap();
     let action = traversal
         .plan(camera(528.0, 0.0), published, None)
         .unwrap()
@@ -92,7 +81,7 @@ fn rollover_shifts_at_commit() {
     assert_eq!(traversal.take_camera_delta(), Some([-33, 0]));
     assert_eq!(
         traversal.basis.unwrap().global_origin,
-        Some(RegionCoord::new(far, -far))
+        RegionCoord::new(far, -far)
     );
     assert_eq!(traversal.rollover.status_json().unwrap()["count"], 1);
 }
@@ -103,11 +92,11 @@ fn canonical_motion_predicts_one_adjacent_target() {
     let global = GlobalRegionConfig::new(far, -far, far, -far, 2).unwrap();
     let published = TraversalTarget {
         config: global.local_config().unwrap(),
-        global_config: Some(global),
+        global_config: global,
     };
     let mut traversal = CameraTraversal::default();
-    traversal.enable(published, true).unwrap();
-    traversal.prefetch.enable(true).unwrap();
+    traversal.enable(published).unwrap();
+    traversal.prefetch.enable().unwrap();
     assert!(
         traversal
             .plan(camera(0.0, 0.0), published, None)
@@ -127,7 +116,7 @@ fn canonical_motion_predicts_one_adjacent_target() {
         (65, 64)
     );
     assert_eq!(
-        target.global_config.unwrap().global_center,
+        target.global_config.global_center,
         RegionCoord::new(far + 1, -far)
     );
 }
@@ -138,11 +127,11 @@ fn crossing_promotes_the_exact_prefetch() {
     let global = GlobalRegionConfig::new(far, -far, far, -far, 2).unwrap();
     let published = TraversalTarget {
         config: global.local_config().unwrap(),
-        global_config: Some(global),
+        global_config: global,
     };
     let mut traversal = CameraTraversal::default();
-    traversal.enable(published, true).unwrap();
-    traversal.prefetch.enable(true).unwrap();
+    traversal.enable(published).unwrap();
+    traversal.prefetch.enable().unwrap();
     traversal.plan(camera(0.0, 0.0), published, None).unwrap();
     let TraversalAction::Schedule { target, .. } = traversal
         .plan(camera(5.0, 0.0), published, None)
@@ -174,12 +163,12 @@ fn prefetch_rollover_does_not_commit_the_basis() {
     let global = GlobalRegionConfig::new(far - 32, -far, far, -far, 2).unwrap();
     let published = TraversalTarget {
         config: global.local_config().unwrap(),
-        global_config: Some(global),
+        global_config: global,
     };
     assert_eq!(published.config.active_center_x, 96);
     let mut traversal = CameraTraversal::default();
-    traversal.enable(published, true).unwrap();
-    traversal.prefetch.enable(true).unwrap();
+    traversal.enable(published).unwrap();
+    traversal.prefetch.enable().unwrap();
     traversal.plan(camera(512.0, 0.0), published, None).unwrap();
     let TraversalAction::Schedule { target, prefetch } = traversal
         .plan(camera(517.0, 0.0), published, None)
@@ -191,12 +180,12 @@ fn prefetch_rollover_does_not_commit_the_basis() {
     assert!(prefetch);
     assert_eq!(target.config.active_center_x, 64);
     assert_eq!(
-        target.global_config.unwrap().global_origin,
+        target.global_config.global_origin,
         RegionCoord::new(far + 1, -far)
     );
     assert_eq!(
         traversal.basis.unwrap().global_origin,
-        Some(RegionCoord::new(far - 32, -far))
+        RegionCoord::new(far - 32, -far)
     );
     assert_eq!(traversal.rollover.status_json().unwrap()["count"], 0);
 }

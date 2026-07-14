@@ -1,16 +1,12 @@
 use anyhow::{Result, bail};
 use serde::Serialize;
-use serde_json::{Value, json};
 
-pub const LOAD_REVISION: &str = "region-grid-v1";
 pub const MAX_REGION_SIDE: u32 = 128;
 pub const REGION_INSTANCE_SIDE: u32 = 32;
 pub const INSTANCES_PER_REGION: u32 = REGION_INSTANCE_SIDE * REGION_INSTANCE_SIDE;
 pub const REGION_OBJECT_ID_BASE: u32 = 65_536;
 pub const TERRAIN_OBJECT_ID_BASE: u32 = 32_768;
 pub const MAX_ACTIVE_RADIUS: u32 = 4;
-pub const MAX_VISIBLE_INSTANCES: u32 =
-    (MAX_ACTIVE_RADIUS * 2 + 1) * (MAX_ACTIVE_RADIUS * 2 + 1) * INSTANCES_PER_REGION;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -77,20 +73,6 @@ impl LoadConfig {
             INSTANCES_PER_REGION.div_ceil(256),
             1,
         ]
-    }
-
-    pub fn json(self) -> Value {
-        json!({
-            "revision": LOAD_REVISION,
-            "config": self,
-            "logicalInstanceCount": self.logical_instance_count(),
-            "activeRegionCount": self.active_region_count(),
-            "candidateInstanceCount": self.candidate_instance_count(),
-            "dispatch": self.dispatch(),
-            "indirectDrawCount": 1,
-            "instancesPerRegion": INSTANCES_PER_REGION,
-            "maxRegionSide": MAX_REGION_SIDE
-        })
     }
 }
 

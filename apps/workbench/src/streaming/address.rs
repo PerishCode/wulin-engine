@@ -84,7 +84,7 @@ fn checked_local_axis(offset: i64, axis: &str) -> Result<u32> {
         .ok_or_else(|| anyhow::anyhow!("local region {axis} alias overflowed"))?;
     ensure!(
         (0..i64::from(MAX_REGION_SIDE)).contains(&value),
-        "global region {axis} maps outside local format-V1 extent"
+        "global region {axis} maps outside the bounded projection extent"
     );
     Ok(value as u32)
 }

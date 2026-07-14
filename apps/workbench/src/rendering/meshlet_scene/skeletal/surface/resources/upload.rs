@@ -16,7 +16,6 @@ pub struct UploadedSurface {
     pub primitives: ID3D12Resource,
     pub materials: ID3D12Resource,
     pub texture: ID3D12Resource,
-    pub total_bytes: usize,
 }
 
 impl UploadedSurface {
@@ -95,7 +94,6 @@ impl UploadedSurface {
             primitives: defaults.next().unwrap(),
             materials: defaults.next().unwrap(),
             texture,
-            total_bytes: catalog.gpu_bytes(),
         })
     }
 }

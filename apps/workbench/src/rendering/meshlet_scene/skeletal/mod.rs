@@ -9,6 +9,7 @@ mod surface;
 mod surface_bridge;
 
 pub use probe::SkeletalProbe;
-pub use renderer::{SkeletalFrame, SkeletalSceneRenderer, SkeletalSettings};
+pub use renderer::{SkeletalFrame, SkeletalSceneRenderer};
 pub(in crate::rendering) use resources::GROUND_BYTES;
-pub use surface::{SurfaceProbe, SurfaceSettings};
+pub(in crate::rendering) use surface::SurfaceProbe;
+pub(in crate::rendering) use surface_bridge::CompositionSurfaceInput;

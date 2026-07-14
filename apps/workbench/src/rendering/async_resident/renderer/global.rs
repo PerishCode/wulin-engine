@@ -6,14 +6,6 @@ use crate::async_resident::{AsyncReservationReport, ObjectSourceNamespace};
 use super::AsyncResidentRenderer;
 
 impl AsyncResidentRenderer {
-    pub(in crate::rendering) fn reserve_global_composition(
-        &mut self,
-        config: GlobalRegionConfig,
-    ) -> Result<AsyncReservationReport> {
-        self.transfer
-            .reserve_global_composition(config, &self.protected_slots())
-    }
-
     pub(in crate::rendering) fn reserve_canonical_global_composition(
         &mut self,
         config: GlobalRegionConfig,
@@ -31,13 +23,13 @@ impl AsyncResidentRenderer {
     pub(in crate::rendering) fn global_config(&self) -> Option<GlobalRegionConfig> {
         self.published
             .as_ref()
-            .and_then(|snapshot| snapshot.global_config)
+            .map(|snapshot| snapshot.global_config)
     }
 
     pub(in crate::rendering) fn object_source_namespace(&self) -> Option<ObjectSourceNamespace> {
         self.published
             .as_ref()
-            .and_then(|snapshot| snapshot.object_source_namespace)
+            .map(|snapshot| snapshot.object_source_namespace)
     }
 
     pub(in crate::rendering) fn object_stable_seed_namespace(
@@ -45,6 +37,6 @@ impl AsyncResidentRenderer {
     ) -> Option<ObjectSourceNamespace> {
         self.published
             .as_ref()
-            .and_then(|snapshot| snapshot.object_stable_seed_namespace)
+            .map(|snapshot| snapshot.object_stable_seed_namespace)
     }
 }

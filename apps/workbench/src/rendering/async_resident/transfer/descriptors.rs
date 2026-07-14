@@ -13,7 +13,7 @@ pub(super) unsafe fn create_descriptor_heap(
 ) -> Result<ID3D12DescriptorHeap> {
     anyhow::ensure!(
         regions.len() == ASYNC_CACHE_CAPACITY && identities.len() == ASYNC_CACHE_CAPACITY,
-        "async resident descriptor resources do not match cache capacity"
+        "object descriptor resources do not match cache capacity"
     );
     let heap: ID3D12DescriptorHeap = unsafe {
         device.CreateDescriptorHeap(&D3D12_DESCRIPTOR_HEAP_DESC {
@@ -23,7 +23,7 @@ pub(super) unsafe fn create_descriptor_heap(
             NodeMask: 0,
         })
     }
-    .context("async resident descriptor heap creation failed")?;
+    .context("object descriptor heap creation failed")?;
     let increment =
         unsafe { device.GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) }
             as usize;

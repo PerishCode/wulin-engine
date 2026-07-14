@@ -9,7 +9,7 @@ mod streaming;
 mod window;
 mod world;
 
-pub(crate) use streaming::{address, async_resident, cooked, objects, terrain};
+pub(crate) use streaming::{address, async_resident, objects, terrain};
 
 use std::sync::mpsc::SyncSender;
 use std::thread;
@@ -76,12 +76,11 @@ unsafe fn run() -> Result<()> {
         );
         let capture_requested = pending.capture.is_some();
         let probe_requested = pending.probe.is_some();
-        let stream_requested = pending.stream.is_some();
         let perception_requested = pending
             .capture
             .as_ref()
             .is_some_and(|request| request.perception.is_some());
-        if state.paused && !capture_requested && !probe_requested && !stream_requested {
+        if state.paused && !capture_requested && !probe_requested {
             thread::sleep(Duration::from_millis(8));
             continue;
         }
@@ -124,12 +123,11 @@ struct PendingCapture {
 struct PendingOperations {
     capture: Option<PendingCapture>,
     probe: Option<SyncSender<inspect::ControlResult>>,
-    stream: Option<SyncSender<inspect::ControlResult>>,
 }
 
 impl PendingOperations {
     fn is_idle(&self) -> bool {
-        self.capture.is_none() && self.probe.is_none() && self.stream.is_none()
+        self.capture.is_none() && self.probe.is_none()
     }
 }
 
@@ -196,7 +194,7 @@ fn complete_frame(
                         last_error: state.last_error.as_deref(),
                         gpu_readback_ms: frame_duration.as_secs_f64() * 1_000.0,
                         spatial: scene.spatial_json(),
-                        workload: inspect::load_status(renderer),
+                        workload: inspect::workload(renderer),
                         perception: request.perception.as_ref(),
                     },
                 )
@@ -208,43 +206,8 @@ fn complete_frame(
         let result = outcome
             .composition_probe
             .map(|probe| serde_json::to_value(probe).context("composition probe encoding failed"))
-            .or_else(|| {
-                outcome.terrain_probe.map(|probe| {
-                    serde_json::to_value(probe).context("terrain probe encoding failed")
-                })
-            })
-            .or_else(|| {
-                outcome.surface_probe.map(|probe| {
-                    serde_json::to_value(probe).context("surface probe encoding failed")
-                })
-            })
-            .or_else(|| {
-                outcome.skeletal_probe.map(|probe| {
-                    serde_json::to_value(probe).context("skeletal probe encoding failed")
-                })
-            })
-            .or_else(|| {
-                outcome.meshlet_probe.map(|probe| {
-                    serde_json::to_value(probe).context("meshlet probe encoding failed")
-                })
-            })
-            .or_else(|| {
-                outcome
-                    .load_probe
-                    .map(|probe| serde_json::to_value(probe).context("load probe encoding failed"))
-            })
-            .context("load probe completed without GPU evidence")
+            .context("canonical probe completed without GPU evidence")
             .and_then(|probe| probe)
-            .map_err(|error| capture_error(state, error));
-        let _ = response.send(result);
-    }
-    if let Some(response) = pending.stream.take() {
-        let result = outcome
-            .resident_stream
-            .context("resident stream completed without transaction evidence")
-            .and_then(|report| {
-                serde_json::to_value(report).context("resident stream encoding failed")
-            })
             .map_err(|error| capture_error(state, error));
         let _ = response.send(result);
     }
@@ -264,12 +227,6 @@ fn fail_frame(state: &mut WorkbenchState, pending: &mut PendingOperations, error
         let _ = response.send(Err(ProtocolError {
             code: "render_failed",
             message: message.clone(),
-        }));
-    }
-    if let Some(response) = pending.stream.take() {
-        let _ = response.send(Err(ProtocolError {
-            code: "render_failed",
-            message,
         }));
     }
 }

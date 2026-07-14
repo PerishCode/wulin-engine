@@ -17,18 +17,10 @@ impl Renderer {
             .published
             .as_ref()
             .context("camera traversal requires a published pair")?;
-        let canonical_rollover = published.terrain_source_namespace.is_some();
-        ensure!(
-            canonical_rollover == published.object_source_namespace.is_some(),
-            "composition source halves disagree on canonical traversal mode"
-        );
-        self.composition.traversal.enable(
-            TraversalTarget {
-                config: published.config,
-                global_config: published.global_config,
-            },
-            canonical_rollover,
-        )
+        self.composition.traversal.enable(TraversalTarget {
+            config: published.config,
+            global_config: published.global_config,
+        })
     }
 
     pub fn disable_composition_traversal(&mut self) {
@@ -41,12 +33,7 @@ impl Renderer {
             "composition prefetch requires camera traversal"
         );
         ensure!(self.composition.pending.is_none(), "composition_pair_busy");
-        let canonical = self
-            .composition
-            .published
-            .as_ref()
-            .is_some_and(|published| published.terrain_source_namespace.is_some());
-        self.composition.traversal.prefetch.enable(canonical)
+        self.composition.traversal.prefetch.enable()
     }
 
     pub fn disable_composition_prefetch(&mut self) -> Result<()> {

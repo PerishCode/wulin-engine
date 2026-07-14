@@ -33,18 +33,15 @@ pub(super) fn desired(
     stable_seed_namespace: ObjectSourceNamespace,
 ) -> DesiredRegion {
     DesiredRegion {
-        key: CacheKey::CanonicalGlobal {
+        key: CacheKey {
             source_namespace,
             global_region: region.global_region,
         },
         assignment: RegionAssignment {
             slot: 0,
             region_id: region.local_region_id,
-            global_region: Some(region.global_region),
-            stable_seed: Some(canonical_stable_seed(
-                stable_seed_namespace,
-                region.global_region,
-            )),
+            global_region: region.global_region,
+            stable_seed: canonical_stable_seed(stable_seed_namespace, region.global_region),
         },
     }
 }

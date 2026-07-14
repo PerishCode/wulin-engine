@@ -140,7 +140,7 @@ fn handle_connection(mut stream: TcpStream, commands: &SyncSender<ControlCommand
         ControlKind::Capture { .. } | ControlKind::PerceptionCapture { .. } => {
             Duration::from_secs(15)
         }
-        ControlKind::LoadProbe => Duration::from_secs(10),
+        ControlKind::CanonicalProbe => Duration::from_secs(10),
         _ => Duration::from_secs(4),
     };
     let (response_tx, response_rx) = mpsc::sync_channel(1);

@@ -76,6 +76,7 @@ unsafe fn create_root(device: &ID3D12Device) -> Result<ID3D12RootSignature> {
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 6, 63, 68),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 69, 79),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 70, 95),
+        descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 113, 96),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 4, 7, 74),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 11, 78),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 2, 12, 80),

@@ -46,6 +46,7 @@ StructuredBuffer<VisibleObject> source_visible : register(t60);
 ByteAddressBuffer source_counters : register(t61);
 Texture2D<uint2> winner_source : register(t69);
 Texture2D<uint> hierarchy_source : register(t70);
+StructuredBuffer<int> ground_numerators : register(t113);
 
 RWStructuredBuffer<VisibleObject> filtered_visible : register(u12);
 RWByteAddressBuffer occlusion_counters : register(u13);
@@ -56,6 +57,23 @@ RWStructuredBuffer<uint> group_offsets : register(u26);
 groupshared uint group_survivors;
 groupshared uint compaction_scan[256];
 
+uint active_side()
+{
+    return uint(round(sqrt(float(surface_animation.y))));
+}
+
+float3 canonical_position(InstanceRecord instance, uint candidate_index)
+{
+    uint side = active_side();
+    uint active_index = candidate_index / INSTANCES_PER_REGION;
+    int2 offset = int2(
+        int(active_index % side) - int(side / 2u),
+        int(active_index / side) - int(side / 2u)
+    );
+    float ground = float(ground_numerators[candidate_index]) / float(surface_animation.z);
+    return instance.position + float3(float(offset.x * 16), ground, float(offset.y * 16));
+}
+
 bool query_occluded(VisibleObject visible)
 {
     uint slot = visible.physical_index / INSTANCES_PER_REGION;
@@ -63,7 +81,8 @@ bool query_occluded(VisibleObject visible)
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
     float half_xz = occlusion_params.x * instance.height + occlusion_params.y;
     float half_y = instance.height * 0.5 + occlusion_params.z;
-    float3 center = instance.position + float3(0.0, instance.height * 0.5, 0.0);
+    float3 center = canonical_position(instance, visible.candidate_index)
+        + float3(0.0, instance.height * 0.5, 0.0);
     float2 minimum_pixel = float2(surface_shape.z, surface_shape.w);
     float2 maximum_pixel = 0.0;
     float nearest_depth = 0.0;

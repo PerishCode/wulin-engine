@@ -5,7 +5,7 @@ mod rollover;
 #[path = "../../../tests/private/composition_traversal.rs"]
 mod tests;
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{Result, ensure};
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -26,16 +26,14 @@ const LOCAL_ORIGIN: u32 = MAX_REGION_SIDE / 2;
 struct TraversalBasis {
     world_region_side: u32,
     active_radius: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    global_origin: Option<RegionCoord>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rollover: Option<RolloverPolicy>,
+    global_origin: RegionCoord,
+    rollover: RolloverPolicy,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct TraversalTarget {
     pub(super) config: LoadConfig,
-    pub(super) global_config: Option<GlobalRegionConfig>,
+    pub(super) global_config: GlobalRegionConfig,
 }
 
 #[derive(Clone, Copy)]
@@ -57,16 +55,14 @@ enum TraversalAction {
 struct ScheduledTarget {
     token: u64,
     config: LoadConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    global_config: Option<GlobalRegionConfig>,
+    global_config: GlobalRegionConfig,
 }
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct BlockedTarget {
     config: LoadConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    global_config: Option<GlobalRegionConfig>,
+    global_config: GlobalRegionConfig,
     message: String,
 }
 
@@ -96,18 +92,14 @@ impl CameraTraversal {
         self.enabled
     }
 
-    pub(super) fn enable(
-        &mut self,
-        published: TraversalTarget,
-        canonical_rollover: bool,
-    ) -> Result<()> {
-        let basis = TraversalBasis::new(published, canonical_rollover)?;
+    pub(super) fn enable(&mut self, published: TraversalTarget) -> Result<()> {
+        let basis = TraversalBasis::new(published)?;
         self.enabled = true;
         self.basis = Some(basis);
         self.desired = None;
         self.queued = None;
         self.blocked = None;
-        self.rollover.activate(canonical_rollover);
+        self.rollover.activate();
         self.session_count += 1;
         Ok(())
     }
@@ -194,7 +186,7 @@ impl CameraTraversal {
         &mut self,
         token: u64,
         config: LoadConfig,
-        global_config: Option<GlobalRegionConfig>,
+        global_config: GlobalRegionConfig,
     ) -> Result<()> {
         let target = TraversalTarget {
             config,
@@ -238,7 +230,7 @@ impl CameraTraversal {
     pub(super) fn mark_failed(
         &mut self,
         config: LoadConfig,
-        global_config: Option<GlobalRegionConfig>,
+        global_config: GlobalRegionConfig,
         message: String,
     ) {
         let failure = BlockedTarget::new(
@@ -306,38 +298,26 @@ impl CameraTraversal {
 }
 
 impl TraversalBasis {
-    fn new(published: TraversalTarget, canonical_rollover: bool) -> Result<Self> {
-        if let Some(global) = published.global_config {
-            ensure!(
-                global.local_config()? == published.config,
-                "published global composition does not match its local config"
-            );
-        }
+    fn new(published: TraversalTarget) -> Result<Self> {
+        ensure!(
+            published.global_config.local_config()? == published.config,
+            "published global composition does not match its local config"
+        );
         let basis = Self {
             world_region_side: published.config.world_region_side,
             active_radius: published.config.active_radius,
-            global_origin: published.global_config.map(|value| value.global_origin),
-            rollover: canonical_rollover.then_some(RolloverPolicy::canonical()),
+            global_origin: published.global_config.global_origin,
+            rollover: RolloverPolicy::canonical(),
         };
-        if basis.global_origin.is_some() {
-            ensure!(
-                basis.world_region_side == MAX_REGION_SIDE,
-                "signed traversal requires the format-V1 world extent"
-            );
-            if !canonical_rollover {
-                let (minimum, maximum) = basis.center_bounds();
-                basis.global_center(minimum, minimum)?;
-                basis.global_center(maximum, maximum)?;
-            }
-        }
+        ensure!(
+            basis.world_region_side == MAX_REGION_SIDE,
+            "signed traversal requires the canonical world extent"
+        );
         Ok(basis)
     }
 
     fn camera_target(self, config: LoadConfig) -> Result<TraversalTarget> {
-        match self.rollover {
-            Some(policy) => policy.target(self, config),
-            None => self.target(config),
-        }
+        self.rollover.target(self, config)
     }
 
     fn target(self, config: LoadConfig) -> Result<TraversalTarget> {
@@ -346,19 +326,14 @@ impl TraversalBasis {
                 && config.active_radius == self.active_radius,
             "traversal target changed the immutable basis"
         );
-        let global_config = self
-            .global_origin
-            .map(|origin| {
-                let center = self.global_center(config.active_center_x, config.active_center_z)?;
-                GlobalRegionConfig::new(
-                    origin.x,
-                    origin.z,
-                    center.x,
-                    center.z,
-                    config.active_radius,
-                )
-            })
-            .transpose()?;
+        let center = self.global_center(config.active_center_x, config.active_center_z)?;
+        let global_config = GlobalRegionConfig::new(
+            self.global_origin.x,
+            self.global_origin.z,
+            center.x,
+            center.z,
+            config.active_radius,
+        )?;
         Ok(TraversalTarget {
             config,
             global_config,
@@ -374,10 +349,7 @@ impl TraversalBasis {
     }
 
     fn global_center(self, local_x: u32, local_z: u32) -> Result<RegionCoord> {
-        let origin = self
-            .global_origin
-            .context("local traversal basis has no global origin")?;
-        origin.checked_offset(
+        self.global_origin.checked_offset(
             i64::from(local_x) - i64::from(LOCAL_ORIGIN),
             i64::from(local_z) - i64::from(LOCAL_ORIGIN),
         )
@@ -386,10 +358,7 @@ impl TraversalBasis {
 
 impl TraversalTarget {
     fn status_json(self) -> Value {
-        match self.global_config {
-            Some(global) => json!({"config": self.config, "globalConfig": global}),
-            None => json!(self.config),
-        }
+        json!({"config": self.config, "globalConfig": self.global_config})
     }
 }
 

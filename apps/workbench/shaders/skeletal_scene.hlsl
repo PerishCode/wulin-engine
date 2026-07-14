@@ -1,6 +1,5 @@
 static const uint REGION_SLOT_CAPACITY = 50;
 static const uint INSTANCES_PER_REGION = 1024;
-static const uint REGION_OBJECT_ID_BASE = 65536;
 static const uint MAX_BONES = 128;
 static const uint MAX_POSE_KEYS = 512;
 static const uint POSE_WORDS = MAX_POSE_KEYS / 32;
@@ -33,14 +32,6 @@ struct LodDescriptor
     uint primitive_count;
 };
 
-struct MeshletDescriptor
-{
-    uint vertex_offset;
-    uint vertex_count;
-    uint primitive_offset;
-    uint primitive_count;
-};
-
 struct BoneMeta
 {
     uint parent;
@@ -56,12 +47,6 @@ struct AffineTransform
     float4 row2;
 };
 
-struct SkinBinding
-{
-    uint indices;
-    uint weights;
-};
-
 cbuffer SkeletalSceneConstants : register(b0)
 {
     column_major float4x4 view_projection;
@@ -72,19 +57,11 @@ cbuffer SkeletalSceneConstants : register(b0)
 };
 
 StructuredBuffer<InstanceRecord> region_instances[REGION_SLOT_CAPACITY] : register(t0);
-StructuredBuffer<float4> catalog_vertices : register(t51);
-StructuredBuffer<MeshletDescriptor> catalog_meshlets : register(t52);
-StructuredBuffer<uint> catalog_meshlet_vertices : register(t53);
-StructuredBuffer<uint> catalog_primitives : register(t54);
 StructuredBuffer<LodDescriptor> catalog_lods : register(t55);
 StructuredBuffer<BoneMeta> catalog_bones : register(t56);
 StructuredBuffer<AffineTransform> catalog_inverse_bind : register(t57);
 StructuredBuffer<AffineTransform> catalog_samples : register(t58);
-StructuredBuffer<SkinBinding> catalog_skin : register(t59);
-StructuredBuffer<VisibleObject> draw_objects : register(t50);
-StructuredBuffer<AffineTransform> palette_in : register(t62);
 ByteAddressBuffer terrain_tiles[REGION_SLOT_CAPACITY] : register(t63);
-StructuredBuffer<int> ground_numerators_in : register(t113);
 StructuredBuffer<uint> region_local_ids[REGION_SLOT_CAPACITY] : register(t114);
 
 RWStructuredBuffer<VisibleObject> visible_objects : register(u0);
@@ -433,134 +410,4 @@ void pose_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         validation_sample.Store(12, variant);
         validation_sample.Store(16, pose_slot);
     }
-}
-
-struct MeshPayload
-{
-    uint visible_index;
-    uint meshlet_offset;
-};
-
-groupshared MeshPayload amplification_payload;
-
-[numthreads(1, 1, 1)]
-void as_main(uint3 group_id : SV_GroupID)
-{
-    VisibleObject visible = draw_objects[group_id.x];
-    LodDescriptor descriptor = catalog_lods[visible.archetype * 3u + visible.lod];
-    amplification_payload.visible_index = group_id.x;
-    amplification_payload.meshlet_offset = descriptor.meshlet_offset;
-    DispatchMesh(descriptor.meshlet_count, 1, 1, amplification_payload);
-}
-
-struct MeshVertexOutput
-{
-    float4 position : SV_POSITION;
-    nointerpolation float3 color : COLOR0;
-    nointerpolation uint object_id : TEXCOORD0;
-};
-
-float3 transform_point(AffineTransform transform, float3 local_position)
-{
-    float4 homogeneous = float4(local_position, 1.0);
-    return float3(
-        dot(transform.row0, homogeneous),
-        dot(transform.row1, homogeneous),
-        dot(transform.row2, homogeneous)
-    );
-}
-
-[outputtopology("triangle")]
-[numthreads(64, 1, 1)]
-void ms_main(
-    uint group_thread : SV_GroupIndex,
-    uint3 group_id : SV_GroupID,
-    in payload MeshPayload payload,
-    out vertices MeshVertexOutput output_vertices[64],
-    out indices uint3 output_triangles[126])
-{
-    VisibleObject visible = draw_objects[payload.visible_index];
-    MeshletDescriptor meshlet = catalog_meshlets[payload.meshlet_offset + group_id.x];
-    SetMeshOutputCounts(meshlet.vertex_count, meshlet.primitive_count);
-
-    uint slot = visible.physical_index / INSTANCES_PER_REGION;
-    uint local_index = visible.physical_index % INSTANCES_PER_REGION;
-    InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
-    uint active_index = visible.reserved / INSTANCES_PER_REGION;
-    uint packed_slots = active_slot_groups[active_index / 4][active_index % 4];
-    uint semantic_region = packed_slots >> 12u;
-    float3 position = object_position(instance, semantic_region);
-    float ground = pose_shape.w == 0u
-        ? 0.0
-        : float(ground_numerators_in[visible.reserved])
-            / (pose_shape.w == 1u ? 512.0 : 65536.0);
-    float angle = float((visible.stable_key * 747796405u) & 65535u) * 6.28318530718 / 65536.0;
-    float sine;
-    float cosine;
-    sincos(angle, sine, cosine);
-    if (group_thread < meshlet.vertex_count)
-    {
-        uint vertex_index = catalog_meshlet_vertices[meshlet.vertex_offset + group_thread];
-        float3 local = catalog_vertices[vertex_index].xyz;
-        local.y *= instance.height;
-        if (visible.pose_slot != 0xffffffffu)
-        {
-            SkinBinding binding = catalog_skin[vertex_index];
-            float3 skinned = 0.0;
-            [unroll]
-            for (uint influence = 0; influence < 4; influence++)
-            {
-                uint bone = ((binding.indices >> (influence * 8u)) & 255u) % animation_shape.y;
-                float weight = float((binding.weights >> (influence * 8u)) & 255u) / 255.0;
-                skinned += transform_point(
-                    palette_in[visible.pose_slot * MAX_BONES + bone],
-                    local
-                ) * weight;
-            }
-            local = skinned;
-        }
-        float3 rotated = float3(
-            local.x * cosine - local.z * sine,
-            local.y,
-            local.x * sine + local.z * cosine
-        );
-        float3 colors[8] = {
-            float3(0.91, 0.24, 0.18), float3(0.12, 0.68, 0.36),
-            float3(0.16, 0.42, 0.92), float3(0.92, 0.66, 0.12),
-            float3(0.68, 0.24, 0.82), float3(0.08, 0.72, 0.76),
-            float3(0.88, 0.38, 0.58), float3(0.52, 0.72, 0.14)
-        };
-        MeshVertexOutput output;
-        output.position = mul(
-            view_projection,
-            float4(position + float3(0.0, ground, 0.0) + rotated, 1.0)
-        );
-        output.color = colors[visible.archetype] * (1.0 - 0.12 * visible.lod);
-        uint object_region = semantic_region == 0u ? instance.region_id : semantic_region;
-        output.object_id = REGION_OBJECT_ID_BASE + object_region + 1;
-        output_vertices[group_thread] = output;
-    }
-    for (uint primitive_index = group_thread; primitive_index < meshlet.primitive_count; primitive_index += 64)
-    {
-        uint primitive = catalog_primitives[meshlet.primitive_offset + primitive_index];
-        output_triangles[primitive_index] = uint3(
-            primitive & 0xffu,
-            (primitive >> 8) & 0xffu,
-            (primitive >> 16) & 0xffu
-        );
-    }
-}
-
-struct MeshPixelOutput
-{
-    float4 color : SV_TARGET0;
-    uint object_id : SV_TARGET1;
-};
-
-MeshPixelOutput ps_main(MeshVertexOutput input)
-{
-    MeshPixelOutput output;
-    output.color = float4(input.color, 1.0);
-    output.object_id = input.object_id;
-    return output;
 }

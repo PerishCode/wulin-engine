@@ -8,15 +8,15 @@ const DEFAULT_DXC: &str = r"C:\Program Files (x86)\Windows Kits\10\bin\10.0.2610
 
 fn main() {
     println!("cargo:rerun-if-changed=src/agility_exports.c");
-    println!("cargo:rerun-if-changed=shaders/calibration.hlsl");
-    println!("cargo:rerun-if-changed=shaders/region_load.hlsl");
-    println!("cargo:rerun-if-changed=shaders/resident_load.hlsl");
-    println!("cargo:rerun-if-changed=shaders/async_resident.hlsl");
-    println!("cargo:rerun-if-changed=shaders/meshlet_scene.hlsl");
-    println!("cargo:rerun-if-changed=shaders/skeletal_scene.hlsl");
-    println!("cargo:rerun-if-changed=shaders/surface_resolve.hlsl");
-    println!("cargo:rerun-if-changed=shaders/occlusion.hlsl");
-    println!("cargo:rerun-if-changed=shaders/terrain.hlsl");
+    for source in [
+        "calibration.hlsl",
+        "skeletal_scene.hlsl",
+        "surface_resolve.hlsl",
+        "occlusion.hlsl",
+        "terrain.hlsl",
+    ] {
+        println!("cargo:rerun-if-changed=shaders/{source}");
+    }
     println!("cargo:rerun-if-env-changed=AGILITY_SDK_ROOT");
     println!("cargo:rerun-if-env-changed=DXC");
 
@@ -28,164 +28,31 @@ fn main() {
         .file(manifest_dir.join("src/agility_exports.c"))
         .warnings_into_errors(true)
         .compile("workbench_agility_exports");
-    compile_shader(
-        &manifest_dir,
-        &out_dir,
-        "vs_main",
-        "vs_6_6",
-        "calibration.vs.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "region_load.hlsl",
-        "reset_main",
-        "cs_6_6",
-        "region_load.reset.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "region_load.hlsl",
-        "cull_main",
-        "cs_6_6",
-        "region_load.cull.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "region_load.hlsl",
-        "vs_main",
-        "vs_6_6",
-        "region_load.vs.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "region_load.hlsl",
-        "ps_main",
-        "ps_6_6",
-        "region_load.ps.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "resident_load.hlsl",
-        "reset_main",
-        "cs_6_6",
-        "resident_load.reset.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "resident_load.hlsl",
-        "cull_main",
-        "cs_6_6",
-        "resident_load.cull.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "resident_load.hlsl",
-        "vs_main",
-        "vs_6_6",
-        "resident_load.vs.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "resident_load.hlsl",
-        "ps_main",
-        "ps_6_6",
-        "resident_load.ps.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "async_resident.hlsl",
-        "reset_main",
-        "cs_6_6",
-        "async_resident.reset.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "async_resident.hlsl",
-        "cull_main",
-        "cs_6_6",
-        "async_resident.cull.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "async_resident.hlsl",
-        "vs_main",
-        "vs_6_6",
-        "async_resident.vs.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "async_resident.hlsl",
-        "ps_main",
-        "ps_6_6",
-        "async_resident.ps.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "meshlet_scene.hlsl",
-        "reset_main",
-        "cs_6_6",
-        "meshlet_scene.reset.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "meshlet_scene.hlsl",
-        "cull_main",
-        "cs_6_6",
-        "meshlet_scene.cull.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "meshlet_scene.hlsl",
-        "as_main",
-        "as_6_6",
-        "meshlet_scene.as.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "meshlet_scene.hlsl",
-        "ms_main",
-        "ms_6_6",
-        "meshlet_scene.ms.dxil",
-    );
-    compile_named_shader(
-        &manifest_dir,
-        &out_dir,
-        "meshlet_scene.hlsl",
-        "ps_main",
-        "ps_6_6",
-        "meshlet_scene.ps.dxil",
-    );
     for (entry, profile, output) in [
-        ("reset_main", "cs_6_6", "skeletal_scene.reset.dxil"),
-        ("cull_main", "cs_6_6", "skeletal_scene.cull.dxil"),
-        ("compact_main", "cs_6_6", "skeletal_scene.compact.dxil"),
-        ("pose_main", "cs_6_6", "skeletal_scene.pose.dxil"),
-        ("as_main", "as_6_6", "skeletal_scene.as.dxil"),
-        ("ms_main", "ms_6_6", "skeletal_scene.ms.dxil"),
-        ("ps_main", "ps_6_6", "skeletal_scene.ps.dxil"),
+        ("vs_main", "vs_6_6", "calibration.vs.dxil"),
+        ("ps_main", "ps_6_6", "calibration.ps.dxil"),
     ] {
-        compile_named_shader(
+        compile_shader(
+            &manifest_dir,
+            &out_dir,
+            "calibration.hlsl",
+            entry,
+            profile,
+            output,
+        );
+    }
+    for (entry, output) in [
+        ("reset_main", "skeletal_scene.reset.dxil"),
+        ("cull_main", "skeletal_scene.cull.dxil"),
+        ("compact_main", "skeletal_scene.compact.dxil"),
+        ("pose_main", "skeletal_scene.pose.dxil"),
+    ] {
+        compile_shader(
             &manifest_dir,
             &out_dir,
             "skeletal_scene.hlsl",
             entry,
-            profile,
+            "cs_6_6",
             output,
         );
     }
@@ -197,7 +64,7 @@ fn main() {
         ("ms_main", "ms_6_6", "terrain.ms.dxil"),
         ("ps_main", "ps_6_6", "terrain.ps.dxil"),
     ] {
-        compile_named_shader(
+        compile_shader(
             &manifest_dir,
             &out_dir,
             "terrain.hlsl",
@@ -213,7 +80,7 @@ fn main() {
         ("hiz_mip0_main", "occlusion.mip0.dxil"),
         ("hiz_reduce_main", "occlusion.reduce.dxil"),
     ] {
-        compile_named_shader(
+        compile_shader(
             &manifest_dir,
             &out_dir,
             "occlusion.hlsl",
@@ -228,7 +95,7 @@ fn main() {
         ("ps_main", "ps_6_6", "surface_resolve.ps.dxil"),
         ("shade_main", "cs_6_6", "surface_resolve.shade.dxil"),
     ] {
-        compile_named_shader(
+        compile_shader(
             &manifest_dir,
             &out_dir,
             "surface_resolve.hlsl",
@@ -237,34 +104,10 @@ fn main() {
             output,
         );
     }
-    compile_shader(
-        &manifest_dir,
-        &out_dir,
-        "ps_main",
-        "ps_6_6",
-        "calibration.ps.dxil",
-    );
     stage_agility_sdk(&repo_root, &out_dir);
 }
 
 fn compile_shader(
-    manifest_dir: &Path,
-    out_dir: &Path,
-    entry: &str,
-    profile: &str,
-    output_name: &str,
-) {
-    compile_named_shader(
-        manifest_dir,
-        out_dir,
-        "calibration.hlsl",
-        entry,
-        profile,
-        output_name,
-    );
-}
-
-fn compile_named_shader(
     manifest_dir: &Path,
     out_dir: &Path,
     source_name: &str,

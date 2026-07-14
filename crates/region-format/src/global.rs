@@ -17,11 +17,10 @@ pub const GLOBAL_MAGIC: [u8; 8] = *b"WLRGN002";
 pub const GLOBAL_VERSION: u32 = 2;
 pub const GLOBAL_HEADER_BYTES: u32 = 96;
 pub const GLOBAL_INDEX_ENTRY_BYTES: u32 = 64;
-pub const GLOBAL_PAYLOAD_SCHEMA: u32 = 1;
-pub const GLOBAL_IDENTITY_PAYLOAD_SCHEMA: u32 = 2;
+pub const GLOBAL_PAYLOAD_SCHEMA: u32 = 2;
 pub const IDENTITY_BYTES: u32 = 4;
 pub const IDENTITY_PLANE_BYTES: u32 = RECORDS_PER_REGION * IDENTITY_BYTES;
-pub const GLOBAL_IDENTITY_REGION_BYTES: u32 = REGION_BYTES + IDENTITY_PLANE_BYTES;
+pub const GLOBAL_REGION_BYTES: u32 = REGION_BYTES + IDENTITY_PLANE_BYTES;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -127,13 +126,10 @@ impl GlobalRegionPack {
         );
         let payload_schema = u32_at(&header, 56);
         ensure!(
-            matches!(
-                payload_schema,
-                GLOBAL_PAYLOAD_SCHEMA | GLOBAL_IDENTITY_PAYLOAD_SCHEMA
-            ),
+            payload_schema == GLOBAL_PAYLOAD_SCHEMA,
             "unsupported signed object payload schema {payload_schema}"
         );
-        let region_payload_bytes = payload_bytes_for_schema(payload_schema)?;
+        let region_payload_bytes = GLOBAL_REGION_BYTES;
         ensure!(
             u32_at(&header, 60) == 0,
             "signed object pack has unknown flags"
@@ -318,16 +314,11 @@ impl GlobalRegionPack {
             validate_record(region, &record)?;
             records.push(record);
         }
-        let local_ids = if self.metadata.payload_schema == GLOBAL_PAYLOAD_SCHEMA {
-            (0..RECORDS_PER_REGION).collect()
-        } else {
-            let mut local_ids = Vec::with_capacity(RECORDS_PER_REGION as usize);
-            for bytes in payload[REGION_BYTES as usize..].chunks_exact(IDENTITY_BYTES as usize) {
-                local_ids.push(u32_at(bytes, 0));
-            }
-            validate_local_ids(region, &local_ids)?;
-            local_ids
-        };
+        let mut local_ids = Vec::with_capacity(RECORDS_PER_REGION as usize);
+        for bytes in payload[REGION_BYTES as usize..].chunks_exact(IDENTITY_BYTES as usize) {
+            local_ids.push(u32_at(bytes, 0));
+        }
+        validate_local_ids(region, &local_ids)?;
         Ok(GlobalRegionRead {
             region,
             stable_seed,
@@ -345,39 +336,9 @@ impl GlobalRegionPack {
 pub fn write_global_pack(
     path: impl AsRef<Path>,
     stable_seed_namespace: [u8; 32],
-    regions: impl IntoIterator<Item = (GlobalRegion, Vec<InstanceRecord>)>,
-) -> Result<GlobalPackMetadata> {
-    write_global_pack_schema(
-        path.as_ref(),
-        stable_seed_namespace,
-        GLOBAL_PAYLOAD_SCHEMA,
-        regions
-            .into_iter()
-            .map(|(region, records)| (region, records, None)),
-    )
-}
-
-pub fn write_global_identity_pack(
-    path: impl AsRef<Path>,
-    stable_seed_namespace: [u8; 32],
     regions: impl IntoIterator<Item = (GlobalRegion, Vec<InstanceRecord>, Vec<u32>)>,
 ) -> Result<GlobalPackMetadata> {
-    write_global_pack_schema(
-        path.as_ref(),
-        stable_seed_namespace,
-        GLOBAL_IDENTITY_PAYLOAD_SCHEMA,
-        regions
-            .into_iter()
-            .map(|(region, records, local_ids)| (region, records, Some(local_ids))),
-    )
-}
-
-fn write_global_pack_schema(
-    path: &Path,
-    stable_seed_namespace: [u8; 32],
-    payload_schema: u32,
-    regions: impl IntoIterator<Item = (GlobalRegion, Vec<InstanceRecord>, Option<Vec<u32>>)>,
-) -> Result<GlobalPackMetadata> {
+    let path = path.as_ref();
     ensure!(
         stable_seed_namespace != [0; 32],
         "cannot write a zero stable-seed namespace"
@@ -400,7 +361,7 @@ fn write_global_pack_schema(
     let region_count = u32::try_from(regions.len()).context("too many signed object regions")?;
     let index_bytes = u64::from(region_count) * u64::from(GLOBAL_INDEX_ENTRY_BYTES);
     let payload_offset = align_up(u64::from(GLOBAL_HEADER_BYTES) + index_bytes);
-    let region_payload_bytes = payload_bytes_for_schema(payload_schema)?;
+    let region_payload_bytes = GLOBAL_REGION_BYTES;
     let payload_bytes = u64::from(region_count) * u64::from(region_payload_bytes);
     let file_bytes = payload_offset + payload_bytes;
     let mut encoded = Vec::with_capacity(regions.len());
@@ -423,23 +384,9 @@ fn write_global_pack_schema(
             validate_record(*region, record)?;
             encode_record(record, &mut bytes);
         }
-        match (payload_schema, local_ids) {
-            (GLOBAL_PAYLOAD_SCHEMA, None) => {}
-            (GLOBAL_IDENTITY_PAYLOAD_SCHEMA, Some(local_ids)) => {
-                validate_local_ids(*region, local_ids)?;
-                for local_id in local_ids {
-                    bytes.extend_from_slice(&local_id.to_le_bytes());
-                }
-            }
-            (GLOBAL_PAYLOAD_SCHEMA, Some(_)) => {
-                anyhow::bail!("schema-1 signed object pack cannot contain local IDs")
-            }
-            (GLOBAL_IDENTITY_PAYLOAD_SCHEMA, None) => anyhow::bail!(
-                "schema-2 signed object region ({},{}) has no local IDs",
-                region.x,
-                region.z
-            ),
-            _ => unreachable!("payload schema was validated"),
+        validate_local_ids(*region, local_ids)?;
+        for local_id in local_ids {
+            bytes.extend_from_slice(&local_id.to_le_bytes());
         }
         debug_assert_eq!(bytes.len(), region_payload_bytes as usize);
         let sha256: [u8; 32] = Sha256::digest(&bytes).into();
@@ -463,7 +410,7 @@ fn write_global_pack_schema(
     push_u64(&mut header, u64::from(GLOBAL_HEADER_BYTES));
     push_u64(&mut header, payload_offset);
     push_u64(&mut header, file_bytes);
-    push_u32(&mut header, payload_schema);
+    push_u32(&mut header, GLOBAL_PAYLOAD_SCHEMA);
     push_u32(&mut header, 0);
     header.extend_from_slice(&stable_seed_namespace);
     debug_assert_eq!(header.len(), GLOBAL_HEADER_BYTES as usize);
@@ -495,14 +442,6 @@ fn write_global_pack_schema(
 
     let pack = GlobalRegionPack::open(path)?;
     Ok(pack.metadata().clone())
-}
-
-fn payload_bytes_for_schema(payload_schema: u32) -> Result<u32> {
-    match payload_schema {
-        GLOBAL_PAYLOAD_SCHEMA => Ok(REGION_BYTES),
-        GLOBAL_IDENTITY_PAYLOAD_SCHEMA => Ok(GLOBAL_IDENTITY_REGION_BYTES),
-        _ => anyhow::bail!("unsupported signed object payload schema {payload_schema}"),
-    }
 }
 
 fn validate_local_ids(region: GlobalRegion, local_ids: &[u32]) -> Result<()> {

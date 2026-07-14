@@ -17,13 +17,10 @@ impl SurfaceRenderer {
         skeletal_constants: [u32; SKELETAL_CONSTANT_COUNT as usize],
         frame: SurfaceFrame<'_>,
     ) {
-        let history_queried =
-            self.occlusion_enabled && self.history_signature.as_ref() == Some(&skeletal_constants);
+        let history_queried = self.history_signature.as_ref() == Some(&skeletal_constants);
         self.last_history_queried = history_queried;
         self.last_bypass_reason = if history_queried {
             "none"
-        } else if !self.occlusion_enabled {
-            "disabled"
         } else if self.history_signature.is_none() {
             self.pending_invalidation_reason
         } else {
@@ -134,14 +131,6 @@ impl SurfaceRenderer {
                 Some(&frame.depth_target),
             );
             command_list.ClearRenderTargetView(visibility_target, &[0.0; 4], None);
-            command_list.ClearRenderTargetView(frame.object_id_target, &[0.0; 4], None);
-            command_list.ClearDepthStencilView(
-                frame.depth_target,
-                D3D12_CLEAR_FLAG_DEPTH,
-                0.0,
-                0,
-                None,
-            );
             set_viewport(command_list, self.width, self.height);
             self.bind_graphics(command_list, surface_constants, gpu_start);
             command_list.SetPipelineState(&self.pipeline.visibility);
@@ -179,6 +168,7 @@ impl SurfaceRenderer {
                 &[0; 4],
                 &[],
             );
+            self.preserve_composed_color(command_list, frame.back_buffer);
             self.bind_compute(command_list, surface_constants, gpu_start);
             command_list.SetPipelineState(&self.pipeline.shade);
             command_list.Dispatch(self.width.div_ceil(8), self.height.div_ceil(8), 1);
@@ -189,7 +179,7 @@ impl SurfaceRenderer {
             ] {
                 uav_barrier(command_list, resource);
             }
-            self.copy_resolved_color(command_list, frame.back_buffer);
+            self.publish_resolved_color(command_list, frame.back_buffer);
             if frame.probe {
                 command_list.EndQuery(&execution.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 6);
             }

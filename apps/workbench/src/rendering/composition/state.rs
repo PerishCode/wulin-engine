@@ -10,8 +10,6 @@ impl Default for CompositionCoordinator {
     fn default() -> Self {
         Self {
             enabled: false,
-            order: CompositionOrder::default(),
-            fixture: CompositionFixture::default(),
             next_token: 1,
             publication_count: 0,
             pending: None,
@@ -37,7 +35,6 @@ impl CompositionCoordinator {
             terrain_source_namespace: input.terrain_source_namespace,
             object_source_namespace: input.object_source_namespace,
             object_stable_seed_namespace: input.object_stable_seed_namespace,
-            fixture: input.fixture,
             terrain_transaction_id: input.terrain_transaction_id,
             instance_transaction_id: input.instance_transaction_id,
             terrain: HalfState::InFlight,
@@ -79,7 +76,6 @@ impl CompositionCoordinator {
             let mut pending = json!({
                 "token": value.token,
                 "config": value.config,
-                "fixture": value.fixture,
                 "terrainTransactionId": value.terrain_transaction_id,
                 "instanceTransactionId": value.instance_transaction_id,
                 "terrainStage": value.terrain,
@@ -91,28 +87,15 @@ impl CompositionCoordinator {
             if value.purpose.prefetch() {
                 pending["prefetch"] = json!(true);
             }
-            if let Some(global) = value.global_config {
-                pending["globalConfig"] = json!(global);
-            }
-            if let Some(source) = value.terrain_source_namespace {
-                pending["terrainSourceNamespace"] = json!(source);
-            }
-            if let Some(source) = value.object_source_namespace {
-                pending["objectSourceNamespace"] = json!(source);
-            }
-            if let Some(namespace) = value
-                .object_stable_seed_namespace
-                .filter(|namespace| Some(*namespace) != value.object_source_namespace)
-            {
-                pending["objectStableSeedNamespace"] = json!(namespace);
-            }
+            pending["globalConfig"] = json!(value.global_config);
+            pending["terrainSourceNamespace"] = json!(value.terrain_source_namespace);
+            pending["objectSourceNamespace"] = json!(value.object_source_namespace);
+            pending["objectStableSeedNamespace"] = json!(value.object_stable_seed_namespace);
             pending
         });
         json!({
             "revision": COMPOSITION_REVISION,
             "enabled": self.enabled,
-            "order": self.order,
-            "fixture": self.fixture,
             "nextToken": self.next_token,
             "pending": pending,
             "published": self.published,
@@ -172,7 +155,6 @@ pub(super) fn rollback_failed_pair(renderer: &mut Renderer) {
     renderer.composition.last_failure = Some(json!({
         "token": pending.token,
         "config": pending.config,
-        "fixture": pending.fixture,
         "terrainTransactionId": pending.terrain_transaction_id,
         "instanceTransactionId": pending.instance_transaction_id,
         "terrainStage": pending.terrain,
@@ -189,15 +171,6 @@ impl Renderer {
     ) -> Result<serde_json::Value> {
         anyhow::ensure!(!self.composition.has_pending(), "composition_pair_busy");
         self.cooked_object_streamer.open(path)
-    }
-
-    pub fn disable_cooked_object_source(&mut self) -> Result<bool> {
-        anyhow::ensure!(!self.composition.has_pending(), "composition_pair_busy");
-        self.cooked_object_streamer.disable()
-    }
-
-    pub fn cooked_object_status(&self) -> Option<serde_json::Value> {
-        self.cooked_object_streamer.status_json()
     }
 
     pub fn arm_object_io_gate(&mut self) -> Result<u64> {

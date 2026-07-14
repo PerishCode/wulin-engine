@@ -1,7 +1,7 @@
 mod worker;
 
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, Result, ensure};
 use serde::{Serialize, Serializer};
@@ -36,14 +36,13 @@ impl Serialize for TerrainSourceNamespace {
 pub struct TerrainAssignment {
     pub slot: u32,
     pub region_id: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub global_region: Option<crate::world::RegionCoord>,
+    pub global_region: crate::world::RegionCoord,
 }
 
 pub struct TerrainUpload {
     pub slot: u32,
     pub region_id: u32,
-    pub global_region: Option<crate::world::RegionCoord>,
+    pub global_region: crate::world::RegionCoord,
     pub payload: [u8; terrain_format::PAYLOAD_BYTES as usize],
     pub tile: TerrainTile,
     pub sha256: String,
@@ -76,10 +75,8 @@ pub struct TerrainReservationReport {
     pub revision: &'static str,
     pub transaction_id: u64,
     pub config: LoadConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub global_config: Option<GlobalTerrainConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_namespace: Option<TerrainSourceNamespace>,
+    pub global_config: GlobalTerrainConfig,
+    pub source_namespace: TerrainSourceNamespace,
     #[serde(flatten)]
     pub counts: TerrainPlanCounts,
     pub assignments: Vec<TerrainAssignment>,
@@ -91,13 +88,10 @@ pub struct TerrainScheduleReport {
     pub revision: &'static str,
     pub transaction_id: u64,
     pub config: LoadConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub global_config: Option<GlobalTerrainConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_namespace: Option<TerrainSourceNamespace>,
+    pub global_config: GlobalTerrainConfig,
+    pub source_namespace: TerrainSourceNamespace,
     pub requested_region_ids: Vec<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub requested_global_regions: Option<Vec<crate::world::RegionCoord>>,
+    pub requested_global_regions: Vec<crate::world::RegionCoord>,
     pub gate_fence: Option<u64>,
 }
 
@@ -107,10 +101,8 @@ pub struct TerrainTransactionReport {
     pub revision: &'static str,
     pub transaction_id: u64,
     pub config: LoadConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub global_config: Option<GlobalTerrainConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_namespace: Option<TerrainSourceNamespace>,
+    pub global_config: GlobalTerrainConfig,
+    pub source_namespace: TerrainSourceNamespace,
     #[serde(flatten)]
     pub counts: TerrainPlanCounts,
     pub uploaded_sha256: String,
@@ -139,34 +131,21 @@ pub enum TerrainCompletion {
 
 #[derive(Clone)]
 struct PackState {
-    path: PathBuf,
-    metadata: Value,
-    addressing: PackAddressing,
-}
-
-#[derive(Clone)]
-pub(super) enum PackAddressing {
-    LocalAlias {
-        region_ids: BTreeSet<u32>,
-    },
-    SignedGlobal {
-        regions: BTreeSet<crate::world::RegionCoord>,
-        source_namespace: TerrainSourceNamespace,
-    },
+    regions: BTreeSet<crate::world::RegionCoord>,
+    source_namespace: TerrainSourceNamespace,
 }
 
 pub(super) struct PackDescriptor {
     pub metadata: Value,
-    pub addressing: PackAddressing,
+    pub regions: BTreeSet<crate::world::RegionCoord>,
+    pub source_namespace: TerrainSourceNamespace,
 }
 
 struct PendingTerrain {
     transaction_id: u64,
     requested_region_ids: Vec<u32>,
-    requested_global_regions: Option<Vec<crate::world::RegionCoord>>,
-    global_config: Option<GlobalTerrainConfig>,
-    source_namespace: Option<TerrainSourceNamespace>,
-    io_gate_fence: Option<u64>,
+    requested_global_regions: Vec<crate::world::RegionCoord>,
+    source_namespace: TerrainSourceNamespace,
     stage: &'static str,
     io: Option<TerrainIoMetrics>,
 }
@@ -191,9 +170,8 @@ impl TerrainStreamer {
         let metadata = descriptor.metadata.clone();
         self.worker = Some(PackWorker::start(pack, self.gate.clone())?);
         self.pack = Some(PackState {
-            path,
-            metadata: metadata.clone(),
-            addressing: descriptor.addressing,
+            regions: descriptor.regions,
+            source_namespace: descriptor.source_namespace,
         });
         self.last_failure = None;
         Ok(metadata)
@@ -224,9 +202,7 @@ impl TerrainStreamer {
             transaction_id: reservation.transaction_id,
             requested_region_ids: requested_region_ids.clone(),
             requested_global_regions: requested_global_regions.clone(),
-            global_config: reservation.global_config,
             source_namespace: reservation.source_namespace,
-            io_gate_fence,
             stage: "reading",
             io: None,
         });
@@ -314,12 +290,8 @@ impl TerrainStreamer {
             "requestedRegionIds": pending.as_ref().map(|value| &value.requested_region_ids).cloned().unwrap_or_default(),
         });
         if let Some(pending) = pending {
-            if let Some(regions) = pending.requested_global_regions {
-                failure["requestedGlobalRegions"] = json!(regions);
-            }
-            if let Some(namespace) = pending.source_namespace {
-                failure["sourceNamespace"] = json!(namespace);
-            }
+            failure["requestedGlobalRegions"] = json!(pending.requested_global_regions);
+            failure["sourceNamespace"] = json!(pending.source_namespace);
         }
         self.last_failure = Some(failure);
     }
@@ -343,64 +315,9 @@ impl TerrainStreamer {
         Ok(value)
     }
 
-    pub fn status_json(&self) -> Value {
-        let pack = self.pack.as_ref().map(|pack| {
-            let index_bytes = pack
-                .metadata
-                .get("indexBytes")
-                .and_then(Value::as_u64)
-                .expect("terrain pack metadata omitted index bytes");
-            json!({
-                "path": pack.path,
-                "metadata": pack.metadata,
-                "indexReadBytes": u64::from(terrain_format::HEADER_BYTES) + index_bytes,
-            })
-        });
-        let pending = self.pending.as_ref().map(|pending| {
-            let mut value = json!({
-                "transactionId": pending.transaction_id,
-                "requestedRegionIds": pending.requested_region_ids,
-                "globalConfig": pending.global_config,
-                "stage": pending.stage,
-                "ioGateFence": pending.io_gate_fence,
-                "io": pending.io,
-            });
-            if let Some(regions) = &pending.requested_global_regions {
-                value["requestedGlobalRegions"] = json!(regions);
-            }
-            if let Some(namespace) = pending.source_namespace {
-                value["sourceNamespace"] = json!(namespace);
-            }
-            value
-        });
-        json!({
-            "revision": TERRAIN_STREAM_REVISION,
-            "pack": pack,
-            "pending": pending,
-            "ioGate": { "armed": self.armed_gate, "completed": self.gate.completed() },
-            "lastCompleted": self.last_completed,
-            "lastFailure": self.last_failure,
-            "queueCapacity": 1,
-            "workerCount": usize::from(self.worker.is_some()),
-        })
-    }
-
-    pub fn source_namespace(&self) -> Result<Option<TerrainSourceNamespace>> {
+    pub fn source_namespace(&self) -> Result<TerrainSourceNamespace> {
         let pack = self.pack.as_ref().context("no terrain pack is open")?;
-        Ok(match &pack.addressing {
-            PackAddressing::LocalAlias { .. } => None,
-            PackAddressing::SignedGlobal {
-                source_namespace, ..
-            } => Some(*source_namespace),
-        })
-    }
-
-    pub fn ensure_local_source(&self) -> Result<()> {
-        ensure!(
-            self.source_namespace()?.is_none(),
-            "signed terrain pack requires a global schedule"
-        );
-        Ok(())
+        Ok(pack.source_namespace)
     }
 }
 
@@ -408,54 +325,25 @@ impl PackState {
     fn preflight(
         &self,
         reservation: &TerrainReservationReport,
-    ) -> Result<Option<Vec<crate::world::RegionCoord>>> {
-        match &self.addressing {
-            PackAddressing::LocalAlias { region_ids } => {
-                ensure!(
-                    reservation.source_namespace.is_none(),
-                    "local terrain pack received a canonical source namespace"
-                );
-                for assignment in &reservation.assignments {
-                    ensure!(
-                        region_ids.contains(&assignment.region_id),
-                        "terrain region {} is absent from the pack",
-                        assignment.region_id
-                    );
-                }
-                Ok(None)
-            }
-            PackAddressing::SignedGlobal {
-                regions,
-                source_namespace,
-            } => {
-                ensure!(
-                    reservation.source_namespace == Some(*source_namespace),
-                    "signed terrain source namespace mismatch"
-                );
-                let config = reservation
-                    .global_config
-                    .context("signed terrain pack requires a global schedule")?;
-                for addressed in config.addressed_regions()? {
-                    ensure!(
-                        regions.contains(&addressed.global_region),
-                        "signed terrain region ({},{}) is absent from the pack",
-                        addressed.global_region.x,
-                        addressed.global_region.z
-                    );
-                }
-                Ok(Some(
-                    reservation
-                        .assignments
-                        .iter()
-                        .map(|assignment| {
-                            assignment
-                                .global_region
-                                .context("canonical terrain assignment has no global region")
-                        })
-                        .collect::<Result<Vec<_>>>()?,
-                ))
-            }
+    ) -> Result<Vec<crate::world::RegionCoord>> {
+        ensure!(
+            reservation.source_namespace == self.source_namespace,
+            "signed terrain source namespace mismatch"
+        );
+        let config = reservation.global_config;
+        for addressed in config.addressed_regions()? {
+            ensure!(
+                self.regions.contains(&addressed.global_region),
+                "signed terrain region ({},{}) is absent from the pack",
+                addressed.global_region.x,
+                addressed.global_region.z
+            );
         }
+        Ok(reservation
+            .assignments
+            .iter()
+            .map(|assignment| assignment.global_region)
+            .collect())
     }
 }
 

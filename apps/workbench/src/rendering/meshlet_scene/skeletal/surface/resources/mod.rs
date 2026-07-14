@@ -26,7 +26,7 @@ pub const SAMPLE_BYTES: u64 = SAMPLE_COUNT as u64 * SAMPLE_STRIDE;
 pub struct SurfaceResources {
     pub catalog: Catalog,
     pub catalog_sha256: String,
-    pub uploaded: UploadedSurface,
+    pub _uploaded: UploadedSurface,
     pub visibility: ID3D12Resource,
     pub visibility_winner: ID3D12Resource,
     pub color: ID3D12Resource,
@@ -40,8 +40,6 @@ pub struct SurfaceResources {
     pub winner_readback: Readback,
     pub stats_readback: ID3D12Resource,
     pub sample_readback: ID3D12Resource,
-    pub execution_bytes: u64,
-    pub total_execution_bytes: u64,
     descriptor_increment: usize,
 }
 
@@ -93,16 +91,10 @@ impl SurfaceResources {
             unsafe { Readback::new_with_pixel_bytes(device, &visibility_winner, 8) }?;
         let stats_readback = unsafe { readback_buffer(device, STATS_BYTES) }?;
         let sample_readback = unsafe { readback_buffer(device, SAMPLE_BYTES) }?;
-        let execution_bytes = u64::from(width) * u64::from(height) * 20
-            + CANDIDATE_CAPACITY as u64 * 4
-            + STATS_BYTES
-            + SAMPLE_BYTES
-            + uploaded.total_bytes as u64;
-        let total_execution_bytes = execution_bytes + occlusion.execution_bytes;
         Ok(Self {
             catalog,
             catalog_sha256,
-            uploaded,
+            _uploaded: uploaded,
             visibility,
             visibility_winner,
             color,
@@ -116,8 +108,6 @@ impl SurfaceResources {
             winner_readback,
             stats_readback,
             sample_readback,
-            execution_bytes,
-            total_execution_bytes,
             descriptor_increment,
         })
     }

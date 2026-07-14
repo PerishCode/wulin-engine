@@ -1,6 +1,6 @@
 use animation_catalog::{CLIP_COUNT, Catalog as AnimationCatalog};
 use anyhow::{Result, ensure};
-use meshlet_catalog::{Catalog as MeshletCatalog, LOD_COUNT};
+use meshlet_catalog::Catalog as MeshletCatalog;
 use windows::Win32::Graphics::Direct3D12::*;
 
 use crate::scene::SceneState;
@@ -13,7 +13,7 @@ use super::resources::{
 use super::surface::{SurfaceFrame, SurfaceRenderer};
 use crate::rendering::async_resident::PublishedSnapshot;
 use crate::rendering::meshlet_scene::CatalogBuffers;
-use crate::rendering::resident::{set_viewport, transition, uav_barrier};
+use crate::rendering::resident::{transition, uav_barrier};
 use crate::rendering::terrain::TerrainProjection;
 
 pub const SKELETAL_REVISION: &str = "gpu-skeletal-crowds-v1";
@@ -25,7 +25,6 @@ pub struct SkeletalSettings {
     pub phase_count: u32,
     pub time_tick: u32,
     pub unique_poses: bool,
-    pub forced_lod: Option<u32>,
 }
 
 impl Default for SkeletalSettings {
@@ -36,7 +35,6 @@ impl Default for SkeletalSettings {
             phase_count: 64,
             time_tick: 0,
             unique_poses: false,
-            forced_lod: None,
         }
     }
 }
@@ -47,14 +45,13 @@ pub struct SkeletalSceneRenderer {
     pub(super) animation_catalog: AnimationCatalog,
     pub(super) mesh_catalog_sha256: String,
     pub(super) animation_catalog_sha256: String,
-    pub(super) mesh_buffers: CatalogBuffers,
-    pub(super) animation_buffers: AnimationBuffers,
+    pub(super) _mesh_buffers: CatalogBuffers,
+    pub(super) _animation_buffers: AnimationBuffers,
     pub(super) resources: ExecutionResources,
     pub(super) surface: SurfaceRenderer,
     pub(super) timestamp_frequency: u64,
     pub(super) width: u32,
     pub(super) height: u32,
-    pub(super) enabled: bool,
     pub(super) settings: SkeletalSettings,
 }
 
@@ -70,7 +67,6 @@ pub struct SkeletalFrame<'a> {
     pub terrain_slots: Option<&'a [u32]>,
     pub grounding_mode: u32,
     pub projection: TerrainProjection,
-    pub clear_depth_semantic: bool,
 }
 
 impl SkeletalSceneRenderer {
@@ -118,51 +114,15 @@ impl SkeletalSceneRenderer {
             animation_catalog,
             mesh_catalog_sha256,
             animation_catalog_sha256,
-            mesh_buffers,
-            animation_buffers,
+            _mesh_buffers: mesh_buffers,
+            _animation_buffers: animation_buffers,
             resources,
             surface,
             timestamp_frequency,
             width,
             height,
-            enabled: false,
             settings: SkeletalSettings::default(),
         })
-    }
-
-    pub fn configure(&mut self, settings: SkeletalSettings) -> Result<()> {
-        ensure!(
-            matches!(settings.animated_percent, 0 | 25 | 50 | 100),
-            "animatedPercent must be one of 0, 25, 50, or 100"
-        );
-        ensure!(
-            matches!(settings.bone_count, 16 | 32 | 64 | 128),
-            "boneCount must be one of 16, 32, 64, or 128"
-        );
-        ensure!(
-            matches!(settings.phase_count, 1 | 8 | 64),
-            "phaseCount must be one of 1, 8, or 64"
-        );
-        ensure!(
-            settings.forced_lod.is_none_or(|lod| lod < LOD_COUNT),
-            "forcedLod must be null or in the range 0..=2"
-        );
-        self.settings = settings;
-        Ok(())
-    }
-
-    pub fn enable(&mut self) {
-        self.surface.disable();
-        self.enabled = true;
-    }
-
-    pub fn disable(&mut self) {
-        self.enabled = false;
-        self.surface.disable();
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
     }
 
     pub unsafe fn record(
@@ -257,41 +217,20 @@ impl SkeletalSceneRenderer {
                 command_list.EndQuery(&self.resources.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 3)
             };
         }
-        if self.surface.is_enabled() {
-            unsafe {
-                self.surface.record(
-                    command_list,
-                    &self.resources,
-                    constants,
-                    SurfaceFrame {
-                        back_buffer: frame.back_buffer,
-                        object_id_target: frame.render_targets[1],
-                        depth_target: frame.depth_target,
-                        background_color: frame.background_color,
-                        probe: frame.probe,
-                    },
-                )
-            };
-        } else {
-            unsafe { self.record_mesh(command_list, frame, constants, gpu_start) };
-            if frame.probe {
-                unsafe {
-                    command_list.EndQuery(
-                        &self.resources.query_heap,
-                        D3D12_QUERY_TYPE_TIMESTAMP,
-                        4,
-                    );
-                    command_list.ResolveQueryData(
-                        &self.resources.query_heap,
-                        D3D12_QUERY_TYPE_TIMESTAMP,
-                        0,
-                        5,
-                        &self.resources.timestamp_readback,
-                        0,
-                    );
-                }
-            }
-        }
+        unsafe {
+            self.surface.record(
+                command_list,
+                &self.resources,
+                constants,
+                SurfaceFrame {
+                    back_buffer: frame.back_buffer,
+                    object_id_target: frame.render_targets[1],
+                    depth_target: frame.depth_target,
+                    background_color: frame.background_color,
+                    probe: frame.probe,
+                },
+            )
+        };
         if frame.probe {
             unsafe {
                 transition(
@@ -367,91 +306,6 @@ impl SkeletalSceneRenderer {
         Ok(())
     }
 
-    unsafe fn record_mesh(
-        &self,
-        command_list: &ID3D12GraphicsCommandList,
-        frame: SkeletalFrame<'_>,
-        constants: [u32; SKELETAL_CONSTANT_COUNT as usize],
-        gpu_start: D3D12_GPU_DESCRIPTOR_HANDLE,
-    ) {
-        unsafe {
-            transition(
-                command_list,
-                &self.resources.visible,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-            );
-            if frame.terrain_slots.is_some() {
-                transition(
-                    command_list,
-                    &self.resources.ground,
-                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                );
-            }
-            transition(
-                command_list,
-                &self.resources.palette,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-            );
-            command_list.OMSetRenderTargets(
-                2,
-                Some(frame.render_targets.as_ptr()),
-                false,
-                Some(&frame.depth_target),
-            );
-            if frame.clear_depth_semantic {
-                command_list.ClearRenderTargetView(frame.render_targets[1], &[0.0; 4], None);
-                command_list.ClearDepthStencilView(
-                    frame.depth_target,
-                    D3D12_CLEAR_FLAG_DEPTH,
-                    0.0,
-                    0,
-                    None,
-                );
-            }
-            set_viewport(command_list, self.width, self.height);
-            command_list.SetGraphicsRootSignature(&self.pipeline.root);
-            command_list.SetPipelineState(&self.pipeline.graphics);
-            command_list.SetGraphicsRoot32BitConstants(
-                0,
-                SKELETAL_CONSTANT_COUNT,
-                constants.as_ptr().cast(),
-                0,
-            );
-            command_list.SetGraphicsRootDescriptorTable(1, gpu_start);
-            command_list.ExecuteIndirect(
-                &self.pipeline.mesh_signature,
-                1,
-                &self.resources.counters,
-                0,
-                None,
-                0,
-            );
-            transition(
-                command_list,
-                &self.resources.visible,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            );
-            if frame.terrain_slots.is_some() {
-                transition(
-                    command_list,
-                    &self.resources.ground,
-                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                );
-            }
-            transition(
-                command_list,
-                &self.resources.palette,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            );
-        }
-    }
-
     fn constants(
         &self,
         scene: &SceneState,
@@ -471,14 +325,10 @@ impl SkeletalSceneRenderer {
         constants[16] = snapshot.config.active_region_count();
         constants[17] = MAX_SKELETAL_VISIBLE;
         constants[18] = (1 << CLIP_COUNT) - 1;
-        constants[19] = self.settings.forced_lod.unwrap_or(u32::MAX);
+        constants[19] = u32::MAX;
         for (index, instance_slot) in snapshot.active_slots.iter().copied().enumerate() {
             let terrain_slot = terrain_slots.map_or(0, |slots| slots[index]);
-            let semantic_region = if projection.is_canonical() {
-                projection.region_id(index, 0)?
-            } else {
-                0
-            };
+            let semantic_region = projection.region_id(index)?;
             ensure!(
                 semantic_region < 1 << 14,
                 "object semantic region exceeds the packed mapping"

@@ -3,8 +3,7 @@ use anyhow::{Context, Result, ensure};
 use glam::Vec3;
 use surface_catalog::{Catalog as SurfaceCatalog, TEXTURE_SIDE, decode_octahedral};
 
-use crate::load::LoadConfig;
-use crate::resident::{active_region_ids, generate_region};
+use crate::resident::{InstanceRecord, canonical_stable_key};
 
 use super::super::oracle::pose_phase;
 use super::super::renderer::SkeletalSettings;
@@ -23,7 +22,8 @@ pub struct OracleInput<'a> {
     pub animation: &'a AnimationCatalog,
     pub skeletal_settings: SkeletalSettings,
     pub surface_settings: SurfaceSettings,
-    pub config: LoadConfig,
+    pub instance_records: &'a [Vec<InstanceRecord>],
+    pub local_ids: &'a [Vec<u32>],
     pub background_color: [f32; 4],
 }
 
@@ -52,14 +52,21 @@ fn shade_visible(
     sample: &SurfaceSample,
     input: OracleInput<'_>,
 ) -> Result<(u32, [u32; 2])> {
-    let active_regions = active_region_ids(input.config)?;
     let region_ordinal = (candidate / 1024) as usize;
     let local_index = (candidate % 1024) as usize;
-    let region_id = *active_regions
+    let region_records = input
+        .instance_records
         .get(region_ordinal)
         .context("surface sample candidate has no active region")?;
-    let instance = generate_region(region_id)[local_index];
-    let stable_key = region_id * 1024 + local_index as u32;
+    let instance = *region_records
+        .get(local_index)
+        .context("surface sample candidate has no physical record")?;
+    let local_id = *input
+        .local_ids
+        .get(region_ordinal)
+        .and_then(|ids| ids.get(local_index))
+        .context("surface sample candidate has no authored local ID")?;
+    let stable_key = canonical_stable_key(instance.region_id, local_id);
     ensure!(
         sample.stable_key == Some(stable_key),
         "surface sample stable key differs from its candidate address"

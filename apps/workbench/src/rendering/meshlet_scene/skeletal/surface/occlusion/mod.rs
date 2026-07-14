@@ -37,8 +37,6 @@ pub struct OcclusionResources {
     pub order_readback: ID3D12Resource,
     pub hierarchy_readback: HierarchyReadback,
     pub mip_count: u32,
-    pub hierarchy_bytes: u64,
-    pub execution_bytes: u64,
 }
 
 impl OcclusionResources {
@@ -53,12 +51,6 @@ impl OcclusionResources {
         let mask_readback = unsafe { readback_buffer(device, OCCLUSION_MASK_BYTES) }?;
         let order_readback = unsafe { readback_buffer(device, FILTERED_VISIBLE_BYTES * 2) }?;
         let hierarchy_readback = unsafe { HierarchyReadback::new(device, &hierarchy) }?;
-        let hierarchy_bytes = hierarchy_texels(width, height, mip_count) * 4;
-        let execution_bytes = FILTERED_VISIBLE_BYTES
-            + OCCLUSION_COUNTER_BYTES
-            + OCCLUSION_MASK_BYTES
-            + GROUP_OFFSETS_BYTES
-            + hierarchy_bytes;
         Ok(Self {
             filtered_visible,
             counters,
@@ -70,8 +62,6 @@ impl OcclusionResources {
             order_readback,
             hierarchy_readback,
             mip_count,
-            hierarchy_bytes,
-            execution_bytes,
         })
     }
 }
@@ -213,12 +203,6 @@ impl HierarchyReadback {
 
 pub fn mip_count(width: u32, height: u32) -> u32 {
     u32::BITS - width.max(height).leading_zeros()
-}
-
-fn hierarchy_texels(width: u32, height: u32, mip_count: u32) -> u64 {
-    (0..mip_count)
-        .map(|mip| u64::from((width >> mip).max(1)) * u64::from((height >> mip).max(1)))
-        .sum()
 }
 
 unsafe fn hierarchy_texture(

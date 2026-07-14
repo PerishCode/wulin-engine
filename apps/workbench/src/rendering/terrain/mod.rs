@@ -25,7 +25,6 @@ pub(in crate::rendering) use self::projection::TerrainProjection;
 use self::transfer::{TerrainPublication, TerrainTransfer};
 use super::resident::{create_buffer, create_query_heap, set_viewport, transition, uav_barrier};
 
-pub use self::lod::TerrainLodSettings;
 pub(in crate::rendering) use self::lod::{PATCH_CELL_SIDE, PATCHES_PER_REGION_SIDE, selected_lod};
 pub use self::probe::TerrainProbe;
 
@@ -49,8 +48,6 @@ pub struct TerrainRenderer {
     timestamp_frequency: u64,
     width: u32,
     height: u32,
-    enabled: bool,
-    lod_settings: TerrainLodSettings,
     generation: u64,
     published: Option<PublishedTerrain>,
     staged: Option<TerrainPublication>,
@@ -58,7 +55,7 @@ pub struct TerrainRenderer {
 
 struct PublishedTerrain {
     config: LoadConfig,
-    global_config: Option<GlobalTerrainConfig>,
+    global_config: GlobalTerrainConfig,
     active: Vec<TerrainAssignment>,
     tiles: Vec<terrain_format::TerrainTile>,
     generation: u64,
@@ -160,43 +157,10 @@ impl TerrainRenderer {
             timestamp_frequency,
             width,
             height,
-            enabled: false,
-            lod_settings: TerrainLodSettings::default(),
             generation: 0,
             published: None,
             staged: None,
         })
-    }
-
-    pub fn reserve(&mut self, config: LoadConfig) -> Result<TerrainReservationReport> {
-        let protected = self
-            .published
-            .iter()
-            .flat_map(|value| value.active.iter().map(|entry| entry.slot))
-            .chain(
-                self.staged
-                    .iter()
-                    .flat_map(|value| value.active.iter().map(|entry| entry.slot)),
-            )
-            .collect();
-        self.transfer.reserve(config, &protected)
-    }
-
-    pub fn reserve_global(
-        &mut self,
-        config: GlobalTerrainConfig,
-    ) -> Result<TerrainReservationReport> {
-        let protected = self
-            .published
-            .iter()
-            .flat_map(|value| value.active.iter().map(|entry| entry.slot))
-            .chain(
-                self.staged
-                    .iter()
-                    .flat_map(|value| value.active.iter().map(|entry| entry.slot)),
-            )
-            .collect();
-        self.transfer.reserve_global(config, &protected)
     }
 
     pub fn reserve_canonical_global(
@@ -235,14 +199,6 @@ impl TerrainRenderer {
             self.transfer
                 .submit(transaction_id, uploads, io, queue, fence, release_fence)
         }
-    }
-
-    pub unsafe fn prepare_frame(
-        &mut self,
-        command_list: &ID3D12GraphicsCommandList,
-    ) -> Result<Option<TerrainTransactionReport>> {
-        unsafe { self.stage_frame(command_list) }?;
-        Ok(self.commit_staged())
     }
 
     pub(in crate::rendering) unsafe fn stage_frame(
@@ -300,13 +256,7 @@ impl TerrainRenderer {
             .published
             .as_ref()
             .context("terrain renderer has no published snapshot")?;
-        let constants = constants(
-            frame.scene,
-            snapshot,
-            self.lod_settings,
-            self.width,
-            self.height,
-        )?;
+        let constants = constants(frame.scene, snapshot, self.width, self.height)?;
         let heap = self.transfer.descriptor_heap();
         let gpu = unsafe { heap.GetGPUDescriptorHandleForHeapStart() };
         unsafe {
@@ -330,11 +280,9 @@ impl TerrainRenderer {
             command_list.SetPipelineState(&self.pipeline.seam);
             command_list.Dispatch(25, 2, 1);
             uav_barrier(command_list, &self.seams);
-            if self.lod_settings.enabled {
-                command_list.SetPipelineState(&self.pipeline.lod_seam);
-                command_list.Dispatch(PATCH_GROUP_COUNT, 2, 1);
-                uav_barrier(command_list, &self.lod_stats);
-            }
+            command_list.SetPipelineState(&self.pipeline.lod_seam);
+            command_list.Dispatch(PATCH_GROUP_COUNT, 2, 1);
+            uav_barrier(command_list, &self.lod_stats);
             if frame.probe {
                 command_list.EndQuery(&self.query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 1);
             }
@@ -424,13 +372,11 @@ impl TerrainRenderer {
 fn constants(
     scene: &SceneState,
     snapshot: &PublishedTerrain,
-    lod_settings: TerrainLodSettings,
     width: u32,
     height: u32,
 ) -> Result<[u32; TERRAIN_CONSTANT_COUNT as usize]> {
     let mut constants = [0u32; TERRAIN_CONSTANT_COUNT as usize];
-    let projection =
-        TerrainProjection::for_terrain(snapshot.config, snapshot.report.source_namespace)?;
+    let projection = TerrainProjection::for_terrain(snapshot.config)?;
     let camera = projection.camera(scene.camera());
     for (destination, value) in constants[..16]
         .iter_mut()
@@ -449,16 +395,16 @@ fn constants(
         .zip(&snapshot.active)
         .enumerate()
     {
-        *destination = entry.slot | (projection.region_id(index, entry.region_id)? << 6);
+        *destination = entry.slot | (projection.region_id(index)? << 6);
     }
     let camera_patch = lod::camera_patch(camera);
     constants[48..56].copy_from_slice(&[
         camera_patch[0] as u32,
         camera_patch[1] as u32,
-        lod_settings.near_patch_radius,
-        lod_settings.middle_patch_radius,
-        u32::from(lod_settings.enabled),
-        lod_settings.forced_lod.map_or(0, |value| value + 1),
+        lod::NEAR_PATCH_RADIUS,
+        lod::MIDDLE_PATCH_RADIUS,
+        1,
+        0,
         0,
         0,
     ]);

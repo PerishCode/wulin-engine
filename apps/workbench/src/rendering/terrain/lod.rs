@@ -14,54 +14,8 @@ pub(in crate::rendering) const PATCH_CELL_SIDE: u32 = 8;
 const LOD_LEVEL_COUNT: usize = 3;
 const PATCH_WORLD_SIDE_METERS: f32 = 4.0;
 const WORLD_PATCH_ORIGIN_METERS: f32 = -1_032.0;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TerrainLodSettings {
-    pub enabled: bool,
-    pub near_patch_radius: u32,
-    pub middle_patch_radius: u32,
-    pub forced_lod: Option<u32>,
-}
-
-impl Default for TerrainLodSettings {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            near_patch_radius: 2,
-            middle_patch_radius: 6,
-            forced_lod: None,
-        }
-    }
-}
-
-impl TerrainLodSettings {
-    pub fn configured(
-        self,
-        near_patch_radius: u32,
-        middle_patch_radius: u32,
-        forced_lod: Option<u32>,
-    ) -> Result<Self> {
-        ensure!(
-            near_patch_radius < middle_patch_radius,
-            "terrain LOD near radius must be smaller than middle radius"
-        );
-        ensure!(
-            middle_patch_radius <= 64,
-            "terrain LOD middle radius exceeds the registered bound"
-        );
-        ensure!(
-            forced_lod.is_none_or(|value| value < LOD_LEVEL_COUNT as u32),
-            "terrain forced LOD must be 0, 1, 2, or null"
-        );
-        Ok(Self {
-            enabled: self.enabled,
-            near_patch_radius,
-            middle_patch_radius,
-            forced_lod,
-        })
-    }
-}
+pub(super) const NEAR_PATCH_RADIUS: u32 = 2;
+pub(super) const MIDDLE_PATCH_RADIUS: u32 = 6;
 
 #[derive(Clone, Copy)]
 struct Patch<'a> {
@@ -77,7 +31,8 @@ struct Patch<'a> {
 #[serde(rename_all = "camelCase")]
 pub(super) struct TerrainLodOracle {
     pub revision: &'static str,
-    pub settings: TerrainLodSettings,
+    pub near_patch_radius: u32,
+    pub middle_patch_radius: u32,
     pub camera_patch: [i32; 2],
     pub lod_sha256: String,
     pub lod_counts: [u32; LOD_LEVEL_COUNT],
@@ -136,7 +91,6 @@ pub(super) fn evaluate(
     active: &[TerrainAssignment],
     tiles: &[terrain_format::TerrainTile],
     camera: Camera,
-    settings: TerrainLodSettings,
     projection: TerrainProjection,
 ) -> Result<TerrainLodOracle> {
     ensure!(
@@ -152,7 +106,6 @@ pub(super) fn evaluate(
         region_side,
         patch_side,
         camera_patch,
-        settings,
         projection,
     )?;
     let mut lod_counts = [0u32; LOD_LEVEL_COUNT];
@@ -178,7 +131,8 @@ pub(super) fn evaluate(
     let baseline_triangles = patch_count * 128;
     Ok(TerrainLodOracle {
         revision: LOD_REVISION,
-        settings,
+        near_patch_radius: NEAR_PATCH_RADIUS,
+        middle_patch_radius: MIDDLE_PATCH_RADIUS,
         camera_patch,
         lod_sha256: format!("{:x}", lod_hash.finalize()),
         lod_counts,
@@ -203,7 +157,6 @@ fn build_patches<'a>(
     region_side: u32,
     patch_side: u32,
     camera: [i32; 2],
-    settings: TerrainLodSettings,
     projection: TerrainProjection,
 ) -> Result<Vec<Patch<'a>>> {
     let mut patches = Vec::with_capacity((patch_side * patch_side) as usize);
@@ -219,8 +172,7 @@ fn build_patches<'a>(
                 assignment.region_id == tile.region_id,
                 "terrain LOD tile does not match active mapping"
             );
-            let projected_region =
-                projection.region_id(region_index as usize, assignment.region_id)?;
+            let projected_region = projection.region_id(region_index as usize)?;
             let region_x = (projected_region % terrain_format::WORLD_REGION_SIDE) as i32;
             let region_z = (projected_region / terrain_format::WORLD_REGION_SIDE) as i32;
             let local_x = grid_x % PATCHES_PER_REGION_SIDE;
@@ -233,33 +185,22 @@ fn build_patches<'a>(
                 patch_z: local_z * PATCH_CELL_SIDE,
                 global_x,
                 global_z,
-                lod: select_lod(global_x, global_z, camera, settings),
+                lod: select_lod(global_x, global_z, camera),
             });
         }
     }
     Ok(patches)
 }
 
-pub(in crate::rendering) fn selected_lod(
-    patch_x: i32,
-    patch_z: i32,
-    camera: Camera,
-    settings: TerrainLodSettings,
-) -> u32 {
-    select_lod(patch_x, patch_z, camera_patch(camera), settings)
+pub(in crate::rendering) fn selected_lod(patch_x: i32, patch_z: i32, camera: Camera) -> u32 {
+    select_lod(patch_x, patch_z, camera_patch(camera))
 }
 
-fn select_lod(patch_x: i32, patch_z: i32, camera: [i32; 2], settings: TerrainLodSettings) -> u32 {
-    if !settings.enabled {
-        return 0;
-    }
-    if let Some(forced) = settings.forced_lod {
-        return forced;
-    }
+fn select_lod(patch_x: i32, patch_z: i32, camera: [i32; 2]) -> u32 {
     let distance = patch_x.abs_diff(camera[0]).max(patch_z.abs_diff(camera[1]));
-    if distance <= settings.near_patch_radius {
+    if distance <= NEAR_PATCH_RADIUS {
         0
-    } else if distance <= settings.middle_patch_radius {
+    } else if distance <= MIDDLE_PATCH_RADIUS {
         1
     } else {
         2

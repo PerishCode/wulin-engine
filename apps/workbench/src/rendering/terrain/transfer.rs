@@ -9,7 +9,6 @@ use windows::Win32::Graphics::Direct3D12::*;
 use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
 use windows::core::Interface;
 
-use crate::load::LoadConfig;
 use crate::terrain::{
     GlobalTerrainConfig, TERRAIN_STREAM_REVISION, TerrainAssignment, TerrainIoMetrics,
     TerrainReservationReport, TerrainSourceNamespace, TerrainTransactionReport, TerrainUpload,
@@ -20,7 +19,7 @@ use super::cache::{LayoutPlan, TerrainCache};
 use super::copy_timing::CopyTimer;
 use super::descriptors::create_heap;
 
-pub(super) use super::cache::{TERRAIN_ACTIVE_CAPACITY, TERRAIN_CACHE_CAPACITY};
+use super::cache::TERRAIN_CACHE_CAPACITY;
 
 struct ReservedTransfer {
     transaction_id: u64,
@@ -46,7 +45,6 @@ pub struct TerrainPublication {
 pub struct TerrainTransfer {
     regions: Vec<ID3D12Resource>,
     heap: ID3D12DescriptorHeap,
-    region_allocation_bytes: u64,
     upload: ID3D12Resource,
     release_allocator: ID3D12CommandAllocator,
     release_list: ID3D12GraphicsCommandList,
@@ -65,7 +63,6 @@ pub struct TerrainTransfer {
     shader_slots: [bool; TERRAIN_CACHE_CAPACITY],
     reservation: Option<ReservedTransfer>,
     pending: Option<PendingTransfer>,
-    last_completed: Option<TerrainTransactionReport>,
     next_transaction_id: u64,
 }
 
@@ -89,9 +86,6 @@ impl TerrainTransfer {
             }?);
         }
         let heap = unsafe { create_heap(device, &regions, stats, seams, lod_stats) }?;
-        let region_allocation_bytes =
-            unsafe { device.GetResourceAllocationInfo(0, &[regions[0].GetDesc()]) }.SizeInBytes
-                * TERRAIN_CACHE_CAPACITY as u64;
         let upload = unsafe {
             create_buffer(
                 device,
@@ -135,7 +129,6 @@ impl TerrainTransfer {
         Ok(Self {
             regions,
             heap,
-            region_allocation_bytes,
             upload,
             release_allocator,
             release_list,
@@ -156,33 +149,8 @@ impl TerrainTransfer {
             shader_slots: [false; TERRAIN_CACHE_CAPACITY],
             reservation: None,
             pending: None,
-            last_completed: None,
             next_transaction_id: 1,
         })
-    }
-
-    pub fn reserve(
-        &mut self,
-        config: LoadConfig,
-        protected: &BTreeSet<u32>,
-    ) -> Result<TerrainReservationReport> {
-        if self.reservation.is_some() || self.pending.is_some() {
-            bail!("terrain_stream_busy");
-        }
-        let layout = self.cache.plan(config, protected)?;
-        self.reserve_layout(layout)
-    }
-
-    pub fn reserve_global(
-        &mut self,
-        config: GlobalTerrainConfig,
-        protected: &BTreeSet<u32>,
-    ) -> Result<TerrainReservationReport> {
-        if self.reservation.is_some() || self.pending.is_some() {
-            bail!("terrain_stream_busy");
-        }
-        let layout = self.cache.plan_global(config, protected)?;
-        self.reserve_layout(layout)
     }
 
     pub fn reserve_canonical_global(
@@ -333,10 +301,8 @@ impl TerrainTransfer {
         for upload in &uploads {
             hash.update(upload.slot.to_le_bytes());
             hash.update(upload.region_id.to_le_bytes());
-            if let Some(global) = upload.global_region {
-                hash.update(global.x.to_le_bytes());
-                hash.update(global.z.to_le_bytes());
-            }
+            hash.update(upload.global_region.x.to_le_bytes());
+            hash.update(upload.global_region.z.to_le_bytes());
             hash.update(upload.payload.as_slice());
             hash.update(upload.sha256.as_bytes());
             next_tiles[upload.slot as usize] = Some(upload.tile.clone());
@@ -410,7 +376,6 @@ impl TerrainTransfer {
         pending.report.pending_ms = pending.started_at.elapsed().as_secs_f64() * 1_000.0;
         pending.report.copy_to_publication_ms =
             (pending.report.pending_ms - pending.report.schedule_ms).max(0.0);
-        self.last_completed = Some(pending.report.clone());
         Ok(Some(TerrainPublication {
             active: pending.active,
             tiles,
@@ -437,21 +402,6 @@ impl TerrainTransfer {
         unsafe { self.gate_fence.Signal(value) }.context("terrain copy gate signal failed")?;
         self.armed_gate = None;
         Ok(value)
-    }
-
-    pub fn status_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "cacheCapacity": TERRAIN_CACHE_CAPACITY,
-            "activeCapacity": TERRAIN_ACTIVE_CAPACITY,
-            "payloadBytesPerRegion": terrain_format::PAYLOAD_BYTES,
-            "payloadArenaBytes": TERRAIN_CACHE_CAPACITY as u32 * terrain_format::PAYLOAD_BYTES,
-            "defaultHeapAllocationBytes": self.region_allocation_bytes,
-            "copyTimestampBytes": CopyTimer::READBACK_BYTES,
-            "reservation": self.reservation.as_ref().map(|value| value.transaction_id),
-            "copyPending": self.pending.as_ref().map(|value| value.report.transaction_id),
-            "copyGate": self.armed_gate,
-            "lastCompleted": self.last_completed,
-        })
     }
 
     pub unsafe fn wait_idle(&mut self) -> Result<()> {

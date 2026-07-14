@@ -1,14 +1,10 @@
 use anyhow::{Result, ensure};
-use serde_json::{Value, json};
 use windows::Win32::Graphics::Direct3D12::ID3D12DescriptorHeap;
 
 use crate::load::LoadConfig;
 use crate::terrain::{GlobalTerrainConfig, TerrainAssignment, TerrainSourceNamespace};
 
-use super::{
-    PATCH_GROUP_COUNT, TERRAIN_REVISION, TerrainLodSettings, TerrainProjection, TerrainRenderer,
-    lod,
-};
+use super::{TerrainProjection, TerrainRenderer};
 
 impl TerrainRenderer {
     pub fn enable(&mut self) -> Result<()> {
@@ -16,16 +12,7 @@ impl TerrainRenderer {
             self.published.is_some(),
             "terrain requires a published snapshot"
         );
-        self.enabled = true;
         Ok(())
-    }
-
-    pub fn disable(&mut self) {
-        self.enabled = false;
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
     }
 
     pub fn config(&self) -> Option<LoadConfig> {
@@ -33,15 +20,13 @@ impl TerrainRenderer {
     }
 
     pub(in crate::rendering) fn global_config(&self) -> Option<GlobalTerrainConfig> {
-        self.published
-            .as_ref()
-            .and_then(|value| value.global_config)
+        self.published.as_ref().map(|value| value.global_config)
     }
 
     pub(in crate::rendering) fn source_namespace(&self) -> Option<TerrainSourceNamespace> {
         self.published
             .as_ref()
-            .and_then(|value| value.report.source_namespace)
+            .map(|value| value.report.source_namespace)
     }
 
     pub(in crate::rendering) fn projection(&self) -> Result<TerrainProjection> {
@@ -49,60 +34,7 @@ impl TerrainRenderer {
             .published
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("terrain projection requires a published snapshot"))?;
-        TerrainProjection::for_terrain(published.config, published.report.source_namespace)
-    }
-
-    pub fn status_json(&self) -> Value {
-        json!({
-            "revision": TERRAIN_REVISION,
-            "enabled": self.enabled,
-            "published": self.published.as_ref().map(|value| json!({
-                "config": value.config,
-                "globalConfig": value.global_config,
-                "generation": value.generation,
-                "active": value.active,
-                "transaction": value.report,
-            })),
-            "transfer": self.transfer.status_json(),
-            "lod": {
-                "revision": lod::LOD_REVISION,
-                "settings": self.lod_settings,
-                "submission": {
-                    "dispatchCount": u32::from(self.lod_settings.enabled),
-                    "dispatchGroups": [PATCH_GROUP_COUNT, 2, 1],
-                },
-            },
-            "submission": {
-                "meshDispatchCount": 1,
-                "meshDispatchGroups": [PATCH_GROUP_COUNT, 1, 1],
-                "seamDispatchCount": 1,
-                "seamDispatchGroups": [25, 2, 1],
-            },
-        })
-    }
-
-    pub fn configure_lod(
-        &mut self,
-        near_patch_radius: u32,
-        middle_patch_radius: u32,
-        forced_lod: Option<u32>,
-    ) -> Result<()> {
-        self.lod_settings =
-            self.lod_settings
-                .configured(near_patch_radius, middle_patch_radius, forced_lod)?;
-        Ok(())
-    }
-
-    pub fn enable_lod(&mut self) {
-        self.lod_settings.enabled = true;
-    }
-
-    pub fn disable_lod(&mut self) {
-        self.lod_settings.enabled = false;
-    }
-
-    pub fn lod_settings(&self) -> TerrainLodSettings {
-        self.lod_settings
+        TerrainProjection::for_terrain(published.config)
     }
 
     pub(in crate::rendering) fn descriptor_heap(&self) -> &ID3D12DescriptorHeap {

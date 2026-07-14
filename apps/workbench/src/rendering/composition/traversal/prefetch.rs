@@ -1,4 +1,4 @@
-use anyhow::{Result, ensure};
+use anyhow::Result;
 use serde_json::{Value, json};
 
 use crate::load::LoadConfig;
@@ -27,11 +27,7 @@ pub(super) struct PrefetchState {
 }
 
 impl PrefetchState {
-    pub(super) fn enable(&mut self, canonical: bool) -> Result<()> {
-        ensure!(
-            canonical,
-            "traversal prefetch requires canonical composition"
-        );
+    pub(super) fn enable(&mut self) -> Result<()> {
         self.configured = true;
         self.enabled = true;
         self.previous_camera = None;
@@ -123,9 +119,7 @@ impl PrefetchState {
         self.prepared = Some(scheduled.clone());
         evidence["token"] = json!(token);
         evidence["config"] = json!(target.config);
-        if let Some(global) = target.global_config {
-            evidence["globalConfig"] = json!(global);
-        }
+        evidence["globalConfig"] = json!(target.global_config);
         self.last_completed = Some(evidence);
         self.failed = None;
         self.last_failure = None;
