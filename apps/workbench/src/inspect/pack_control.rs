@@ -1,12 +1,12 @@
 use std::path::{Component, Path, PathBuf};
 
 #[derive(Clone, Copy)]
-pub enum PackKind {
+pub(crate) enum PackKind {
     Terrain,
     Objects,
 }
 
-pub fn validate(value: &str, kind: PackKind) -> anyhow::Result<PathBuf> {
+pub(crate) fn validate(value: &str, kind: PackKind) -> anyhow::Result<PathBuf> {
     let path = Path::new(value);
     anyhow::ensure!(!path.is_absolute(), "pack path must be repository-relative");
     anyhow::ensure!(

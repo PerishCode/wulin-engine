@@ -1,0 +1,23 @@
+[project]
+name = "wulin-engine"
+namespace = "bootstrap"
+root = "."
+
+[app]
+name = "workbench"
+command = "cargo"
+args = [
+  "run",
+  "--locked",
+  "-p",
+  "workbench",
+  "--",
+  "--bootstrap=out/cooked/bootstrap/runtime.json",
+]
+cwd = "."
+mode = "bootstrap"
+inspect_socket = "tcp://127.0.0.1:47631"
+
+[app.ready]
+role = "workbench"
+timeout_secs = 120

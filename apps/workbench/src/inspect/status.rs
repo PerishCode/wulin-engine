@@ -33,6 +33,7 @@ pub(super) fn workbench(hwnd: HWND, runtime: &Runtime, state: &WorkbenchState) -
         "frameIndex": state.frame_index,
         "lastFrameMs": state.last_frame_ms,
         "clearColor": state.clear_color,
+        "startup": state.startup,
         "spatial": runtime.spatial_json(),
         "workload": workload(runtime),
         "window": {

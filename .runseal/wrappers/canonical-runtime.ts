@@ -45,9 +45,10 @@ import {
     sourceDurationGates,
 } from "../support/cooked-gltf-presentation.ts";
 import { hostInputGates } from "../support/host-input-replay.ts";
+import { bootstrapGates } from "../support/runtime-bootstrap.ts";
 
-const REVISION = "deterministic-host-input-v1";
-const COLLECTION = "0041-deterministic-host-input";
+const REVISION = "declarative-runtime-bootstrap-v1";
+const COLLECTION = "0042-declarative-runtime-bootstrap";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -84,6 +85,8 @@ await Deno.mkdir(`${root}/out/captures/${COLLECTION}`, { recursive: true });
 useSidecar("sidecar.toml");
 await lifecycle("stop");
 useSidecar("sidecar.benchmark.toml");
+await lifecycle("stop");
+useSidecar("sidecar.bootstrap.toml");
 await lifecycle("stop");
 useSidecar("sidecar.toml");
 
@@ -147,6 +150,13 @@ const terrainCorruption = await corruptTerrain(TERRAIN_CORRUPT, [BASE[0] + 75, B
 let acceptance: Json | undefined;
 try {
     console.log("==> canonical correctness and failure gates");
+    const bootstrap = await bootstrapGates(
+        TERRAIN,
+        OBJECTS_A,
+        OBJECTS_CORRUPT,
+        BASE,
+        COLLECTION,
+    );
     const hostInput = await hostInputGates();
     const idle = await status();
     if (object(idle, "workload").mode !== "idle-shell") {
@@ -413,6 +423,7 @@ try {
             terrainCorruption,
         },
         correctness: {
+            bootstrap,
             hostInput,
             idle,
             basePublication,
@@ -455,6 +466,8 @@ try {
     useSidecar("sidecar.toml");
     await lifecycle("stop");
     useSidecar("sidecar.benchmark.toml");
+    await lifecycle("stop");
+    useSidecar("sidecar.bootstrap.toml");
     await lifecycle("stop");
 }
 
