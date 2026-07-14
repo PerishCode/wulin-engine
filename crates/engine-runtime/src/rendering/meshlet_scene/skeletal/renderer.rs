@@ -37,6 +37,15 @@ impl Default for SkeletalSettings {
     }
 }
 
+impl SkeletalSettings {
+    pub(super) fn for_tick(time_tick: u32) -> Self {
+        Self {
+            time_tick,
+            ..Self::default()
+        }
+    }
+}
+
 pub struct SkeletalSceneRenderer {
     pipeline: SkeletalPipeline,
     pub(super) mesh_catalog: MeshletCatalog,
@@ -50,11 +59,6 @@ pub struct SkeletalSceneRenderer {
     pub(super) timestamp_frequency: u64,
     pub(super) width: u32,
     pub(super) height: u32,
-    pub(super) settings: SkeletalSettings,
-    pub(super) time_running: bool,
-    pub(super) automatic_time_advance_count: u64,
-    pub(super) manual_time_step_count: u64,
-    pub(super) time_wrap_count: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -69,6 +73,7 @@ pub struct SkeletalFrame<'a> {
     pub terrain_slots: Option<&'a [u32]>,
     pub grounding_mode: u32,
     pub projection: TerrainProjection,
+    pub presentation_tick: u32,
 }
 
 impl SkeletalSceneRenderer {
@@ -123,62 +128,7 @@ impl SkeletalSceneRenderer {
             timestamp_frequency,
             width,
             height,
-            settings: SkeletalSettings::default(),
-            time_running: true,
-            automatic_time_advance_count: 0,
-            manual_time_step_count: 0,
-            time_wrap_count: 0,
         })
-    }
-
-    pub(in crate::rendering) fn pause_presentation_time(&mut self) {
-        self.time_running = false;
-    }
-
-    pub(in crate::rendering) fn resume_presentation_time(&mut self) {
-        self.time_running = true;
-    }
-
-    pub(in crate::rendering) fn set_presentation_time(&mut self, tick: u32) -> Result<()> {
-        ensure!(
-            !self.time_running,
-            "presentation clock must be paused before setting time"
-        );
-        ensure!(
-            tick < animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD,
-            "presentation tick must be below {}",
-            animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD
-        );
-        self.settings.time_tick = tick;
-        Ok(())
-    }
-
-    pub(in crate::rendering) fn step_presentation_time(&mut self, ticks: u32) -> Result<()> {
-        ensure!(
-            !self.time_running,
-            "presentation clock must be paused before stepping"
-        );
-        ensure!(
-            (1..=4_096).contains(&ticks),
-            "presentation step must contain 1..=4096 ticks"
-        );
-        self.advance_presentation_ticks(ticks);
-        self.manual_time_step_count = self.manual_time_step_count.wrapping_add(u64::from(ticks));
-        Ok(())
-    }
-
-    pub(in crate::rendering) fn advance_presentation_frame(&mut self) {
-        if self.time_running {
-            self.advance_presentation_ticks(1);
-            self.automatic_time_advance_count = self.automatic_time_advance_count.wrapping_add(1);
-        }
-    }
-
-    fn advance_presentation_ticks(&mut self, ticks: u32) {
-        let total = u64::from(self.settings.time_tick) + u64::from(ticks);
-        let period = u64::from(animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD);
-        self.time_wrap_count = self.time_wrap_count.wrapping_add(total / period);
-        self.settings.time_tick = (total % period) as u32;
     }
 
     pub unsafe fn record(
@@ -186,7 +136,9 @@ impl SkeletalSceneRenderer {
         command_list: &ID3D12GraphicsCommandList,
         frame: SkeletalFrame<'_>,
     ) -> Result<()> {
+        let settings = SkeletalSettings::for_tick(frame.presentation_tick);
         let constants = self.constants(
+            settings,
             frame.scene,
             frame.snapshot,
             frame.terrain_slots,
@@ -364,6 +316,7 @@ impl SkeletalSceneRenderer {
 
     fn constants(
         &self,
+        settings: SkeletalSettings,
         scene: &SceneState,
         snapshot: &PublishedSnapshot,
         terrain_slots: Option<&[u32]>,
@@ -392,10 +345,10 @@ impl SkeletalSceneRenderer {
             constants[20 + index] = instance_slot | (terrain_slot << 6) | (semantic_region << 12);
         }
         constants[48] = RIG_COUNT;
-        constants[49] = self.settings.bone_count;
-        constants[50] = self.settings.phase_count;
-        constants[51] = self.settings.time_tick;
-        constants[52] = u32::from(self.settings.unique_poses);
+        constants[49] = settings.bone_count;
+        constants[50] = settings.phase_count;
+        constants[51] = settings.time_tick;
+        constants[52] = u32::from(settings.unique_poses);
         constants[53] = MAX_SKELETAL_VISIBLE;
         constants[54] = MAX_SHARED_POSES;
         constants[55] = grounding_mode;

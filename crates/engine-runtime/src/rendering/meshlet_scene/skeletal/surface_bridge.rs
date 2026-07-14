@@ -5,12 +5,13 @@ use windows::Win32::Graphics::Direct3D12::{ID3D12CommandQueue, ID3D12Device};
 
 use crate::scene::SceneState;
 
-use super::renderer::SkeletalSceneRenderer;
+use super::renderer::{SkeletalSceneRenderer, SkeletalSettings};
 use super::resources::ExecutionResources;
 use super::surface::{SurfaceProbe, SurfaceProbeContext, SurfaceRenderer, SurfaceRendererInput};
 
 pub(in crate::rendering) struct CompositionSurfaceInput<'a> {
     pub scene: &'a SceneState,
+    pub presentation_tick: u32,
     pub background_color: [f32; 4],
     pub instance_records: &'a [Vec<crate::resident::InstanceRecord>],
     pub local_ids: &'a [Vec<u32>],
@@ -60,7 +61,7 @@ impl SkeletalSceneRenderer {
                 animation_catalog: &self.animation_catalog,
                 mesh_catalog: &self.mesh_catalog,
                 scene: input.scene,
-                skeletal_settings: self.settings,
+                skeletal_settings: SkeletalSettings::for_tick(input.presentation_tick),
                 instance_records: input.instance_records,
                 local_ids: input.local_ids,
                 presentations: input.presentations,

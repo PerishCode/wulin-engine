@@ -45,8 +45,8 @@ import {
     sourceDurationGates,
 } from "../support/cooked-gltf-presentation.ts";
 
-const REVISION = "canonical-runtime-host-separation-v1";
-const COLLECTION = "0039-canonical-runtime-host-separation";
+const REVISION = "runtime-frame-transaction-v1";
+const COLLECTION = "0040-runtime-frame-transaction";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;

@@ -116,6 +116,8 @@ impl Renderer {
         &self,
         scene: &crate::scene::SceneState,
         background_color: [f32; 4],
+        presentation_tick: u32,
+        presentation_status: &serde_json::Value,
     ) -> Result<CompositionProbe> {
         let snapshot = self
             .async_resident_renderer
@@ -273,6 +275,7 @@ impl Renderer {
                 super::super::meshlet_scene::CompositionProbeInput {
                     snapshot,
                     scene,
+                    presentation_tick,
                     ground_numerators: &cpu,
                     ground_denominator: authority::GROUND_DENOMINATOR,
                     instance_records: records,
@@ -299,6 +302,7 @@ impl Renderer {
                 skeletal,
                 super::super::meshlet_scene::CompositionSurfaceInput {
                     scene,
+                    presentation_tick,
                     background_color,
                     instance_records: records,
                     local_ids: &payload_readback.local_ids,
@@ -309,9 +313,11 @@ impl Renderer {
                 },
             )
         }?;
+        let mut pair = self.composition_status();
+        pair["presentationClock"] = presentation_status.clone();
         Ok(CompositionProbe {
             revision: COMPOSITION_REVISION,
-            pair: self.composition_status(),
+            pair,
             canonical_objects,
             grounding: GroundingProbe {
                 authority: authority::NAME,

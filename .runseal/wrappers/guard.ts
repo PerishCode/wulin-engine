@@ -112,6 +112,63 @@ async function requireRuntimeBoundary(): Promise<void> {
     if (/^workbench\s/m.test(new TextDecoder().decode(tree.stdout))) {
         fail("guard: engine-runtime dependency tree points back to workbench");
     }
+
+    const rendererTimeAuthority = await new Deno.Command("git", {
+        args: [
+            "grep",
+            "--no-index",
+            "-n",
+            "-E",
+            [
+                "time_running",
+                "automatic_time_advance_count",
+                "manual_time_step_count",
+                "time_wrap_count",
+                "advance_presentation_frame",
+                "pause_presentation_time",
+                "resume_presentation_time",
+                "set_presentation_time",
+                "step_presentation_time",
+                "presentation_time_json",
+            ].join("|"),
+            "--",
+            "crates/engine-runtime/src/rendering",
+        ],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    if (rendererTimeAuthority.code === 0) {
+        fail(
+            `guard: renderer retains presentation timeline authority\n${
+                new TextDecoder().decode(rendererTimeAuthority.stdout)
+            }`,
+        );
+    }
+    if (rendererTimeAuthority.code !== 1) {
+        fail(`guard: renderer time-authority scan failed with ${rendererTimeAuthority.code}`);
+    }
+
+    const timelineOwner = await new Deno.Command("git", {
+        args: [
+            "grep",
+            "--no-index",
+            "-n",
+            "--fixed-strings",
+            "pub(crate) struct PresentationTimeline",
+            "--",
+            "crates/engine-runtime/src",
+        ],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    const timelineLines = new TextDecoder().decode(timelineOwner.stdout).trim().split(/\r?\n/)
+        .filter((line) => line.length > 0);
+    if (
+        timelineOwner.code !== 0 || timelineLines.length !== 1 ||
+        !timelineLines[0].startsWith("crates/engine-runtime/src/timeline.rs:")
+    ) fail(`guard: presentation timeline ownership diverged: ${JSON.stringify(timelineLines)}`);
 }
 
 async function forbiddenScan(): Promise<void> {

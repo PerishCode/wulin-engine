@@ -1,9 +1,9 @@
 # ADR 0040: Source-Duration Presentation Time
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-07-14
 - Supersedes: ADR 0036
-- Superseded by: None
+- Superseded by: ADR 0043
 
 ## Context
 
