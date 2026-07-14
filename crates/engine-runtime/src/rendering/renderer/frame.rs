@@ -6,24 +6,25 @@ use windows::Win32::Graphics::Direct3D12::{
 use windows::Win32::Graphics::Dxgi::DXGI_PRESENT;
 use windows::core::Interface;
 
-use crate::scene::SceneState;
-
 use super::super::device::transition;
 use super::super::meshlet_scene::SkeletalFrame;
 use super::super::terrain::TerrainFrame;
-use super::{CapturedFrame, RenderOutcome, Renderer};
+use super::{CapturedFrame, RenderFrame, RenderOutcome, Renderer};
 
 impl Renderer {
-    pub unsafe fn render(
-        &mut self,
-        color: [f32; 4],
-        capture: bool,
-        capture_object_ids: bool,
-        probe: bool,
-        scene: &mut SceneState,
-    ) -> Result<RenderOutcome> {
+    pub unsafe fn render(&mut self, frame: RenderFrame<'_>) -> Result<RenderOutcome> {
+        let RenderFrame {
+            color,
+            capture,
+            capture_object_ids,
+            probe,
+            presentation_tick,
+            presentation_status,
+            scene,
+        } = frame;
         debug_assert!(!capture_object_ids || capture);
         debug_assert!(!probe || self.composition_enabled());
+        debug_assert!(!probe || presentation_status.is_some());
         unsafe { self.drive_composition_traversal(scene.camera())? };
         unsafe { self.poll_cooked_object_completion()? };
         let terrain_outcome = unsafe { self.poll_terrain_completion()? };
@@ -91,6 +92,7 @@ impl Renderer {
                         terrain_slots: Some(&terrain_slots),
                         grounding_mode: self.composition_grounding_mode(),
                         projection,
+                        presentation_tick,
                     },
                 )?;
             } else {
@@ -169,7 +171,16 @@ impl Renderer {
                 None
             };
             let composition_probe = if probe {
-                Some(unsafe { self.read_composition_probe(scene, color) }?)
+                let presentation_status = presentation_status
+                    .context("composition probe requires a presentation status snapshot")?;
+                Some(unsafe {
+                    self.read_composition_probe(
+                        scene,
+                        color,
+                        presentation_tick,
+                        presentation_status,
+                    )
+                }?)
             } else {
                 None
             };
@@ -183,7 +194,6 @@ impl Renderer {
                 composition_probe: None,
             }
         };
-        self.advance_presentation_frame();
         Ok(outcome)
     }
 }

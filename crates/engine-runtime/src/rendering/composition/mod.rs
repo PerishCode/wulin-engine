@@ -120,39 +120,7 @@ pub(super) struct CompositionCoordinator {
 
 impl Renderer {
     pub fn composition_status(&self) -> Value {
-        let mut status = self.composition.status_json();
-        status["presentationClock"] = self.skeletal_scene_renderer.presentation_time_json();
-        status
-    }
-
-    pub fn presentation_time_status(&self) -> Value {
-        self.skeletal_scene_renderer.presentation_time_json()
-    }
-
-    pub fn pause_presentation_time(&mut self) -> Value {
-        self.skeletal_scene_renderer.pause_presentation_time();
-        self.presentation_time_status()
-    }
-
-    pub fn resume_presentation_time(&mut self) -> Value {
-        self.skeletal_scene_renderer.resume_presentation_time();
-        self.presentation_time_status()
-    }
-
-    pub fn set_presentation_time(&mut self, tick: u32) -> Result<Value> {
-        self.skeletal_scene_renderer.set_presentation_time(tick)?;
-        Ok(self.presentation_time_status())
-    }
-
-    pub fn step_presentation_time(&mut self, ticks: u32) -> Result<Value> {
-        self.skeletal_scene_renderer.step_presentation_time(ticks)?;
-        Ok(self.presentation_time_status())
-    }
-
-    pub(in crate::rendering) fn advance_presentation_frame(&mut self) {
-        if self.composition_enabled() {
-            self.skeletal_scene_renderer.advance_presentation_frame();
-        }
+        self.composition.status_json()
     }
 
     pub fn composition_enabled(&self) -> bool {

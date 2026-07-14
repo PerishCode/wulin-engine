@@ -5,11 +5,12 @@ use crate::rendering::async_resident::PublishedSnapshot;
 use crate::scene::SceneState;
 
 use super::probe::{self, ProbeInput, SkeletalProbe};
-use super::renderer::SkeletalSceneRenderer;
+use super::renderer::{SkeletalSceneRenderer, SkeletalSettings};
 
 pub(in crate::rendering) struct CompositionProbeInput<'a> {
     pub snapshot: &'a PublishedSnapshot,
     pub scene: &'a SceneState,
+    pub presentation_tick: u32,
     pub ground_numerators: &'a [i32],
     pub ground_denominator: u32,
     pub instance_records: &'a [Vec<crate::resident::InstanceRecord>],
@@ -22,6 +23,7 @@ impl SkeletalSceneRenderer {
         &self,
         input: CompositionProbeInput<'_>,
     ) -> Result<SkeletalProbe> {
+        let settings = SkeletalSettings::for_tick(input.presentation_tick);
         unsafe {
             probe::read(ProbeInput {
                 resources: &self.resources,
@@ -29,8 +31,8 @@ impl SkeletalSceneRenderer {
                 animation_catalog: &self.animation_catalog,
                 mesh_catalog_sha256: &self.mesh_catalog_sha256,
                 animation_catalog_sha256: &self.animation_catalog_sha256,
-                settings: self.settings,
-                settings_json: self.settings_json(),
+                settings,
+                settings_json: settings_json(settings),
                 timestamp_frequency: self.timestamp_frequency,
                 width: self.width,
                 height: self.height,
@@ -51,28 +53,13 @@ impl SkeletalSceneRenderer {
     ) -> Result<Vec<i32>> {
         unsafe { crate::rendering::resident::read_values(&self.resources.ground_readback, count) }
     }
+}
 
-    fn settings_json(&self) -> Value {
-        json!({
-            "boneCount": self.settings.bone_count,
-            "phaseCount": self.settings.phase_count,
-            "timeTick": self.settings.time_tick,
-            "uniquePoses": self.settings.unique_poses,
-        })
-    }
-
-    pub(in crate::rendering) fn presentation_time_json(&self) -> Value {
-        json!({
-            "revision": "source-duration-presentation-time-v1",
-            "tick": self.settings.time_tick,
-            "phaseCount": self.settings.phase_count,
-            "framePeriod": animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD,
-            "timeUnitsPerFrame": animation_catalog::PRESENTATION_TIME_UNITS_PER_FRAME,
-            "timeUnitsPerSecond": animation_catalog::PRESENTATION_TIME_UNITS_PER_SECOND,
-            "running": self.time_running,
-            "automaticAdvanceCount": self.automatic_time_advance_count,
-            "manualStepCount": self.manual_time_step_count,
-            "wrapCount": self.time_wrap_count,
-        })
-    }
+fn settings_json(settings: SkeletalSettings) -> Value {
+    json!({
+        "boneCount": settings.bone_count,
+        "phaseCount": settings.phase_count,
+        "timeTick": settings.time_tick,
+        "uniquePoses": settings.unique_poses,
+    })
 }

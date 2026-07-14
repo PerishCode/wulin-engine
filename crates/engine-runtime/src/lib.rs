@@ -4,6 +4,7 @@ mod resident;
 mod runtime;
 mod scene;
 mod streaming;
+mod timeline;
 mod world;
 
 pub use rendering::gpu_capture::CapturedPixels;

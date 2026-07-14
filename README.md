@@ -119,6 +119,12 @@ facade 持有唯一 renderer 与 scene。579.4 秒直接验收中，迁移前固
 diagnostic、light-matrix 和 shadow-depth 六个哈希逐字节不变；32+32 traversal、64 次资源平台与
 16 次生命周期全部通过。workbench 现在只保留窗口/消息循环、inspect transport、capture 落盘、
 perception shaping 与进程报告，不再拥有或拼装 renderer 子系统。
+Experiment 0040 将 presentation timeline 的可变状态与 pause/set/step/advance 权力从 skeletal
+renderer 上移到 `Runtime`。每帧先采样不可变 tick，renderer、GPU constants、capture/probe 与
+CPU oracle 共同观察该 pre-commit 值；仅当 canonical frame 成功返回后 runtime 才提交一次自动
+推进。598.8 秒直接验收保留六个固定哈希、Walk 的 0/63/0/0 phase、32+32 traversal、零瞬态
+handle 增长和 16 次生命周期。该事务仍完全 frame-driven，尚未引入 wall-clock、delta time、
+fixed-step、simulation time 或 input sampling。
 
 ## Project model
 
@@ -157,7 +163,8 @@ entire local runtime through one manifest.
 `runseal :canonical-runtime` is the only end-to-end engine acceptance workflow. It cooks
 signed terrain and schema-3 object sources directly, validates explicit presentation,
 deterministic presentation time, fixed camera-visible directional object shadows, canonical
-runtime ownership, composition, fault rollback, traversal/prefetch/rollover, the 64-publication
+runtime and timeline ownership, successful-frame transactions, composition, fault rollback,
+traversal/prefetch/rollover, the 64-publication
 resource plateau, and 16 complete lifecycle cycles without invoking an older experiment workflow.
 
 ## Scope

@@ -2,11 +2,15 @@
 
 ## State
 
-Experiments through 0039 and ADR 0042 promote the accepted canonical content runtime into
+Experiments through 0040 and ADR 0043 promote the accepted canonical content runtime into
 `crates/engine-runtime`. It owns scene/world state, signed terrain/object streaming, atomic
 composition, traversal/prefetch/rollover, rendering, presentation time, shaders, probes, and GPU
 device/resource lifecycle. The format/catalog crates and offline cookers remain independent
 reusable owners below it.
+
+The runtime also owns the sole mutable presentation timeline and successful-frame commit. The
+renderer consumes an immutable pre-commit tick for GPU work and evidence; it cannot pause, set,
+step, or advance time. Elapsed time and simulation-step policy remain unpromoted.
 
 `apps/workbench` is now a native diagnostic host. It owns the Win32 message loop, inspect
 transport, operator capture persistence, perception response shaping, readiness, and process

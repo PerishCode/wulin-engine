@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use serde_json::Value;
 use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND, WAIT_OBJECT_0};
 use windows::Win32::Graphics::Direct3D::D3D_FEATURE_LEVEL_12_1;
 use windows::Win32::Graphics::Direct3D12::*;
@@ -66,6 +67,16 @@ pub struct CapturedFrame {
 pub struct RenderOutcome {
     pub capture: Option<CapturedFrame>,
     pub composition_probe: Option<CompositionProbe>,
+}
+
+pub(crate) struct RenderFrame<'a> {
+    pub color: [f32; 4],
+    pub capture: bool,
+    pub capture_object_ids: bool,
+    pub probe: bool,
+    pub presentation_tick: u32,
+    pub presentation_status: Option<&'a Value>,
+    pub scene: &'a mut crate::scene::SceneState,
 }
 
 impl Renderer {

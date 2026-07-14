@@ -4,9 +4,10 @@ use anyhow::Result;
 use serde_json::Value;
 use windows::Win32::Foundation::HWND;
 
-use crate::rendering::{RenderOutcome, Renderer};
+use crate::rendering::{RenderFrame, RenderOutcome, Renderer};
 use crate::scene::SceneState;
 use crate::streaming::address::GlobalRegionConfig;
+use crate::timeline::PresentationTimeline;
 use crate::world::RegionCoord;
 
 #[derive(Clone, Copy)]
@@ -20,6 +21,7 @@ pub struct FrameRequest {
 pub struct Runtime {
     renderer: Renderer,
     scene: SceneState,
+    presentation_timeline: PresentationTimeline,
 }
 
 impl Runtime {
@@ -33,6 +35,7 @@ impl Runtime {
         Ok(Self {
             renderer: unsafe { Renderer::new(hwnd, width, height)? },
             scene: SceneState::new(),
+            presentation_timeline: PresentationTimeline::new(),
         })
     }
 
@@ -43,15 +46,25 @@ impl Runtime {
     /// The window supplied to [`Runtime::new`] must still be live, and this call must execute on
     /// the thread that created the runtime while no external code uses its native GPU objects.
     pub unsafe fn frame(&mut self, request: FrameRequest) -> Result<RenderOutcome> {
-        unsafe {
-            self.renderer.render(
-                request.clear_color,
-                request.capture,
-                request.capture_object_ids,
-                request.probe,
-                &mut self.scene,
-            )
+        let presentation_tick = self.presentation_timeline.tick();
+        let presentation_status = request
+            .probe
+            .then(|| self.presentation_timeline.status_json());
+        let outcome = unsafe {
+            self.renderer.render(RenderFrame {
+                color: request.clear_color,
+                capture: request.capture,
+                capture_object_ids: request.capture_object_ids,
+                probe: request.probe,
+                presentation_tick,
+                presentation_status: presentation_status.as_ref(),
+                scene: &mut self.scene,
+            })
+        }?;
+        if self.renderer.composition_enabled() {
+            self.presentation_timeline.commit_canonical_frame();
         }
+        Ok(outcome)
     }
 
     /// Waits for all runtime-owned GPU and streaming work to become idle.
@@ -173,7 +186,9 @@ impl Runtime {
     }
 
     pub fn composition_status(&self) -> Value {
-        self.renderer.composition_status()
+        let mut status = self.renderer.composition_status();
+        status["presentationClock"] = self.presentation_timeline.status_json();
+        status
     }
 
     pub fn composition_enabled(&self) -> bool {
@@ -181,23 +196,27 @@ impl Runtime {
     }
 
     pub fn presentation_time_status(&self) -> Value {
-        self.renderer.presentation_time_status()
+        self.presentation_timeline.status_json()
     }
 
     pub fn pause_presentation_time(&mut self) -> Value {
-        self.renderer.pause_presentation_time()
+        self.presentation_timeline.pause();
+        self.presentation_time_status()
     }
 
     pub fn resume_presentation_time(&mut self) -> Value {
-        self.renderer.resume_presentation_time()
+        self.presentation_timeline.resume();
+        self.presentation_time_status()
     }
 
     pub fn set_presentation_time(&mut self, tick: u32) -> Result<Value> {
-        self.renderer.set_presentation_time(tick)
+        self.presentation_timeline.set(tick)?;
+        Ok(self.presentation_time_status())
     }
 
     pub fn step_presentation_time(&mut self, ticks: u32) -> Result<Value> {
-        self.renderer.step_presentation_time(ticks)
+        self.presentation_timeline.step(ticks)?;
+        Ok(self.presentation_time_status())
     }
 
     /// Schedules one canonical terrain/object pair publication.
