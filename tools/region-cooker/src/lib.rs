@@ -45,6 +45,7 @@ pub enum PresentationProfile {
     Material,
     Yaw,
     Animation,
+    Imported,
 }
 
 impl PresentationProfile {
@@ -55,7 +56,10 @@ impl PresentationProfile {
             "material" => Ok(Self::Material),
             "yaw" => Ok(Self::Yaw),
             "animation" => Ok(Self::Animation),
-            _ => bail!("presentation profile must be base, archetype, material, yaw, or animation"),
+            "imported" => Ok(Self::Imported),
+            _ => bail!(
+                "presentation profile must be base, archetype, material, yaw, animation, or imported"
+            ),
         }
     }
 
@@ -66,6 +70,7 @@ impl PresentationProfile {
             Self::Material => "material",
             Self::Yaw => "yaw",
             Self::Animation => "animation",
+            Self::Imported => "imported",
         }
     }
 }
@@ -117,6 +122,9 @@ pub fn author_presentations(
                         let phase = key.rotate_right(9) % PRESENTATION_ANIMATION_PHASE_COUNT;
                         (key.rotate_left(17) & 0xffff) << 16 | phase << 8 | clip
                     };
+                }
+                PresentationProfile::Imported => {
+                    presentation.archetype = PRESENTATION_ARCHETYPE_COUNT - 1;
                 }
             }
             presentation

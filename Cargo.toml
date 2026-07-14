@@ -23,7 +23,9 @@ anyhow = "1.0.100"
 animation-catalog = { path = "crates/animation-catalog" }
 canonical-object-fixture = { path = "crates/canonical-object-fixture" }
 glam = { version = "0.30.9", features = ["serde"] }
+gltf = { version = "1.4.1", default-features = false, features = ["names", "utils"] }
 meshlet-catalog = { path = "crates/meshlet-catalog" }
+meshopt = "0.6.2"
 surface-catalog = { path = "crates/surface-catalog" }
 terrain-format = { path = "crates/terrain-format" }
 png = "0.18.0"

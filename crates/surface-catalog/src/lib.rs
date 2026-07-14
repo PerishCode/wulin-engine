@@ -1,5 +1,3 @@
-use std::f32::consts::TAU;
-
 use meshlet_catalog::Catalog as MeshletCatalog;
 use sha2::{Digest, Sha256};
 
@@ -177,20 +175,10 @@ pub fn decode_octahedral(encoded: [f32; 2]) -> [f32; 3] {
 }
 
 fn build_vertices(mesh: &MeshletCatalog) -> Vec<SurfaceVertex> {
-    mesh.vertices
+    mesh.surface_vertices
         .iter()
-        .map(|vertex| {
-            let [x, y, z, _] = vertex.position;
-            let normal = if x.abs() + z.abs() < f32::EPSILON {
-                [0.0, if y < 0.5 { -1.0 } else { 1.0 }, 0.0]
-            } else {
-                normalize([x, 0.0, z])
-            };
-            let oct = encode_octahedral(normal);
-            let u = (z.atan2(x) / TAU + 1.0).fract();
-            SurfaceVertex {
-                oct_normal_uv: [oct[0], oct[1], u, y.clamp(0.0, 1.0)],
-            }
+        .map(|vertex| SurfaceVertex {
+            oct_normal_uv: vertex.normal_uv,
         })
         .collect()
 }
@@ -258,17 +246,6 @@ fn build_texture_mips() -> Vec<Vec<u8>> {
             bytes
         })
         .collect()
-}
-
-fn encode_octahedral(normal: [f32; 3]) -> [f32; 2] {
-    let scale = 1.0 / (normal[0].abs() + normal[1].abs() + normal[2].abs());
-    let mut encoded = [normal[0] * scale, normal[1] * scale];
-    if normal[2] < 0.0 {
-        let x = encoded[0];
-        encoded[0] = (1.0 - encoded[1].abs()) * x.signum();
-        encoded[1] = (1.0 - x.abs()) * encoded[1].signum();
-    }
-    encoded
 }
 
 fn normalize(value: [f32; 3]) -> [f32; 3] {

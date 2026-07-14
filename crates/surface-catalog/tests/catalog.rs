@@ -11,9 +11,9 @@ fn deterministic_catalog() {
     assert_eq!(first.encoded_bytes(), second.encoded_bytes());
     assert_eq!(
         first.sha256(),
-        "e9715635b9e9f2a7dd0089c35db3cb3ccd6ae87fc2119cc548ed2f37a4996989"
+        "aac8f2aabc6b27a4826c713a7f2b28d1343acddb2ec271bdaa2d1762bc0bcc10"
     );
-    assert_eq!(first.gpu_bytes(), 1_488_384);
+    assert_eq!(first.gpu_bytes(), 1_500_416);
 }
 
 #[test]

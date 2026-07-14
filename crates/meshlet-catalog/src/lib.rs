@@ -1,10 +1,13 @@
+mod imported;
+mod procedural;
+
 use std::collections::BTreeMap;
-use std::f32::consts::{PI, TAU};
 
 use sha2::{Digest, Sha256};
 
 pub const ARCHETYPE_COUNT: u32 = 8;
 pub const LOD_COUNT: u32 = 3;
+pub const IMPORTED_ARCHETYPE: u32 = 7;
 pub const MAX_MESHLET_VERTICES: u32 = 64;
 pub const MAX_MESHLET_PRIMITIVES: u32 = 126;
 
@@ -12,6 +15,12 @@ pub const MAX_MESHLET_PRIMITIVES: u32 = 126;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Vertex {
     pub position: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VertexSurface {
+    pub normal_uv: [f32; 4],
 }
 
 #[repr(C)]
@@ -33,28 +42,60 @@ pub struct Lod {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct ImportedMetadata {
+    pub revision: &'static str,
+    pub source_json_sha256: String,
+    pub source_bin_sha256: String,
+    pub source_texture_sha256: String,
+    pub cooked_sha256: String,
+    pub vertex_start: u32,
+    pub vertex_count: u32,
+    pub lod_index_counts: [u32; 3],
+    pub lod_errors: [f32; 3],
+    pub bounds_min: [f32; 3],
+    pub bounds_max: [f32; 3],
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Catalog {
     pub vertices: Vec<Vertex>,
+    pub surface_vertices: Vec<VertexSurface>,
     pub meshlets: Vec<Meshlet>,
     pub meshlet_vertices: Vec<u32>,
     pub primitives: Vec<u32>,
     pub lods: Vec<Lod>,
+    pub imported: ImportedMetadata,
 }
 
 impl Catalog {
     pub fn build() -> Self {
         let mut catalog = Self {
             vertices: Vec::new(),
+            surface_vertices: Vec::new(),
             meshlets: Vec::new(),
             meshlet_vertices: Vec::new(),
             primitives: Vec::new(),
             lods: Vec::with_capacity((ARCHETYPE_COUNT * LOD_COUNT) as usize),
+            imported: ImportedMetadata {
+                revision: "uninitialized",
+                source_json_sha256: String::new(),
+                source_bin_sha256: String::new(),
+                source_texture_sha256: String::new(),
+                cooked_sha256: String::new(),
+                vertex_start: 0,
+                vertex_count: 0,
+                lod_index_counts: [0; 3],
+                lod_errors: [0.0; 3],
+                bounds_min: [0.0; 3],
+                bounds_max: [0.0; 3],
+            },
         };
-        for archetype in 0..ARCHETYPE_COUNT {
+        for archetype in 0..IMPORTED_ARCHETYPE {
             for lod in 0..LOD_COUNT {
-                append_lod(&mut catalog, archetype, lod);
+                procedural::append_lod(&mut catalog, archetype, lod);
             }
         }
+        append_imported(&mut catalog).expect("imported catalog is invalid");
         catalog.validate().expect("generated catalog is invalid");
         catalog
     }
@@ -62,6 +103,25 @@ impl Catalog {
     pub fn validate(&self) -> Result<(), String> {
         if self.lods.len() != (ARCHETYPE_COUNT * LOD_COUNT) as usize {
             return Err("catalog LOD count is not canonical".into());
+        }
+        if self.surface_vertices.len() != self.vertices.len() {
+            return Err("catalog surface vertex count differs".into());
+        }
+        for (index, vertex) in self.vertices.iter().enumerate() {
+            if !vertex.position.into_iter().all(f32::is_finite) || vertex.position[3] != 1.0 {
+                return Err(format!("catalog vertex {index} is invalid"));
+            }
+        }
+        for (index, surface) in self.surface_vertices.iter().enumerate() {
+            let [x, y, u, v] = surface.normal_uv;
+            if ![x, y, u, v].into_iter().all(f32::is_finite)
+                || x.abs() > 1.0
+                || y.abs() > 1.0
+                || !(0.0..=1.0).contains(&u)
+                || !(0.0..=1.0).contains(&v)
+            {
+                return Err(format!("catalog surface vertex {index} is invalid"));
+            }
         }
         for (index, meshlet) in self.meshlets.iter().enumerate() {
             if meshlet.vertex_count == 0 || meshlet.vertex_count > MAX_MESHLET_VERTICES {
@@ -113,6 +173,33 @@ impl Catalog {
                 previous = Some(*descriptor);
             }
         }
+        if self.imported.revision != "cooked-gltf-geometry-v1"
+            || self.imported.vertex_count == 0
+            || self.imported.vertex_start + self.imported.vertex_count > self.vertices.len() as u32
+            || self.imported.source_json_sha256.len() != 64
+            || self.imported.source_bin_sha256.len() != 64
+            || self.imported.source_texture_sha256.len() != 64
+            || self.imported.cooked_sha256.len() != 64
+        {
+            return Err("imported catalog metadata is invalid".into());
+        }
+        if self.imported.bounds_min[1].abs() > f32::EPSILON
+            || (self.imported.bounds_max[1] - 1.0).abs() > f32::EPSILON
+            || self
+                .imported
+                .bounds_min
+                .into_iter()
+                .chain(self.imported.bounds_max)
+                .any(|value| !value.is_finite())
+        {
+            return Err("imported catalog bounds are invalid".into());
+        }
+        for lod in 0..LOD_COUNT {
+            let descriptor = self.lod(IMPORTED_ARCHETYPE, lod);
+            if descriptor.primitive_count * 3 != self.imported.lod_index_counts[lod as usize] {
+                return Err(format!("imported catalog LOD {lod} metadata differs"));
+            }
+        }
         Ok(())
     }
 
@@ -122,9 +209,10 @@ impl Catalog {
 
     pub fn encoded_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(b"WLMSH001");
+        bytes.extend_from_slice(b"WLMSH002");
         for count in [
             self.vertices.len(),
+            self.surface_vertices.len(),
             self.meshlets.len(),
             self.meshlet_vertices.len(),
             self.primitives.len(),
@@ -133,10 +221,34 @@ impl Catalog {
             bytes.extend_from_slice(&(count as u32).to_le_bytes());
         }
         bytes.extend_from_slice(&self.vertex_bytes());
+        bytes.extend_from_slice(&self.surface_vertex_bytes());
         bytes.extend_from_slice(&self.meshlet_bytes());
         bytes.extend_from_slice(&u32_bytes(&self.meshlet_vertices));
         bytes.extend_from_slice(&u32_bytes(&self.primitives));
         bytes.extend_from_slice(&self.lod_bytes());
+        for value in [
+            &self.imported.source_json_sha256,
+            &self.imported.source_bin_sha256,
+            &self.imported.source_texture_sha256,
+            &self.imported.cooked_sha256,
+        ] {
+            bytes.extend_from_slice(value.as_bytes());
+        }
+        for value in [self.imported.vertex_start, self.imported.vertex_count]
+            .into_iter()
+            .chain(self.imported.lod_index_counts)
+        {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        for value in self
+            .imported
+            .lod_errors
+            .into_iter()
+            .chain(self.imported.bounds_min)
+            .chain(self.imported.bounds_max)
+        {
+            bytes.extend_from_slice(&value.to_bits().to_le_bytes());
+        }
         bytes
     }
 
@@ -166,6 +278,14 @@ impl Catalog {
         }))
     }
 
+    pub fn surface_vertex_bytes(&self) -> Vec<u8> {
+        encode_f32(
+            self.surface_vertices
+                .iter()
+                .flat_map(|vertex| vertex.normal_uv),
+        )
+    }
+
     pub fn meshlet_vertex_bytes(&self) -> Vec<u8> {
         u32_bytes(&self.meshlet_vertices)
     }
@@ -186,69 +306,45 @@ impl Catalog {
     }
 }
 
-fn append_lod(catalog: &mut Catalog, archetype: u32, lod: u32) {
-    let segments = [16, 12, 8][lod as usize];
-    let bands = [8, 4, 2][lod as usize];
+fn append_imported(catalog: &mut Catalog) -> Result<(), String> {
+    let mut imported = imported::decode()?;
     let vertex_start = catalog.vertices.len() as u32;
-    for ring in 0..=bands {
-        let y = ring as f32 / bands as f32;
-        let radius = profile_radius(archetype, y);
-        let phase = profile_phase(archetype, y);
-        for segment in 0..segments {
-            let angle = segment as f32 * TAU / segments as f32 + phase;
-            catalog.vertices.push(Vertex {
-                position: [radius * angle.cos(), y, radius * angle.sin(), 1.0],
-            });
-        }
-    }
-    let bottom_center = catalog.vertices.len() as u32;
-    catalog.vertices.push(Vertex {
-        position: [0.0, 0.0, 0.0, 1.0],
-    });
-    let top_center = catalog.vertices.len() as u32;
-    catalog.vertices.push(Vertex {
-        position: [0.0, 1.0, 0.0, 1.0],
-    });
+    catalog.vertices.extend_from_slice(&imported.vertices);
+    catalog
+        .surface_vertices
+        .extend_from_slice(&imported.surfaces);
 
-    let meshlet_start = catalog.meshlets.len() as u32;
-    let mut side = Vec::with_capacity((bands * segments * 2) as usize);
-    for band in 0..bands {
-        for segment in 0..segments {
-            let next = (segment + 1) % segments;
-            let lower = vertex_start + band * segments + segment;
-            let lower_next = vertex_start + band * segments + next;
-            let upper = vertex_start + (band + 1) * segments + segment;
-            let upper_next = vertex_start + (band + 1) * segments + next;
-            side.push([lower, upper, upper_next]);
-            side.push([lower, upper_next, lower_next]);
-        }
+    for indices in &imported.lod_indices {
+        let meshlet_start = catalog.meshlets.len() as u32;
+        let triangles = indices
+            .chunks_exact(3)
+            .map(|triangle| {
+                [
+                    vertex_start + triangle[0],
+                    vertex_start + triangle[1],
+                    vertex_start + triangle[2],
+                ]
+            })
+            .collect::<Vec<_>>();
+        append_partitioned_meshlets(catalog, &triangles);
+        let emitted_vertex_count = catalog.meshlets[meshlet_start as usize..]
+            .iter()
+            .map(|meshlet| meshlet.vertex_count)
+            .sum();
+        catalog.lods.push(Lod {
+            meshlet_offset: meshlet_start,
+            meshlet_count: catalog.meshlets.len() as u32 - meshlet_start,
+            vertex_count: emitted_vertex_count,
+            primitive_count: indices.len() as u32 / 3,
+        });
     }
-    append_partitioned_meshlets(catalog, &side);
 
-    let mut bottom = Vec::with_capacity(segments as usize);
-    let mut top = Vec::with_capacity(segments as usize);
-    let top_ring = vertex_start + bands * segments;
-    for segment in 0..segments {
-        let next = (segment + 1) % segments;
-        bottom.push([bottom_center, vertex_start + next, vertex_start + segment]);
-        top.push([top_center, top_ring + segment, top_ring + next]);
-    }
-    append_partitioned_meshlets(catalog, &bottom);
-    append_partitioned_meshlets(catalog, &top);
-
-    let emitted_vertex_count = catalog.meshlets[meshlet_start as usize..]
-        .iter()
-        .map(|meshlet| meshlet.vertex_count)
-        .sum();
-    catalog.lods.push(Lod {
-        meshlet_offset: meshlet_start,
-        meshlet_count: catalog.meshlets.len() as u32 - meshlet_start,
-        vertex_count: emitted_vertex_count,
-        primitive_count: bands * segments * 2 + segments * 2,
-    });
+    imported.metadata.vertex_start = vertex_start;
+    catalog.imported = imported.metadata;
+    Ok(())
 }
 
-fn append_partitioned_meshlets(catalog: &mut Catalog, triangles: &[[u32; 3]]) {
+pub(crate) fn append_partitioned_meshlets(catalog: &mut Catalog, triangles: &[[u32; 3]]) {
     let mut local_vertices = Vec::<u32>::new();
     let mut lookup = BTreeMap::<u32, u32>::new();
     let mut local_primitives = Vec::<u32>::new();
@@ -306,29 +402,19 @@ fn flush_meshlet(
     lookup.clear();
 }
 
-fn profile_radius(archetype: u32, y: f32) -> f32 {
-    let base = 0.17 + archetype as f32 * 0.012;
-    let shape = match archetype {
-        0 => 1.0 - 0.18 * y,
-        1 => 0.82 + 0.28 * (PI * y).sin(),
-        2 => 1.08 - 0.38 * (PI * y).sin(),
-        3 => 1.18 - 0.68 * y,
-        4 => 0.84 + 0.18 * (4.0 * PI * y).cos(),
-        5 => 0.58 + 0.62 * (PI * y).sin(),
-        6 => 0.72 + 0.52 * y * y,
-        _ => 1.03 - 0.26 * (2.0 * PI * y).sin(),
-    };
-    base * shape
-}
-
-fn profile_phase(archetype: u32, y: f32) -> f32 {
-    if archetype == 7 { y * PI * 0.75 } else { 0.0 }
-}
-
 fn u32_bytes(values: &[u32]) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(std::mem::size_of_val(values));
     for value in values {
         bytes.extend_from_slice(&value.to_le_bytes());
+    }
+    bytes
+}
+
+fn encode_f32(values: impl IntoIterator<Item = f32>) -> Vec<u8> {
+    let iterator = values.into_iter();
+    let mut bytes = Vec::with_capacity(iterator.size_hint().0 * size_of::<f32>());
+    for value in iterator {
+        bytes.extend_from_slice(&value.to_bits().to_le_bytes());
     }
     bytes
 }

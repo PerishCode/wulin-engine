@@ -41,8 +41,8 @@ import {
     temporalHold,
 } from "../support/temporal-presentation.ts";
 
-const REVISION = "deterministic-temporal-presentation-v1";
-const COLLECTION = "0033-deterministic-temporal-presentation";
+const REVISION = "cooked-gltf-geometry-v1";
+const COLLECTION = "0034-cooked-gltf-geometry";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -51,6 +51,7 @@ const OBJECTS_ARCHETYPE = `${DIRECTORY}/objects-archetype.wlr`;
 const OBJECTS_MATERIAL = `${DIRECTORY}/objects-material.wlr`;
 const OBJECTS_YAW = `${DIRECTORY}/objects-yaw.wlr`;
 const OBJECTS_ANIMATION = `${DIRECTORY}/objects-animation.wlr`;
+const OBJECTS_IMPORTED = `${DIRECTORY}/objects-imported.wlr`;
 const OBJECTS_CORRUPT = `${DIRECTORY}/objects-corrupt.wlr`;
 const TERRAIN_CORRUPT = `${DIRECTORY}/terrain-corrupt.wlt`;
 const REPORT = `out/captures/${COLLECTION}/acceptance.json`;
@@ -93,6 +94,12 @@ await run(
         "terrain-cooker",
         "-p",
         "region-cooker",
+        "-p",
+        "meshlet-catalog",
+        "-p",
+        "surface-catalog",
+        "-p",
+        "animation-catalog",
     ],
     "canonical codec and cooker tests",
 );
@@ -110,6 +117,7 @@ const objectCookArchetype = await cookObjects(OBJECTS_ARCHETYPE, centers, "a", "
 const objectCookMaterial = await cookObjects(OBJECTS_MATERIAL, centers, "a", "material");
 const objectCookYaw = await cookObjects(OBJECTS_YAW, centers, "a", "yaw");
 const objectCookAnimation = await cookObjects(OBJECTS_ANIMATION, centers, "a", "animation");
+const objectCookImported = await cookObjects(OBJECTS_IMPORTED, centers, "a", "imported");
 const metadataA = object(objectCookA, "metadata");
 const metadataB = object(objectCookB, "metadata");
 if (
@@ -167,7 +175,7 @@ try {
         ) fail(`${label} presentation mutation did not change cooked authority`);
         const baseSkeletal = object(baseStable, "skeletal");
         const mutatedSkeletal = object(mutatedStable, "skeletal");
-        if (label !== "animation") {
+        if (label === "material" || label === "yaw") {
             same(mutatedSkeletal.gpu, baseSkeletal.gpu, `${label} skeletal invariance`);
         } else if (JSON.stringify(mutatedSkeletal.gpu) === JSON.stringify(baseSkeletal.gpu)) {
             fail(`${label} presentation mutation did not change skeletal evidence`);
@@ -180,6 +188,63 @@ try {
         ) fail(`${label} presentation mutation did not change rendered color evidence`);
         presentationMutations.push({ label, publication, frame: mutated });
     }
+
+    console.log("==> cooked glTF geometry gate");
+    await event("source.objects.open", { path: OBJECTS_IMPORTED });
+    const importedPublication = await publish(target(BASE));
+    assertObjectCopies(importedPublication, 25, "imported source publication");
+    const importedFrame = await frame("presentation-imported", COLLECTION);
+    const baseStable = object(orderA, "stable");
+    const importedStable = object(importedFrame, "stable");
+    same(
+        presentationInvariant(importedStable),
+        presentationInvariant(baseStable),
+        "imported geometry spatial/identity invariants",
+    );
+    const importedSkeletal = object(importedStable, "skeletal");
+    const importedGeometry = object(importedSkeletal, "importedGeometry");
+    if (
+        string(importedGeometry, "revision") !== "cooked-gltf-geometry-v1" ||
+        string(importedGeometry, "sourceJsonSha256") !==
+            "6ddcabf511c0257b87dedf6ac51f1bdb6f21e570eee5fa7c4fa6162d055cb002" ||
+        string(importedGeometry, "sourceBinSha256") !==
+            "c7d0d8de28a84d5b25623037f88e063e1502495a2ee6c55f182c61161ad12f80" ||
+        string(importedGeometry, "sourceTextureSha256") !==
+            "61c8b109ee7f8bf262791933380fafb1465f7b51cbe6472c2d21eff0b31f83a1" ||
+        string(importedGeometry, "cookedSha256") !==
+            "a4dc1dbf84171f62cc61e522d43068f67d013467d3bdb591c733fab666f06124" ||
+        number(importedGeometry, "archetype") !== 7 ||
+        number(importedGeometry, "vertexCount") !== 434 ||
+        JSON.stringify(importedGeometry.lodTriangleCounts) !== JSON.stringify([576, 288, 144])
+    ) fail("imported geometry source/cook metadata diverged");
+    const importedGpu = object(importedSkeletal, "gpu");
+    if (
+        number(importedGpu, "observedArchetypeMask") !== 128 ||
+        JSON.stringify(importedGpu) ===
+            JSON.stringify(object(object(baseStable, "skeletal"), "gpu"))
+    ) fail("imported geometry did not become catalog-bound GPU work");
+    const rawImportedSkeletal = object(
+        object(object(importedFrame, "probe"), "surface"),
+        "skeletal",
+    );
+    for (
+        const dispatch of [
+            "resetDispatchCount",
+            "cullDispatchCount",
+            "poseCompactDispatchCount",
+            "indirectPoseDispatchCount",
+            "indirectMeshDispatchCount",
+        ]
+    ) {
+        if (number(rawImportedSkeletal, dispatch) !== 1) {
+            fail(`imported geometry changed fixed ${dispatch}`);
+        }
+    }
+    const baseCapture = object(baseStable, "capture");
+    const importedCapture = object(importedStable, "capture");
+    if (
+        importedCapture.color === baseCapture.color && importedCapture.png === baseCapture.png
+    ) fail("imported geometry did not change rendered color evidence");
 
     await event("source.objects.open", { path: OBJECTS_A });
     await publish(target(BASE));
@@ -345,6 +410,7 @@ try {
             objectsMaterial: objectCookMaterial,
             objectsYaw: objectCookYaw,
             objectsAnimation: objectCookAnimation,
+            objectsImported: objectCookImported,
             objectCorruption,
             terrainCorruption,
         },
@@ -354,6 +420,8 @@ try {
             orderA,
             temporal,
             presentationMutations,
+            importedPublication,
+            importedFrame,
             orderBPublication,
             orderB,
             revisitPublication,

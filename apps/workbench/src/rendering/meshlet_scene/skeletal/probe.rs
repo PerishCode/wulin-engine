@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use animation_catalog::{CLIP_COUNT, Catalog as AnimationCatalog};
 use anyhow::{Result, bail, ensure};
-use meshlet_catalog::Catalog as MeshletCatalog;
+use meshlet_catalog::{Catalog as MeshletCatalog, IMPORTED_ARCHETYPE, LOD_COUNT};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -32,6 +32,26 @@ pub struct PaletteSample {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ImportedGeometryProbe {
+    pub revision: &'static str,
+    pub archetype: u32,
+    pub source_json_sha256: String,
+    pub source_bin_sha256: String,
+    pub source_texture_sha256: String,
+    pub cooked_sha256: String,
+    pub vertex_start: u32,
+    pub vertex_count: u32,
+    pub lod_index_counts: [u32; 3],
+    pub lod_triangle_counts: [u32; 3],
+    pub lod_meshlet_counts: [u32; 3],
+    pub lod_emitted_vertex_counts: [u32; 3],
+    pub lod_errors: [f32; 3],
+    pub bounds_min: [f32; 3],
+    pub bounds_max: [f32; 3],
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SkeletalProbe {
     pub revision: &'static str,
     pub config: LoadConfig,
@@ -48,6 +68,7 @@ pub struct SkeletalProbe {
     pub indirect_mesh_dispatch_count: u32,
     pub palette_write_bytes: u64,
     pub palette_sample: Option<PaletteSample>,
+    pub imported_geometry: ImportedGeometryProbe,
     pub meshlet_catalog_sha256: String,
     pub animation_catalog_sha256: String,
     pub gpu_cull_classify_ms: f64,
@@ -161,6 +182,7 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
             * u64::from(input.settings.bone_count)
             * size_of::<animation_catalog::Affine>() as u64,
         palette_sample,
+        imported_geometry: imported_geometry_probe(input.mesh_catalog),
         meshlet_catalog_sha256: input.mesh_catalog_sha256.to_owned(),
         animation_catalog_sha256: input.animation_catalog_sha256.to_owned(),
         gpu_cull_classify_ms: milliseconds(0, 1),
@@ -169,6 +191,33 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
         gpu_mesh_skin_ms: milliseconds(3, 4),
         gpu_total_ms: milliseconds(0, 4),
     })
+}
+
+fn imported_geometry_probe(catalog: &MeshletCatalog) -> ImportedGeometryProbe {
+    let mut lod_meshlet_counts = [0; 3];
+    let mut lod_emitted_vertex_counts = [0; 3];
+    for lod in 0..LOD_COUNT {
+        let descriptor = catalog.lod(IMPORTED_ARCHETYPE, lod);
+        lod_meshlet_counts[lod as usize] = descriptor.meshlet_count;
+        lod_emitted_vertex_counts[lod as usize] = descriptor.vertex_count;
+    }
+    ImportedGeometryProbe {
+        revision: catalog.imported.revision,
+        archetype: IMPORTED_ARCHETYPE,
+        source_json_sha256: catalog.imported.source_json_sha256.clone(),
+        source_bin_sha256: catalog.imported.source_bin_sha256.clone(),
+        source_texture_sha256: catalog.imported.source_texture_sha256.clone(),
+        cooked_sha256: catalog.imported.cooked_sha256.clone(),
+        vertex_start: catalog.imported.vertex_start,
+        vertex_count: catalog.imported.vertex_count,
+        lod_index_counts: catalog.imported.lod_index_counts,
+        lod_triangle_counts: catalog.imported.lod_index_counts.map(|count| count / 3),
+        lod_meshlet_counts,
+        lod_emitted_vertex_counts,
+        lod_errors: catalog.imported.lod_errors,
+        bounds_min: catalog.imported.bounds_min,
+        bounds_max: catalog.imported.bounds_max,
+    }
 }
 
 fn decode_counts(counters: &[u32], bone_count: u32) -> WorkloadCounts {

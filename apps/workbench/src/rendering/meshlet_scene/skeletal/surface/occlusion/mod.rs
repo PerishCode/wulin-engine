@@ -24,6 +24,7 @@ pub const GROUP_OFFSETS_BYTES: u64 = OCCLUSION_GROUPS as u64 * 4;
 pub const BOUND_RADIAL_SCALE: f32 = 0.35;
 pub const BOUND_RADIAL_BIAS: f32 = 0.25;
 pub const BOUND_VERTICAL_PAD: f32 = 0.25;
+pub const IMPORTED_BOUND_RADIAL: f32 = 1.2;
 pub const PIXEL_EXPANSION: f32 = 2.0;
 pub const DEPTH_BIAS: f32 = 0.000001;
 

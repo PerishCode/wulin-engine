@@ -9,8 +9,16 @@ pub fn build() -> Catalog {
     let inverse_bind = build_inverse_bind(&bones);
     let samples = build_samples(&bones);
     let meshlets = MeshletCatalog::build();
+    let imported_start = meshlets.imported.vertex_start as usize;
+    let imported_end = imported_start + meshlets.imported.vertex_count as usize;
     let skin_bindings = (0..meshlets.vertices.len())
-        .map(|index| skin_binding(index as u32))
+        .map(|index| {
+            if (imported_start..imported_end).contains(&index) {
+                rigid_binding()
+            } else {
+                skin_binding(index as u32)
+            }
+        })
         .collect();
     Catalog {
         bones,
@@ -98,4 +106,11 @@ fn skin_binding(vertex: u32) -> SkinBinding {
     let indices = base | ((base + 1) << 8) | ((base + 2) << 16) | ((base + 3) << 24);
     let weights = 128u32 | (64u32 << 8) | (42u32 << 16) | (21u32 << 24);
     SkinBinding { indices, weights }
+}
+
+fn rigid_binding() -> SkinBinding {
+    SkinBinding {
+        indices: 0,
+        weights: 252u32 | (1u32 << 8) | (1u32 << 16) | (1u32 << 24),
+    }
 }

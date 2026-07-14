@@ -206,7 +206,7 @@ export async function cookObjects(
     path: string,
     centers: Coord[],
     order: "a" | "b",
-    presentation: "base" | "archetype" | "material" | "yaw" | "animation" = "base",
+    presentation: "base" | "archetype" | "material" | "yaw" | "animation" | "imported" = "base",
 ): Promise<Json> {
     const args = [
         "run",
@@ -474,6 +474,7 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
             gpu: skeletal.gpu,
             cpuOracle: skeletal.cpuOracle,
             paletteWriteBytes: skeletal.paletteWriteBytes,
+            importedGeometry: skeletal.importedGeometry,
             meshletCatalogSha256: skeletal.meshletCatalogSha256,
             animationCatalogSha256: skeletal.animationCatalogSha256,
         },

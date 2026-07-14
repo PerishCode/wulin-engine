@@ -83,6 +83,10 @@ bool query_occluded(VisibleObject visible)
     uint local_index = visible.physical_index % INSTANCES_PER_REGION;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
     float half_xz = occlusion_params.x * instance.height + occlusion_params.y;
+    if (visible.archetype == 7u)
+    {
+        half_xz = occlusion_bias.y;
+    }
     float half_y = instance.height * 0.5 + occlusion_params.z;
     float3 center = canonical_position(instance, visible.candidate_index)
         + float3(0.0, instance.height * 0.5, 0.0);
