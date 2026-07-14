@@ -105,6 +105,8 @@ pub struct AsyncTransactionReport {
     pub uploaded_sha256: String,
     pub identity_copy_count: usize,
     pub identity_copy_bytes: usize,
+    pub presentation_copy_count: usize,
+    pub presentation_copy_bytes: usize,
     pub direct_release_fence: u64,
     pub copy_fence: u64,
     pub gate_fence: Option<u64>,

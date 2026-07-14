@@ -5,7 +5,9 @@ use anyhow::{Context, Result, bail};
 use canonical_object_fixture::{
     generate_region as generate_canonical_region, stable_seed_namespace,
 };
-use region_cooker::{IdentityOrder, reorder_identity_records};
+use region_cooker::{
+    PhysicalOrder, PresentationProfile, author_presentations, reorder_object_triples,
+};
 use region_format::{GlobalRegion, InstanceRecord, file_sha256, write_global_pack};
 use serde::Serialize;
 
@@ -20,20 +22,26 @@ struct CookReport {
     file_sha256: String,
     metadata: region_format::GlobalPackMetadata,
     centers: Vec<GlobalRegion>,
-    identity_order: &'static str,
+    physical_order: &'static str,
+    presentation_profile: &'static str,
 }
 
 fn main() -> Result<()> {
     let mut args = std::env::args_os().skip(1);
-    let usage = "usage: region-cooker <output.wlr> --identity-order <a|b> --global-center <i64> <i64> [--global-center <i64> <i64>]...";
+    let usage = "usage: region-cooker <output.wlr> --physical-order <a|b> --presentation <base|archetype|material|yaw|animation> --global-center <i64> <i64> [--global-center <i64> <i64>]...";
     let output = PathBuf::from(args.next().context(usage)?);
     let mut global_centers = Vec::new();
-    let mut identity_order = None;
+    let mut physical_order = None;
+    let mut presentation_profile = None;
     while let Some(flag) = args.next() {
         match flag.to_string_lossy().as_ref() {
-            "--identity-order" if identity_order.is_none() => {
+            "--physical-order" if physical_order.is_none() => {
                 let value = args.next().context(usage)?;
-                identity_order = Some(IdentityOrder::parse(&value.to_string_lossy())?);
+                physical_order = Some(PhysicalOrder::parse(&value.to_string_lossy())?);
+            }
+            "--presentation" if presentation_profile.is_none() => {
+                let value = args.next().context(usage)?;
+                presentation_profile = Some(PresentationProfile::parse(&value.to_string_lossy())?);
             }
             "--global-center" => {
                 let x = parse_axis(args.next().context(usage)?, "global x")?;
@@ -44,11 +52,17 @@ fn main() -> Result<()> {
         }
     }
     anyhow::ensure!(!global_centers.is_empty(), usage);
-    let identity_order = identity_order.context(usage)?;
-    cook(output, global_centers, identity_order)
+    let physical_order = physical_order.context(usage)?;
+    let presentation_profile = presentation_profile.context(usage)?;
+    cook(output, global_centers, physical_order, presentation_profile)
 }
 
-fn cook(output: PathBuf, centers: Vec<GlobalRegion>, identity_order: IdentityOrder) -> Result<()> {
+fn cook(
+    output: PathBuf,
+    centers: Vec<GlobalRegion>,
+    physical_order: PhysicalOrder,
+    presentation_profile: PresentationProfile,
+) -> Result<()> {
     let radius = i64::from(ACTIVE_RADIUS);
     let mut regions = BTreeSet::new();
     for center in &centers {
@@ -69,18 +83,21 @@ fn cook(output: PathBuf, centers: Vec<GlobalRegion>, identity_order: IdentityOrd
     }
     let payloads = regions.into_iter().map(|region| {
         let records = generate_authority_region(region);
-        let (records, local_ids) = reorder_identity_records(records, identity_order);
-        (region, records, local_ids)
+        let presentations = author_presentations(&records, presentation_profile);
+        let (records, local_ids, presentations) =
+            reorder_object_triples(records, presentations, physical_order);
+        (region, records, local_ids, presentations)
     });
     let metadata = write_global_pack(&output, stable_seed_namespace(), payloads)?;
     let report = CookReport {
-        schema_version: 2,
-        source_revision: identity_order.revision(),
+        schema_version: 3,
+        source_revision: physical_order.revision(),
         output: output.display().to_string(),
         file_sha256: file_sha256(&output)?,
         metadata,
         centers,
-        identity_order: identity_order.label(),
+        physical_order: physical_order.label(),
+        presentation_profile: presentation_profile.label(),
     };
     println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())

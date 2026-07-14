@@ -24,6 +24,7 @@ pub(super) struct CanonicalObjectEvidence {
     local_id_duplicate_count: usize,
     content_sha256: String,
     identity_keyed_sha256: String,
+    presentation_keyed_sha256: String,
     stable_key_sha256: String,
     stable_seed_sha256: String,
     payload_authority: CookedPayloadAuthority,
@@ -54,6 +55,11 @@ struct CookedPayloadAuthority {
     identity_copy_count: u32,
     identity_probe_count: u64,
     identity_total_copy_count: u64,
+    presentation_readback_bytes: u64,
+    presentation_allocation_bytes: u64,
+    presentation_copy_count: u32,
+    presentation_probe_count: u64,
+    presentation_total_copy_count: u64,
 }
 
 #[derive(Serialize)]
@@ -82,6 +88,7 @@ pub(super) fn canonical_object_evidence(
     let mut content_hash = Sha256::new();
     let mut identity_keyed_hash = Sha256::new();
     let mut stable_key_hash = Sha256::new();
+    let mut presentation_keyed_hash = Sha256::new();
     let mut seed_hash = Sha256::new();
     let mut semantic_ids = BTreeSet::new();
     let mut stable_seeds = BTreeSet::new();
@@ -91,9 +98,10 @@ pub(super) fn canonical_object_evidence(
     let mut entries = Vec::with_capacity(assignments.len());
     for (index, (assignment, region_records)) in assignments.iter().zip(records).enumerate() {
         let local_ids = &readback.local_ids[index];
+        let presentations = &readback.presentations[index];
         ensure!(
-            local_ids.len() == region_records.len(),
-            "canonical object identity page differs from its record page"
+            local_ids.len() == region_records.len() && presentations.len() == region_records.len(),
+            "canonical object triple planes have different record counts"
         );
         let global = assignment.global_region;
         let stable_seed = canonical_stable_seed(stable_seed_namespace, global);
@@ -121,13 +129,20 @@ pub(super) fn canonical_object_evidence(
             .iter()
             .copied()
             .zip(region_records.iter())
+            .zip(presentations.iter())
             .collect::<Vec<_>>();
-        keyed.sort_by_key(|(local_id, _)| *local_id);
+        keyed.sort_by_key(|((local_id, _), _)| *local_id);
         identity_keyed_hash.update(global.x.to_le_bytes());
         identity_keyed_hash.update(global.z.to_le_bytes());
-        for (local_id, record) in keyed {
+        presentation_keyed_hash.update(global.x.to_le_bytes());
+        presentation_keyed_hash.update(global.z.to_le_bytes());
+        for ((local_id, record), presentation) in keyed {
             identity_keyed_hash.update(local_id.to_le_bytes());
             identity_keyed_hash.update(crate::resident::as_bytes(std::slice::from_ref(record)));
+            presentation_keyed_hash.update(local_id.to_le_bytes());
+            presentation_keyed_hash.update(crate::resident::as_bytes(std::slice::from_ref(
+                presentation,
+            )));
             stable_key_hash
                 .update(crate::resident::canonical_stable_key(stable_seed, local_id).to_le_bytes());
         }
@@ -152,6 +167,7 @@ pub(super) fn canonical_object_evidence(
         local_id_duplicate_count,
         content_sha256: format!("{:x}", content_hash.finalize()),
         identity_keyed_sha256: format!("{:x}", identity_keyed_hash.finalize()),
+        presentation_keyed_sha256: format!("{:x}", presentation_keyed_hash.finalize()),
         stable_key_sha256: format!("{:x}", stable_key_hash.finalize()),
         stable_seed_sha256: format!("{:x}", seed_hash.finalize()),
         payload_authority: cooked_payload_authority(assignments, records, readback)?,
@@ -179,9 +195,11 @@ fn cooked_payload_authority(
         let global = assignment.global_region;
         let bytes = crate::resident::as_bytes(region_records);
         let identity_bytes = crate::resident::as_bytes(&readback.local_ids[active_index]);
+        let presentation_bytes = crate::resident::as_bytes(&readback.presentations[active_index]);
         let mut combined = Sha256::new();
         combined.update(bytes);
         combined.update(identity_bytes);
+        combined.update(presentation_bytes);
         let observed_checksum: [u8; 32] = combined.finalize().into();
         chunk_mismatch_count += usize::from(observed_checksum != *expected_checksum);
         for digest in [&mut expected_index, &mut observed_index] {
@@ -192,21 +210,30 @@ fn cooked_payload_authority(
         observed_index.update(observed_checksum);
         payload.update(bytes);
         payload.update(identity_bytes);
+        payload.update(presentation_bytes);
     }
     ensure!(
         chunk_mismatch_count == 0,
         "published cooked object pages differ from the pack index"
     );
     Ok(CookedPayloadAuthority {
-        revision: "cooked-object-payload-authority-v2",
+        revision: "cooked-object-payload-authority-v3",
         payload_schema: region_format::GLOBAL_PAYLOAD_SCHEMA,
         region_count: records.len(),
         record_count: records.iter().map(Vec::len).sum(),
-        copy_count: readback.copy_count + readback.identity_copy_count,
-        readback_bytes: readback.readback_bytes + readback.identity_readback_bytes,
-        allocation_bytes: readback.allocation_bytes + readback.identity_allocation_bytes,
+        copy_count: readback.copy_count
+            + readback.identity_copy_count
+            + readback.presentation_copy_count,
+        readback_bytes: readback.readback_bytes
+            + readback.identity_readback_bytes
+            + readback.presentation_readback_bytes,
+        allocation_bytes: readback.allocation_bytes
+            + readback.identity_allocation_bytes
+            + readback.presentation_allocation_bytes,
         probe_count: readback.probe_count,
-        total_copy_count: readback.total_copy_count + readback.identity_total_copy_count,
+        total_copy_count: readback.total_copy_count
+            + readback.identity_total_copy_count
+            + readback.presentation_total_copy_count,
         chunk_mismatch_count,
         expected_index_sha256: format!("{:x}", expected_index.finalize()),
         observed_index_sha256: format!("{:x}", observed_index.finalize()),
@@ -219,5 +246,10 @@ fn cooked_payload_authority(
         identity_copy_count: readback.identity_copy_count,
         identity_probe_count: readback.identity_probe_count,
         identity_total_copy_count: readback.identity_total_copy_count,
+        presentation_readback_bytes: readback.presentation_readback_bytes,
+        presentation_allocation_bytes: readback.presentation_allocation_bytes,
+        presentation_copy_count: readback.presentation_copy_count,
+        presentation_probe_count: readback.presentation_probe_count,
+        presentation_total_copy_count: readback.presentation_total_copy_count,
     })
 }

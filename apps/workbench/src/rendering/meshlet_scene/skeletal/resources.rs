@@ -25,7 +25,8 @@ pub const QUERY_COUNT: u32 = 8;
 pub const MAX_SHARED_POSES: u32 = 512;
 pub const MAX_SKELETAL_VISIBLE: u32 = ACTIVE_REGION_CAPACITY as u32 * INSTANCES_PER_REGION;
 pub const PALETTE_BYTES: u64 = MAX_SKELETAL_VISIBLE as u64 * BONE_COUNT as u64 * 48;
-const DESCRIPTOR_COUNT: u32 = 170;
+const DESCRIPTOR_COUNT: u32 = 220;
+pub const VISIBLE_OBJECT_BYTES: u32 = 36;
 
 pub struct AnimationBuffers {
     pub bones: ID3D12Resource,
@@ -84,7 +85,12 @@ impl ExecutionResources {
         mesh: &CatalogBuffers,
         animation: &AnimationBuffers,
     ) -> Result<Self> {
-        let visible = unsafe { uav_buffer(device, MAX_SKELETAL_VISIBLE as u64 * 24) }?;
+        let visible = unsafe {
+            uav_buffer(
+                device,
+                MAX_SKELETAL_VISIBLE as u64 * VISIBLE_OBJECT_BYTES as u64,
+            )
+        }?;
         let counters = unsafe { uav_buffer(device, COUNTER_BYTES) }?;
         let animated_indices = unsafe { uav_buffer(device, MAX_SKELETAL_VISIBLE as u64 * 4) }?;
         let pose_bitset = unsafe { uav_buffer(device, MAX_SHARED_POSES as u64 / 8) }?;
@@ -175,6 +181,16 @@ unsafe fn create_heap(
         );
         device.CopyDescriptorsSimple(
             ASYNC_CACHE_CAPACITY as u32,
+            cpu_handle(start, increment, 170),
+            cpu_handle(
+                source_heaps[0].GetCPUDescriptorHandleForHeapStart(),
+                increment,
+                ASYNC_CACHE_CAPACITY * 2,
+            ),
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+        );
+        device.CopyDescriptorsSimple(
+            ASYNC_CACHE_CAPACITY as u32,
             cpu_handle(start, increment, 120),
             cpu_handle(
                 source_heaps[0].GetCPUDescriptorHandleForHeapStart(),
@@ -191,7 +207,7 @@ unsafe fn create_heap(
         );
     }
     for (offset, resource, count, stride) in [
-        (50, uavs[0], MAX_SKELETAL_VISIBLE, 24),
+        (50, uavs[0], MAX_SKELETAL_VISIBLE, VISIBLE_OBJECT_BYTES),
         (
             51,
             &mesh.vertices,

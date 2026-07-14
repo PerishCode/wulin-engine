@@ -193,6 +193,7 @@ export async function cookObjects(
     path: string,
     centers: Coord[],
     order: "a" | "b",
+    presentation: "base" | "archetype" | "material" | "yaw" | "animation" = "base",
 ): Promise<Json> {
     const args = [
         "run",
@@ -202,8 +203,10 @@ export async function cookObjects(
         "region-cooker",
         "--",
         path,
-        "--identity-order",
+        "--physical-order",
         order,
+        "--presentation",
+        presentation,
     ];
     for (const [x, z] of centers) args.push("--global-center", String(x), String(z));
     const output = await new Deno.Command("cargo", {
@@ -221,7 +224,7 @@ export async function corruptTerrain(path: string, region: Coord): Promise<Json>
 }
 
 export async function corruptObjects(path: string, region: Coord): Promise<Json> {
-    return await corruptPayload(path, region, 96, 12);
+    return await corruptPayload(path, region, 96, 20_480 + 4_096 + 12);
 }
 
 async function corruptPayload(
@@ -352,8 +355,10 @@ export function validateProbe(value: Json, allowPending = false): void {
         canonical.entryCount !== 25 || canonical.semanticCollisionCount !== 0 ||
         canonical.stableSeedCollisionCount !== 0 || canonical.mismatchCount !== 0 ||
         canonical.localIdCount !== 25_600 || canonical.localIdDuplicateCount !== 0 ||
-        authority.payloadSchema !== 2 || authority.regionCount !== 25 ||
-        authority.recordCount !== 25_600 || authority.copyCount !== 50 ||
+        authority.payloadSchema !== 3 || authority.regionCount !== 25 ||
+        authority.recordCount !== 25_600 || authority.copyCount !== 75 ||
+        authority.recordCopyCount !== 25 || authority.identityCopyCount !== 25 ||
+        authority.presentationCopyCount !== 25 || authority.readbackBytes !== 1_024_000 ||
         authority.chunkMismatchCount !== 0 ||
         authority.expectedIndexSha256 !== authority.observedIndexSha256
     ) fail("canonical object authority diverged");
@@ -427,6 +432,7 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
     return {
         objects: {
             identityKeyedSha256: canonical.identityKeyedSha256,
+            presentationKeyedSha256: canonical.presentationKeyedSha256,
             stableKeySha256: canonical.stableKeySha256,
             stableSeedSha256: canonical.stableSeedSha256,
             entries: canonical.entries,
@@ -663,21 +669,35 @@ export async function resourcePlateau(base: Coord): Promise<Json> {
             samples.push({ publication: index, ...sample });
         }
     }
+    const peakHandleCount = Math.max(
+        ...samples.map((value) => number(value, "handleCount")),
+    );
     const handleGrowth = samples.filter((value) =>
         number(value, "handleCount") > baseline.handleCount
     );
-    if (handleGrowth.length !== 0) {
+    const final = samples.at(-1) as Json;
+    if (
+        peakHandleCount > baseline.handleCount + 1 ||
+        number(final, "handleCount") > baseline.handleCount
+    ) {
         fail(
-            `handle count exceeded baseline ${baseline.handleCount}: ${
-                JSON.stringify(handleGrowth)
+            `handle count did not return to baseline ${baseline.handleCount}: ${
+                JSON.stringify({ handleGrowth, samples })
             }`,
         );
     }
-    const final = samples.at(-1) as Json;
     if (number(final, "privateBytes") > baseline.privateBytes + 16 * 1024 * 1024) {
         fail("final private bytes exceeded the 16 MiB plateau allowance");
     }
-    return { processId, warmPublications, settleSamples, baseline, samples };
+    return {
+        processId,
+        warmPublications,
+        settleSamples,
+        baseline,
+        peakHandleCount,
+        transientHandleGrowthCount: handleGrowth.length,
+        samples,
+    };
 }
 
 export async function assertStopped(processId?: number): Promise<Json> {

@@ -8,19 +8,22 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use super::{
-    InstanceRecord, PAYLOAD_ALIGNMENT, RECORD_BYTES, RECORDS_PER_REGION, REGION_BYTES, align_up,
-    decode_record, encode_record, hex, push_u32, push_u32_to, push_u64, push_u64_to, u32_at,
-    u64_at,
+    InstanceRecord, PAYLOAD_ALIGNMENT, PRESENTATION_ANIMATION_CLIP_COUNT,
+    PRESENTATION_ANIMATION_PHASE_COUNT, PRESENTATION_ARCHETYPE_COUNT, PRESENTATION_BYTES,
+    PRESENTATION_MATERIAL_COUNT, PresentationRecord, RECORD_BYTES, RECORDS_PER_REGION,
+    REGION_BYTES, align_up, decode_presentation, decode_record, encode_presentation, encode_record,
+    hex, push_u32, push_u32_to, push_u64, push_u64_to, u32_at, u64_at,
 };
 
-pub const GLOBAL_MAGIC: [u8; 8] = *b"WLRGN002";
-pub const GLOBAL_VERSION: u32 = 2;
+pub const GLOBAL_MAGIC: [u8; 8] = *b"WLRGN003";
+pub const GLOBAL_VERSION: u32 = 3;
 pub const GLOBAL_HEADER_BYTES: u32 = 96;
 pub const GLOBAL_INDEX_ENTRY_BYTES: u32 = 64;
-pub const GLOBAL_PAYLOAD_SCHEMA: u32 = 2;
+pub const GLOBAL_PAYLOAD_SCHEMA: u32 = 3;
 pub const IDENTITY_BYTES: u32 = 4;
 pub const IDENTITY_PLANE_BYTES: u32 = RECORDS_PER_REGION * IDENTITY_BYTES;
-pub const GLOBAL_REGION_BYTES: u32 = REGION_BYTES + IDENTITY_PLANE_BYTES;
+pub const PRESENTATION_PLANE_BYTES: u32 = RECORDS_PER_REGION * PRESENTATION_BYTES;
+pub const GLOBAL_REGION_BYTES: u32 = REGION_BYTES + IDENTITY_PLANE_BYTES + PRESENTATION_PLANE_BYTES;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -71,6 +74,7 @@ pub struct GlobalRegionRead {
     pub stable_seed: u32,
     pub records: Vec<InstanceRecord>,
     pub local_ids: Vec<u32>,
+    pub presentations: Vec<PresentationRecord>,
     pub payload: Vec<u8>,
     pub payload_bytes: u32,
     pub sha256: String,
@@ -315,15 +319,24 @@ impl GlobalRegionPack {
             records.push(record);
         }
         let mut local_ids = Vec::with_capacity(RECORDS_PER_REGION as usize);
-        for bytes in payload[REGION_BYTES as usize..].chunks_exact(IDENTITY_BYTES as usize) {
+        let identity_end = (REGION_BYTES + IDENTITY_PLANE_BYTES) as usize;
+        for bytes in
+            payload[REGION_BYTES as usize..identity_end].chunks_exact(IDENTITY_BYTES as usize)
+        {
             local_ids.push(u32_at(bytes, 0));
         }
         validate_local_ids(region, &local_ids)?;
+        let mut presentations = Vec::with_capacity(RECORDS_PER_REGION as usize);
+        for bytes in payload[identity_end..].chunks_exact(PRESENTATION_BYTES as usize) {
+            presentations.push(decode_presentation(bytes));
+        }
+        validate_presentations(region, &presentations)?;
         Ok(GlobalRegionRead {
             region,
             stable_seed,
             records,
             local_ids,
+            presentations,
             payload,
             payload_bytes: entry.payload_bytes,
             sha256: hex(&entry.sha256),
@@ -336,7 +349,14 @@ impl GlobalRegionPack {
 pub fn write_global_pack(
     path: impl AsRef<Path>,
     stable_seed_namespace: [u8; 32],
-    regions: impl IntoIterator<Item = (GlobalRegion, Vec<InstanceRecord>, Vec<u32>)>,
+    regions: impl IntoIterator<
+        Item = (
+            GlobalRegion,
+            Vec<InstanceRecord>,
+            Vec<u32>,
+            Vec<PresentationRecord>,
+        ),
+    >,
 ) -> Result<GlobalPackMetadata> {
     let path = path.as_ref();
     ensure!(
@@ -344,7 +364,7 @@ pub fn write_global_pack(
         "cannot write a zero stable-seed namespace"
     );
     let mut regions = regions.into_iter().collect::<Vec<_>>();
-    regions.sort_by_key(|(region, _, _)| (region.z, region.x));
+    regions.sort_by_key(|(region, _, _, _)| (region.z, region.x));
     ensure!(
         !regions.is_empty(),
         "cannot write an empty signed object pack"
@@ -365,7 +385,7 @@ pub fn write_global_pack(
     let payload_bytes = u64::from(region_count) * u64::from(region_payload_bytes);
     let file_bytes = payload_offset + payload_bytes;
     let mut encoded = Vec::with_capacity(regions.len());
-    for (region, records, local_ids) in &regions {
+    for (region, records, local_ids, presentations) in &regions {
         ensure!(
             records.len() == RECORDS_PER_REGION as usize,
             "signed object region ({},{}) must contain {RECORDS_PER_REGION} records",
@@ -387,6 +407,10 @@ pub fn write_global_pack(
         validate_local_ids(*region, local_ids)?;
         for local_id in local_ids {
             bytes.extend_from_slice(&local_id.to_le_bytes());
+        }
+        validate_presentations(*region, presentations)?;
+        for presentation in presentations {
+            encode_presentation(presentation, &mut bytes);
         }
         debug_assert_eq!(bytes.len(), region_payload_bytes as usize);
         let sha256: [u8; 32] = Sha256::digest(&bytes).into();
@@ -417,7 +441,7 @@ pub fn write_global_pack(
     file.write_all(&header)
         .context("failed to write signed object pack header")?;
 
-    for (index, ((region, _, _), (_, sha256))) in regions.iter().zip(&encoded).enumerate() {
+    for (index, ((region, _, _, _), (_, sha256))) in regions.iter().zip(&encoded).enumerate() {
         push_i64_to(&mut file, region.x)?;
         push_i64_to(&mut file, region.z)?;
         push_u64_to(
@@ -465,6 +489,56 @@ fn validate_local_ids(region: GlobalRegion, local_ids: &[u32]) -> Result<()> {
             region.x,
             region.z
         );
+    }
+    Ok(())
+}
+
+fn validate_presentations(
+    region: GlobalRegion,
+    presentations: &[PresentationRecord],
+) -> Result<()> {
+    ensure!(
+        presentations.len() == RECORDS_PER_REGION as usize,
+        "signed object region ({},{}) must contain {RECORDS_PER_REGION} presentation records",
+        region.x,
+        region.z
+    );
+    for presentation in presentations {
+        ensure!(
+            presentation.archetype < PRESENTATION_ARCHETYPE_COUNT,
+            "signed object region ({},{}) contains invalid presentation archetype {}",
+            region.x,
+            region.z,
+            presentation.archetype
+        );
+        ensure!(
+            presentation.material < PRESENTATION_MATERIAL_COUNT,
+            "signed object region ({},{}) contains invalid presentation material {}",
+            region.x,
+            region.z,
+            presentation.material
+        );
+        ensure!(
+            presentation.yaw_q16 <= u16::MAX.into(),
+            "signed object region ({},{}) contains invalid presentation yaw {}",
+            region.x,
+            region.z,
+            presentation.yaw_q16
+        );
+        if presentation.is_animated() {
+            ensure!(
+                presentation.animation_clip().unwrap() < PRESENTATION_ANIMATION_CLIP_COUNT,
+                "signed object region ({},{}) contains invalid animation clip",
+                region.x,
+                region.z
+            );
+            ensure!(
+                presentation.animation_phase_offset().unwrap() < PRESENTATION_ANIMATION_PHASE_COUNT,
+                "signed object region ({},{}) contains invalid animation phase offset",
+                region.x,
+                region.z
+            );
+        }
     }
     Ok(())
 }

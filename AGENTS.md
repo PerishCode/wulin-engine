@@ -95,11 +95,12 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiment 0031 and ADR 0034 accept one live content runtime:
+Experiments 0031/0032 and ADRs 0034/0035 accept one live content runtime with explicit
+object presentation authority:
 
 - signed `i64` terrain packs (`.wlt`);
-- signed schema-2 object packs (`.wlr`) with explicit authored local IDs;
-- source-addressed 50-slot terrain and object caches;
+- signed schema-3 object packs (`.wlr`) with explicit authored local IDs and presentation;
+- source-addressed 50-slot terrain and triple-plane object caches;
 - atomic terrain-first canonical composition after an idle workbench shell;
 - fixed arbitrary-Q8 grounding, terrain LOD, skeletal, surface, and occlusion execution;
 - one compact `source.*` / `canonical.*` inspect vocabulary;
@@ -122,18 +123,20 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/architecture/repository-model.md` | Ownership and dependency direction. |
 | `docs/adr/README.md` | ADR naming, status, and maintenance rules. |
 | `docs/adr/0034-canonical-runtime-convergence.md` | Accepted single-runtime, operator-surface, and attachment contract. |
+| `docs/adr/0035-authored-object-presentation.md` | Accepted schema-3 triple-plane object presentation authority and publication contract. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
-| `crates/region-format/src/global.rs` | Signed schema-2 dual-plane object pack codec. |
+| `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
+| `crates/region-format/src/global.rs` | Signed schema-3 spatial, identity, and presentation object pack codec. |
 | `crates/terrain-format/src/global.rs` | Signed terrain pack codec and exact lookup. |
 | `crates/canonical-object-fixture/src/lib.rs` | Deterministic arbitrary-Q8 authored object fixture. |
-| `tools/region-cooker/src/main.rs` | Signed schema-2 object cooker CLI. |
+| `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
 | `apps/workbench/src/main.rs` | Native frame loop and pending operation dispatch. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch. |
 | `apps/workbench/src/streaming/address.rs` | Signed global window and bounded projection. |
-| `apps/workbench/src/streaming/objects/mod.rs` | Bounded schema-2 object I/O transactions. |
+| `apps/workbench/src/streaming/objects/mod.rs` | Bounded schema-3 object I/O transactions. |
 | `apps/workbench/src/streaming/terrain/mod.rs` | Bounded signed terrain I/O transactions. |
 | `apps/workbench/src/rendering/async_resident/transfer.rs` | Object GPU copy and slot lifecycle. |
 | `apps/workbench/src/rendering/terrain/transfer.rs` | Terrain GPU copy and slot lifecycle. |
@@ -145,7 +148,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository validation and forbidden-symbol gate. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0031 acceptance entry point. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0032 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 
 ## 6. Core Operational Workflows
@@ -172,7 +175,7 @@ and prepared traversal, rollover, a same-process 64-publication resource plateau
 16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0031-canonical-runtime-convergence/` and remains ignored.
+`out/captures/0032-authored-object-presentation/` and remains ignored.
 
 ### 6.3 Manual workbench
 

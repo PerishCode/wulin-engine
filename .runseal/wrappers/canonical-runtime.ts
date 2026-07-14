@@ -36,12 +36,16 @@ import {
     waitStatus,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-runtime-convergence-v1";
-const COLLECTION = "0031-canonical-runtime-convergence";
+const REVISION = "authored-object-presentation-v1";
+const COLLECTION = "0032-authored-object-presentation";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
 const OBJECTS_B = `${DIRECTORY}/objects-b.wlr`;
+const OBJECTS_ARCHETYPE = `${DIRECTORY}/objects-archetype.wlr`;
+const OBJECTS_MATERIAL = `${DIRECTORY}/objects-material.wlr`;
+const OBJECTS_YAW = `${DIRECTORY}/objects-yaw.wlr`;
+const OBJECTS_ANIMATION = `${DIRECTORY}/objects-animation.wlr`;
 const OBJECTS_CORRUPT = `${DIRECTORY}/objects-corrupt.wlr`;
 const TERRAIN_CORRUPT = `${DIRECTORY}/terrain-corrupt.wlt`;
 const REPORT = `out/captures/${COLLECTION}/acceptance.json`;
@@ -53,6 +57,30 @@ if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     Deno.exit(0);
 }
 if (Deno.args.length !== 0) fail(`canonical-runtime: unexpected argument ${Deno.args[0]}`);
+
+function presentationInvariant(stable: Json): Json {
+    const objects = object(stable, "objects");
+    return {
+        objects: {
+            identityKeyedSha256: objects.identityKeyedSha256,
+            stableKeySha256: objects.stableKeySha256,
+            stableSeedSha256: objects.stableSeedSha256,
+            entries: objects.entries,
+        },
+        grounding: stable.grounding,
+        contact: stable.contact,
+        terrain: stable.terrain,
+    };
+}
+
+function assertObjectCopies(publication: Json, expected: number, label: string): void {
+    const objects = object(object(publication, "published"), "objects");
+    if (
+        number(objects, "uploadedRegionCount") !== expected ||
+        number(objects, "identityCopyCount") !== expected ||
+        number(objects, "presentationCopyCount") !== expected
+    ) fail(`${label} object triple copy count diverged`);
+}
 
 await Deno.mkdir(`${root}/${DIRECTORY}`, { recursive: true });
 await Deno.mkdir(`${root}/out/captures/${COLLECTION}`, { recursive: true });
@@ -84,13 +112,18 @@ for (let offset = -1; offset <= 80; offset += 1) {
     centers.push([BASE[0] + offset, BASE[1]]);
 }
 centers.push([BASE[0] + 1, BASE[1] + 1]);
+centers.push([BASE[0] + 41, BASE[1] + 1]);
 const terrainCook = await cookTerrain(TERRAIN, centers);
 const objectCookA = await cookObjects(OBJECTS_A, centers, "a");
 const objectCookB = await cookObjects(OBJECTS_B, centers, "b");
+const objectCookArchetype = await cookObjects(OBJECTS_ARCHETYPE, centers, "a", "archetype");
+const objectCookMaterial = await cookObjects(OBJECTS_MATERIAL, centers, "a", "material");
+const objectCookYaw = await cookObjects(OBJECTS_YAW, centers, "a", "yaw");
+const objectCookAnimation = await cookObjects(OBJECTS_ANIMATION, centers, "a", "animation");
 const metadataA = object(objectCookA, "metadata");
 const metadataB = object(objectCookB, "metadata");
 if (
-    metadataA.payloadSchema !== 2 || metadataB.payloadSchema !== 2 ||
+    metadataA.payloadSchema !== 3 || metadataB.payloadSchema !== 3 ||
     metadataA.stableSeedNamespaceSha256 !== metadataB.stableSeedNamespaceSha256 ||
     metadataA.sourceNamespaceSha256 === metadataB.sourceNamespaceSha256 ||
     string(objectCookA, "fileSha256") === string(objectCookB, "fileSha256")
@@ -111,21 +144,72 @@ try {
     }
     await openSources(TERRAIN, OBJECTS_A);
     const basePublication = await publish(target(BASE));
+    assertObjectCopies(basePublication, 25, "cold publication");
     const orderA = await frame("order-a", COLLECTION);
+
+    const presentationMutations: Json[] = [];
+    for (
+        const [label, path] of [
+            ["archetype", OBJECTS_ARCHETYPE],
+            ["material", OBJECTS_MATERIAL],
+            ["yaw", OBJECTS_YAW],
+            ["animation", OBJECTS_ANIMATION],
+        ] as const
+    ) {
+        await event("source.objects.open", { path });
+        const publication = await publish(target(BASE));
+        assertObjectCopies(publication, 25, `${label} source publication`);
+        const mutated = await frame(`presentation-${label}`, COLLECTION);
+        const baseStable = object(orderA, "stable");
+        const mutatedStable = object(mutated, "stable");
+        same(
+            presentationInvariant(mutatedStable),
+            presentationInvariant(baseStable),
+            `${label} presentation spatial/identity invariants`,
+        );
+        const baseObjects = object(baseStable, "objects");
+        const mutatedObjects = object(mutatedStable, "objects");
+        if (
+            mutatedObjects.presentationKeyedSha256 === baseObjects.presentationKeyedSha256
+        ) fail(`${label} presentation mutation did not change cooked authority`);
+        const baseSkeletal = object(baseStable, "skeletal");
+        const mutatedSkeletal = object(mutatedStable, "skeletal");
+        if (label !== "animation") {
+            same(mutatedSkeletal.gpu, baseSkeletal.gpu, `${label} skeletal invariance`);
+        } else if (JSON.stringify(mutatedSkeletal.gpu) === JSON.stringify(baseSkeletal.gpu)) {
+            fail(`${label} presentation mutation did not change skeletal evidence`);
+        }
+        const baseCapture = object(baseStable, "capture");
+        const mutatedCapture = object(mutatedStable, "capture");
+        if (
+            label !== "animation" && mutatedCapture.color === baseCapture.color &&
+            mutatedCapture.png === baseCapture.png
+        ) fail(`${label} presentation mutation did not change rendered color evidence`);
+        presentationMutations.push({ label, publication, frame: mutated });
+    }
+
+    await event("source.objects.open", { path: OBJECTS_A });
+    await publish(target(BASE));
 
     await event("source.objects.open", { path: OBJECTS_B });
     const orderBPublication = await publish(target(BASE));
+    assertObjectCopies(orderBPublication, 25, "order B source publication");
     const orderB = await frame("order-b", COLLECTION);
     same(orderB.stable, orderA.stable, "physical object order A/B behavior");
 
     await event("source.objects.open", { path: OBJECTS_A });
     const revisitPublication = await publish(target(BASE));
+    assertObjectCopies(revisitPublication, 0, "order A source revisit");
     const revisit = await frame("order-a-revisit", COLLECTION);
     same(revisit.stable, orderA.stable, "object source revisit");
 
     const adjacentPublication = await publish(target([BASE[0] + 1, BASE[1]]));
+    assertObjectCopies(adjacentPublication, 5, "adjacent publication");
     const adjacent = await frame("adjacent", COLLECTION);
-    const diagonalPublication = await publish(target([BASE[0] + 1, BASE[1] + 1]));
+    const diagonalBasePublication = await publish(target([BASE[0] + 40, BASE[1]]));
+    assertObjectCopies(diagonalBasePublication, 25, "diagonal cold base");
+    const diagonalPublication = await publish(target([BASE[0] + 41, BASE[1] + 1]));
+    assertObjectCopies(diagonalPublication, 9, "diagonal publication");
     const diagonal = await frame("diagonal", COLLECTION);
     const returnedPublication = await publish(target(BASE));
     const returned = await frame("returned", COLLECTION);
@@ -258,6 +342,10 @@ try {
             terrain: terrainCook,
             objectsA: objectCookA,
             objectsB: objectCookB,
+            objectsArchetype: objectCookArchetype,
+            objectsMaterial: objectCookMaterial,
+            objectsYaw: objectCookYaw,
+            objectsAnimation: objectCookAnimation,
             objectCorruption,
             terrainCorruption,
         },
@@ -265,12 +353,14 @@ try {
             idle,
             basePublication,
             orderA,
+            presentationMutations,
             orderBPublication,
             orderB,
             revisitPublication,
             revisit,
             adjacentPublication,
             adjacent,
+            diagonalBasePublication,
             diagonalPublication,
             diagonal,
             returnedPublication,

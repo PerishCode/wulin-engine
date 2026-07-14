@@ -8,6 +8,7 @@ use windows::Win32::Graphics::Dxgi::Common::{
     DXGI_FORMAT_R32G32_UINT, DXGI_FORMAT_UNKNOWN,
 };
 
+use super::super::super::resources::VISIBLE_OBJECT_BYTES;
 use super::super::occlusion::{OCCLUSION_COUNTER_BYTES, OCCLUSION_GROUPS, OcclusionResources};
 use super::upload::UploadedSurface;
 use super::{CANDIDATE_CAPACITY, SAMPLE_BYTES, STATS_BYTES};
@@ -68,14 +69,14 @@ pub unsafe fn create_heap(
             device,
             &inputs.occlusion.filtered_visible,
             CANDIDATE_CAPACITY,
-            24,
+            VISIBLE_OBJECT_BYTES,
             cpu_handle(start, increment, 50),
         );
         structured_srv(
             device,
             inputs.source_visible,
             CANDIDATE_CAPACITY,
-            24,
+            VISIBLE_OBJECT_BYTES,
             cpu_handle(start, increment, 61),
         );
         raw_srv(

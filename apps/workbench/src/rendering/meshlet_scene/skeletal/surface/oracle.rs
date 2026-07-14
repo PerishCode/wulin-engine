@@ -3,7 +3,7 @@ use anyhow::{Context, Result, ensure};
 use glam::Vec3;
 use surface_catalog::{Catalog as SurfaceCatalog, TEXTURE_SIDE, decode_octahedral};
 
-use crate::resident::{InstanceRecord, canonical_stable_key};
+use crate::resident::{InstanceRecord, PresentationRecord, canonical_stable_key};
 
 use super::super::oracle::pose_phase;
 use super::super::renderer::SkeletalSettings;
@@ -24,6 +24,7 @@ pub struct OracleInput<'a> {
     pub surface_settings: SurfaceSettings,
     pub instance_records: &'a [Vec<InstanceRecord>],
     pub local_ids: &'a [Vec<u32>],
+    pub presentations: &'a [Vec<PresentationRecord>],
     pub background_color: [f32; 4],
 }
 
@@ -67,26 +68,29 @@ fn shade_visible(
         .and_then(|ids| ids.get(local_index))
         .context("surface sample candidate has no authored local ID")?;
     let stable_key = canonical_stable_key(instance.region_id, local_id);
+    let presentation = *input
+        .presentations
+        .get(region_ordinal)
+        .and_then(|records| records.get(local_index))
+        .context("surface sample candidate has no presentation record")?;
     ensure!(
         sample.stable_key == Some(stable_key),
         "surface sample stable key differs from its candidate address"
     );
-    let archetype = stable_key & 7;
-    let palette = (stable_key % 100 < input.skeletal_settings.animated_percent).then(|| {
+    let palette = presentation.is_animated().then(|| {
         input.animation.evaluate_pose(
-            archetype,
-            pose_phase(stable_key, input.skeletal_settings),
+            presentation.animation_clip().unwrap(),
+            pose_phase(presentation, input.skeletal_settings),
             input.skeletal_settings.bone_count,
             if input.skeletal_settings.unique_poses {
-                stable_key
+                presentation.animation_variant().unwrap()
             } else {
                 0
             },
         )
     });
     let primitive = input.surface.primitives[primitive_index as usize];
-    let angle =
-        (stable_key.wrapping_mul(747_796_405) & 65_535) as f32 * std::f32::consts::TAU / 65_536.0;
+    let angle = presentation.yaw_q16 as f32 * std::f32::consts::TAU / 65_536.0;
     let (sine, cosine) = angle.sin_cos();
     let mut normals = [Vec3::ZERO; 3];
     let mut uvs = [[0.0; 2]; 3];
@@ -123,7 +127,7 @@ fn shade_visible(
         uvs[0][0] * bary.x + uvs[1][0] * bary.y + uvs[2][0] * bary.z,
         uvs[0][1] * bary.x + uvs[1][1] * bary.y + uvs[2][1] * bary.z,
     ];
-    let material_index = stable_key % input.surface_settings.material_count;
+    let material_index = presentation.material;
     ensure!(
         sample.material_index == Some(material_index),
         "surface sample material differs from the CPU oracle"

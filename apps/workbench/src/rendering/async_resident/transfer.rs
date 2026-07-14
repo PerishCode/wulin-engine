@@ -12,7 +12,7 @@ use crate::async_resident::{
     AsyncReservationReport, AsyncTransactionReport, ObjectSourceNamespace,
 };
 use crate::load::LoadConfig;
-use crate::resident::{REGION_IDENTITY_BYTES, REGION_INSTANCE_BYTES};
+use crate::resident::{REGION_IDENTITY_BYTES, REGION_INSTANCE_BYTES, REGION_PRESENTATION_BYTES};
 
 use super::super::resident::{create_buffer, transition};
 use descriptors::create_descriptor_heap;
@@ -25,9 +25,11 @@ mod submit;
 pub struct AsyncTransfer {
     regions: Vec<ID3D12Resource>,
     identities: Vec<ID3D12Resource>,
+    presentations: Vec<ID3D12Resource>,
     descriptor_heap: ID3D12DescriptorHeap,
     upload: ID3D12Resource,
     identity_upload: ID3D12Resource,
+    presentation_upload: ID3D12Resource,
     release_allocator: ID3D12CommandAllocator,
     release_list: ID3D12GraphicsCommandList,
     copy_queue: ID3D12CommandQueue,
@@ -43,6 +45,7 @@ pub struct AsyncTransfer {
     reservation: Option<ReservedTransfer>,
     shader_slots: [bool; ASYNC_CACHE_CAPACITY],
     identity_shader_slots: [bool; ASYNC_CACHE_CAPACITY],
+    presentation_shader_slots: [bool; ASYNC_CACHE_CAPACITY],
     pending: Option<PendingTransfer>,
     next_transaction_id: u64,
 }
@@ -58,6 +61,7 @@ struct PendingTransfer {
     active_slots: Vec<u32>,
     uploaded_slots: Vec<u32>,
     identity_transition_slots: Vec<u32>,
+    presentation_transition_slots: Vec<u32>,
     report: AsyncTransactionReport,
     started_at: Instant,
 }
@@ -94,7 +98,20 @@ impl AsyncTransfer {
                 )
             }?);
         }
-        let descriptor_heap = unsafe { create_descriptor_heap(device, &regions, &identities) }?;
+        let mut presentations = Vec::with_capacity(ASYNC_CACHE_CAPACITY);
+        for _ in 0..ASYNC_CACHE_CAPACITY {
+            presentations.push(unsafe {
+                create_buffer(
+                    device,
+                    REGION_PRESENTATION_BYTES as u64,
+                    D3D12_HEAP_TYPE_DEFAULT,
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    D3D12_RESOURCE_FLAG_NONE,
+                )
+            }?);
+        }
+        let descriptor_heap =
+            unsafe { create_descriptor_heap(device, &regions, &identities, &presentations) }?;
         let upload = unsafe {
             create_buffer(
                 device,
@@ -108,6 +125,15 @@ impl AsyncTransfer {
             create_buffer(
                 device,
                 (ASYNC_CACHE_CAPACITY * REGION_IDENTITY_BYTES) as u64,
+                D3D12_HEAP_TYPE_UPLOAD,
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                D3D12_RESOURCE_FLAG_NONE,
+            )
+        }?;
+        let presentation_upload = unsafe {
+            create_buffer(
+                device,
+                (ASYNC_CACHE_CAPACITY * REGION_PRESENTATION_BYTES) as u64,
                 D3D12_HEAP_TYPE_UPLOAD,
                 D3D12_RESOURCE_STATE_GENERIC_READ,
                 D3D12_RESOURCE_FLAG_NONE,
@@ -148,9 +174,11 @@ impl AsyncTransfer {
         Ok(Self {
             regions,
             identities,
+            presentations,
             descriptor_heap,
             upload,
             identity_upload,
+            presentation_upload,
             release_allocator,
             release_list,
             copy_queue,
@@ -166,6 +194,7 @@ impl AsyncTransfer {
             reservation: None,
             shader_slots: [false; ASYNC_CACHE_CAPACITY],
             identity_shader_slots: [false; ASYNC_CACHE_CAPACITY],
+            presentation_shader_slots: [false; ASYNC_CACHE_CAPACITY],
             pending: None,
             next_transaction_id: 1,
         })
@@ -277,6 +306,18 @@ impl AsyncTransfer {
                 )
             };
             self.identity_shader_slots[index] = true;
+        }
+        for slot in &pending.presentation_transition_slots {
+            let index = *slot as usize;
+            unsafe {
+                transition(
+                    command_list,
+                    &self.presentations[index],
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                )
+            };
+            self.presentation_shader_slots[index] = true;
         }
         self.cache = pending.next_cache;
         pending.report.pending_ms = pending.started_at.elapsed().as_secs_f64() * 1_000.0;

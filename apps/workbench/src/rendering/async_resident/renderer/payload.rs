@@ -5,18 +5,21 @@ use crate::async_resident::AsyncTransactionReport;
 use crate::load::INSTANCES_PER_REGION;
 use crate::rendering::resident::{create_buffer, read_values};
 use crate::resident::{
-    ACTIVE_REGION_CAPACITY, InstanceRecord, REGION_IDENTITY_BYTES, REGION_INSTANCE_BYTES,
-    RegionUpload,
+    ACTIVE_REGION_CAPACITY, InstanceRecord, PresentationRecord, REGION_IDENTITY_BYTES,
+    REGION_INSTANCE_BYTES, REGION_PRESENTATION_BYTES, RegionUpload,
 };
 
 use super::AsyncResidentRenderer;
 
 pub const ACTIVE_PAYLOAD_BYTES: u64 = (ACTIVE_REGION_CAPACITY * REGION_INSTANCE_BYTES) as u64;
 pub const ACTIVE_IDENTITY_BYTES: u64 = (ACTIVE_REGION_CAPACITY * REGION_IDENTITY_BYTES) as u64;
+pub const ACTIVE_PRESENTATION_BYTES: u64 =
+    (ACTIVE_REGION_CAPACITY * REGION_PRESENTATION_BYTES) as u64;
 
 pub(in crate::rendering) struct ActivePayloadReadback {
     pub records: Vec<Vec<InstanceRecord>>,
     pub local_ids: Vec<Vec<u32>>,
+    pub presentations: Vec<Vec<PresentationRecord>>,
     pub expected_checksums: Vec<[u8; 32]>,
     pub readback_bytes: u64,
     pub allocation_bytes: u64,
@@ -28,6 +31,11 @@ pub(in crate::rendering) struct ActivePayloadReadback {
     pub identity_copy_count: u32,
     pub identity_probe_count: u64,
     pub identity_total_copy_count: u64,
+    pub presentation_readback_bytes: u64,
+    pub presentation_allocation_bytes: u64,
+    pub presentation_copy_count: u32,
+    pub presentation_probe_count: u64,
+    pub presentation_total_copy_count: u64,
 }
 
 pub(super) unsafe fn create_identity_readback(
@@ -37,6 +45,22 @@ pub(super) unsafe fn create_identity_readback(
         create_buffer(
             device,
             ACTIVE_IDENTITY_BYTES,
+            D3D12_HEAP_TYPE_READBACK,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_FLAG_NONE,
+        )
+    }?;
+    let allocation = unsafe { device.GetResourceAllocationInfo(0, &[resource.GetDesc()]) };
+    Ok((resource, allocation.SizeInBytes))
+}
+
+pub(super) unsafe fn create_presentation_readback(
+    device: &ID3D12Device,
+) -> Result<(ID3D12Resource, u64)> {
+    let resource = unsafe {
+        create_buffer(
+            device,
+            ACTIVE_PRESENTATION_BYTES,
             D3D12_HEAP_TYPE_READBACK,
             D3D12_RESOURCE_STATE_COPY_DEST,
             D3D12_RESOURCE_FLAG_NONE,
@@ -114,10 +138,19 @@ impl AsyncResidentRenderer {
                 &self.active_identity_readback,
             )
         }?;
+        unsafe {
+            self.transfer.record_active_presentations(
+                command_list,
+                &active_slots,
+                &self.active_presentation_readback,
+            )
+        }?;
         self.active_payload_probe_count += 1;
         self.active_payload_copy_count += active_slots.len() as u64;
         self.active_identity_probe_count += 1;
         self.active_identity_copy_count += active_slots.len() as u64;
+        self.active_presentation_probe_count += 1;
+        self.active_presentation_copy_count += active_slots.len() as u64;
         Ok(())
     }
 
@@ -155,6 +188,16 @@ impl AsyncResidentRenderer {
             .chunks_exact(INSTANCES_PER_REGION as usize)
             .map(<[u32]>::to_vec)
             .collect::<Vec<_>>();
+        let flat_presentations = unsafe {
+            read_values::<PresentationRecord>(
+                &self.active_presentation_readback,
+                page_count * INSTANCES_PER_REGION as usize,
+            )
+        }?;
+        let presentations = flat_presentations
+            .chunks_exact(INSTANCES_PER_REGION as usize)
+            .map(<[PresentationRecord]>::to_vec)
+            .collect::<Vec<_>>();
         for page in &local_ids {
             let mut seen = [false; INSTANCES_PER_REGION as usize];
             for local_id in page {
@@ -168,6 +211,7 @@ impl AsyncResidentRenderer {
         Ok(ActivePayloadReadback {
             records,
             local_ids,
+            presentations,
             expected_checksums: snapshot.object_page_checksums.clone(),
             readback_bytes: page_count as u64 * REGION_INSTANCE_BYTES as u64,
             allocation_bytes: self.active_payload_allocation_bytes,
@@ -179,6 +223,11 @@ impl AsyncResidentRenderer {
             identity_copy_count: page_count as u32,
             identity_probe_count: self.active_identity_probe_count,
             identity_total_copy_count: self.active_identity_copy_count,
+            presentation_readback_bytes: page_count as u64 * REGION_PRESENTATION_BYTES as u64,
+            presentation_allocation_bytes: self.active_presentation_allocation_bytes,
+            presentation_copy_count: page_count as u32,
+            presentation_probe_count: self.active_presentation_probe_count,
+            presentation_total_copy_count: self.active_presentation_copy_count,
         })
     }
 }

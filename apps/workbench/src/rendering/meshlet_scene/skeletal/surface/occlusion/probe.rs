@@ -96,13 +96,13 @@ pub(in crate::rendering::meshlet_scene::skeletal::surface) unsafe fn read(
         validate_hierarchy(&winner.bytes, &hierarchy)?;
     let (cpu_oracle, cpu_mask) = oracle::evaluate(oracle::QueryInput {
         mesh: input.mesh_catalog,
-        settings: input.skeletal_settings,
         scene: input.scene,
         projection: input.projection,
         ground_numerators: input.ground_numerators,
         ground_denominator: input.ground_denominator,
         instance_records: input.instance_records,
         local_ids: input.local_ids,
+        presentations: input.presentations,
         extent: [input.width, input.height],
         hierarchy: &hierarchy,
         history_queried: input.history_queried,
@@ -111,7 +111,7 @@ pub(in crate::rendering::meshlet_scene::skeletal::surface) unsafe fn read(
         cpu_mask == mask,
         "GPU occlusion candidate mask differs from the CPU oracle"
     );
-    let words_per_record = 6usize;
+    let words_per_record = 9usize;
     let capacity_words = (FILTERED_VISIBLE_BYTES / 4) as usize;
     let source_words = &order_words[..counters[3] as usize * words_per_record];
     let filtered_words =

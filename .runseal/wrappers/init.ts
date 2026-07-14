@@ -54,6 +54,8 @@ for (
         "tools/region-cooker/src/main.rs",
         "tools/terrain-cooker/src/main.rs",
         "experiments/0031-canonical-runtime-convergence/README.md",
+        "experiments/0032-authored-object-presentation/README.md",
+        "docs/adr/0035-authored-object-presentation.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",

@@ -18,7 +18,7 @@ impl Renderer {
         let object_source = self
             .cooked_object_streamer
             .source()
-            .context("canonical schedule requires a schema-2 object source")?;
+            .context("canonical schedule requires a schema-3 object source")?;
         ensure!(
             object_source.stable_seed_namespace == super::authority::object_source_namespace(),
             "object stable-seed namespace does not match canonical runtime"
