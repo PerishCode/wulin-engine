@@ -1,23 +1,15 @@
 mod capture;
 mod inspect;
-mod load;
 mod perception;
-mod rendering;
-mod resident;
-mod scene;
-mod streaming;
 mod window;
-mod world;
-
-pub(crate) use streaming::{address, async_resident, objects, terrain};
 
 use std::sync::mpsc::SyncSender;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
+use engine_runtime::{FrameRequest, Runtime};
 use inspect::ProtocolError;
-use rendering::Renderer;
 use serde_json::json;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -32,15 +24,19 @@ fn main() {
 
 unsafe fn run() -> Result<()> {
     let hwnd = unsafe { window::create()? };
-    let mut renderer = unsafe { Renderer::new(hwnd, window::WIDTH, window::HEIGHT)? };
+    let mut runtime = unsafe { Runtime::new(hwnd, window::WIDTH, window::HEIGHT)? };
     let (inspect, commands) = inspect::InspectServer::start()?;
     let launched_by_sidecar = std::env::args().any(|arg| arg.starts_with("--sidecar-stamp="));
     let mut state = WorkbenchState::new(launched_by_sidecar);
-    let mut scene = scene::SceneState::new();
 
     unsafe {
         window::show(hwnd);
-        let _ = renderer.render(state.clear_color, false, false, false, &mut scene)?;
+        let _ = runtime.frame(FrameRequest {
+            clear_color: state.clear_color,
+            capture: false,
+            capture_object_ids: false,
+            probe: false,
+        })?;
     }
     state.record_frame();
 
@@ -66,14 +62,7 @@ unsafe fn run() -> Result<()> {
             }
         }
 
-        inspect::handle_commands(
-            hwnd,
-            &mut renderer,
-            &mut state,
-            &mut scene,
-            &commands,
-            &mut pending,
-        );
+        inspect::handle_commands(hwnd, &mut runtime, &mut state, &commands, &mut pending);
         let capture_requested = pending.capture.is_some();
         let probe_requested = pending.probe.is_some();
         let perception_requested = pending
@@ -87,18 +76,16 @@ unsafe fn run() -> Result<()> {
 
         let frame_start = Instant::now();
         match unsafe {
-            renderer.render(
-                state.clear_color,
-                capture_requested,
-                perception_requested,
-                probe_requested,
-                &mut scene,
-            )
+            runtime.frame(FrameRequest {
+                clear_color: state.clear_color,
+                capture: capture_requested,
+                capture_object_ids: perception_requested,
+                probe: probe_requested,
+            })
         } {
             Ok(outcome) => complete_frame(
-                &renderer,
+                &runtime,
                 &mut state,
-                &scene,
                 &mut pending,
                 outcome,
                 frame_start.elapsed(),
@@ -107,7 +94,7 @@ unsafe fn run() -> Result<()> {
         }
     }
 
-    unsafe { renderer.wait_idle()? };
+    unsafe { runtime.wait_idle()? };
     unsafe { window::teardown()? };
     Ok(())
 }
@@ -165,11 +152,10 @@ impl WorkbenchState {
 }
 
 fn complete_frame(
-    renderer: &Renderer,
+    runtime: &Runtime,
     state: &mut WorkbenchState,
-    scene: &scene::SceneState,
     pending: &mut PendingOperations,
-    outcome: rendering::RenderOutcome,
+    outcome: engine_runtime::RenderOutcome,
     frame_duration: Duration,
 ) {
     state.record_frame_with_duration(frame_duration);
@@ -188,13 +174,13 @@ fn complete_frame(
                         clear_color: state.clear_color,
                         paused: state.paused,
                         launched_by_sidecar: state.launched_by_sidecar,
-                        adapter: renderer.adapter_name(),
-                        debug_layer: renderer.debug_layer(),
-                        device_removed_reason: unsafe { renderer.device_removed_reason() },
+                        adapter: runtime.adapter_name(),
+                        debug_layer: runtime.debug_layer(),
+                        device_removed_reason: unsafe { runtime.device_removed_reason() },
                         last_error: state.last_error.as_deref(),
                         gpu_readback_ms: frame_duration.as_secs_f64() * 1_000.0,
-                        spatial: scene.spatial_json(),
-                        workload: inspect::workload(renderer),
+                        spatial: runtime.spatial_json(),
+                        workload: inspect::workload(runtime),
                         perception: request.perception.as_ref(),
                     },
                 )

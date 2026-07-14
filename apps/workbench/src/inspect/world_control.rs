@@ -1,9 +1,6 @@
+use engine_runtime::{RegionCoord, Runtime};
 use serde::Deserialize;
 use serde_json::Value;
-
-use crate::rendering::Renderer;
-use crate::scene::SceneState;
-use crate::world::RegionCoord;
 
 use super::protocol::{ControlKind, ControlResult, ProtocolError};
 
@@ -30,37 +27,28 @@ pub(super) fn parse_rebase(value: Value) -> Result<ControlKind, ProtocolError> {
     })
 }
 
-pub(super) fn dispatch(
-    renderer: &Renderer,
-    scene: &mut SceneState,
-    kind: ControlKind,
-) -> ControlResult {
+pub(super) fn dispatch(runtime: &mut Runtime, kind: ControlKind) -> ControlResult {
     match kind {
-        ControlKind::WorldStatus => scene.world_json().map_err(world_error),
+        ControlKind::WorldStatus => runtime.world_json().map_err(world_error),
         ControlKind::WorldRelocate { region_x, region_z } => {
-            require_calibration(renderer)?;
-            scene
+            require_calibration(runtime)?;
+            runtime
                 .relocate_world(RegionCoord::new(region_x, region_z))
-                .and_then(|()| scene.world_json())
                 .map_err(world_error)
         }
         ControlKind::WorldRebase { region_x, region_z } => {
-            require_calibration(renderer)?;
-            scene
+            require_calibration(runtime)?;
+            runtime
                 .rebase_world(RegionCoord::new(region_x, region_z))
-                .and_then(|()| scene.world_json())
                 .map_err(world_error)
         }
         ControlKind::WorldReset => {
-            require_calibration(renderer)?;
-            scene
-                .reset_world()
-                .and_then(|()| scene.world_json())
-                .map_err(world_error)
+            require_calibration(runtime)?;
+            runtime.reset_world().map_err(world_error)
         }
         ControlKind::WorldProbe => {
-            require_calibration(renderer)?;
-            scene.world_probe_json().map_err(world_error)
+            require_calibration(runtime)?;
+            runtime.world_probe_json().map_err(world_error)
         }
         _ => Err(ProtocolError {
             code: "internal_error",
@@ -76,8 +64,8 @@ fn decode(value: Value) -> Result<RegionPayload, ProtocolError> {
     })
 }
 
-fn require_calibration(renderer: &Renderer) -> Result<(), ProtocolError> {
-    if renderer.calibration_mode_active() {
+fn require_calibration(runtime: &Runtime) -> Result<(), ProtocolError> {
+    if runtime.calibration_mode_active() {
         Ok(())
     } else {
         Err(ProtocolError {

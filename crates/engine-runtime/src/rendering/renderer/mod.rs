@@ -28,7 +28,7 @@ mod modes;
 const BUFFER_COUNT: usize = 2;
 
 unsafe extern "C" {
-    fn workbench_link_agility_exports();
+    fn runtime_link_agility_exports();
 }
 
 pub struct Renderer {
@@ -70,7 +70,7 @@ pub struct RenderOutcome {
 
 impl Renderer {
     pub unsafe fn new(hwnd: HWND, width: u32, height: u32) -> Result<Self> {
-        unsafe { workbench_link_agility_exports() };
+        unsafe { runtime_link_agility_exports() };
         let debug_layer = cfg!(debug_assertions);
         if debug_layer {
             unsafe { enable_debug_layer()? };

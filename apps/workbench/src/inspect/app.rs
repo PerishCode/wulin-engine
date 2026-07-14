@@ -1,27 +1,25 @@
 use std::sync::mpsc::Receiver;
 
+use engine_runtime::{GlobalRegionConfig, Runtime};
 use serde_json::json;
 use windows::Win32::Foundation::HWND;
 
-use crate::address::GlobalRegionConfig;
-use crate::rendering::Renderer;
-use crate::{PendingCapture, PendingOperations, WorkbenchState, perception, scene, window};
+use crate::{PendingCapture, PendingOperations, WorkbenchState, perception, window};
 
 use super::protocol::{ControlKind, ControlResult, ProtocolError};
 use super::server::ControlCommand;
 
 pub(crate) fn handle_commands(
     hwnd: HWND,
-    renderer: &mut Renderer,
+    runtime: &mut Runtime,
     state: &mut WorkbenchState,
-    scene: &mut scene::SceneState,
     commands: &Receiver<ControlCommand>,
     pending: &mut PendingOperations,
 ) {
     while let Ok(command) = commands.try_recv() {
         let ControlCommand { kind, response } = command;
         let result = match kind {
-            ControlKind::Status => super::status::workbench(hwnd, renderer, state, scene),
+            ControlKind::Status => super::status::workbench(hwnd, runtime, state),
             ControlKind::SetClearColor(color) => {
                 state.clear_color = color;
                 Ok(json!({"clearColor": color}))
@@ -34,48 +32,39 @@ pub(crate) fn handle_commands(
                 state.paused = false;
                 Ok(json!({"paused": false}))
             }
-            ControlKind::CameraStatus => Ok(scene.camera_json()),
-            ControlKind::CameraReset => {
-                scene.reset_camera();
-                Ok(scene.camera_json())
-            }
+            ControlKind::CameraStatus => Ok(runtime.camera_json()),
+            ControlKind::CameraReset => Ok(runtime.reset_camera()),
             ControlKind::CameraSetPose {
                 position,
                 target,
                 vertical_fov_degrees,
-            } => scene
-                .set_camera(
-                    position,
-                    target,
-                    vertical_fov_degrees,
-                    renderer.calibration_mode_active(),
-                )
-                .map(|_| scene.camera_json())
+            } => runtime
+                .set_camera(position, target, vertical_fov_degrees)
                 .map_err(|error| protocol_error("invalid_camera", error)),
-            ControlKind::SceneListObjects => Ok(scene.objects_json()),
+            ControlKind::SceneListObjects => Ok(runtime.objects_json()),
             world @ (ControlKind::WorldStatus
             | ControlKind::WorldRelocate { .. }
             | ControlKind::WorldRebase { .. }
             | ControlKind::WorldReset
-            | ControlKind::WorldProbe) => super::world_control::dispatch(renderer, scene, world),
+            | ControlKind::WorldProbe) => super::world_control::dispatch(runtime, world),
             ControlKind::TerrainSourceOpen { path } => {
                 super::pack_control::validate(&path, super::pack_control::PackKind::Terrain)
-                    .and_then(|path| renderer.open_terrain_pack(path))
+                    .and_then(|path| runtime.open_terrain_pack(path))
                     .map_err(|error| protocol_error("pack_open_failed", error))
             }
             ControlKind::ObjectSourceOpen { path } => {
                 super::pack_control::validate(&path, super::pack_control::PackKind::Objects)
-                    .and_then(|path| renderer.open_cooked_object_pack(path))
+                    .and_then(|path| runtime.open_cooked_object_pack(path))
                     .map_err(|error| protocol_error("pack_open_failed", error))
             }
-            ControlKind::CanonicalStatus => Ok(renderer.composition_status()),
-            ControlKind::CanonicalTimeStatus => Ok(renderer.presentation_time_status()),
-            ControlKind::CanonicalTimePause => Ok(renderer.pause_presentation_time()),
-            ControlKind::CanonicalTimeResume => Ok(renderer.resume_presentation_time()),
-            ControlKind::CanonicalTimeSet { tick } => renderer
+            ControlKind::CanonicalStatus => Ok(runtime.composition_status()),
+            ControlKind::CanonicalTimeStatus => Ok(runtime.presentation_time_status()),
+            ControlKind::CanonicalTimePause => Ok(runtime.pause_presentation_time()),
+            ControlKind::CanonicalTimeResume => Ok(runtime.resume_presentation_time()),
+            ControlKind::CanonicalTimeSet { tick } => runtime
                 .set_presentation_time(tick)
                 .map_err(|error| protocol_error("invalid_presentation_time", error)),
-            ControlKind::CanonicalTimeStep { ticks } => renderer
+            ControlKind::CanonicalTimeStep { ticks } => runtime
                 .step_presentation_time(ticks)
                 .map_err(|error| protocol_error("invalid_presentation_time", error)),
             ControlKind::CanonicalSchedule {
@@ -87,26 +76,26 @@ pub(crate) fn handle_commands(
             } => GlobalRegionConfig::new(origin_x, origin_z, center_x, center_z, active_radius)
                 .map_err(|error| protocol_error("invalid_global_config", error))
                 .and_then(|config| {
-                    unsafe { renderer.schedule_global_composition(config) }.map_err(stream_error)
+                    unsafe { runtime.schedule_global_composition(config) }.map_err(stream_error)
                 }),
-            ControlKind::CanonicalTraversalEnable => renderer
+            ControlKind::CanonicalTraversalEnable => runtime
                 .enable_composition_traversal()
-                .map(|()| renderer.composition_status())
+                .map(|()| runtime.composition_status())
                 .map_err(stream_error),
             ControlKind::CanonicalTraversalDisable => {
-                renderer.disable_composition_traversal();
-                Ok(renderer.composition_status())
+                runtime.disable_composition_traversal();
+                Ok(runtime.composition_status())
             }
-            ControlKind::CanonicalPrefetchEnable => renderer
+            ControlKind::CanonicalPrefetchEnable => runtime
                 .enable_composition_prefetch()
-                .map(|()| renderer.composition_status())
+                .map(|()| runtime.composition_status())
                 .map_err(stream_error),
-            ControlKind::CanonicalPrefetchDisable => renderer
+            ControlKind::CanonicalPrefetchDisable => runtime
                 .disable_composition_prefetch()
-                .map(|()| renderer.composition_status())
+                .map(|()| runtime.composition_status())
                 .map_err(stream_error),
             ControlKind::CanonicalProbe => {
-                if !renderer.composition_enabled() {
+                if !runtime.composition_enabled() {
                     Err(ProtocolError {
                         code: "canonical_unavailable",
                         message: "canonical composition must be published before probing".into(),
@@ -121,17 +110,17 @@ pub(crate) fn handle_commands(
                     })
                 }
             }
-            ControlKind::ObjectIoGateArm => gate(renderer.arm_object_io_gate()),
-            ControlKind::ObjectIoGateRelease => gate(renderer.release_object_io_gate()),
-            ControlKind::ObjectCopyGateArm => gate(renderer.arm_async_copy_gate()),
+            ControlKind::ObjectIoGateArm => gate(runtime.arm_object_io_gate()),
+            ControlKind::ObjectIoGateRelease => gate(runtime.release_object_io_gate()),
+            ControlKind::ObjectCopyGateArm => gate(runtime.arm_object_copy_gate()),
             ControlKind::ObjectCopyGateRelease => {
-                gate(unsafe { renderer.release_async_copy_gate() })
+                gate(unsafe { runtime.release_object_copy_gate() })
             }
-            ControlKind::TerrainIoGateArm => gate(renderer.arm_terrain_io_gate()),
-            ControlKind::TerrainIoGateRelease => gate(renderer.release_terrain_io_gate()),
-            ControlKind::TerrainCopyGateArm => gate(renderer.arm_terrain_copy_gate()),
+            ControlKind::TerrainIoGateArm => gate(runtime.arm_terrain_io_gate()),
+            ControlKind::TerrainIoGateRelease => gate(runtime.release_terrain_io_gate()),
+            ControlKind::TerrainCopyGateArm => gate(runtime.arm_terrain_copy_gate()),
             ControlKind::TerrainCopyGateRelease => {
-                gate(unsafe { renderer.release_terrain_copy_gate() })
+                gate(unsafe { runtime.release_terrain_copy_gate() })
             }
             ControlKind::Capture { id, collection } => {
                 if pending.is_idle() {

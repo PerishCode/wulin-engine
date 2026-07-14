@@ -33,6 +33,87 @@ async function requireWrapperSet(): Promise<void> {
     }
 }
 
+async function requireRuntimeBoundary(): Promise<void> {
+    console.log("==> canonical runtime ownership");
+    for (
+        const path of [
+            "apps/workbench/src/rendering",
+            "apps/workbench/src/streaming",
+            "apps/workbench/src/scene",
+            "apps/workbench/src/load.rs",
+            "apps/workbench/src/resident.rs",
+            "apps/workbench/src/world.rs",
+            "apps/workbench/shaders",
+            "apps/workbench/build.rs",
+        ]
+    ) {
+        try {
+            await Deno.stat(`${root}/${path}`);
+            fail(`guard: runtime ownership remains under the workbench host: ${path}`);
+        } catch (error) {
+            if (!(error instanceof Deno.errors.NotFound)) throw error;
+        }
+    }
+
+    const forbidden = await new Deno.Command("git", {
+        args: [
+            "grep",
+            "--no-index",
+            "-n",
+            "-E",
+            "crate::(capture|inspect|perception|window)|apps/workbench|mods/|experiments/",
+            "--",
+            "crates/engine-runtime",
+        ],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    if (forbidden.code === 0) {
+        fail(
+            `guard: engine runtime depends on host-owned source\n${
+                new TextDecoder().decode(forbidden.stdout)
+            }`,
+        );
+    }
+    if (forbidden.code !== 1) {
+        fail(`guard: runtime ownership scan failed with exit code ${forbidden.code}`);
+    }
+
+    const renderers = await new Deno.Command("git", {
+        args: [
+            "grep",
+            "--no-index",
+            "-n",
+            "--fixed-strings",
+            "pub struct Renderer",
+            "--",
+            "apps",
+            "crates",
+        ],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    const rendererLines = new TextDecoder().decode(renderers.stdout).trim().split(/\r?\n/)
+        .filter((line) => line.length > 0);
+    if (
+        renderers.code !== 0 || rendererLines.length !== 1 ||
+        !rendererLines[0].startsWith("crates/engine-runtime/src/rendering/renderer/mod.rs:")
+    ) fail(`guard: canonical renderer ownership diverged: ${JSON.stringify(rendererLines)}`);
+
+    const tree = await new Deno.Command("cargo", {
+        args: ["tree", "-p", "engine-runtime", "--edges", "normal", "--prefix", "none"],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    if (!tree.success) fail(`guard: engine-runtime dependency tree failed with ${tree.code}`);
+    if (/^workbench\s/m.test(new TextDecoder().decode(tree.stdout))) {
+        fail("guard: engine-runtime dependency tree points back to workbench");
+    }
+}
+
 async function forbiddenScan(): Promise<void> {
     console.log("==> forbidden compatibility scan");
     const pattern = [
@@ -99,6 +180,7 @@ if (!profilePath) fail("guard: RUNSEAL_PROFILE_PATH is not set");
 const root = profilePath.replace(/[\\/][^\\/]+$/, "");
 
 await requireWrapperSet();
+await requireRuntimeBoundary();
 await run("git diff check", "git", ["diff", "--check"]);
 await run("cargo fmt", "cargo", ["fmt", "--all", "--check"]);
 await run("cargo clippy", "cargo", [
