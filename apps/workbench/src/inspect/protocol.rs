@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::input::PostedMessage;
 use crate::perception::{PixelPoint, PixelRegion};
 
 pub enum ControlKind {
@@ -8,6 +9,13 @@ pub enum ControlKind {
     SetClearColor([f32; 4]),
     Pause,
     Resume,
+    InputStatus,
+    InputRecordStart,
+    InputRecordStop,
+    InputReplay,
+    InputPost {
+        messages: Vec<PostedMessage>,
+    },
     Capture {
         id: String,
         collection: String,
@@ -143,11 +151,34 @@ struct CanonicalTimeStepPayload {
     ticks: u32,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InputPostPayload {
+    messages: Vec<InputPostMessage>,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum InputPostMessage {
+    Key {
+        key: u16,
+        down: bool,
+        #[serde(default)]
+        system: bool,
+    },
+    FocusLost,
+}
+
 pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
     match verb {
         "workbench.status" => Ok(ControlKind::Status),
         "workbench.pause" => Ok(ControlKind::Pause),
         "workbench.resume" => Ok(ControlKind::Resume),
+        "input.status" => Ok(ControlKind::InputStatus),
+        "input.record.start" => Ok(ControlKind::InputRecordStart),
+        "input.record.stop" => Ok(ControlKind::InputRecordStop),
+        "input.replay" => Ok(ControlKind::InputReplay),
+        "input.native.post" => parse_input_post(payload),
         "workbench.capture" => parse_capture(payload),
         "workbench.set_clear_color" => parse_color(payload),
         "perception.capture" => parse_perception(payload),
@@ -187,6 +218,36 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
             message: format!("unsupported event {verb:?}"),
         }),
     }
+}
+
+fn parse_input_post(value: Value) -> ParsedControl {
+    let payload: InputPostPayload = decode(value)?;
+    if payload.messages.is_empty() || payload.messages.len() > 64 {
+        return Err(ProtocolError {
+            code: "invalid_payload",
+            message: "native input post requires 1..=64 messages".into(),
+        });
+    }
+    let mut messages = Vec::with_capacity(payload.messages.len());
+    for message in payload.messages {
+        messages.push(match message {
+            InputPostMessage::Key { key, down, system } => {
+                let key = u8::try_from(key).map_err(|_| ProtocolError {
+                    code: "invalid_payload",
+                    message: "native input key must be in 1..=255".into(),
+                })?;
+                if key == 0 {
+                    return Err(ProtocolError {
+                        code: "invalid_payload",
+                        message: "native input key must be in 1..=255".into(),
+                    });
+                }
+                PostedMessage::Key { key, down, system }
+            }
+            InputPostMessage::FocusLost => PostedMessage::FocusLost,
+        });
+    }
+    Ok(ControlKind::InputPost { messages })
 }
 
 fn parse_pack(value: Value, terrain: bool) -> ParsedControl {

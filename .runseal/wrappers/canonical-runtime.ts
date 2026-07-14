@@ -44,9 +44,10 @@ import {
     importedPresentationGates,
     sourceDurationGates,
 } from "../support/cooked-gltf-presentation.ts";
+import { hostInputGates } from "../support/host-input-replay.ts";
 
-const REVISION = "runtime-frame-transaction-v1";
-const COLLECTION = "0040-runtime-frame-transaction";
+const REVISION = "deterministic-host-input-v1";
+const COLLECTION = "0041-deterministic-host-input";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -146,7 +147,7 @@ const terrainCorruption = await corruptTerrain(TERRAIN_CORRUPT, [BASE[0] + 75, B
 let acceptance: Json | undefined;
 try {
     console.log("==> canonical correctness and failure gates");
-    await startClean();
+    const hostInput = await hostInputGates();
     const idle = await status();
     if (object(idle, "workload").mode !== "idle-shell") {
         fail("workbench did not start in the idle shell");
@@ -412,6 +413,7 @@ try {
             terrainCorruption,
         },
         correctness: {
+            hostInput,
             idle,
             basePublication,
             orderA,

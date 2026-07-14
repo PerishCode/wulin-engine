@@ -1,4 +1,5 @@
 mod capture;
+mod input;
 mod inspect;
 mod perception;
 mod window;
@@ -62,6 +63,7 @@ unsafe fn run() -> Result<()> {
             }
         }
 
+        state.input.ingest(window::drain_input());
         inspect::handle_commands(hwnd, &mut runtime, &mut state, &commands, &mut pending);
         let capture_requested = pending.capture.is_some();
         let probe_requested = pending.probe.is_some();
@@ -126,6 +128,7 @@ struct WorkbenchState {
     clear_color: [f32; 4],
     last_error: Option<String>,
     launched_by_sidecar: bool,
+    input: input::HostInput,
 }
 
 impl WorkbenchState {
@@ -138,6 +141,7 @@ impl WorkbenchState {
             clear_color: DEFAULT_CLEAR_COLOR,
             last_error: None,
             launched_by_sidecar,
+            input: input::HostInput::new(),
         }
     }
 

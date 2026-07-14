@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::mem;
 use std::sync::atomic::{AtomicIsize, Ordering};
 
 use anyhow::{Context, Result};
@@ -7,9 +9,15 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{BOOL, w};
 
+use crate::input::{NativeMessage, PostedMessage};
+
 pub const WIDTH: u32 = 1280;
 pub const HEIGHT: u32 = 720;
 static WINDOW_HANDLE: AtomicIsize = AtomicIsize::new(0);
+
+thread_local! {
+    static INPUT_MESSAGES: RefCell<Vec<NativeMessage>> = const { RefCell::new(Vec::new()) };
+}
 
 pub unsafe fn create() -> Result<HWND> {
     let module = unsafe { GetModuleHandleW(None) }.context("GetModuleHandleW failed")?;
@@ -70,6 +78,37 @@ pub unsafe fn teardown() -> Result<()> {
         .context("removing console control handler failed")
 }
 
+pub fn drain_input() -> Vec<NativeMessage> {
+    INPUT_MESSAGES.with(|messages| mem::take(&mut *messages.borrow_mut()))
+}
+
+pub fn post_input(hwnd: HWND, messages: &[PostedMessage]) -> Result<()> {
+    for message in messages {
+        let (message, wparam, lparam) = match *message {
+            PostedMessage::Key { key, down, system } => {
+                let message = match (system, down) {
+                    (false, true) => WM_KEYDOWN,
+                    (false, false) => WM_KEYUP,
+                    (true, true) => WM_SYSKEYDOWN,
+                    (true, false) => WM_SYSKEYUP,
+                };
+                let mut bits = 1_isize;
+                if system {
+                    bits |= 1_isize << 29;
+                }
+                if !down {
+                    bits |= (1_isize << 30) | (1_isize << 31);
+                }
+                (message, WPARAM(usize::from(key)), LPARAM(bits))
+            }
+            PostedMessage::FocusLost => (WM_KILLFOCUS, WPARAM(0), LPARAM(0)),
+        };
+        unsafe { PostMessageW(Some(hwnd), message, wparam, lparam) }
+            .with_context(|| format!("posting native input message 0x{message:04X} failed"))?;
+    }
+    Ok(())
+}
+
 unsafe extern "system" fn window_proc(
     hwnd: HWND,
     message: u32,
@@ -77,6 +116,18 @@ unsafe extern "system" fn window_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     match message {
+        WM_KEYDOWN | WM_KEYUP => {
+            capture_key(wparam, message == WM_KEYDOWN);
+            LRESULT(0)
+        }
+        WM_SYSKEYDOWN | WM_SYSKEYUP => {
+            capture_key(wparam, message == WM_SYSKEYDOWN);
+            unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
+        }
+        WM_KILLFOCUS => {
+            INPUT_MESSAGES.with(|messages| messages.borrow_mut().push(NativeMessage::FocusLost));
+            unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
+        }
         WM_CLOSE => {
             let _ = unsafe { DestroyWindow(hwnd) };
             LRESULT(0)
@@ -87,6 +138,15 @@ unsafe extern "system" fn window_proc(
         }
         _ => unsafe { DefWindowProcW(hwnd, message, wparam, lparam) },
     }
+}
+
+fn capture_key(wparam: WPARAM, down: bool) {
+    INPUT_MESSAGES.with(|messages| {
+        messages.borrow_mut().push(NativeMessage::Key {
+            key: wparam.0,
+            down,
+        });
+    });
 }
 
 unsafe extern "system" fn console_ctrl_handler(control: u32) -> BOOL {
