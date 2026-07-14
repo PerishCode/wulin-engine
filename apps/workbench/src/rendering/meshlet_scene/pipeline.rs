@@ -51,10 +51,10 @@ impl MeshletPipeline {
 }
 
 unsafe fn create_compute_root(device: &ID3D12Device) -> Result<ID3D12RootSignature> {
-    let range = region_srv_range();
+    let ranges = [region_srv_range(), identity_srv_range()];
     let parameters = [
         root_constants(0, MESHLET_CONSTANT_COUNT),
-        descriptor_table(&range),
+        descriptor_table(&ranges),
         root_descriptor(D3D12_ROOT_PARAMETER_TYPE_UAV, 0),
         root_descriptor(D3D12_ROOT_PARAMETER_TYPE_UAV, 1),
         root_descriptor(D3D12_ROOT_PARAMETER_TYPE_SRV, 55),
@@ -63,10 +63,10 @@ unsafe fn create_compute_root(device: &ID3D12Device) -> Result<ID3D12RootSignatu
 }
 
 unsafe fn create_graphics_root(device: &ID3D12Device) -> Result<ID3D12RootSignature> {
-    let range = region_srv_range();
+    let ranges = [region_srv_range()];
     let parameters = [
         root_constants(0, MESHLET_CONSTANT_COUNT),
-        descriptor_table(&range),
+        descriptor_table(&ranges),
         root_descriptor(D3D12_ROOT_PARAMETER_TYPE_SRV, 50),
         root_descriptor(D3D12_ROOT_PARAMETER_TYPE_SRV, 51),
         root_descriptor(D3D12_ROOT_PARAMETER_TYPE_SRV, 52),
@@ -87,13 +87,23 @@ fn region_srv_range() -> D3D12_DESCRIPTOR_RANGE {
     }
 }
 
-fn descriptor_table(range: &D3D12_DESCRIPTOR_RANGE) -> D3D12_ROOT_PARAMETER {
+fn identity_srv_range() -> D3D12_DESCRIPTOR_RANGE {
+    D3D12_DESCRIPTOR_RANGE {
+        RangeType: D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+        NumDescriptors: ASYNC_CACHE_CAPACITY as u32,
+        BaseShaderRegister: 56,
+        RegisterSpace: 0,
+        OffsetInDescriptorsFromTableStart: ASYNC_CACHE_CAPACITY as u32,
+    }
+}
+
+fn descriptor_table(ranges: &[D3D12_DESCRIPTOR_RANGE]) -> D3D12_ROOT_PARAMETER {
     D3D12_ROOT_PARAMETER {
         ParameterType: D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
         Anonymous: D3D12_ROOT_PARAMETER_0 {
             DescriptorTable: D3D12_ROOT_DESCRIPTOR_TABLE {
-                NumDescriptorRanges: 1,
-                pDescriptorRanges: range,
+                NumDescriptorRanges: ranges.len() as u32,
+                pDescriptorRanges: ranges.as_ptr(),
             },
         },
         ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,

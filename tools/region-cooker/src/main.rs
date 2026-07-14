@@ -3,8 +3,10 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 use canonical_object_fixture::{Fixture, generate_region as generate_canonical_region};
+use region_cooker::{IdentityOrder, reorder_identity_records};
 use region_format::{
-    GlobalRegion, InstanceRecord, RECORDS_PER_REGION, file_sha256, write_global_pack, write_pack,
+    GlobalRegion, InstanceRecord, RECORDS_PER_REGION, file_sha256, write_global_identity_pack,
+    write_global_pack, write_pack,
 };
 use serde::Serialize;
 
@@ -33,17 +35,24 @@ struct SignedCookReport {
     file_sha256: String,
     metadata: region_format::GlobalPackMetadata,
     centers: Vec<GlobalRegion>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    identity_order: Option<&'static str>,
 }
 
 fn main() -> Result<()> {
     let mut args = std::env::args_os().skip(1);
-    let usage = "usage: region-cooker <output.wlr> [--authority] [--global-center <i64> <i64>]...";
+    let usage = "usage: region-cooker <output.wlr> [--authority] [--identity-order <a|b>] [--global-center <i64> <i64>]...";
     let output = PathBuf::from(args.next().context(usage)?);
     let mut global_centers = Vec::new();
     let mut authority = false;
+    let mut identity_order = None;
     while let Some(flag) = args.next() {
         match flag.to_string_lossy().as_ref() {
             "--authority" if !authority => authority = true,
+            "--identity-order" if identity_order.is_none() => {
+                let value = args.next().context(usage)?;
+                identity_order = Some(IdentityOrder::parse(&value.to_string_lossy())?);
+            }
             "--global-center" => {
                 let x = parse_axis(args.next().context(usage)?, "global x")?;
                 let z = parse_axis(args.next().context(usage)?, "global z")?;
@@ -53,11 +62,11 @@ fn main() -> Result<()> {
         }
     }
     if !global_centers.is_empty() {
-        return cook_signed(output, global_centers, authority);
+        return cook_signed(output, global_centers, authority, identity_order);
     }
     anyhow::ensure!(
-        !authority,
-        "--authority requires at least one --global-center"
+        !authority && identity_order.is_none(),
+        "--authority and --identity-order require at least one --global-center"
     );
     cook_local(output)
 }
@@ -91,7 +100,16 @@ fn cook_local(output: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn cook_signed(output: PathBuf, centers: Vec<GlobalRegion>, authority: bool) -> Result<()> {
+fn cook_signed(
+    output: PathBuf,
+    centers: Vec<GlobalRegion>,
+    authority: bool,
+    identity_order: Option<IdentityOrder>,
+) -> Result<()> {
+    anyhow::ensure!(
+        identity_order.is_none() || authority,
+        "--identity-order requires --authority"
+    );
     let radius = i64::from(ACTIVE_RADIUS);
     let mut regions = BTreeSet::new();
     for center in &centers {
@@ -111,26 +129,42 @@ fn cook_signed(output: PathBuf, centers: Vec<GlobalRegion>, authority: bool) -> 
         }
     }
     let fixture = Fixture::ArbitraryQ8;
-    let records = regions.into_iter().map(|region| {
-        let records = if authority {
-            generate_authority_region(region, fixture)
-        } else {
-            generate_canonical_region(region, fixture)
-        };
-        (region, records)
-    });
-    let metadata = write_global_pack(&output, fixture.stable_seed_namespace(), records)?;
+    let regions = regions.into_iter().collect::<Vec<_>>();
+    let metadata = if let Some(order) = identity_order {
+        let payloads = regions.into_iter().map(|region| {
+            let records = generate_authority_region(region, fixture);
+            let (records, local_ids) = reorder_identity_records(records, order);
+            (region, records, local_ids)
+        });
+        write_global_identity_pack(&output, fixture.stable_seed_namespace(), payloads)?
+    } else {
+        let payloads = regions.into_iter().map(|region| {
+            let records = if authority {
+                generate_authority_region(region, fixture)
+            } else {
+                generate_canonical_region(region, fixture)
+            };
+            (region, records)
+        });
+        write_global_pack(&output, fixture.stable_seed_namespace(), payloads)?
+    };
     let report = SignedCookReport {
         schema_version: 1,
-        source_revision: if authority {
-            AUTHORITY_REVISION
-        } else {
-            fixture.revision()
-        },
+        source_revision: identity_order.map_or_else(
+            || {
+                if authority {
+                    AUTHORITY_REVISION
+                } else {
+                    fixture.revision()
+                }
+            },
+            IdentityOrder::revision,
+        ),
         output: output.display().to_string(),
         file_sha256: file_sha256(&output)?,
         metadata,
         centers,
+        identity_order: identity_order.map(IdentityOrder::label),
     };
     println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())

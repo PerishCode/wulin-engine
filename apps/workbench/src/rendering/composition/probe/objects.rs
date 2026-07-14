@@ -20,7 +20,11 @@ pub(super) struct CanonicalObjectEvidence {
     semantic_collision_count: usize,
     stable_seed_collision_count: usize,
     mismatch_count: usize,
+    local_id_count: usize,
+    local_id_duplicate_count: usize,
     content_sha256: String,
+    identity_keyed_sha256: String,
+    stable_key_sha256: String,
     stable_seed_sha256: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     payload_authority: Option<CookedPayloadAuthority>,
@@ -31,6 +35,7 @@ pub(super) struct CanonicalObjectEvidence {
 #[serde(rename_all = "camelCase")]
 struct CookedPayloadAuthority {
     revision: &'static str,
+    payload_schema: u32,
     region_count: usize,
     record_count: usize,
     copy_count: u32,
@@ -42,6 +47,14 @@ struct CookedPayloadAuthority {
     expected_index_sha256: String,
     observed_index_sha256: String,
     payload_sha256: String,
+    record_readback_bytes: u64,
+    record_allocation_bytes: u64,
+    record_copy_count: u32,
+    identity_readback_bytes: u64,
+    identity_allocation_bytes: u64,
+    identity_copy_count: u32,
+    identity_probe_count: u64,
+    identity_total_copy_count: u64,
 }
 
 #[derive(Serialize)]
@@ -68,12 +81,21 @@ pub(super) fn canonical_object_evidence(
         "canonical object evidence requires one projected payload per region"
     );
     let mut content_hash = Sha256::new();
+    let mut identity_keyed_hash = Sha256::new();
+    let mut stable_key_hash = Sha256::new();
     let mut seed_hash = Sha256::new();
     let mut semantic_ids = BTreeSet::new();
     let mut stable_seeds = BTreeSet::new();
     let mut mismatch_count = 0;
+    let mut local_id_count = 0;
+    let mut local_id_duplicate_count = 0;
     let mut entries = Vec::with_capacity(assignments.len());
     for (index, (assignment, region_records)) in assignments.iter().zip(records).enumerate() {
+        let local_ids = &readback.local_ids[index];
+        ensure!(
+            local_ids.len() == region_records.len(),
+            "canonical object identity page differs from its record page"
+        );
         let global = assignment
             .global_region
             .context("canonical object assignment has no signed region")?;
@@ -95,6 +117,23 @@ pub(super) fn canonical_object_evidence(
         content_hash.update(global.z.to_le_bytes());
         content_hash.update(stable_seed.to_le_bytes());
         content_hash.update(crate::resident::as_bytes(region_records));
+        let unique_local_ids = local_ids.iter().copied().collect::<BTreeSet<_>>();
+        local_id_count += local_ids.len();
+        local_id_duplicate_count += local_ids.len() - unique_local_ids.len();
+        let mut keyed = local_ids
+            .iter()
+            .copied()
+            .zip(region_records.iter())
+            .collect::<Vec<_>>();
+        keyed.sort_by_key(|(local_id, _)| *local_id);
+        identity_keyed_hash.update(global.x.to_le_bytes());
+        identity_keyed_hash.update(global.z.to_le_bytes());
+        for (local_id, record) in keyed {
+            identity_keyed_hash.update(local_id.to_le_bytes());
+            identity_keyed_hash.update(crate::resident::as_bytes(std::slice::from_ref(record)));
+            stable_key_hash
+                .update(crate::resident::canonical_stable_key(stable_seed, local_id).to_le_bytes());
+        }
         seed_hash.update(stable_seed.to_le_bytes());
         entries.push(CanonicalObjectEntry {
             active_index: index as u32,
@@ -112,7 +151,11 @@ pub(super) fn canonical_object_evidence(
         semantic_collision_count: entries.len() - semantic_ids.len(),
         stable_seed_collision_count: entries.len() - stable_seeds.len(),
         mismatch_count,
+        local_id_count,
+        local_id_duplicate_count,
         content_sha256: format!("{:x}", content_hash.finalize()),
+        identity_keyed_sha256: format!("{:x}", identity_keyed_hash.finalize()),
+        stable_key_sha256: format!("{:x}", stable_key_hash.finalize()),
         stable_seed_sha256: format!("{:x}", seed_hash.finalize()),
         payload_authority: cooked_payload_authority(assignments, records, readback)?,
         entries,
@@ -135,14 +178,35 @@ fn cooked_payload_authority(
     let mut observed_index = Sha256::new();
     let mut payload = Sha256::new();
     let mut chunk_mismatch_count = 0;
-    for ((assignment, region_records), expected_checksum) in
-        assignments.iter().zip(records).zip(expected)
+    let mut payload_schema = None;
+    for (active_index, ((assignment, region_records), expected_checksum)) in
+        assignments.iter().zip(records).zip(expected).enumerate()
     {
         let global = assignment
             .global_region
             .context("cooked payload authority has no signed region")?;
         let bytes = crate::resident::as_bytes(region_records);
-        let observed_checksum: [u8; 32] = Sha256::digest(bytes).into();
+        let identity_bytes = crate::resident::as_bytes(&readback.local_ids[active_index]);
+        let record_checksum: [u8; 32] = Sha256::digest(bytes).into();
+        let mut combined = Sha256::new();
+        combined.update(bytes);
+        combined.update(identity_bytes);
+        let identity_checksum: [u8; 32] = combined.finalize().into();
+        let (schema, observed_checksum) = if record_checksum == *expected_checksum {
+            (region_format::GLOBAL_PAYLOAD_SCHEMA, record_checksum)
+        } else {
+            (
+                region_format::GLOBAL_IDENTITY_PAYLOAD_SCHEMA,
+                identity_checksum,
+            )
+        };
+        if let Some(previous) = payload_schema {
+            ensure!(
+                previous == schema,
+                "published cooked object pages mix payload schemas"
+            );
+        }
+        payload_schema = Some(schema);
         chunk_mismatch_count += usize::from(observed_checksum != *expected_checksum);
         for digest in [&mut expected_index, &mut observed_index] {
             digest.update(global.x.to_le_bytes());
@@ -151,23 +215,61 @@ fn cooked_payload_authority(
         expected_index.update(expected_checksum);
         observed_index.update(observed_checksum);
         payload.update(bytes);
+        if schema == region_format::GLOBAL_IDENTITY_PAYLOAD_SCHEMA {
+            payload.update(identity_bytes);
+        }
     }
     ensure!(
         chunk_mismatch_count == 0,
         "published cooked object pages differ from the pack index"
     );
+    let payload_schema = payload_schema.context("cooked payload authority has no pages")?;
+    let identity_schema = payload_schema == region_format::GLOBAL_IDENTITY_PAYLOAD_SCHEMA;
     Ok(Some(CookedPayloadAuthority {
-        revision: "cooked-object-payload-authority-v1",
+        revision: if identity_schema {
+            "cooked-object-payload-authority-v2"
+        } else {
+            "cooked-object-payload-authority-v1"
+        },
+        payload_schema,
         region_count: records.len(),
         record_count: records.iter().map(Vec::len).sum(),
-        copy_count: readback.copy_count,
-        readback_bytes: readback.readback_bytes,
-        allocation_bytes: readback.allocation_bytes,
+        copy_count: readback.copy_count
+            + if identity_schema {
+                readback.identity_copy_count
+            } else {
+                0
+            },
+        readback_bytes: readback.readback_bytes
+            + if identity_schema {
+                readback.identity_readback_bytes
+            } else {
+                0
+            },
+        allocation_bytes: readback.allocation_bytes
+            + if identity_schema {
+                readback.identity_allocation_bytes
+            } else {
+                0
+            },
         probe_count: readback.probe_count,
-        total_copy_count: readback.total_copy_count,
+        total_copy_count: readback.total_copy_count
+            + if identity_schema {
+                readback.identity_total_copy_count
+            } else {
+                0
+            },
         chunk_mismatch_count,
         expected_index_sha256: format!("{:x}", expected_index.finalize()),
         observed_index_sha256: format!("{:x}", observed_index.finalize()),
         payload_sha256: format!("{:x}", payload.finalize()),
+        record_readback_bytes: readback.readback_bytes,
+        record_allocation_bytes: readback.allocation_bytes,
+        record_copy_count: readback.copy_count,
+        identity_readback_bytes: readback.identity_readback_bytes,
+        identity_allocation_bytes: readback.identity_allocation_bytes,
+        identity_copy_count: readback.identity_copy_count,
+        identity_probe_count: readback.identity_probe_count,
+        identity_total_copy_count: readback.identity_total_copy_count,
     }))
 }

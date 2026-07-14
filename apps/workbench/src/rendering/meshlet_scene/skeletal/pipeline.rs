@@ -68,6 +68,7 @@ unsafe fn create_root(device: &ID3D12Device) -> Result<ID3D12RootSignature> {
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 7, 0, 61),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 51, 63, 68),
         descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 7, 119),
+        descriptor_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 50, 114, 120),
     ];
     let parameters = [
         D3D12_ROOT_PARAMETER {

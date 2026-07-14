@@ -28,6 +28,8 @@ pub struct ObjectPackSource {
 pub struct ObjectIoMetrics {
     pub chunk_count: usize,
     pub payload_bytes: u64,
+    pub record_bytes: u64,
+    pub identity_bytes: u64,
     pub seek_count: usize,
     pub worker_queue_ms: f64,
     pub gate_ms: f64,

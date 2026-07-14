@@ -26,15 +26,26 @@ export function canonicalObjects(
     field<string>(value, "sourceNamespace", "string");
     field<string>(value, "contentSha256", "string");
     field<string>(value, "stableSeedSha256", "string");
+    if (
+        value.localIdCount !== 25_600 || value.localIdDuplicateCount !== 0
+    ) fail("canonical object local identity aggregate failed");
+    field<string>(value, "identityKeyedSha256", "string");
+    field<string>(value, "stableKeySha256", "string");
     if (value.payloadAuthority !== undefined) {
         const authority = object(value, "payloadAuthority");
-        if (
-            authority.revision !== "cooked-object-payload-authority-v1" ||
-            authority.regionCount !== 25 || authority.recordCount !== 25_600 ||
-            authority.copyCount !== 25 || authority.readbackBytes !== 512_000 ||
-            authority.allocationBytes !== 524_288 || authority.chunkMismatchCount !== 0 ||
-            authority.expectedIndexSha256 !== authority.observedIndexSha256
-        ) fail("cooked object payload authority failed");
+        const common = authority.regionCount === 25 && authority.recordCount === 25_600 &&
+            authority.chunkMismatchCount === 0 &&
+            authority.expectedIndexSha256 === authority.observedIndexSha256;
+        const schema1 = authority.revision === "cooked-object-payload-authority-v1" &&
+            authority.payloadSchema === 1 && authority.copyCount === 25 &&
+            authority.readbackBytes === 512_000 && authority.allocationBytes === 524_288;
+        const schema2 = authority.revision === "cooked-object-payload-authority-v2" &&
+            authority.payloadSchema === 2 && authority.copyCount === 50 &&
+            authority.readbackBytes === 614_400 && authority.allocationBytes === 655_360 &&
+            authority.recordCopyCount === 25 && authority.identityCopyCount === 25 &&
+            authority.recordReadbackBytes === 512_000 &&
+            authority.identityReadbackBytes === 102_400;
+        if (!common || (!schema1 && !schema2)) fail("cooked object payload authority failed");
         field<string>(authority, "payloadSha256", "string");
         field<number>(authority, "probeCount", "number");
         field<number>(authority, "totalCopyCount", "number");
@@ -86,6 +97,8 @@ export function stableObjectEvidence(
         revision: value.revision,
         sourceNamespace: value.sourceNamespace,
         contentSha256: value.contentSha256,
+        identityKeyedSha256: value.identityKeyedSha256,
+        stableKeySha256: value.stableKeySha256,
         stableSeedSha256: value.stableSeedSha256,
         entries: value.entries,
     };

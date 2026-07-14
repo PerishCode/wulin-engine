@@ -144,6 +144,7 @@ contains only files that exist.
 | `docs/adr/0030-bounded-canonical-traversal-prefetch.md` | Accepted one-target canonical preparation, promotion, stale-work isolation, and bounded cache reuse contract. |
 | `docs/adr/0031-cooked-canonical-object-storage.md` | Accepted signed object pack, separate source/seed identity, bounded I/O, and existing-cache publication contract. |
 | `docs/adr/0032-authoritative-cooked-object-payloads.md` | Accepted GPU-published object authority, probe-only active-page readback, and pack-index checksum join contract. |
+| `docs/adr/0033-canonical-object-identity-plane.md` | Accepted authored local-ID plane, transactional dual-resource publication, and order-independent GPU behavior contract. |
 | `docs/experiments/README.md` | Experiment identity, evidence, output, and promotion rules. |
 | `docs/experiments/0000-template.md` | Required structure for a new experiment definition and conclusion. |
 | `Cargo.toml` | Rust Workspace definition and shared dependency policy. |
@@ -184,6 +185,7 @@ contains only files that exist.
 | `experiments/0027-canonical-traversal-prefetch/README.md` | Accepted Experiment 0027 one-target cache preparation, promotion, stale/failure isolation, rollover, and timing evidence. |
 | `experiments/0028-cooked-canonical-objects/README.md` | Accepted Experiment 0028 signed object storage, exact payload, source independence, bounded I/O, rollback, and timing evidence. |
 | `experiments/0029-authoritative-cooked-objects/README.md` | Accepted Experiment 0029 cooked payload authority, active GPU readback, index joins, and nonprocedural oracle evidence. |
+| `experiments/0030-canonical-object-identity-plane/README.md` | Accepted Experiment 0030 authored local identity, order-independent GPU behavior, dual-plane authority, and rollback evidence. |
 | `crates/canonical-object-fixture/Cargo.toml` | Narrow deterministic canonical object fixture package and dependency boundary. |
 | `crates/canonical-object-fixture/src/lib.rs` | Shared cell-center/arbitrary-Q8 positions, stable keys, heights, and exact signed fixture generation. |
 | `crates/canonical-object-fixture/tests/fixture.rs` | Public deterministic, region-local, and signed-region distinction regression contract. |
@@ -206,11 +208,13 @@ contains only files that exist.
 | `crates/terrain-format/tests/global_pack.rs` | V2 determinism, signed edge, exact-key binding, corruption, padding, and offset rejection contract. |
 | `crates/region-format/Cargo.toml` | Canonical region-format package boundary and reusable dependencies. |
 | `crates/region-format/src/lib.rs` | Versioned pack writer/reader, explicit record codec, index validation, and chunk verification. |
-| `crates/region-format/src/global.rs` | Signed V2 object pack, complete-index source identity, authored stable-seed identity, and exact chunk reads. |
-| `crates/region-format/tests/global_pack.rs` | Signed object determinism, source identity, ordering, padding, checksum, schema, and seed rejection contract. |
+| `crates/region-format/src/global.rs` | Signed object pack schema 1/2, complete-index source identity, authored local IDs, and exact dual-plane chunk reads. |
+| `crates/region-format/tests/global_pack.rs` | Signed object and identity-plane determinism, ordering, checksum, schema, permutation, and rejection contract. |
 | `crates/region-format/tests/pack.rs` | Canonical round-trip and malformed metadata/payload rejection contract. |
 | `tools/region-cooker/Cargo.toml` | Offline deterministic region-cooker package boundary. |
-| `tools/region-cooker/src/main.rs` | Deterministic local V1, signed V2 compatibility, and cooker-only authority object pack generation with manifest output. |
+| `tools/region-cooker/src/main.rs` | Object cooker CLI, signed centers, authority mode, identity-order selection, and manifest output. |
+| `tools/region-cooker/src/lib.rs` | Deterministic compatibility, authority, and reordered authored-identity pack generation. |
+| `tools/region-cooker/tests/identity.rs` | Cooker-owned authored local-ID permutation, pair preservation, and namespace isolation regressions. |
 | `tools/terrain-cooker/Cargo.toml` | Offline deterministic terrain-cooker package boundary. |
 | `tools/terrain-cooker/src/main.rs` | Deterministic local V1 or signed-global V2 terrain generation, edge proof, pack writing, and manifest output. |
 | `apps/workbench/Cargo.toml` | Native workbench package and Windows API feature boundary. |
@@ -219,8 +223,8 @@ contains only files that exist.
 | `apps/workbench/shaders/region_load.hlsl` | Procedural region reset, cull/compact, indirect draw, and semantic-ID shaders. |
 | `apps/workbench/shaders/resident_load.hlsl` | Persistent instance compaction, indirect rendering, and semantic-ID shaders. |
 | `apps/workbench/shaders/async_resident.hlsl` | Descriptor-indexed per-slot compaction, canonical region-local projection, indirect rendering, and semantic-ID shaders. |
-| `apps/workbench/shaders/meshlet_scene.hlsl` | GPU object culling, LOD, visible compaction, amplification, mesh emission, and semantic-ID shaders. |
-| `apps/workbench/shaders/skeletal_scene.hlsl` | GPU canonical projection, stable-key animation, exact grounding, pose evaluation, meshlet skinning, and semantic-ID shaders. |
+| `apps/workbench/shaders/meshlet_scene.hlsl` | GPU object culling, authored local-ID stable keys, LOD, visible compaction, amplification, and mesh emission. |
+| `apps/workbench/shaders/skeletal_scene.hlsl` | GPU canonical projection, authored local-ID animation, exact grounding, pose evaluation, and meshlet skinning. |
 | `apps/workbench/shaders/surface_resolve.hlsl` | Deterministic visibility winner, compact payload emission, skeletal surface reconstruction, material resolve, and samples. |
 | `apps/workbench/shaders/occlusion.hlsl` | Conservative hierarchy query, fixed classify/prefix/stable-scatter compaction, and reverse-Z mip construction. |
 | `apps/workbench/shaders/terrain.hlsl` | Fixed region/patch seam oracles, GPU patch LOD, exact transition projection, mesh expansion, material color, and semantic-ID emission. |
@@ -243,8 +247,8 @@ contains only files that exist.
 | `apps/workbench/src/streaming/async_resident/canonical.rs` | Canonical object source namespace, signed-region cache key construction, stable seed, and serialization owner. |
 | `apps/workbench/src/streaming/cooked/mod.rs` | Cooked pack controller, bounded transaction status, gate, and failure rollback evidence. |
 | `apps/workbench/src/streaming/cooked/worker.rs` | Single background pack reader, bounded channels, chunk verification, and I/O metrics. |
-| `apps/workbench/src/streaming/objects/mod.rs` | Cooked canonical object source, bounded transaction state, gates, status, completion, and rollback evidence. |
-| `apps/workbench/src/streaming/objects/worker.rs` | Single signed object pack reader, fixed channels, gate/shutdown, exact-key verification, and I/O metrics. |
+| `apps/workbench/src/streaming/objects/mod.rs` | Cooked canonical object source, bounded dual-plane transaction state, gates, status, completion, and rollback evidence. |
+| `apps/workbench/src/streaming/objects/worker.rs` | Single signed object pack reader, fixed channels, record/identity verification, and bounded I/O metrics. |
 | `apps/workbench/src/streaming/terrain/mod.rs` | V1/V2 terrain pack controller, source identity, bounded transaction status, I/O gate, and rollback evidence. |
 | `apps/workbench/src/streaming/address.rs` | Shared signed global windows, checked format-V1 local alias mapping, and exact boundary tests. |
 | `apps/workbench/src/streaming/terrain/worker.rs` | Single background terrain reader, exact signed-key lookup, bounded channels, payload verification, and I/O metrics. |
@@ -262,7 +266,7 @@ contains only files that exist.
 | `apps/workbench/src/rendering/composition/contact.rs` | Requested-only exact selected-LOD surface and full-resolution grounding residual oracle. |
 | `apps/workbench/src/rendering/composition/fixture.rs` | Legacy/canonical instance materialization, signed modular Q8 placement, stable seeds, and exact terrain sampling. |
 | `apps/workbench/src/rendering/composition/probe.rs` | Canonical object/terrain semantic joins, exact grounding, pair mapping, shared submission, and timing evidence. |
-| `apps/workbench/src/rendering/composition/probe/objects.rs` | Published object-record semantic evidence, stable identity, payload hashes, and cooked pack-index authority joins. |
+| `apps/workbench/src/rendering/composition/probe/objects.rs` | GPU-read record/local-ID evidence, stable identity, payload hashes, and signed pack-index authority joins. |
 | `apps/workbench/src/rendering/composition/schedule.rs` | Local/global/canonical pair reservation, source selection, stream submission, cancellation, and schedule response owner. |
 | `apps/workbench/src/rendering/composition/state.rs` | Source-bound pair state, cooked-object lifecycle, rollback, traversal failure, and status projection. |
 | `apps/workbench/src/rendering/composition/traversal.rs` | Local/signed camera mapping, V1 frozen or V2 dynamic basis, single desired slot, blocked failure, and automatic pair scheduling. |
@@ -283,11 +287,12 @@ contains only files that exist.
 | `apps/workbench/src/rendering/async_resident/pipeline.rs` | Descriptor-table asynchronous resident compute and graphics pipelines. |
 | `apps/workbench/src/rendering/async_resident/renderer.rs` | Immutable local/global/canonical snapshot publication, rendering, and GPU probes. |
 | `apps/workbench/src/rendering/async_resident/renderer/global.rs` | Legacy and source-aware canonical generated-object reservation and global-window projection. |
-| `apps/workbench/src/rendering/async_resident/renderer/payload.rs` | Fixed active-page readback resource, explicit probe recording, decoded records, and cooked submission checksum binding. |
+| `apps/workbench/src/rendering/async_resident/renderer/payload.rs` | Fixed record/identity active-page readbacks, pair decoding, permutation validation, and pack checksum binding. |
 | `apps/workbench/src/rendering/async_resident/renderer/status.rs` | Async mode, gate, snapshot, descriptor, protected-slot, payload-readback, and shutdown status controls. |
-| `apps/workbench/src/rendering/async_resident/transfer.rs` | Source-bound copy queue reservations, fences, gate, upload arena, slot states, and transaction lifecycle. |
+| `apps/workbench/src/rendering/async_resident/transfer.rs` | Source-bound record/identity resources, copy queue reservations, fences, upload arenas, and slot lifecycle. |
 | `apps/workbench/src/rendering/async_resident/transfer/lifecycle.rs` | Async gate release, copy-fence idle wait, event cleanup, and drop lifecycle. |
-| `apps/workbench/src/rendering/async_resident/transfer/payload.rs` | Probe-only active-slot validation, copy-source transitions, ordered page copies, and shader-state restoration. |
+| `apps/workbench/src/rendering/async_resident/transfer/payload.rs` | Probe-only active record/identity validation, ordered page copies, and shader-state restoration. |
+| `apps/workbench/src/rendering/async_resident/transfer/submit.rs` | Transactional record/identity upload recording, ordinal restoration, barriers, and copy-fence submission. |
 | `apps/workbench/src/rendering/async_resident/transfer/status.rs` | Asynchronous reservation, copy, gate, and publication status projection. |
 | `apps/workbench/src/rendering/async_resident/resources.rs` | Asynchronous region descriptor heap and per-slot SRV construction. |
 | `apps/workbench/src/rendering/async_resident/mod.rs` | Asynchronous resident rendering ownership boundary and narrow export. |
@@ -365,6 +370,7 @@ contains only files that exist.
 | `.runseal/wrappers/canonical-traversal-prefetch.ts` | Canonical Experiment 0027 compatibility, lookahead, promotion, stale-work, failure, rollover, and release workflow. |
 | `.runseal/wrappers/cooked-canonical-objects.ts` | Canonical Experiment 0028 codec, equality, movement, source switch, holds, rollback, restart, and release workflow. |
 | `.runseal/wrappers/authoritative-cooked-objects.ts` | Canonical Experiment 0029 authored source switch, GPU payload authority, movement, failures, restart, and release workflow. |
+| `.runseal/wrappers/canonical-object-identity.ts` | Canonical Experiment 0030 schema compatibility, reordered identity, dual-plane holds, rollback, restart, and release workflow. |
 | `.runseal/support/cooked-region.ts` | Experiment 0008 structured evidence, pack corruption, hashing, and comparison helpers. |
 | `.runseal/support/composition.ts` | Experiments 0015-0018 stable composition, grounding, contact, LOD, and timing validation support. |
 | `.runseal/support/global-terrain.ts` | Experiment 0020 Sidecar lifecycle, global/local mapping, transaction, capture, and distribution validation helpers. |
@@ -381,6 +387,7 @@ contains only files that exist.
 | `.runseal/support/canonical-traversal-prefetch-scenarios.ts` | Experiment 0027 direction, promotion, stale-work, failure, rollover, and disable scenario owner. |
 | `.runseal/support/cooked-canonical-objects/mod.ts` | Experiment 0028 cooker, corruption, transaction-I/O validation, and generated/cooked frame evidence helpers. |
 | `.runseal/support/authoritative-cooked-objects/mod.ts` | Experiment 0029 authority cooking, readback accounting, source evidence, and failure/recovery helpers. |
+| `.runseal/support/canonical-object-identity/mod.ts` | Experiment 0030 identity cooking, corruption, dual-plane authority, transaction, and reorder evidence helpers. |
 | `.runseal/support/traversal.ts` | Experiment 0018 bounded status, region mapping, and logical revisit evidence helpers. |
 | `.runseal/support/workbench/composition.ts` | Local/global composition workbench CLI validation and typed Sidecar dispatch. |
 | `.runseal/support/workbench/terrain.ts` | Terrain-specific workbench CLI argument validation and typed Sidecar event dispatch. |
@@ -542,6 +549,13 @@ to immutable exact-region pack checksums. Generated and cooked sources share the
 decoded-record oracle path; ordinary frames record no readback. This accepts arbitrary
 legal records within the existing V2 schema, not schema expansion, a CPU payload cache,
 persistent gameplay identity, collision, navigation, networking, or mod content.
+Experiment 0030 and ADR 0033 accept an explicit region-local authored identity plane.
+Schema-2 packs bind 1,024 records and 1,024 unique local IDs under one checksum; the
+bounded cache publishes paired record/identity resources under one fence and atomic
+composition token. GPU stable behavior and CPU oracles consume the published local ID,
+so physical reorder changes source bytes but not render, animation, grounding, contact,
+semantics, or attachments. This does not accept sparse occupancy, variable counts,
+persistent gameplay identity, collision, navigation, networking, or mod content.
 
 The workbench is a composition root, not permission to create broad engine scaffolding.
 Do not begin ECS, assets, or general graphics architecture until a numbered experiment
@@ -582,6 +596,7 @@ runseal :canonical-origin-rollover
 runseal :canonical-traversal-prefetch
 runseal :cooked-canonical-objects
 runseal :authoritative-cooked-objects
+runseal :canonical-object-identity
 runseal :workbench start
 runseal :workbench status
 runseal :workbench inspect

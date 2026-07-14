@@ -47,7 +47,7 @@ impl SkeletalSceneRenderer {
         snapshot: &PublishedSnapshot,
         scene: &SceneState,
     ) -> Result<SkeletalProbe> {
-        unsafe { self.read_probe_with_ground(snapshot, scene, None, 512, None) }
+        unsafe { self.read_probe_with_ground(snapshot, scene, None, 512, None, None) }
     }
 
     pub(in crate::rendering) unsafe fn read_grounded_probe(
@@ -57,6 +57,7 @@ impl SkeletalSceneRenderer {
         ground_numerators: &[i32],
         ground_denominator: u32,
         instance_records: &[Vec<crate::resident::InstanceRecord>],
+        local_ids: &[Vec<u32>],
     ) -> Result<SkeletalProbe> {
         unsafe {
             self.read_probe_with_ground(
@@ -65,6 +66,7 @@ impl SkeletalSceneRenderer {
                 Some(ground_numerators),
                 ground_denominator,
                 Some(instance_records),
+                Some(local_ids),
             )
         }
     }
@@ -76,6 +78,7 @@ impl SkeletalSceneRenderer {
         ground_numerators: Option<&[i32]>,
         ground_denominator: u32,
         instance_records: Option<&[Vec<crate::resident::InstanceRecord>]>,
+        local_ids: Option<&[Vec<u32>]>,
     ) -> Result<SkeletalProbe> {
         unsafe {
             probe::read(ProbeInput {
@@ -94,6 +97,7 @@ impl SkeletalSceneRenderer {
                 ground_numerators,
                 ground_denominator,
                 instance_records,
+                local_ids,
             })
         }
     }

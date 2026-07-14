@@ -2,7 +2,7 @@ use serde_json::{Value, json};
 
 use crate::async_resident::{ASYNC_CACHE_CAPACITY, ASYNC_RESIDENT_REVISION};
 use crate::load::LoadConfig;
-use crate::resident::REGION_INSTANCE_BYTES;
+use crate::resident::{REGION_IDENTITY_BYTES, REGION_INSTANCE_BYTES};
 
 use super::AsyncTransfer;
 
@@ -46,10 +46,15 @@ impl AsyncTransfer {
             "revision": ASYNC_RESIDENT_REVISION,
             "capacity": ASYNC_CACHE_CAPACITY,
             "descriptorCount": ASYNC_CACHE_CAPACITY,
+            "identityDescriptorCount": ASYNC_CACHE_CAPACITY,
             "inFlightCapacity": 1,
             "regionPayloadBytes": ASYNC_CACHE_CAPACITY * REGION_INSTANCE_BYTES,
             "defaultHeapAllocationBytes": self.region_allocation_bytes,
             "uploadArenaBytes": ASYNC_CACHE_CAPACITY * REGION_INSTANCE_BYTES,
+            "identityPayloadBytes": ASYNC_CACHE_CAPACITY * REGION_IDENTITY_BYTES,
+            "identityDefaultHeapAllocationBytes": self.identity_allocation_bytes,
+            "identityUploadArenaBytes": ASYNC_CACHE_CAPACITY * REGION_IDENTITY_BYTES,
+            "identityInitializationCopyCount": ASYNC_CACHE_CAPACITY,
             "published": published,
             "reservation": reservation,
             "pending": pending,

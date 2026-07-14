@@ -164,6 +164,8 @@ function objectIoDistributions(samples: Record<string, unknown>[]) {
         sampleCount: samples.length,
         chunkCount: distribution(values("chunkCount"), "object chunk count", true),
         payloadBytes: distribution(values("payloadBytes"), "object payload bytes", true),
+        recordBytes: distribution(values("recordBytes"), "object record bytes", true),
+        identityBytes: distribution(values("identityBytes"), "object identity bytes", true),
         totalMs: distribution(values("totalMs"), "object I/O time", true),
         readMs: distribution(values("readMs"), "object read time", true),
         verifyMs: distribution(values("verifyMs"), "object verify time", true),

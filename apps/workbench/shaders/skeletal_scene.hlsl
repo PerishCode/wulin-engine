@@ -85,6 +85,7 @@ StructuredBuffer<VisibleObject> draw_objects : register(t50);
 StructuredBuffer<AffineTransform> palette_in : register(t62);
 ByteAddressBuffer terrain_tiles[REGION_SLOT_CAPACITY] : register(t63);
 StructuredBuffer<int> ground_numerators_in : register(t113);
+StructuredBuffer<uint> region_local_ids[REGION_SLOT_CAPACITY] : register(t114);
 
 RWStructuredBuffer<VisibleObject> visible_objects : register(u0);
 RWByteAddressBuffer indirect_and_counters : register(u1);
@@ -118,11 +119,11 @@ float3 object_position(InstanceRecord instance, uint semantic_region)
     );
 }
 
-uint object_stable_key(InstanceRecord instance, uint local_index, uint semantic_region)
+uint object_stable_key(InstanceRecord instance, uint local_id, uint semantic_region)
 {
     return semantic_region == 0u
-        ? instance.region_id * INSTANCES_PER_REGION + local_index
-        : instance.region_id ^ (local_index * 747796405u);
+        ? instance.region_id * INSTANCES_PER_REGION + local_id
+        : instance.region_id ^ (local_id * 747796405u);
 }
 
 int terrain_ground_q16(
@@ -200,6 +201,7 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     uint slot = packed_slots & 63u;
     uint semantic_region = packed_slots >> 12u;
     InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
+    uint local_id = region_local_ids[NonUniformResourceIndex(slot)][local_index];
     float3 position = object_position(instance, semantic_region);
     uint logical_index = group_id.x * INSTANCES_PER_REGION + local_index;
     float ground = 0.0;
@@ -229,7 +231,7 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         && abs(clip.y) <= clip.w
         && clip.z >= 0.0
         && clip.z <= clip.w;
-    uint stable_key = object_stable_key(instance, local_index, semantic_region);
+    uint stable_key = object_stable_key(instance, local_id, semantic_region);
     uint archetype = stable_key & 7u;
     if (!in_frustum || (load_shape.z & (1u << archetype)) == 0)
     {

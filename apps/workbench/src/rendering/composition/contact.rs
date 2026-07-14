@@ -25,6 +25,8 @@ pub(super) struct ContactProbe {
     owner_patch_lod_counts: [u32; 3],
     selected_surface_sha256: String,
     residual_sha256: String,
+    identity_keyed_selected_surface_sha256: String,
+    identity_keyed_residual_sha256: String,
     negative_count: u32,
     zero_count: u32,
     positive_count: u32,
@@ -59,6 +61,7 @@ pub(super) struct ContactInput<'a> {
     pub assignments: &'a [TerrainAssignment],
     pub tiles: &'a [terrain_format::TerrainTile],
     pub records: &'a [Vec<InstanceRecord>],
+    pub local_ids: &'a [Vec<u32>],
     pub exact_ground: &'a [i32],
     pub ground_denominator: u32,
     pub scene: &'a SceneState,
@@ -71,6 +74,7 @@ pub(super) fn evaluate(input: ContactInput<'_>) -> Result<ContactProbe> {
         assignments,
         tiles,
         records,
+        local_ids,
         exact_ground,
         ground_denominator,
         scene,
@@ -78,7 +82,9 @@ pub(super) fn evaluate(input: ContactInput<'_>) -> Result<ContactProbe> {
         projection,
     } = input;
     ensure!(
-        assignments.len() == tiles.len() && assignments.len() == records.len(),
+        assignments.len() == tiles.len()
+            && assignments.len() == records.len()
+            && assignments.len() == local_ids.len(),
         "composition contact snapshot shape mismatch"
     );
     let expected_samples = records.iter().map(Vec::len).sum::<usize>();
@@ -104,6 +110,7 @@ pub(super) fn evaluate(input: ContactInput<'_>) -> Result<ContactProbe> {
     let mut maximum = i32::MIN;
     let mut exceedance_count = 0;
     let mut first_exceedance = None;
+    let mut identity_evidence = Vec::with_capacity(expected_samples);
 
     for (active_index, ((assignment, tile), region_records)) in
         assignments.iter().zip(tiles).zip(records).enumerate()
@@ -114,6 +121,7 @@ pub(super) fn evaluate(input: ContactInput<'_>) -> Result<ContactProbe> {
         );
         let region_id = projection.region_id(active_index, assignment.region_id)?;
         for (local_index, record) in region_records.iter().enumerate() {
+            let local_id = local_ids[active_index][local_index];
             let position = projection.position(active_index, record.position)?;
             let q8 = position_q8(position, region_id)?;
             let (selected_q18, owner_lod) =
@@ -125,6 +133,7 @@ pub(super) fn evaluate(input: ContactInput<'_>) -> Result<ContactProbe> {
             lod_counts[owner_lod as usize] += 1;
             selected_hash.update(selected_q18.to_le_bytes());
             residual_hash.update(residual.to_le_bytes());
+            identity_evidence.push((active_index as u32, local_id, selected_q18, residual));
             absolute.push(residual.unsigned_abs());
             minimum = minimum.min(residual);
             maximum = maximum.max(residual);
@@ -137,7 +146,7 @@ pub(super) fn evaluate(input: ContactInput<'_>) -> Result<ContactProbe> {
                 exceedance_count += 1;
                 first_exceedance.get_or_insert(ContactExceedance {
                     region_id,
-                    local_index: local_index as u32,
+                    local_index: local_id,
                     owner_patch_lod: owner_lod,
                     exact_ground_q18: exact_q18,
                     selected_surface_q18: selected_q18,
@@ -152,6 +161,17 @@ pub(super) fn evaluate(input: ContactInput<'_>) -> Result<ContactProbe> {
     let p99 = percentile(&absolute, 99);
     let maximum_absolute = absolute.last().copied().unwrap_or(0);
     let meters = |value: u32| f64::from(value) / f64::from(Q18_DENOMINATOR);
+    identity_evidence.sort_by_key(|(active_index, local_id, _, _)| (*active_index, *local_id));
+    let mut identity_selected = Sha256::new();
+    let mut identity_residual = Sha256::new();
+    for (active_index, local_id, selected, residual) in identity_evidence {
+        for digest in [&mut identity_selected, &mut identity_residual] {
+            digest.update(active_index.to_le_bytes());
+            digest.update(local_id.to_le_bytes());
+        }
+        identity_selected.update(selected.to_le_bytes());
+        identity_residual.update(residual.to_le_bytes());
+    }
     Ok(ContactProbe {
         revision: "lod-terrain-contact-v1",
         denominator: Q18_DENOMINATOR,
@@ -159,6 +179,8 @@ pub(super) fn evaluate(input: ContactInput<'_>) -> Result<ContactProbe> {
         owner_patch_lod_counts: lod_counts,
         selected_surface_sha256: format!("{:x}", selected_hash.finalize()),
         residual_sha256: format!("{:x}", residual_hash.finalize()),
+        identity_keyed_selected_surface_sha256: format!("{:x}", identity_selected.finalize()),
+        identity_keyed_residual_sha256: format!("{:x}", identity_residual.finalize()),
         negative_count,
         zero_count,
         positive_count,

@@ -34,6 +34,7 @@ pub struct GroundingInput<'a> {
     pub numerators: Option<&'a [i32]>,
     pub denominator: u32,
     pub instance_records: Option<&'a [Vec<InstanceRecord>]>,
+    pub local_ids: Option<&'a [Vec<u32>]>,
 }
 
 pub struct EvaluationInput<'a> {
@@ -83,6 +84,9 @@ pub fn evaluate(
             &generated
         };
         for (local_index, instance) in records.iter().enumerate() {
+            let local_id = grounding
+                .local_ids
+                .map_or(local_index as u32, |ids| ids[active_index][local_index]);
             let logical_index =
                 active_index * crate::load::INSTANCES_PER_REGION as usize + local_index;
             let ground = grounding.numerators.map_or(0.0, |values| {
@@ -92,9 +96,9 @@ pub fn evaluate(
             let center = Vec3::from_array(position) + Vec3::Y * (ground + instance.height * 0.5);
             let clip = matrix * Vec4::new(center.x, center.y, center.z, 1.0);
             let stable_key = if projection.is_canonical() {
-                canonical_stable_key(instance.region_id, local_index as u32)
+                canonical_stable_key(instance.region_id, local_id)
             } else {
-                region_id * 1024 + local_index as u32
+                region_id * 1024 + local_id
             };
             let archetype = stable_key & 7;
             let visible = clip.w > 0.0
