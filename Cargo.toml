@@ -2,6 +2,7 @@
 members = [
   "apps/workbench",
   "crates/animation-catalog",
+  "crates/canonical-object-fixture",
   "crates/meshlet-catalog",
   "crates/region-format",
   "crates/surface-catalog",
@@ -20,6 +21,7 @@ rust-version = "1.94"
 [workspace.dependencies]
 anyhow = "1.0.100"
 animation-catalog = { path = "crates/animation-catalog" }
+canonical-object-fixture = { path = "crates/canonical-object-fixture" }
 glam = { version = "0.30.9", features = ["serde"] }
 meshlet-catalog = { path = "crates/meshlet-catalog" }
 surface-catalog = { path = "crates/surface-catalog" }

@@ -60,6 +60,7 @@ pub struct AsyncLayoutPlan {
     pub config: LoadConfig,
     pub global_config: Option<GlobalRegionConfig>,
     pub object_source_namespace: Option<ObjectSourceNamespace>,
+    pub object_stable_seed_namespace: Option<ObjectSourceNamespace>,
     pub next_cache: AsyncRegionCache,
     pub assignments: Vec<RegionAssignment>,
     pub active_slots: Vec<u32>,
@@ -106,6 +107,8 @@ pub struct AsyncTransactionReport {
     pub global_config: Option<GlobalRegionConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub object_source_namespace: Option<ObjectSourceNamespace>,
+    #[serde(skip)]
+    pub object_stable_seed_namespace: Option<ObjectSourceNamespace>,
     #[serde(flatten)]
     pub counts: AsyncPlanCounts,
     pub uploaded_sha256: String,
@@ -129,6 +132,8 @@ pub struct AsyncReservationReport {
     pub global_config: Option<GlobalRegionConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub object_source_namespace: Option<ObjectSourceNamespace>,
+    #[serde(skip)]
+    pub object_stable_seed_namespace: Option<ObjectSourceNamespace>,
     #[serde(flatten)]
     pub counts: AsyncPlanCounts,
     pub assignments: Vec<RegionAssignment>,
@@ -202,13 +207,14 @@ impl AsyncRegionCache {
         &self,
         config: GlobalRegionConfig,
         source_namespace: ObjectSourceNamespace,
+        stable_seed_namespace: ObjectSourceNamespace,
         protected_slots: &BTreeSet<u32>,
     ) -> Result<AsyncLayoutPlan> {
         let local = config.local_config()?;
         let desired = config
             .addressed_regions()?
             .into_iter()
-            .map(|region| canonical::desired(region, source_namespace))
+            .map(|region| canonical::desired(region, source_namespace, stable_seed_namespace))
             .collect::<Vec<_>>();
         let unique_seeds = desired
             .iter()
@@ -226,7 +232,7 @@ impl AsyncRegionCache {
         self.plan_layout_ordered(
             local,
             Some(config),
-            Some(source_namespace),
+            Some((source_namespace, stable_seed_namespace)),
             desired,
             protected_slots,
             true,
@@ -237,11 +243,14 @@ impl AsyncRegionCache {
         &self,
         config: LoadConfig,
         global_config: Option<GlobalRegionConfig>,
-        object_source_namespace: Option<ObjectSourceNamespace>,
+        object_namespaces: Option<(ObjectSourceNamespace, ObjectSourceNamespace)>,
         desired: Vec<DesiredRegion>,
         protected_slots: &BTreeSet<u32>,
         high_slots_first: bool,
     ) -> Result<AsyncLayoutPlan> {
+        let (object_source_namespace, object_stable_seed_namespace) = object_namespaces
+            .map(|(source, stable_seed)| (Some(source), Some(stable_seed)))
+            .unwrap_or((None, None));
         let desired_set = desired
             .iter()
             .map(|region| region.key)
@@ -319,6 +328,7 @@ impl AsyncRegionCache {
             config,
             global_config,
             object_source_namespace,
+            object_stable_seed_namespace,
             next_cache: next,
             assignments,
             active_slots,
@@ -397,6 +407,12 @@ impl AsyncLayoutPlan {
 mod tests {
     use super::*;
 
+    fn namespace(revision: &str) -> ObjectSourceNamespace {
+        use sha2::Digest as _;
+
+        ObjectSourceNamespace::from_bytes(sha2::Sha256::digest(revision.as_bytes()).into())
+    }
+
     fn protected(plan: &AsyncLayoutPlan) -> BTreeSet<u32> {
         plan.active_slots.iter().copied().collect()
     }
@@ -450,15 +466,15 @@ mod tests {
     #[test]
     fn canonical_alias_rebind_hits() {
         let far = 1_i64 << 40;
-        let source = ObjectSourceNamespace::from_revision("canonical-object-test-v1");
+        let source = namespace("canonical-object-test-v1");
         let base = GlobalRegionConfig::new(far, -far, far, -far, 2).unwrap();
         let first = AsyncRegionCache::default()
-            .plan_canonical_layout(base, source, &BTreeSet::new())
+            .plan_canonical_layout(base, source, source, &BTreeSet::new())
             .unwrap();
         let alias = GlobalRegionConfig::new(far - 32, -far, far, -far, 2).unwrap();
         let rebound = first
             .next_cache
-            .plan_canonical_layout(alias, source, &protected(&first))
+            .plan_canonical_layout(alias, source, source, &protected(&first))
             .unwrap();
         assert_eq!(rebound.counts.retained_region_count, 25);
         assert_eq!(rebound.counts.uploaded_region_count, 0);
@@ -468,14 +484,14 @@ mod tests {
     #[test]
     fn canonical_source_change_misses() {
         let config = GlobalRegionConfig::new(0, 0, 0, 0, 2).unwrap();
-        let first_source = ObjectSourceNamespace::from_revision("canonical-object-test-v1");
-        let second_source = ObjectSourceNamespace::from_revision("canonical-object-test-v2");
+        let first_source = namespace("canonical-object-test-v1");
+        let second_source = namespace("canonical-object-test-v2");
         let first = AsyncRegionCache::default()
-            .plan_canonical_layout(config, first_source, &BTreeSet::new())
+            .plan_canonical_layout(config, first_source, first_source, &BTreeSet::new())
             .unwrap();
         let second = first
             .next_cache
-            .plan_canonical_layout(config, second_source, &protected(&first))
+            .plan_canonical_layout(config, second_source, second_source, &protected(&first))
             .unwrap();
         assert_eq!(second.counts.retained_region_count, 0);
         assert_eq!(second.counts.uploaded_region_count, 25);

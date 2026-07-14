@@ -55,8 +55,10 @@ export async function publishPair(config: GlobalConfig): Promise<Record<string, 
 export async function prepare(
     path: string,
     config: GlobalConfig,
+    objectPath?: string,
 ): Promise<Record<string, unknown>> {
     await event("terrain.open", { path });
+    if (objectPath) await event("objects.open", { path: objectPath });
     await event("composition.fixture", { fixture: "arbitrary-q8" });
     const publication = await publishPair(config);
     await event("skeletal.configure", {

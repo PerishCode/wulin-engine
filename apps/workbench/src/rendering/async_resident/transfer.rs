@@ -219,12 +219,16 @@ impl AsyncTransfer {
         &mut self,
         config: GlobalRegionConfig,
         source_namespace: ObjectSourceNamespace,
+        stable_seed_namespace: ObjectSourceNamespace,
         protected_slots: &BTreeSet<u32>,
     ) -> Result<AsyncReservationReport> {
         self.ensure_available()?;
-        let layout = self
-            .cache
-            .plan_canonical_layout(config, source_namespace, protected_slots)?;
+        let layout = self.cache.plan_canonical_layout(
+            config,
+            source_namespace,
+            stable_seed_namespace,
+            protected_slots,
+        )?;
         self.reserve_layout(layout)
     }
 
@@ -238,6 +242,7 @@ impl AsyncTransfer {
             config: layout.config,
             global_config: layout.global_config,
             object_source_namespace: layout.object_source_namespace,
+            object_stable_seed_namespace: layout.object_stable_seed_namespace,
             counts: layout.counts,
             assignments: layout.assignments.clone(),
         };
@@ -351,6 +356,7 @@ impl AsyncTransfer {
             config: plan.layout.config,
             global_config: plan.layout.global_config,
             object_source_namespace: plan.layout.object_source_namespace,
+            object_stable_seed_namespace: plan.layout.object_stable_seed_namespace,
             counts: plan.layout.counts,
             uploaded_sha256: plan.uploaded_sha256,
             direct_release_fence,

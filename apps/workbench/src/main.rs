@@ -9,7 +9,7 @@ mod streaming;
 mod window;
 mod world;
 
-pub(crate) use streaming::{address, async_resident, cooked, terrain};
+pub(crate) use streaming::{address, async_resident, cooked, objects, terrain};
 
 use std::sync::mpsc::SyncSender;
 use std::thread;

@@ -1,3 +1,9 @@
+use anyhow::Result;
+
+use crate::objects::{ObjectCompletion, ObjectIoMetrics};
+use crate::resident::RegionUpload;
+
+use super::super::renderer::Renderer;
 use super::*;
 
 impl Default for CompositionCoordinator {
@@ -30,6 +36,7 @@ impl CompositionCoordinator {
             global_config: input.global_config,
             terrain_source_namespace: input.terrain_source_namespace,
             object_source_namespace: input.object_source_namespace,
+            object_stable_seed_namespace: input.object_stable_seed_namespace,
             fixture: input.fixture,
             terrain_transaction_id: input.terrain_transaction_id,
             instance_transaction_id: input.instance_transaction_id,
@@ -42,7 +49,12 @@ impl CompositionCoordinator {
         token
     }
 
-    pub(super) fn fail_half(&mut self, terrain: bool, transaction_id: u64, message: String) {
+    pub(in crate::rendering) fn fail_half(
+        &mut self,
+        terrain: bool,
+        transaction_id: u64,
+        message: String,
+    ) {
         let Some(pending) = self.pending.as_mut() else {
             return;
         };
@@ -88,6 +100,12 @@ impl CompositionCoordinator {
             if let Some(source) = value.object_source_namespace {
                 pending["objectSourceNamespace"] = json!(source);
             }
+            if let Some(namespace) = value
+                .object_stable_seed_namespace
+                .filter(|namespace| Some(*namespace) != value.object_source_namespace)
+            {
+                pending["objectStableSeedNamespace"] = json!(namespace);
+            }
             pending
         });
         json!({
@@ -101,5 +119,163 @@ impl CompositionCoordinator {
             "lastFailure": self.last_failure,
             "traversal": self.traversal.status_json(),
         })
+    }
+}
+
+pub(super) fn rollback_failed_pair(renderer: &mut Renderer) {
+    let Some(pending) = renderer.composition.pending.as_mut() else {
+        return;
+    };
+    if pending.instance == HalfState::Staged {
+        if let Some(report) = renderer.async_resident_renderer.discard_staged()
+            && renderer.cooked_object_streamer.owns(report.transaction_id)
+        {
+            let _ = renderer.cooked_object_streamer.mark_completed(&report);
+        }
+        pending.instance = HalfState::Discarded;
+    }
+    if pending.terrain == HalfState::Staged {
+        if let Some(report) = renderer.terrain_renderer.discard_staged() {
+            let _ = renderer.terrain_streamer.mark_completed(&report);
+        }
+        pending.terrain = HalfState::Discarded;
+    }
+    if pending.instance == HalfState::InFlight || pending.terrain == HalfState::InFlight {
+        return;
+    }
+    let pending = renderer
+        .composition
+        .pending
+        .take()
+        .expect("failed composition pair disappeared");
+    if pending.purpose == PairPurpose::Traversal {
+        renderer.composition.traversal.mark_failed(
+            pending.config,
+            pending.global_config,
+            pending
+                .failure
+                .clone()
+                .unwrap_or_else(|| "composition pair failed".into()),
+        );
+    } else if pending.purpose.prefetch() {
+        renderer.composition.traversal.mark_prefetch_failed(
+            TraversalTarget {
+                config: pending.config,
+                global_config: pending.global_config,
+            },
+            pending
+                .failure
+                .clone()
+                .unwrap_or_else(|| "composition prefetch failed".into()),
+        );
+    }
+    renderer.composition.last_failure = Some(json!({
+        "token": pending.token,
+        "config": pending.config,
+        "fixture": pending.fixture,
+        "terrainTransactionId": pending.terrain_transaction_id,
+        "instanceTransactionId": pending.instance_transaction_id,
+        "terrainStage": pending.terrain,
+        "instanceStage": pending.instance,
+        "message": pending.failure,
+        "rollbackMs": pending.started_at.elapsed().as_secs_f64() * 1_000.0,
+    }));
+}
+
+impl Renderer {
+    pub fn open_cooked_object_pack(
+        &mut self,
+        path: impl AsRef<std::path::Path>,
+    ) -> Result<serde_json::Value> {
+        anyhow::ensure!(!self.composition.has_pending(), "composition_pair_busy");
+        self.cooked_object_streamer.open(path)
+    }
+
+    pub fn disable_cooked_object_source(&mut self) -> Result<bool> {
+        anyhow::ensure!(!self.composition.has_pending(), "composition_pair_busy");
+        self.cooked_object_streamer.disable()
+    }
+
+    pub fn cooked_object_status(&self) -> Option<serde_json::Value> {
+        self.cooked_object_streamer.status_json()
+    }
+
+    pub fn arm_object_io_gate(&mut self) -> Result<u64> {
+        self.cooked_object_streamer.arm_gate()
+    }
+
+    pub fn release_object_io_gate(&mut self) -> Result<u64> {
+        self.cooked_object_streamer.release_gate()
+    }
+
+    pub(in crate::rendering) unsafe fn poll_cooked_object_completion(&mut self) -> Result<()> {
+        let Some(completion) = self.cooked_object_streamer.poll_completion() else {
+            return Ok(());
+        };
+        match completion {
+            ObjectCompletion::Ready {
+                transaction_id,
+                uploads,
+                metrics,
+            } => unsafe { self.submit_object_completion(transaction_id, uploads, metrics) },
+            ObjectCompletion::Failed {
+                transaction_id,
+                message,
+                metrics,
+            } => {
+                let cancellation = self
+                    .async_resident_renderer
+                    .cancel_reservation(transaction_id);
+                let message = match cancellation {
+                    Ok(()) => message,
+                    Err(error) => {
+                        format!("{message}; object reservation cancellation failed: {error}")
+                    }
+                };
+                self.cooked_object_streamer
+                    .mark_failed(transaction_id, message.clone(), metrics);
+                self.composition.fail_half(false, transaction_id, message);
+                Ok(())
+            }
+        }
+    }
+
+    unsafe fn submit_object_completion(
+        &mut self,
+        transaction_id: u64,
+        uploads: Vec<RegionUpload>,
+        metrics: ObjectIoMetrics,
+    ) -> Result<()> {
+        let release_fence = self.next_fence_value;
+        self.next_fence_value += 1;
+        match unsafe {
+            self.async_resident_renderer.submit(
+                transaction_id,
+                uploads,
+                metrics.total_ms,
+                &self.queue,
+                &self.fence,
+                release_fence,
+            )
+        } {
+            Ok(report) => self.cooked_object_streamer.mark_submitted(&report),
+            Err(error) => {
+                let message = format!("object half failed to submit: {error:#}");
+                self.cooked_object_streamer
+                    .mark_failed(transaction_id, message.clone(), metrics);
+                self.composition.fail_half(false, transaction_id, message);
+                Ok(())
+            }
+        }
+    }
+
+    pub(in crate::rendering::composition) fn complete_cooked_object(
+        &mut self,
+        report: &crate::async_resident::AsyncTransactionReport,
+    ) -> Result<()> {
+        if self.cooked_object_streamer.owns(report.transaction_id) {
+            self.cooked_object_streamer.mark_completed(report)?;
+        }
+        Ok(())
     }
 }

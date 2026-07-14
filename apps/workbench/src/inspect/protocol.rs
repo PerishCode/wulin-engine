@@ -3,6 +3,8 @@ use serde_json::Value;
 
 use crate::perception::{PixelPoint, PixelRegion};
 
+use super::pack_control::PackTarget;
+
 pub enum ControlKind {
     Status,
     SetClearColor([f32; 4]),
@@ -74,6 +76,13 @@ pub enum ControlKind {
     CookedStatus,
     CookedIoGateArm,
     CookedIoGateRelease,
+    CookedObjectOpen {
+        path: String,
+    },
+    CookedObjectDisable,
+    CookedObjectStatus,
+    CookedObjectIoGateArm,
+    CookedObjectIoGateRelease,
     MeshletStatus,
     MeshletConfigure {
         archetype_mask: u32,
@@ -206,12 +215,6 @@ struct LoadPayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct CookedPayload {
-    path: String,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct MeshletPayload {
     archetype_mask: u32,
     forced_lod: Option<u32>,
@@ -266,6 +269,10 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "cooked.status" => Ok(ControlKind::CookedStatus),
         "cooked.gate.arm" => Ok(ControlKind::CookedIoGateArm),
         "cooked.gate.release" => Ok(ControlKind::CookedIoGateRelease),
+        "objects.status" => Ok(ControlKind::CookedObjectStatus),
+        "objects.disable" => Ok(ControlKind::CookedObjectDisable),
+        "objects.gate.arm" => Ok(ControlKind::CookedObjectIoGateArm),
+        "objects.gate.release" => Ok(ControlKind::CookedObjectIoGateRelease),
         "meshlet.status" => Ok(ControlKind::MeshletStatus),
         "meshlet.enable" => Ok(ControlKind::MeshletEnable),
         "meshlet.disable" => Ok(ControlKind::MeshletDisable),
@@ -302,8 +309,9 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "composition.order" => super::composition_control::parse_order(payload),
         "composition.fixture" => super::composition_control::parse_fixture(payload),
         "composition.global.schedule" => super::composition_control::parse_global(payload),
-        "terrain.open" => parse_terrain(payload),
-        "cooked.open" => parse_cooked(payload),
+        "terrain.open" => super::pack_control::parse(payload, PackTarget::Terrain),
+        "cooked.open" => super::pack_control::parse(payload, PackTarget::Cooked),
+        "objects.open" => super::pack_control::parse(payload, PackTarget::Object),
         "load.configure" => parse_load(payload, LoadTarget::Procedural),
         "resident.stream" => parse_load(payload, LoadTarget::Resident),
         "async.schedule" => parse_load(payload, LoadTarget::Async),
@@ -405,16 +413,6 @@ fn parse_surface(value: Value) -> ParsedControl {
         material_count: payload.material_count,
         mip_level: payload.mip_level,
     })
-}
-
-fn parse_cooked(value: Value) -> ParsedControl {
-    let payload: CookedPayload = decode(value)?;
-    Ok(ControlKind::CookedOpen { path: payload.path })
-}
-
-fn parse_terrain(value: Value) -> ParsedControl {
-    let payload: CookedPayload = decode(value)?;
-    Ok(ControlKind::TerrainOpen { path: payload.path })
 }
 
 fn parse_terrain_lod(value: Value) -> ParsedControl {

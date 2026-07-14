@@ -8,7 +8,7 @@
 
 ## Status
 
-**规范遍历预取基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
+**Cooked 规范对象基线已完成**：Rust Workspace、原生 Win32/D3D12 窗口、固定 Agility SDK、
 Sidecar 生命周期和项目自有 inspect 协议已经形成可重复的可见控制闭环。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
@@ -74,6 +74,10 @@ Experiment 0027 已复用既有 50 槽缓存和匹配事务实现单目标遍历
 窗口的 20/5（对角线 16/9）数据移动，但丢弃 speculative active mapping；实际跨界时两半均
 为 25/0、terrain I/O 为 0 byte。三类 gate promotion、反向 stale work、缺块/损坏、rollover、
 disable/restart 与 32+32 release 扫描均保持原子发布和有界 backpressure。
+Experiment 0028 已引入可替换运行时生成的 signed V2 object pack：完整 header/index hash
+负责缓存来源身份，独立 authored namespace 保持 stable seed 与 generated payload 逐字节一致。
+相邻/对角/回访严格读取 `5/9/0` 个 chunk，terrain/object 可独立换源且不会交叉失效；object I/O
+与 copy promotion、缺块/损坏回滚、disable/restart 和 32+32 release 扫描均保持既有 GPU 合同。
 
 ## Project model
 
@@ -117,6 +121,7 @@ runseal :camera-relative-terrain
 runseal :canonical-object-composition
 runseal :canonical-origin-rollover
 runseal :canonical-traversal-prefetch
+runseal :cooked-canonical-objects
 runseal :workbench start
 runseal :workbench inspect
 runseal :workbench color 0.08 0.42 0.24

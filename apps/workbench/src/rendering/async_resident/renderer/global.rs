@@ -18,10 +18,12 @@ impl AsyncResidentRenderer {
         &mut self,
         config: GlobalRegionConfig,
         source_namespace: ObjectSourceNamespace,
+        stable_seed_namespace: ObjectSourceNamespace,
     ) -> Result<AsyncReservationReport> {
         self.transfer.reserve_canonical_global_composition(
             config,
             source_namespace,
+            stable_seed_namespace,
             &self.protected_slots(),
         )
     }
@@ -36,5 +38,13 @@ impl AsyncResidentRenderer {
         self.published
             .as_ref()
             .and_then(|snapshot| snapshot.object_source_namespace)
+    }
+
+    pub(in crate::rendering) fn object_stable_seed_namespace(
+        &self,
+    ) -> Option<ObjectSourceNamespace> {
+        self.published
+            .as_ref()
+            .and_then(|snapshot| snapshot.object_stable_seed_namespace)
     }
 }

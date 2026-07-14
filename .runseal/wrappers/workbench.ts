@@ -110,7 +110,7 @@ async function configureSurface(args: string[]): Promise<void> {
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|world|world-relocate|world-rebase|world-reset|world-probe|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|occlusion-enable|occlusion-disable|occlusion-reset|terrain|terrain-open|terrain-schedule|terrain-global-schedule|terrain-enable|terrain-disable|terrain-lod|terrain-lod-config|terrain-lod-enable|terrain-lod-disable|terrain-io-gate-arm|terrain-io-gate-release|terrain-copy-gate-arm|terrain-copy-gate-release|composition|composition-schedule|composition-global-schedule|composition-enable|composition-disable|composition-traversal-enable|composition-traversal-disable|composition-prefetch-enable|composition-prefetch-disable|composition-order|composition-fixture|pause|resume|restart|stop>",
+        "Usage: runseal :workbench <start|status|inspect|capture|perception|perception-region|color|camera|camera-set|camera-reset|scene|world|world-relocate|world-rebase|world-reset|world-probe|load|load-config|load-disable|load-probe|resident|resident-stream|async|async-schedule|async-gate-arm|async-gate-release|cooked|cooked-open|cooked-schedule|cooked-gate-arm|cooked-gate-release|objects|objects-open|objects-disable|objects-gate-arm|objects-gate-release|meshlet|meshlet-config|meshlet-enable|meshlet-disable|skeletal|skeletal-config|skeletal-enable|skeletal-disable|surface|surface-config|surface-enable|surface-disable|occlusion-enable|occlusion-disable|occlusion-reset|terrain|terrain-open|terrain-schedule|terrain-global-schedule|terrain-enable|terrain-disable|terrain-lod|terrain-lod-config|terrain-lod-enable|terrain-lod-disable|terrain-io-gate-arm|terrain-io-gate-release|terrain-copy-gate-arm|terrain-copy-gate-release|composition|composition-schedule|composition-global-schedule|composition-enable|composition-disable|composition-traversal-enable|composition-traversal-disable|composition-prefetch-enable|composition-prefetch-disable|composition-order|composition-fixture|pause|resume|restart|stop>",
     );
     console.log("\nControl and inspect the native engine workbench through Sidecar.");
     Deno.exit(0);
@@ -277,6 +277,36 @@ switch (verb) {
             "inspect",
             "workbench",
             verb === "cooked-gate-arm" ? "cooked.gate.arm" : "cooked.gate.release",
+            "--format",
+            "json",
+        ]);
+        break;
+    case "objects":
+        if (args.length > 0) fail("workbench: objects does not accept arguments");
+        await run(["inspect", "workbench", "objects.status", "--format", "json"]);
+        break;
+    case "objects-open":
+        if (args.length !== 1) fail("workbench: objects-open requires a repository-relative pack");
+        await run([
+            "inspect",
+            "workbench",
+            "objects.open",
+            JSON.stringify({ path: args[0] }),
+            "--format",
+            "json",
+        ]);
+        break;
+    case "objects-disable":
+        if (args.length > 0) fail("workbench: objects-disable does not accept arguments");
+        await run(["inspect", "workbench", "objects.disable", "--format", "json"]);
+        break;
+    case "objects-gate-arm":
+    case "objects-gate-release":
+        if (args.length > 0) fail(`workbench: ${verb} does not accept arguments`);
+        await run([
+            "inspect",
+            "workbench",
+            verb === "objects-gate-arm" ? "objects.gate.arm" : "objects.gate.release",
             "--format",
             "json",
         ]);

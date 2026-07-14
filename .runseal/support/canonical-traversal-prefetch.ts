@@ -15,6 +15,7 @@ export type PrefetchContext = {
     pack: string;
     missingPack: string;
     corruptPack: string;
+    objectPack?: string;
     base: Coord;
 };
 
@@ -23,9 +24,10 @@ export async function setupPrefetch(
     config: GlobalConfig,
     position: Coord,
     sidecar = "sidecar.toml",
+    objectPack?: string,
 ): Promise<Record<string, unknown>> {
     await startClean(sidecar);
-    const initial = await prepare(pack, config);
+    const initial = await prepare(pack, config, objectPack);
     await setPosition(position);
     await event("composition.traversal.enable");
     const enabled = await event("composition.prefetch.enable");
