@@ -11,7 +11,7 @@ use crate::scene::SceneState;
 use super::super::resources::CANDIDATE_CAPACITY;
 use super::{
     BOUND_RADIAL_BIAS, BOUND_RADIAL_SCALE, BOUND_VERTICAL_PAD, DEPTH_BIAS, HierarchyMip,
-    PIXEL_EXPANSION,
+    IMPORTED_BOUND_RADIAL, PIXEL_EXPANSION,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -42,6 +42,7 @@ pub struct BoundProof {
     pub maximum_vertical_pad: f32,
     pub radial_scale: f32,
     pub radial_bias: f32,
+    pub imported_radial_bound: f32,
     pub vertical_pad: f32,
 }
 
@@ -54,6 +55,8 @@ pub fn validate_fixture_bound(mesh: &Catalog, animation: &AnimationCatalog) -> R
     let mut maximum_vertical_pad = 0.0f32;
     let mut minimum_radial_slack = f32::MAX;
     let mut tested_vertex_poses = 0u64;
+    let imported_range =
+        mesh.imported.vertex_start..mesh.imported.vertex_start + mesh.imported.vertex_count;
     for clip in 0..CLIP_COUNT {
         for phase in 0..64 {
             for bone_count in BONE_COUNTS {
@@ -76,11 +79,13 @@ pub fn validate_fixture_bound(mesh: &Catalog, animation: &AnimationCatalog) -> R
                         maximum_radial_extent = maximum_radial_extent
                             .max(Vec3::new(skinned.x, 0.0, skinned.z).length());
                         let radial = Vec3::new(skinned.x, 0.0, skinned.z).length();
-                        minimum_radial_slack = minimum_radial_slack.min(
+                        let radial_bound = if imported_range.contains(&(vertex_index as u32)) {
+                            IMPORTED_BOUND_RADIAL
+                        } else {
                             BOUND_RADIAL_SCALE * height + BOUND_RADIAL_BIAS
-                                - radial
-                                - UNIQUE_VARIANT_MARGIN,
-                        );
+                        };
+                        minimum_radial_slack =
+                            minimum_radial_slack.min(radial_bound - radial - UNIQUE_VARIANT_MARGIN);
                         minimum_vertical_pad = minimum_vertical_pad.max(-skinned.y);
                         maximum_vertical_pad = maximum_vertical_pad.max(skinned.y - height);
                         tested_vertex_poses += 1;
@@ -113,6 +118,7 @@ pub fn validate_fixture_bound(mesh: &Catalog, animation: &AnimationCatalog) -> R
         maximum_vertical_pad,
         radial_scale: BOUND_RADIAL_SCALE,
         radial_bias: BOUND_RADIAL_BIAS,
+        imported_radial_bound: IMPORTED_BOUND_RADIAL,
         vertical_pad: BOUND_VERTICAL_PAD,
     })
 }
@@ -196,6 +202,7 @@ pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
                     matrix,
                     position,
                     instance.height,
+                    archetype,
                     width,
                     height,
                     input.hierarchy,
@@ -222,12 +229,17 @@ fn query_occluded(
     matrix: glam::Mat4,
     position: [f32; 3],
     height: f32,
+    archetype: u32,
     width: u32,
     screen_height: u32,
     hierarchy: &[HierarchyMip],
 ) -> bool {
     let center = Vec3::from_array(position) + Vec3::Y * height * 0.5;
-    let half_xz = BOUND_RADIAL_SCALE * height + BOUND_RADIAL_BIAS;
+    let half_xz = if archetype == meshlet_catalog::IMPORTED_ARCHETYPE {
+        IMPORTED_BOUND_RADIAL
+    } else {
+        BOUND_RADIAL_SCALE * height + BOUND_RADIAL_BIAS
+    };
     let half_y = height * 0.5 + BOUND_VERTICAL_PAD;
     let mut minimum = Vec3::new(width as f32, screen_height as f32, f32::MAX);
     let mut maximum = Vec3::ZERO;

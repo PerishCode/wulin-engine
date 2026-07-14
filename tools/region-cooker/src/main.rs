@@ -28,7 +28,7 @@ struct CookReport {
 
 fn main() -> Result<()> {
     let mut args = std::env::args_os().skip(1);
-    let usage = "usage: region-cooker <output.wlr> --physical-order <a|b> --presentation <base|archetype|material|yaw|animation> --global-center <i64> <i64> [--global-center <i64> <i64>]...";
+    let usage = "usage: region-cooker <output.wlr> --physical-order <a|b> --presentation <base|archetype|material|yaw|animation|imported> --global-center <i64> <i64> [--global-center <i64> <i64>]...";
     let output = PathBuf::from(args.next().context(usage)?);
     let mut global_centers = Vec::new();
     let mut physical_order = None;

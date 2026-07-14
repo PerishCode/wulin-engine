@@ -425,6 +425,7 @@ impl SurfaceRenderer {
             super::occlusion::PIXEL_EXPANSION.to_bits(),
         ]);
         constants[40] = super::occlusion::DEPTH_BIAS.to_bits();
+        constants[41] = super::occlusion::IMPORTED_BOUND_RADIAL.to_bits();
         constants
     }
 }

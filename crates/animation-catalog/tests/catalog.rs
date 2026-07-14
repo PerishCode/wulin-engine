@@ -1,4 +1,5 @@
 use animation_catalog::{BONE_COUNT, CLIP_COUNT, Catalog, SAMPLE_COUNT, unpack_bytes};
+use meshlet_catalog::Catalog as MeshletCatalog;
 
 #[test]
 fn deterministic_catalog() {
@@ -8,9 +9,21 @@ fn deterministic_catalog() {
     assert_eq!(first.sha256(), second.sha256());
     assert_eq!(
         first.sha256(),
-        "cc075037175990f29083ad1fc63823c1a77002d7aeccfbc429eee4f54de22a6e"
+        "0d21e222f928452bef5a1bb6dedf83f8a737ac9832ca124b26538b99725ca867"
     );
     first.validate().unwrap();
+}
+
+#[test]
+fn imported_geometry_uses_rigid_root_binding() {
+    let mesh = MeshletCatalog::build();
+    let animation = Catalog::build();
+    let start = mesh.imported.vertex_start as usize;
+    let end = start + mesh.imported.vertex_count as usize;
+    for binding in &animation.skin_bindings[start..end] {
+        assert_eq!(binding.indices, 0);
+        assert_eq!(unpack_bytes(binding.weights), [252, 1, 1, 1]);
+    }
 }
 
 #[test]
