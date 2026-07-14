@@ -38,6 +38,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "canonical-object-fixture"
+version = "0.0.0"
+dependencies = [
+ "region-format",
+ "sha2",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.67"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -217,6 +225,7 @@ name = "region-cooker"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "canonical-object-fixture",
  "region-format",
  "serde",
  "serde_json",
@@ -469,6 +478,7 @@ version = "0.0.0"
 dependencies = [
  "animation-catalog",
  "anyhow",
+ "canonical-object-fixture",
  "cc",
  "glam",
  "meshlet-catalog",

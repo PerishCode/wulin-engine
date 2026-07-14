@@ -10,6 +10,7 @@ use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObj
 use windows::core::Interface;
 
 use crate::cooked::CookedStreamer;
+use crate::objects::CookedObjectStreamer;
 use crate::resident::StreamReport;
 use crate::terrain::TerrainStreamer;
 
@@ -55,6 +56,7 @@ pub struct Renderer {
     pub(super) load_renderer: LoadRenderer,
     pub(super) resident_renderer: ResidentRenderer,
     pub(super) cooked_streamer: CookedStreamer,
+    pub(super) cooked_object_streamer: CookedObjectStreamer,
     pub(super) async_resident_renderer: AsyncResidentRenderer,
     pub(super) meshlet_scene_renderer: MeshletSceneRenderer,
     pub(super) skeletal_scene_renderer: SkeletalSceneRenderer,
@@ -226,6 +228,7 @@ impl Renderer {
             load_renderer,
             resident_renderer,
             cooked_streamer: CookedStreamer::default(),
+            cooked_object_streamer: CookedObjectStreamer::default(),
             async_resident_renderer,
             meshlet_scene_renderer,
             skeletal_scene_renderer,

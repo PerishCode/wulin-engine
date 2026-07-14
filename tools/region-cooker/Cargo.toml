@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 anyhow.workspace = true
+canonical-object-fixture.workspace = true
 region-format.workspace = true
 serde.workspace = true
 serde_json.workspace = true

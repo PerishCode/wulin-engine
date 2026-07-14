@@ -2,7 +2,10 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
-use region_format::{InstanceRecord, RECORDS_PER_REGION, file_sha256, write_pack};
+use canonical_object_fixture::{Fixture, generate_region as generate_canonical_region};
+use region_format::{
+    GlobalRegion, InstanceRecord, RECORDS_PER_REGION, file_sha256, write_global_pack, write_pack,
+};
 use serde::Serialize;
 
 const WORLD_REGION_SIDE: u32 = 128;
@@ -20,12 +23,39 @@ struct CookReport {
     centers: [[u32; 2]; 4],
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SignedCookReport {
+    schema_version: u32,
+    source_revision: &'static str,
+    output: String,
+    file_sha256: String,
+    metadata: region_format::GlobalPackMetadata,
+    centers: Vec<GlobalRegion>,
+}
+
 fn main() -> Result<()> {
     let mut args = std::env::args_os().skip(1);
-    let output = PathBuf::from(args.next().context("usage: region-cooker <output.wlr>")?);
-    if args.next().is_some() {
-        bail!("usage: region-cooker <output.wlr>");
+    let usage = "usage: region-cooker <output.wlr> [--global-center <i64> <i64>]...";
+    let output = PathBuf::from(args.next().context(usage)?);
+    let mut global_centers = Vec::new();
+    while let Some(flag) = args.next() {
+        match flag.to_string_lossy().as_ref() {
+            "--global-center" => {
+                let x = parse_axis(args.next().context(usage)?, "global x")?;
+                let z = parse_axis(args.next().context(usage)?, "global z")?;
+                global_centers.push(GlobalRegion::new(x, z));
+            }
+            _ => bail!(usage),
+        }
     }
+    if !global_centers.is_empty() {
+        return cook_signed(output, global_centers);
+    }
+    cook_local(output)
+}
+
+fn cook_local(output: PathBuf) -> Result<()> {
     let centers = [[64, 64], [65, 64], [65, 65], [96, 96]];
     let mut region_ids = BTreeSet::new();
     for [center_x, center_z] in centers {
@@ -52,6 +82,53 @@ fn main() -> Result<()> {
     };
     println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())
+}
+
+fn cook_signed(output: PathBuf, centers: Vec<GlobalRegion>) -> Result<()> {
+    let radius = i64::from(ACTIVE_RADIUS);
+    let mut regions = BTreeSet::new();
+    for center in &centers {
+        for offset_z in -radius..=radius {
+            for offset_x in -radius..=radius {
+                regions.insert(GlobalRegion::new(
+                    center
+                        .x
+                        .checked_add(offset_x)
+                        .context("signed object center X expansion overflowed")?,
+                    center
+                        .z
+                        .checked_add(offset_z)
+                        .context("signed object center Z expansion overflowed")?,
+                ));
+            }
+        }
+    }
+    let fixture = Fixture::ArbitraryQ8;
+    let records = regions
+        .into_iter()
+        .map(|region| (region, generate_canonical_region(region, fixture)));
+    let metadata = write_global_pack(&output, fixture.stable_seed_namespace(), records)?;
+    let report = SignedCookReport {
+        schema_version: 1,
+        source_revision: fixture.revision(),
+        output: output.display().to_string(),
+        file_sha256: file_sha256(&output)?,
+        metadata,
+        centers,
+    };
+    println!("{}", serde_json::to_string_pretty(&report)?);
+    Ok(())
+}
+
+fn parse_axis<T>(value: std::ffi::OsString, name: &str) -> Result<T>
+where
+    T: std::str::FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    value
+        .to_string_lossy()
+        .parse()
+        .with_context(|| format!("{name} is invalid"))
 }
 
 fn generate_region(region_id: u32) -> Vec<InstanceRecord> {

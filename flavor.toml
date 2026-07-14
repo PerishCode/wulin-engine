@@ -35,8 +35,8 @@ kind = "dir"
 priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
-payload = { max_children = 30 }
-reason = "Runseal resolves named repository wrappers from one flat directory; each child is an explicit operator entrypoint."
+payload = { max_children = 31 }
+reason = "Runseal resolves named repository wrappers from one flat directory; the 31 current children are accepted operator entrypoints, including Experiment 0028."
 
 [[overrides]]
 match = ".runseal/support"
@@ -45,7 +45,7 @@ priority = 10
 
 [overrides.rules."core/fs/too-many-children"]
 payload = { max_children = 19 }
-reason = "Runseal experiment helpers remain flat, named support owners shared by canonical wrappers."
+reason = "Shared Runseal helpers remain flat named owners; experiment-specific support may use a named child boundary."
 
 [[overrides]]
 match = "apps/workbench/src/rendering"
@@ -156,3 +156,12 @@ priority = 10
 [overrides.rules."core/fs/too-many-children"]
 payload = { max_children = 12 }
 reason = "Terrain keeps cache, transfer, pipeline, probe, and renderer-state owners explicit; the accepted composition stage adds state without merging those boundaries."
+
+[[overrides]]
+match = "apps/workbench/src/rendering/composition"
+kind = "dir"
+priority = 10
+
+[overrides.rules."core/fs/too-many-children"]
+payload = { max_children = 11 }
+reason = "Composition keeps pair scheduling, state, probes, grounding, and the accepted traversal policy owners explicit under one atomic-publication boundary."

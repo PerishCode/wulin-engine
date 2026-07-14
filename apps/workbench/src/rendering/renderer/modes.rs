@@ -105,7 +105,7 @@ impl Renderer {
             .object_source_namespace()
             .is_some()
         {
-            bail!("canonical generated objects require atomic composition mode");
+            bail!("canonical objects require atomic composition mode");
         }
         self.disable_composition();
         self.skeletal_scene_renderer.disable();
@@ -150,7 +150,7 @@ impl Renderer {
             .object_source_namespace()
             .is_some()
         {
-            bail!("canonical generated objects require atomic composition mode");
+            bail!("canonical objects require atomic composition mode");
         }
         self.disable_composition();
         self.meshlet_scene_renderer.disable();
@@ -184,7 +184,7 @@ impl Renderer {
             .object_source_namespace()
             .is_some()
         {
-            bail!("canonical generated objects require atomic composition mode");
+            bail!("canonical objects require atomic composition mode");
         }
         self.disable_composition();
         self.meshlet_scene_renderer.disable();

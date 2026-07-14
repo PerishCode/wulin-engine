@@ -43,6 +43,7 @@ pub(in crate::rendering) struct PublishedSnapshot {
     pub config: LoadConfig,
     pub global_config: Option<GlobalRegionConfig>,
     pub object_source_namespace: Option<ObjectSourceNamespace>,
+    pub object_stable_seed_namespace: Option<ObjectSourceNamespace>,
     pub active_slots: Vec<u32>,
 }
 
@@ -221,10 +222,12 @@ impl AsyncResidentRenderer {
         } = self.staged.take()?;
         let global_config = report.global_config;
         let object_source_namespace = report.object_source_namespace;
+        let object_stable_seed_namespace = report.object_stable_seed_namespace;
         self.published = Some(PublishedSnapshot {
             config,
             global_config,
             object_source_namespace,
+            object_stable_seed_namespace,
             active_slots,
         });
         Some(report)

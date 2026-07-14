@@ -32,7 +32,7 @@ export async function preparedDirection(
     visual = false,
 ): Promise<Record<string, unknown>> {
     const baseConfig = target(context.base);
-    await setupPrefetch(context.pack, baseConfig, [0, 0]);
+    await setupPrefetch(context.pack, baseConfig, [0, 0], "sidecar.toml", context.objectPack);
     const before = await event("composition.status");
     const beforeToken = publicationToken(before);
     const state = traversal(before);
@@ -92,11 +92,11 @@ export async function preparedDirection(
 }
 
 export async function promotedPrefetch(
-    kind: "terrain-io" | "terrain-copy" | "object-copy",
+    kind: "terrain-io" | "terrain-copy" | "object-io" | "object-copy",
     context: PrefetchContext,
 ): Promise<Record<string, unknown>> {
     const baseConfig = target(context.base);
-    await setupPrefetch(context.pack, baseConfig, [0, 0]);
+    await setupPrefetch(context.pack, baseConfig, [0, 0], "sidecar.toml", context.objectPack);
     const before = await event("composition.status");
     const token = publicationToken(before);
     const publications = field<number>(
@@ -107,6 +107,8 @@ export async function promotedPrefetch(
     const expected = target([context.base[0] + 1, context.base[1]], 65);
     const gate = kind === "object-copy"
         ? "async.gate"
+        : kind === "object-io"
+        ? "objects.gate"
         : kind === "terrain-io"
         ? "terrain.io_gate"
         : "terrain.copy_gate";
@@ -143,7 +145,7 @@ export async function promotedPrefetch(
 
 export async function staleDirection(context: PrefetchContext): Promise<Record<string, unknown>> {
     const baseConfig = target(context.base);
-    await setupPrefetch(context.pack, baseConfig, [0, 0]);
+    await setupPrefetch(context.pack, baseConfig, [0, 0], "sidecar.toml", context.objectPack);
     const before = await event("composition.status");
     const token = publicationToken(before);
     const publications = field<number>(
@@ -190,7 +192,7 @@ export async function staleDirection(context: PrefetchContext): Promise<Record<s
 export async function failedPrefetch(context: PrefetchContext): Promise<Record<string, unknown>> {
     const start: Coord = [context.base[0] + 70, context.base[1]];
     const baseConfig = target(start);
-    await setupPrefetch(context.pack, baseConfig, [0, 0]);
+    await setupPrefetch(context.pack, baseConfig, [0, 0], "sidecar.toml", context.objectPack);
     const before = await event("composition.status");
     const token = publicationToken(before);
     const publications = field<number>(
@@ -220,7 +222,7 @@ export async function failedPrefetch(context: PrefetchContext): Promise<Record<s
 export async function corruptPrefetch(context: PrefetchContext): Promise<Record<string, unknown>> {
     const start: Coord = [context.base[0] + 70, context.base[1]];
     const baseConfig = target(start);
-    await setupPrefetch(context.pack, baseConfig, [0, 0]);
+    await setupPrefetch(context.pack, baseConfig, [0, 0], "sidecar.toml", context.objectPack);
     const before = await event("composition.status");
     const token = publicationToken(before);
     const publications = field<number>(
@@ -260,7 +262,13 @@ export async function preparedRollover(
     context: PrefetchContext,
 ): Promise<Record<string, unknown>> {
     const baseConfig = target(context.base, 96);
-    await setupPrefetch(context.pack, baseConfig, [512, 0]);
+    await setupPrefetch(
+        context.pack,
+        baseConfig,
+        [512, 0],
+        "sidecar.toml",
+        context.objectPack,
+    );
     const before = await event("composition.status");
     const token = publicationToken(before);
     const rolloverCount = field<number>(rollover(before), "count", "number");
@@ -291,7 +299,13 @@ export async function preparedRollover(
 export async function disabledPrefetch(
     context: PrefetchContext,
 ): Promise<Record<string, unknown>> {
-    await setupPrefetch(context.pack, target(context.base), [0, 0]);
+    await setupPrefetch(
+        context.pack,
+        target(context.base),
+        [0, 0],
+        "sidecar.toml",
+        context.objectPack,
+    );
     await event("workbench.pause");
     await event("composition.prefetch.disable");
     await event("workbench.resume");

@@ -29,7 +29,7 @@ export async function unpreparedSweep(
     const status = await event("workbench.status");
     const processId = field<number>(status, "processId", "number");
     const renderer = capability(status, false);
-    await prepare(context.pack, target(context.base));
+    await prepare(context.pack, target(context.base), context.objectPack);
     await setPosition([0, 0]);
     await event("composition.traversal.enable");
     await event("workbench.resume");
@@ -38,6 +38,7 @@ export async function unpreparedSweep(
     const objects: Record<string, unknown>[] = [];
     const pairPublication: number[] = [];
     const probes: Record<string, unknown>[] = [];
+    const objectIo: Record<string, unknown>[] = [];
     let finalStatus: Record<string, unknown> | undefined;
     for (let offset = 1; offset <= 32; offset++) {
         const centerMeters = (offset - 1) * 16;
@@ -55,6 +56,9 @@ export async function unpreparedSweep(
             field<number>(object(report, "published"), "publicationMs", "number"),
         );
         probes.push(await probe(expected));
+        if (context.objectPack) {
+            objectIo.push(object(await event("objects.status"), "lastCompleted"));
+        }
     }
     await event("workbench.pause");
     if (!finalStatus || "prefetch" in traversal(finalStatus)) {
@@ -70,6 +74,7 @@ export async function unpreparedSweep(
         terrain: transactionDistributions(terrain),
         objects: objectTimings(objects),
         composition: compositionTimings(probes),
+        cookedObjectIo: context.objectPack ? objectIoDistributions(objectIo) : undefined,
         frame,
     };
 }
@@ -82,6 +87,7 @@ export async function preparedSweep(
         target(context.base),
         [0, 0],
         "sidecar.benchmark.toml",
+        context.objectPack,
     );
     const status = await event("workbench.status");
     const processId = field<number>(status, "processId", "number");
@@ -93,6 +99,7 @@ export async function preparedSweep(
     const demandObjects: Record<string, unknown>[] = [];
     const pairPublication: number[] = [];
     const probes: Record<string, unknown>[] = [];
+    const objectIo: Record<string, unknown>[] = [];
     let finalStatus: Record<string, unknown> | undefined;
     for (let offset = 1; offset <= 32; offset++) {
         const centerMeters = (offset - 1) * 16;
@@ -100,6 +107,9 @@ export async function preparedSweep(
         await setPosition([centerMeters + 5, 0]);
         const completed = await waitPrefetchCompletion(expected, offset, "release prefetch");
         const prepared = expectPreparedCounts(completed, 20, 5);
+        if (context.objectPack) {
+            objectIo.push(object(await event("objects.status"), "lastCompleted"));
+        }
         preparedTerrain.push(prepared.terrain);
         preparedObjects.push(prepared.objects);
         preparation.push(field<number>(prepared.completion, "preparationMs", "number"));
@@ -137,7 +147,21 @@ export async function preparedSweep(
             objects: objectTimings(demandObjects),
         },
         composition: compositionTimings(probes),
+        cookedObjectIo: context.objectPack ? objectIoDistributions(objectIo) : undefined,
         finalCompletion: completion,
         frame,
+    };
+}
+
+function objectIoDistributions(samples: Record<string, unknown>[]) {
+    const values = (name: string) =>
+        samples.map((sample) => field<number>(object(sample, "io"), name, "number"));
+    return {
+        sampleCount: samples.length,
+        chunkCount: distribution(values("chunkCount"), "object chunk count", true),
+        payloadBytes: distribution(values("payloadBytes"), "object payload bytes", true),
+        totalMs: distribution(values("totalMs"), "object I/O time", true),
+        readMs: distribution(values("readMs"), "object read time", true),
+        verifyMs: distribution(values("verifyMs"), "object verify time", true),
     };
 }

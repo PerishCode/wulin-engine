@@ -167,10 +167,15 @@ impl Renderer {
             projection.is_canonical() == object_projection.is_canonical(),
             "composition terrain and object projection modes differ"
         );
-        if let Some(source) = snapshot.object_source_namespace {
+        ensure!(
+            snapshot.object_source_namespace.is_some()
+                == snapshot.object_stable_seed_namespace.is_some(),
+            "canonical object source and stable-seed namespace presence differs"
+        );
+        if let Some(namespace) = snapshot.object_stable_seed_namespace {
             ensure!(
-                source == fixture.object_source_namespace(),
-                "composition object source does not match its fixture"
+                namespace == fixture.object_source_namespace(),
+                "composition object stable-seed namespace does not match its fixture"
             );
         }
 
@@ -192,8 +197,10 @@ impl Renderer {
                 assignment.region_id == tile.region_id,
                 "composition terrain tile does not match its logical mapping"
             );
-            let region_records = match (snapshot.object_source_namespace, assignment.global_region)
-            {
+            let region_records = match (
+                snapshot.object_stable_seed_namespace,
+                assignment.global_region,
+            ) {
                 (Some(source), Some(global)) => fixture::generate_canonical_fixture_region(
                     global,
                     canonical_stable_seed(source, global),
@@ -213,7 +220,7 @@ impl Renderer {
                     local_index,
                     fixture,
                     snapshot
-                        .object_source_namespace
+                        .object_stable_seed_namespace
                         .and(assignment.global_region),
                 );
                 cpu.push(ground);
@@ -270,7 +277,10 @@ impl Renderer {
         let maximum_numerator = gpu.iter().copied().max().unwrap_or(0);
         let canonical_objects = snapshot
             .object_source_namespace
-            .map(|source| canonical_object_evidence(source, assignments, &records, projection))
+            .zip(snapshot.object_stable_seed_namespace)
+            .map(|(source, stable_seed)| {
+                canonical_object_evidence(source, stable_seed, assignments, &records, projection)
+            })
             .transpose()?;
         let terrain = unsafe { self.terrain_renderer.read_probe(scene) }?;
         let skeletal = unsafe {
@@ -342,6 +352,7 @@ impl Renderer {
 
 fn canonical_object_evidence(
     source_namespace: ObjectSourceNamespace,
+    stable_seed_namespace: ObjectSourceNamespace,
     assignments: &[crate::terrain::TerrainAssignment],
     records: &[Vec<crate::resident::InstanceRecord>],
     projection: super::super::terrain::TerrainProjection,
@@ -360,7 +371,7 @@ fn canonical_object_evidence(
         let global = assignment
             .global_region
             .context("canonical object assignment has no signed region")?;
-        let stable_seed = canonical_stable_seed(source_namespace, global);
+        let stable_seed = canonical_stable_seed(stable_seed_namespace, global);
         let semantic_region_id = projection.region_id(index, assignment.region_id)?;
         let object_id = crate::load::REGION_OBJECT_ID_BASE
             .checked_add(semantic_region_id)

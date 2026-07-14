@@ -1,5 +1,4 @@
 use serde::{Serialize, Serializer};
-use sha2::{Digest, Sha256};
 
 use crate::address::AddressedRegion;
 use crate::world::RegionCoord;
@@ -10,8 +9,8 @@ use super::{CacheKey, DesiredRegion, RegionAssignment};
 pub struct ObjectSourceNamespace([u8; 32]);
 
 impl ObjectSourceNamespace {
-    pub fn from_revision(revision: &str) -> Self {
-        Self(Sha256::digest(revision.as_bytes()).into())
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
     }
 
     pub fn as_bytes(&self) -> &[u8; 32] {
@@ -31,6 +30,7 @@ impl Serialize for ObjectSourceNamespace {
 pub(super) fn desired(
     region: AddressedRegion,
     source_namespace: ObjectSourceNamespace,
+    stable_seed_namespace: ObjectSourceNamespace,
 ) -> DesiredRegion {
     DesiredRegion {
         key: CacheKey::CanonicalGlobal {
@@ -42,7 +42,7 @@ pub(super) fn desired(
             region_id: region.local_region_id,
             global_region: Some(region.global_region),
             stable_seed: Some(canonical_stable_seed(
-                source_namespace,
+                stable_seed_namespace,
                 region.global_region,
             )),
         },
@@ -50,12 +50,10 @@ pub(super) fn desired(
 }
 
 pub fn canonical_stable_seed(source_namespace: ObjectSourceNamespace, region: RegionCoord) -> u32 {
-    let mut digest = Sha256::new();
-    digest.update(source_namespace.as_bytes());
-    digest.update(region.x.to_le_bytes());
-    digest.update(region.z.to_le_bytes());
-    let hash = digest.finalize();
-    u32::from_le_bytes(hash[..4].try_into().expect("SHA-256 prefix has four bytes"))
+    region_format::canonical_stable_seed(
+        *source_namespace.as_bytes(),
+        region_format::GlobalRegion::new(region.x, region.z),
+    )
 }
 
 fn hex(bytes: &[u8]) -> String {

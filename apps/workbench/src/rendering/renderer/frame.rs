@@ -27,6 +27,7 @@ impl Renderer {
         debug_assert!(!probe_load || self.load_config().is_some());
         unsafe { self.drive_composition_traversal(scene.camera())? };
         unsafe { self.poll_cooked_completion()? };
+        unsafe { self.poll_cooked_object_completion()? };
         let terrain_outcome = unsafe { self.poll_terrain_completion()? };
         let stream_resident = self.resident_renderer.has_pending_stream();
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() } as usize;

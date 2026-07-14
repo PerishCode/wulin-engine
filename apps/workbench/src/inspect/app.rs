@@ -1,4 +1,3 @@
-use std::path::{Component, Path, PathBuf};
 use std::sync::mpsc::{Receiver, SyncSender};
 
 use serde_json::json;
@@ -78,7 +77,7 @@ pub(crate) fn handle_commands(
                     message: error.to_string(),
                 }),
             ControlKind::CookedStatus => Ok(renderer.cooked_status()),
-            ControlKind::CookedOpen { path } => validate_cooked_path(&path)
+            ControlKind::CookedOpen { path } => super::pack_control::validate_cooked(&path)
                 .and_then(|path| renderer.open_cooked_pack(path))
                 .and_then(|metadata| serde_json::to_value(metadata).map_err(Into::into))
                 .map_err(|error| ProtocolError {
@@ -99,6 +98,13 @@ pub(crate) fn handle_commands(
                     code: "gate_failed",
                     message: error.to_string(),
                 }),
+            object @ (ControlKind::CookedObjectStatus
+            | ControlKind::CookedObjectOpen { .. }
+            | ControlKind::CookedObjectDisable
+            | ControlKind::CookedObjectIoGateArm
+            | ControlKind::CookedObjectIoGateRelease) => {
+                super::pack_control::dispatch_object(renderer, object)
+            }
             terrain @ (ControlKind::TerrainStatus
             | ControlKind::TerrainOpen { .. }
             | ControlKind::TerrainEnable
@@ -432,29 +438,4 @@ fn begin_cooked_stream(
         code: "stream_failed",
         message: error.to_string(),
     })
-}
-
-fn validate_cooked_path(value: &str) -> anyhow::Result<PathBuf> {
-    let path = Path::new(value);
-    anyhow::ensure!(
-        !path.is_absolute(),
-        "cooked pack path must be repository-relative"
-    );
-    anyhow::ensure!(
-        path.components()
-            .all(|component| matches!(component, Component::Normal(_))),
-        "cooked pack path contains an invalid component"
-    );
-    let components = path.components().collect::<Vec<_>>();
-    anyhow::ensure!(
-        components.len() >= 3
-            && components[0].as_os_str() == "out"
-            && components[1].as_os_str() == "cooked",
-        "cooked pack path must be under out/cooked"
-    );
-    anyhow::ensure!(
-        path.extension().is_some_and(|extension| extension == "wlr"),
-        "cooked pack must use the .wlr extension"
-    );
-    Ok(path.to_path_buf())
 }

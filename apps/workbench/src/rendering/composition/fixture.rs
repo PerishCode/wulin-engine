@@ -1,13 +1,12 @@
 use std::time::Instant;
 
 use anyhow::{Result, ensure};
+use canonical_object_fixture::{Fixture as CanonicalFixture, generate_region_with_seed};
 use serde::Serialize;
 
 use crate::async_resident::{AsyncReservationReport, ObjectSourceNamespace, RegionAssignment};
 use crate::load::{INSTANCES_PER_REGION, MAX_REGION_SIDE};
-use crate::resident::{
-    InstanceRecord, RegionUpload, canonical_stable_key, generate_region, instance_height,
-};
+use crate::resident::{InstanceRecord, RegionUpload, generate_region};
 use crate::world::RegionCoord;
 
 use super::super::renderer::Renderer;
@@ -29,11 +28,7 @@ pub(super) enum TriangleClass {
 
 impl CompositionFixture {
     pub(super) fn object_source_namespace(self) -> ObjectSourceNamespace {
-        let revision = match self {
-            Self::CellCenter => "canonical-generated-object-cell-center-v1",
-            Self::ArbitraryQ8 => "canonical-generated-object-arbitrary-q8-v1",
-        };
-        ObjectSourceNamespace::from_revision(revision)
+        ObjectSourceNamespace::from_bytes(self.canonical().stable_seed_namespace())
     }
 
     pub(super) const fn grounding_mode(self) -> u32 {
@@ -56,6 +51,13 @@ impl CompositionFixture {
             Self::ArbitraryQ8 => 512,
         }
     }
+
+    const fn canonical(self) -> CanonicalFixture {
+        match self {
+            Self::CellCenter => CanonicalFixture::CellCenter,
+            Self::ArbitraryQ8 => CanonicalFixture::ArbitraryQ8,
+        }
+    }
 }
 
 pub(super) unsafe fn submit_generated_instances(
@@ -70,6 +72,10 @@ pub(super) unsafe fn submit_generated_instances(
             "canonical object source does not match the composition fixture"
         );
     }
+    ensure!(
+        reservation.object_stable_seed_namespace == reservation.object_source_namespace,
+        "generated canonical object source requires identical source and stable-seed namespaces"
+    );
     let uploads = reservation
         .assignments
         .iter()
@@ -136,30 +142,11 @@ pub(super) fn generate_canonical_fixture_region(
     stable_seed: u32,
     fixture: CompositionFixture,
 ) -> Vec<InstanceRecord> {
-    (0..INSTANCES_PER_REGION as usize)
-        .map(|local_index| {
-            let local_x = local_index as u32 % 32;
-            let local_z = local_index as u32 / 32;
-            let (position_x, position_z) = if fixture == CompositionFixture::CellCenter {
-                (
-                    ((local_x as f32 + 0.5) / 32.0 - 0.5) * 16.0,
-                    ((local_z as f32 + 0.5) / 32.0 - 0.5) * 16.0,
-                )
-            } else {
-                let (u, v) =
-                    arbitrary_fractions(FractionRegion::Global(global_region), local_index);
-                (
-                    -8.0 + (local_x * 256 + u) as f32 / 512.0,
-                    -8.0 + (local_z * 256 + v) as f32 / 512.0,
-                )
-            };
-            InstanceRecord {
-                position: [position_x, 0.0, position_z],
-                height: instance_height(canonical_stable_key(stable_seed, local_index as u32)),
-                region_id: stable_seed,
-            }
-        })
-        .collect()
+    generate_region_with_seed(
+        region_format::GlobalRegion::new(global_region.x, global_region.z),
+        stable_seed,
+        fixture.canonical(),
+    )
 }
 
 pub(super) fn sample_ground(
@@ -211,13 +198,19 @@ fn arbitrary_fractions(region: FractionRegion, local_index: usize) -> (u32, u32)
     debug_assert!(local_index < INSTANCES_PER_REGION as usize);
     let local_x = local_index as u32 % 32;
     let local_z = local_index as u32 / 32;
-    let [region_x, region_z] = match region {
-        FractionRegion::Local(region_id) => [
-            i64::from(region_id % MAX_REGION_SIDE),
-            i64::from(region_id / MAX_REGION_SIDE),
-        ],
-        FractionRegion::Global(region) => [region.x, region.z],
+    if let FractionRegion::Global(region) = region {
+        return canonical_object_fixture::arbitrary_fractions(
+            region_format::GlobalRegion::new(region.x, region.z),
+            local_index,
+        );
+    }
+    let FractionRegion::Local(region_id) = region else {
+        unreachable!()
     };
+    let [region_x, region_z] = [
+        i64::from(region_id % MAX_REGION_SIDE),
+        i64::from(region_id / MAX_REGION_SIDE),
+    ];
     let global_x_255 = cell_modulo(region_x, local_x, 255);
     let global_z_255 = cell_modulo(region_z, local_z, 255);
     if local_x == 0 || local_x == 31 || local_z == 0 || local_z == 31 {

@@ -70,6 +70,7 @@ struct PendingPair {
     global_config: Option<GlobalRegionConfig>,
     terrain_source_namespace: Option<TerrainSourceNamespace>,
     object_source_namespace: Option<ObjectSourceNamespace>,
+    object_stable_seed_namespace: Option<ObjectSourceNamespace>,
     fixture: CompositionFixture,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
@@ -85,6 +86,7 @@ struct PendingPairInput {
     global_config: Option<GlobalRegionConfig>,
     terrain_source_namespace: Option<TerrainSourceNamespace>,
     object_source_namespace: Option<ObjectSourceNamespace>,
+    object_stable_seed_namespace: Option<ObjectSourceNamespace>,
     fixture: CompositionFixture,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
@@ -102,6 +104,8 @@ struct PublishedPair {
     terrain_source_namespace: Option<TerrainSourceNamespace>,
     #[serde(skip_serializing_if = "Option::is_none")]
     object_source_namespace: Option<ObjectSourceNamespace>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    object_stable_seed_namespace: Option<ObjectSourceNamespace>,
     fixture: CompositionFixture,
     terrain_transaction_id: u64,
     instance_transaction_id: u64,
@@ -192,6 +196,10 @@ impl Renderer {
                 && self.terrain_renderer.global_config() == published.global_config
                 && self.async_resident_renderer.object_source_namespace()
                     == published.object_source_namespace
+                && self.async_resident_renderer.object_stable_seed_namespace()
+                    == published
+                        .object_stable_seed_namespace
+                        .or(published.object_source_namespace)
                 && self.terrain_renderer.source_namespace() == published.terrain_source_namespace,
             "composition snapshots do not match the published pair"
         );
@@ -252,7 +260,7 @@ impl Renderer {
             .as_ref()
             .is_some_and(|pending| pending.failure.is_some())
         {
-            self.rollback_failed_pair();
+            state::rollback_failed_pair(self);
             return Ok(());
         }
 
@@ -282,6 +290,7 @@ impl Renderer {
                     && terrain_report.transaction_id == pending.terrain_transaction_id,
                 "composition prepared the wrong transactions"
             );
+            self.complete_cooked_object(&instance_report)?;
             self.terrain_streamer.mark_completed(&terrain_report)?;
             self.composition.traversal.mark_prefetch_completed(
                 pending.token,
@@ -341,6 +350,7 @@ impl Renderer {
                 && terrain_report.transaction_id == pending.terrain_transaction_id,
             "composition committed the wrong transactions"
         );
+        self.complete_cooked_object(&instance_report)?;
         self.terrain_streamer.mark_completed(&terrain_report)?;
         self.composition.publication_count += 1;
         self.composition.published = Some(PublishedPair {
@@ -349,6 +359,10 @@ impl Renderer {
             global_config: pending.global_config,
             terrain_source_namespace: pending.terrain_source_namespace,
             object_source_namespace: pending.object_source_namespace,
+            object_stable_seed_namespace: (pending.object_stable_seed_namespace
+                != pending.object_source_namespace)
+                .then_some(pending.object_stable_seed_namespace)
+                .flatten(),
             fixture: pending.fixture,
             terrain_transaction_id: pending.terrain_transaction_id,
             instance_transaction_id: pending.instance_transaction_id,
@@ -384,7 +398,8 @@ impl Renderer {
                 report.transaction_id == pending.instance_transaction_id
                     && report.config == pending.config
                     && report.global_config == pending.global_config
-                    && report.object_source_namespace == pending.object_source_namespace,
+                    && report.object_source_namespace == pending.object_source_namespace
+                    && report.object_stable_seed_namespace == pending.object_stable_seed_namespace,
                 "staged instance half does not match the composition pair"
             );
         }
@@ -431,59 +446,5 @@ impl Renderer {
             }
         }
         Ok(())
-    }
-
-    fn rollback_failed_pair(&mut self) {
-        let Some(pending) = self.composition.pending.as_mut() else {
-            return;
-        };
-        if pending.instance == HalfState::Staged {
-            let _ = self.async_resident_renderer.discard_staged();
-            pending.instance = HalfState::Discarded;
-        }
-        if pending.terrain == HalfState::Staged {
-            let _ = self.terrain_renderer.discard_staged();
-            pending.terrain = HalfState::Discarded;
-        }
-        if pending.instance == HalfState::InFlight || pending.terrain == HalfState::InFlight {
-            return;
-        }
-        let pending = self
-            .composition
-            .pending
-            .take()
-            .expect("failed composition pair disappeared");
-        if pending.purpose == PairPurpose::Traversal {
-            self.composition.traversal.mark_failed(
-                pending.config,
-                pending.global_config,
-                pending
-                    .failure
-                    .clone()
-                    .unwrap_or_else(|| "composition pair failed".into()),
-            );
-        } else if pending.purpose.prefetch() {
-            self.composition.traversal.mark_prefetch_failed(
-                TraversalTarget {
-                    config: pending.config,
-                    global_config: pending.global_config,
-                },
-                pending
-                    .failure
-                    .clone()
-                    .unwrap_or_else(|| "composition prefetch failed".into()),
-            );
-        }
-        self.composition.last_failure = Some(json!({
-            "token": pending.token,
-            "config": pending.config,
-            "fixture": pending.fixture,
-            "terrainTransactionId": pending.terrain_transaction_id,
-            "instanceTransactionId": pending.instance_transaction_id,
-            "terrainStage": pending.terrain,
-            "instanceStage": pending.instance,
-            "message": pending.failure,
-            "rollbackMs": pending.started_at.elapsed().as_secs_f64() * 1_000.0,
-        }));
     }
 }
