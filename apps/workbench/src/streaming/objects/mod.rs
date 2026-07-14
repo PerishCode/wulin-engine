@@ -55,6 +55,7 @@ pub enum ObjectCompletion {
         transaction_id: u64,
         uploads: Vec<RegionUpload>,
         metrics: ObjectIoMetrics,
+        active_page_checksums: Vec<[u8; 32]>,
     },
     Failed {
         transaction_id: u64,
@@ -79,6 +80,7 @@ struct PackState {
     path: PathBuf,
     metadata: region_format::GlobalPackMetadata,
     regions: BTreeSet<RegionCoord>,
+    checksums: std::collections::BTreeMap<RegionCoord, [u8; 32]>,
     source: ObjectPackSource,
 }
 
@@ -88,6 +90,7 @@ struct PendingObject {
     source: ObjectPackSource,
     counts: AsyncPlanCounts,
     requested_global_regions: Vec<RegionCoord>,
+    active_page_checksums: Vec<[u8; 32]>,
     gate_fence: Option<u64>,
     stage: &'static str,
     io: Option<ObjectIoMetrics>,
@@ -107,15 +110,26 @@ impl CookedObjectStreamer {
             source_namespace: ObjectSourceNamespace::from_bytes(pack.source_namespace()),
             stable_seed_namespace: ObjectSourceNamespace::from_bytes(pack.stable_seed_namespace()),
         };
-        let regions = pack
-            .regions()
+        let pack_regions = pack.regions().collect::<Vec<_>>();
+        let regions = pack_regions
+            .iter()
             .map(|region| RegionCoord::new(region.x, region.z))
+            .collect();
+        let checksums = pack_regions
+            .into_iter()
+            .map(|region| {
+                let checksum = pack
+                    .region_sha256(region)
+                    .expect("pack region has no index checksum");
+                (RegionCoord::new(region.x, region.z), checksum)
+            })
             .collect();
         self.worker = Some(PackWorker::start(pack, self.gate.clone())?);
         self.pack = Some(PackState {
             path,
             metadata: metadata.clone(),
             regions,
+            checksums,
             source,
         });
         self.last_failure = None;
@@ -175,6 +189,21 @@ impl CookedObjectStreamer {
                 Ok(region)
             })
             .collect::<Result<Vec<_>>>()?;
+        let active_page_checksums = global_config
+            .addressed_regions()?
+            .into_iter()
+            .map(|region| {
+                pack.checksums
+                    .get(&region.global_region)
+                    .copied()
+                    .with_context(|| {
+                        format!(
+                            "signed object region ({},{}) has no index checksum",
+                            region.global_region.x, region.global_region.z
+                        )
+                    })
+            })
+            .collect::<Result<Vec<_>>>()?;
         let gate_fence = self.armed_gate;
         self.worker
             .as_ref()
@@ -201,6 +230,7 @@ impl CookedObjectStreamer {
             source: pack.source,
             counts: reservation.counts,
             requested_global_regions,
+            active_page_checksums,
             gate_fence,
             stage: "reading",
             io: None,
@@ -227,6 +257,7 @@ impl CookedObjectStreamer {
                     transaction_id,
                     uploads,
                     metrics,
+                    active_page_checksums: pending.active_page_checksums.clone(),
                 })
             }
             ReadCompletion::Failed {

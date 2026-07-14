@@ -4,4 +4,4 @@ mod resources;
 mod transfer;
 
 pub use renderer::AsyncResidentRenderer;
-pub(in crate::rendering) use renderer::PublishedSnapshot;
+pub(in crate::rendering) use renderer::{ActivePayloadReadback, PublishedSnapshot};

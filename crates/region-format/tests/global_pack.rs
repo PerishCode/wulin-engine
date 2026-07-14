@@ -71,6 +71,10 @@ fn signed_pack_round_trips_and_is_deterministic() {
         assert_eq!(read.payload_bytes, REGION_BYTES);
         assert_eq!(read.records, expected);
         assert_eq!(read.payload.len(), REGION_BYTES as usize);
+        assert_eq!(
+            pack.region_sha256(region),
+            Some(Sha256::digest(&read.payload).into())
+        );
     }
     fs::remove_file(path).unwrap();
     fs::remove_file(second).unwrap();

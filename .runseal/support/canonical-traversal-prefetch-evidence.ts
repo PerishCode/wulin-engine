@@ -65,6 +65,7 @@ export async function unpreparedSweep(
         fail("control sweep exposed prefetch status");
     }
     const frame = await capture("release-control", context.collection, probes.at(-1)!);
+    const payloadReadback = object(await event("async.status"), "payloadReadback");
     await lifecycle("stop");
     return {
         processId,
@@ -75,6 +76,7 @@ export async function unpreparedSweep(
         objects: objectTimings(objects),
         composition: compositionTimings(probes),
         cookedObjectIo: context.objectPack ? objectIoDistributions(objectIo) : undefined,
+        payloadReadback,
         frame,
     };
 }
@@ -131,6 +133,7 @@ export async function preparedSweep(
     }
     const frame = await capture("release-prepared", context.collection, probes.at(-1)!);
     const completion = completionReports(finalStatus);
+    const payloadReadback = object(await event("async.status"), "payloadReadback");
     await lifecycle("stop");
     return {
         processId,
@@ -148,6 +151,7 @@ export async function preparedSweep(
         },
         composition: compositionTimings(probes),
         cookedObjectIo: context.objectPack ? objectIoDistributions(objectIo) : undefined,
+        payloadReadback,
         finalCompletion: completion,
         frame,
     };

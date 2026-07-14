@@ -11,6 +11,7 @@ use serde::Serialize;
 const WORLD_REGION_SIDE: u32 = 128;
 const ACTIVE_RADIUS: u32 = 2;
 const REGION_SIDE_METERS: f32 = 16.0;
+const AUTHORITY_REVISION: &str = "canonical-authored-object-authority-q9-v1";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,11 +37,13 @@ struct SignedCookReport {
 
 fn main() -> Result<()> {
     let mut args = std::env::args_os().skip(1);
-    let usage = "usage: region-cooker <output.wlr> [--global-center <i64> <i64>]...";
+    let usage = "usage: region-cooker <output.wlr> [--authority] [--global-center <i64> <i64>]...";
     let output = PathBuf::from(args.next().context(usage)?);
     let mut global_centers = Vec::new();
+    let mut authority = false;
     while let Some(flag) = args.next() {
         match flag.to_string_lossy().as_ref() {
+            "--authority" if !authority => authority = true,
             "--global-center" => {
                 let x = parse_axis(args.next().context(usage)?, "global x")?;
                 let z = parse_axis(args.next().context(usage)?, "global z")?;
@@ -50,8 +53,12 @@ fn main() -> Result<()> {
         }
     }
     if !global_centers.is_empty() {
-        return cook_signed(output, global_centers);
+        return cook_signed(output, global_centers, authority);
     }
+    anyhow::ensure!(
+        !authority,
+        "--authority requires at least one --global-center"
+    );
     cook_local(output)
 }
 
@@ -84,7 +91,7 @@ fn cook_local(output: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn cook_signed(output: PathBuf, centers: Vec<GlobalRegion>) -> Result<()> {
+fn cook_signed(output: PathBuf, centers: Vec<GlobalRegion>, authority: bool) -> Result<()> {
     let radius = i64::from(ACTIVE_RADIUS);
     let mut regions = BTreeSet::new();
     for center in &centers {
@@ -104,13 +111,22 @@ fn cook_signed(output: PathBuf, centers: Vec<GlobalRegion>) -> Result<()> {
         }
     }
     let fixture = Fixture::ArbitraryQ8;
-    let records = regions
-        .into_iter()
-        .map(|region| (region, generate_canonical_region(region, fixture)));
+    let records = regions.into_iter().map(|region| {
+        let records = if authority {
+            generate_authority_region(region, fixture)
+        } else {
+            generate_canonical_region(region, fixture)
+        };
+        (region, records)
+    });
     let metadata = write_global_pack(&output, fixture.stable_seed_namespace(), records)?;
     let report = SignedCookReport {
         schema_version: 1,
-        source_revision: fixture.revision(),
+        source_revision: if authority {
+            AUTHORITY_REVISION
+        } else {
+            fixture.revision()
+        },
         output: output.display().to_string(),
         file_sha256: file_sha256(&output)?,
         metadata,
@@ -118,6 +134,28 @@ fn cook_signed(output: PathBuf, centers: Vec<GlobalRegion>) -> Result<()> {
     };
     println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())
+}
+
+fn generate_authority_region(region: GlobalRegion, fixture: Fixture) -> Vec<InstanceRecord> {
+    let mut records = generate_canonical_region(region, fixture);
+    for (local_index, record) in records.iter_mut().enumerate() {
+        let local_x = local_index as u32 % 32;
+        let local_z = local_index as u32 / 32;
+        if local_x == 0 || local_x == 31 || local_z == 0 || local_z == 31 {
+            continue;
+        }
+        let key = record.region_id
+            ^ (local_index as u32).wrapping_mul(747_796_405)
+            ^ (region.x as u32).rotate_left(7)
+            ^ (region.z as u32).rotate_right(11);
+        let fractions = [32_u32, 96, 160, 224];
+        let u = fractions[(key & 3) as usize];
+        let v = fractions[((key >> 5) & 3) as usize];
+        record.position[0] = -8.0 + (local_x * 256 + u) as f32 / 512.0;
+        record.position[2] = -8.0 + (local_z * 256 + v) as f32 / 512.0;
+        record.height = 0.65 + ((key.rotate_left(13) & 2047) as f32 / 2047.0) * 2.6;
+    }
+    records
 }
 
 fn parse_axis<T>(value: std::ffi::OsString, name: &str) -> Result<T>

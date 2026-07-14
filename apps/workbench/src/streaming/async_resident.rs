@@ -109,6 +109,8 @@ pub struct AsyncTransactionReport {
     pub object_source_namespace: Option<ObjectSourceNamespace>,
     #[serde(skip)]
     pub object_stable_seed_namespace: Option<ObjectSourceNamespace>,
+    #[serde(skip)]
+    pub object_page_checksums: Option<Vec<[u8; 32]>>,
     #[serde(flatten)]
     pub counts: AsyncPlanCounts,
     pub uploaded_sha256: String,

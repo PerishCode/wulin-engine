@@ -10,8 +10,10 @@ const INDEX_ENTRY_BYTES = 64;
 export async function cookObjects(
     path: string,
     centers: [number, number][],
+    authority = false,
 ): Promise<Record<string, unknown>> {
     const args = ["run", "--locked", "--release", "-p", "region-cooker", "--", path];
+    if (authority) args.push("--authority");
     for (const [x, z] of centers) args.push("--global-center", String(x), String(z));
     const output = await new Deno.Command("cargo", {
         args,
