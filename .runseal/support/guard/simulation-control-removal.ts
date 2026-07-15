@@ -14,6 +14,7 @@ export async function requireSimulationHistoryRemoved(
             ".runseal/support/terrain/retained-batch.ts",
             ".runseal/support/actor.ts",
             ".runseal/support/actor-projection.ts",
+            ".runseal/support/actor/projection.ts",
             ".runseal/support/simulation-actor.ts",
             "apps/prototype/src/body.rs",
             "apps/workbench/src/inspect/app/retained_body.rs",
@@ -44,6 +45,11 @@ export async function requireSimulationHistoryRemoved(
         "(spawn|read|despawn)_terrain_body|advance_simulation_body",
         "CanonicalTerrainBody(Spawn|Read|Despawn)|SimulationTerrainBodyAdvance",
         "canonical\\.terrain\\.body\\.(spawn|read|despawn)|simulation\\.terrain\\.body\\.advance",
+        "pub fn project_actor\\(",
+        "actor\\.project",
+        "ActorProject",
+        "(^|[^A-Za-z0-9_])actor_project([^A-Za-z0-9_]|$)",
+        "pub use rendering::\\{[^}]*ActorRenderProjection",
     ].join("|");
     await requireAbsent(
         root,
@@ -67,7 +73,6 @@ export async function requireSimulationHistoryRemoved(
         [
             ".runseal/wrappers",
             ".runseal/support/actor/lifecycle.ts",
-            ".runseal/support/actor/projection.ts",
             ".runseal/support/actor/simulation.ts",
             ".runseal/support/prototype-host.ts",
         ],

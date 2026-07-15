@@ -176,7 +176,6 @@ pub(crate) fn handle_commands(
                 .map_err(|error| protocol_error("terrain_contact_failed", error)),
             ControlKind::ActorSpawn(payload) => actor::spawn(runtime, payload),
             ControlKind::ActorRead { generation } => actor::read(runtime, generation),
-            ControlKind::ActorProject { generation } => actor::project(runtime, generation),
             ControlKind::ActorDespawn { generation } => actor::despawn(runtime, generation),
             ControlKind::SimulationActorAdvance {
                 generation,

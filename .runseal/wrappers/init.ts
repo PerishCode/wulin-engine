@@ -105,6 +105,7 @@ for (
         "experiments/0067-self-contained-visible-record/README.md",
         "experiments/0068-frame-safe-actor-gpu-admission/README.md",
         "experiments/0069-prototype-gravity-admission/README.md",
+        "experiments/0070-mandatory-actor-projection-cleanup/README.md",
         "assets/third-party/khronos-fox/README.md",
         "docs/adr/0035-authored-object-presentation.md",
         "docs/adr/0036-deterministic-temporal-presentation.md",
@@ -136,6 +137,7 @@ for (
         "docs/adr/0070-self-contained-visible-record.md",
         "docs/adr/0071-frame-safe-actor-gpu-admission.md",
         "docs/adr/0072-prototype-gravity-admission.md",
+        "docs/adr/0073-retired-standalone-actor-projection.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",
@@ -168,7 +170,6 @@ for (
         ".runseal/support/terrain/query.ts",
         ".runseal/support/actor/lifecycle.ts",
         ".runseal/support/actor/gpu.ts",
-        ".runseal/support/actor/projection.ts",
         ".runseal/support/actor/simulation.ts",
     ]
 ) await requireFile(file);

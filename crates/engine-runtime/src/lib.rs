@@ -11,7 +11,7 @@ mod timeline;
 pub use load::{SemanticObject, semantic_object};
 pub use region::RegionCoord;
 pub use rendering::gpu_capture::CapturedPixels;
-pub use rendering::{ActorRenderProjection, CapturedFrame, RenderOutcome};
+pub use rendering::{CapturedFrame, RenderOutcome};
 pub use runtime::{
     ActorHandle, ActorMotionBatch, ActorPresentation, ActorSimulationAdvance, FrameRequest,
     Runtime, RuntimeActor,

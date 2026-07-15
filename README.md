@@ -312,6 +312,12 @@ actor 每步经既有 exact contact 回到原 body 与零垂直速度。新的 `
 只 cook 两个所需中心，并在 32.032 秒内通过 4 个 prototype tests、21 个 reference-host tests、
 三类 no-readiness 启动失败、两次直接进程及 Sidecar restart/stop。该阶段没有输入映射、水平移动、
 相机策略、引擎 API、GPU resource 或同步变化，因此未运行无关的 frame/resource/全量门。
+Experiment 0070 完成逢五清理：0066 为前置证明临时公开的 `Runtime::project_actor`、crate-root
+projection type、`actor.project` verb 与 238 行 recurring support 已全部删除；renderer 内部 exact
+projection/preflight 及私有测试保留为唯一生产路径。自闭环旧 verb 门在 7.2 秒内确认
+`unknown_event` 并清空进程，21.763 秒 `canonical-actor` 保持两代 record、四类 capture hash 和
+3,866 actor pixels 精确不变。清理前 live diff 净删 282 行，不新增 alias、fallback、frame/resource
+或同步路径。
 
 ## Project model
 

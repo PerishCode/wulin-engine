@@ -97,9 +97,6 @@ pub enum ControlKind {
     ActorRead {
         generation: u64,
     },
-    ActorProject {
-        generation: u64,
-    },
     ActorDespawn {
         generation: u64,
     },
@@ -242,7 +239,6 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "canonical.terrain.contact" => terrain::contact(payload),
         "actor.spawn" => terrain::actor_spawn(payload),
         "actor.read" => terrain::actor_read(payload),
-        "actor.project" => terrain::actor_project(payload),
         "actor.despawn" => terrain::actor_despawn(payload),
         "simulation.actor.advance" => terrain::simulation_actor_advance(payload),
         "canonical.objects.io_gate.arm" => Ok(ControlKind::ObjectIoGateArm),
