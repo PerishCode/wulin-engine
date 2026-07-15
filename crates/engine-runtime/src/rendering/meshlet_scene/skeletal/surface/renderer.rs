@@ -70,6 +70,7 @@ pub struct SurfaceProbeContext<'a> {
     pub background_color: [f32; 4],
     pub timestamp_readback: &'a ID3D12Resource,
     pub timestamp_frequency: u64,
+    pub actor: Option<crate::rendering::ActorRenderProjection>,
 }
 
 pub struct SurfaceRendererInput<'a> {
@@ -282,37 +283,6 @@ impl SurfaceRenderer {
         unsafe {
             transition(
                 command_list,
-                &self.resources.visibility_winner,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_COPY_SOURCE,
-            );
-            self.resources
-                .winner_readback
-                .record(command_list, &self.resources.visibility_winner);
-            transition(
-                command_list,
-                &self.resources.visibility_winner,
-                D3D12_RESOURCE_STATE_COPY_SOURCE,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            );
-            transition(
-                command_list,
-                &self.resources.occlusion.hierarchy,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_COPY_SOURCE,
-            );
-            self.resources
-                .occlusion
-                .hierarchy_readback
-                .record(command_list, &self.resources.occlusion.hierarchy);
-            transition(
-                command_list,
-                &self.resources.occlusion.hierarchy,
-                D3D12_RESOURCE_STATE_COPY_SOURCE,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            );
-            transition(
-                command_list,
                 &self.resources.visibility,
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                 D3D12_RESOURCE_STATE_COPY_SOURCE,
@@ -370,6 +340,42 @@ impl SurfaceRenderer {
         }
     }
 
+    unsafe fn record_history_probe_copies(&self, command_list: &ID3D12GraphicsCommandList) {
+        unsafe {
+            transition(
+                command_list,
+                &self.resources.visibility_winner,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+            );
+            self.resources
+                .winner_readback
+                .record(command_list, &self.resources.visibility_winner);
+            transition(
+                command_list,
+                &self.resources.visibility_winner,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            );
+            transition(
+                command_list,
+                &self.resources.occlusion.hierarchy,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+            );
+            self.resources
+                .occlusion
+                .hierarchy_readback
+                .record(command_list, &self.resources.occlusion.hierarchy);
+            transition(
+                command_list,
+                &self.resources.occlusion.hierarchy,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            );
+        }
+    }
+
     pub fn settings_json(&self) -> Value {
         json!({
             "materialCount": self.settings.material_count,
@@ -406,6 +412,7 @@ impl SurfaceRenderer {
                 history_reset_count: self.history_reset_count,
                 bypass_reason: self.last_bypass_reason,
                 bound_proof: self.bound_proof,
+                actor: context.actor,
             })
         }
     }

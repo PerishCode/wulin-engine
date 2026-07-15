@@ -5,11 +5,13 @@ use glam::{Vec3, Vec4};
 use meshlet_catalog::Catalog;
 use serde::Serialize;
 
+use crate::rendering::ActorRenderProjection;
 use crate::rendering::terrain::TerrainProjection;
 use crate::resident::{InstanceRecord, PresentationRecord};
 use crate::scene::SceneState;
 
 use super::renderer::SkeletalSettings;
+use super::resources::actor::ActorVisibleCandidate;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,6 +44,7 @@ pub struct EvaluationInput<'a> {
     pub viewport: [u32; 2],
     pub projection: TerrainProjection,
     pub grounding: GroundingInput<'a>,
+    pub actor: Option<ActorRenderProjection>,
 }
 
 pub fn evaluate(
@@ -54,6 +57,7 @@ pub fn evaluate(
         viewport: [width, height],
         projection,
         grounding,
+        actor,
     } = input;
     ensure!(
         grounding.instance_records.len() == grounding.local_ids.len()
@@ -90,43 +94,32 @@ pub fn evaluate(
             let logical_index =
                 active_index * crate::load::INSTANCES_PER_REGION as usize + local_index;
             let ground = grounding.numerators[logical_index] as f32 / grounding.denominator as f32;
-            let position = projection.position(active_index, instance.position)?;
-            let center = Vec3::from_array(position) + Vec3::Y * (ground + instance.height * 0.5);
-            let clip = matrix * Vec4::new(center.x, center.y, center.z, 1.0);
-            let archetype = presentation.archetype;
-            let visible = clip.w > 0.0
-                && clip.x.abs() <= clip.w
-                && clip.y.abs() <= clip.w
-                && clip.z >= 0.0
-                && clip.z <= clip.w;
-            if !visible {
-                counts.rejected += 1;
-                continue;
-            }
-            let lod = if clip.w < 42.0 {
-                0
-            } else if clip.w < 70.0 {
-                1
-            } else {
-                2
-            };
-            let descriptor = catalog.lod(archetype, lod);
-            counts.visible += 1;
-            counts.lod_counts[lod as usize] += 1;
-            counts.meshlets += descriptor.meshlet_count;
-            counts.emitted_vertices += descriptor.vertex_count;
-            counts.emitted_triangles += descriptor.primitive_count;
-            counts.observed_archetype_mask |= 1 << archetype;
-            if presentation.is_animated() {
-                counts.animated += 1;
-                counts.skin_influences += descriptor.vertex_count * 4;
-                if !settings.unique_poses {
-                    shared_poses.insert(pose_key(presentation, settings));
-                }
-            } else {
-                counts.static_count += 1;
-            }
+            let mut position = projection.position(active_index, instance.position)?;
+            position[1] += ground;
+            classify_candidate(
+                catalog,
+                settings,
+                matrix,
+                position,
+                instance.height,
+                presentation,
+                &mut counts,
+                &mut shared_poses,
+            );
         }
+    }
+    if let Some(actor) = actor {
+        let candidate = ActorVisibleCandidate::from_projection(actor)?;
+        classify_candidate(
+            catalog,
+            settings,
+            matrix,
+            candidate.position,
+            candidate.height,
+            actor.actor.presentation,
+            &mut counts,
+            &mut shared_poses,
+        );
     }
     counts.active_poses = if settings.unique_poses {
         counts.animated
@@ -136,6 +129,54 @@ pub fn evaluate(
     counts.reused_poses = counts.animated.saturating_sub(counts.active_poses);
     counts.evaluated_bones = counts.active_poses * settings.bone_count;
     Ok(counts)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn classify_candidate(
+    catalog: &Catalog,
+    settings: SkeletalSettings,
+    matrix: glam::Mat4,
+    position: [f32; 3],
+    height: f32,
+    presentation: PresentationRecord,
+    counts: &mut WorkloadCounts,
+    shared_poses: &mut BTreeSet<u32>,
+) {
+    let center = Vec3::from_array(position) + Vec3::Y * (height * 0.5);
+    let clip = matrix * Vec4::new(center.x, center.y, center.z, 1.0);
+    let archetype = presentation.archetype;
+    let visible = clip.w > 0.0
+        && clip.x.abs() <= clip.w
+        && clip.y.abs() <= clip.w
+        && clip.z >= 0.0
+        && clip.z <= clip.w;
+    if !visible {
+        counts.rejected += 1;
+        return;
+    }
+    let lod = if clip.w < 42.0 {
+        0
+    } else if clip.w < 70.0 {
+        1
+    } else {
+        2
+    };
+    let descriptor = catalog.lod(archetype, lod);
+    counts.visible += 1;
+    counts.lod_counts[lod as usize] += 1;
+    counts.meshlets += descriptor.meshlet_count;
+    counts.emitted_vertices += descriptor.vertex_count;
+    counts.emitted_triangles += descriptor.primitive_count;
+    counts.observed_archetype_mask |= 1 << archetype;
+    if presentation.is_animated() {
+        counts.animated += 1;
+        counts.skin_influences += descriptor.vertex_count * 4;
+        if !settings.unique_poses {
+            shared_poses.insert(pose_key(presentation, settings));
+        }
+    } else {
+        counts.static_count += 1;
+    }
 }
 
 pub fn pose_key(presentation: PresentationRecord, settings: SkeletalSettings) -> u32 {

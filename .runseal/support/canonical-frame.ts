@@ -57,10 +57,10 @@ const EXPECTED_OCCLUSION = {
     submittedTriangles: 2_245_440,
     submittedVertices: 2_201_892,
     submittedSkinInfluences: 7_388_640,
-    visibleRecordBytes: 52,
-    filteredVisibleBytes: 1_331_200,
-    orderReadbackBytes: 2_662_400,
-    candidateMaskSha256: "250700ba76a2cf8b8cf27173c9d605e22a9f60439098c9a54fcd67c02fe8ed66",
+    visibleRecordBytes: 56,
+    filteredVisibleBytes: 1_433_656,
+    orderReadbackBytes: 2_867_312,
+    candidateMaskSha256: "f7cb07a3bfd9cf729d51b0074a2c530373241e90c0b426b2f377d46f681b23e7",
     hierarchySha256: "48752eeadc852541b33eae64c7887582713dda488988f54210a71c8652bee0a9",
 };
 

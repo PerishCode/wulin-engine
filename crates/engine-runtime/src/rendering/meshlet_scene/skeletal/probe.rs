@@ -14,7 +14,8 @@ use crate::scene::SceneState;
 
 use super::oracle::{self, WorkloadCounts};
 use super::renderer::{SKELETAL_REVISION, SkeletalSettings};
-use super::resources::{ExecutionResources, MAX_SKELETAL_VISIBLE, VISIBLE_OBJECT_BYTES};
+use super::resources::actor::ACTOR_VISIBLE_RECORD_BYTES;
+use super::resources::{ExecutionResources, SKELETAL_CANDIDATE_CAPACITY, VISIBLE_OBJECT_BYTES};
 
 const PALETTE_TOLERANCE: f32 = 0.00002;
 
@@ -88,9 +89,17 @@ pub struct SkeletalProbe {
     pub revision: &'static str,
     pub config: LoadConfig,
     pub logical_instance_count: u64,
-    pub candidate_instance_count: u32,
+    pub streamed_candidate_count: u32,
+    pub dynamic_candidate_count: u32,
+    pub candidate_capacity: u32,
     pub visible_record_bytes: u32,
     pub visible_storage_bytes: u64,
+    pub actor_upload_record_bytes: u32,
+    pub actor_upload_frame_slots: u32,
+    pub actor_upload_allocation_bytes: u64,
+    pub actor_upload_resource_count: u32,
+    pub actor_upload_write_count: u64,
+    pub actor_upload_gpu_copy_count: u32,
     pub settings: Value,
     pub gpu: WorkloadCounts,
     pub cpu_oracle: WorkloadCounts,
@@ -147,6 +156,7 @@ pub struct ProbeInput<'a> {
     pub instance_records: &'a [Vec<crate::resident::InstanceRecord>],
     pub local_ids: &'a [Vec<u32>],
     pub presentations: &'a [Vec<crate::resident::PresentationRecord>],
+    pub actor: Option<crate::rendering::ActorRenderProjection>,
 }
 
 pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
@@ -185,6 +195,7 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
                 local_ids: input.local_ids,
                 presentations: input.presentations,
             },
+            actor: input.actor,
         },
     )?;
     if gpu != cpu_oracle {
@@ -203,9 +214,18 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
         revision: SKELETAL_REVISION,
         config: input.snapshot.config,
         logical_instance_count: input.snapshot.config.logical_instance_count(),
-        candidate_instance_count: input.snapshot.config.candidate_instance_count(),
+        streamed_candidate_count: input.snapshot.config.candidate_instance_count(),
+        dynamic_candidate_count: u32::from(input.actor.is_some()),
+        candidate_capacity: SKELETAL_CANDIDATE_CAPACITY,
         visible_record_bytes: VISIBLE_OBJECT_BYTES,
-        visible_storage_bytes: u64::from(MAX_SKELETAL_VISIBLE) * u64::from(VISIBLE_OBJECT_BYTES),
+        visible_storage_bytes: u64::from(SKELETAL_CANDIDATE_CAPACITY)
+            * u64::from(VISIBLE_OBJECT_BYTES),
+        actor_upload_record_bytes: ACTOR_VISIBLE_RECORD_BYTES,
+        actor_upload_frame_slots: input.resources.actor_upload.frame_slots(),
+        actor_upload_allocation_bytes: input.resources.actor_upload.allocation_bytes(),
+        actor_upload_resource_count: 1,
+        actor_upload_write_count: input.resources.actor_upload.write_count(),
+        actor_upload_gpu_copy_count: 0,
         settings: input.settings_json,
         gpu,
         cpu_oracle,

@@ -80,6 +80,7 @@ pub(crate) struct RenderFrame<'a> {
     pub presentation_tick: u32,
     pub presentation_status: Option<&'a Value>,
     pub simulation_status: Option<&'a Value>,
+    pub actor: Option<crate::runtime::RuntimeActor>,
     pub scene: &'a mut crate::scene::SceneState,
 }
 
@@ -177,8 +178,8 @@ impl Renderer {
                 async_resident_renderer.descriptor_heap(),
                 terrain_renderer.descriptor_heap(),
                 timestamp_frequency,
-                width,
-                height,
+                [width, height],
+                BUFFER_COUNT as u32,
             )
         }?;
 

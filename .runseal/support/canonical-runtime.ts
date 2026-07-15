@@ -516,7 +516,7 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
             pixel: sample.pixel,
             primitiveIndex: sample.primitiveIndex,
             barycentrics: sample.barycentrics,
-            stableKey: sample.stableKey,
+            stableIdentity: sample.stableIdentity,
             materialIndex: sample.materialIndex,
             mipLevel: sample.mipLevel,
             texel: sample.texel,

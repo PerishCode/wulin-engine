@@ -97,7 +97,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0067 and the current ADR set through 0070 define one live content runtime
+Experiments 0031-0068 and the current ADR set through 0071 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -130,9 +130,12 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one renderer-owned immutable actor render projection that maps the exact live generation through
   the enabled published composition into bounded window-relative Q9/Q16 evidence without float
   global coordinates, GPU resources, frame mutation, or a second scene path;
-- one 52-byte self-contained GPU visible record carrying grounded window position, authored height,
-  semantic region, presentation, pose, and candidate identity; streamed instances and ground values
-  are skeletal-cull inputs only and are not rebound by surface, shadow, or occlusion execution;
+- one 56-byte self-contained GPU visible record carrying grounded window position, authored height,
+  semantic region, presentation, pose, and exact two-word source identity; streamed instances and
+  ground values are skeletal-cull inputs only and are not rebound downstream;
+- one fixed actor candidate after the 25,600 streamed candidates, backed by one two-frame upload
+  resource and consumed by the existing skeletal, surface, shadow, and occlusion path without a GPU
+  copy or additional synchronization;
 - one private 0..=8 terrain-body motion batch that executes only local motion and preserves exact
   single-tick/rollback tests without an independent live mutation route;
 - one sole caller-supplied elapsed simulation/actor transaction that prepares a schedule copy and
@@ -165,9 +168,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
   no calibration scene, and no split-world control surface;
 - one compact `input.*` / `actor.*` / `simulation.*` / `camera.*` / `source.*` / `canonical.*` inspect
   vocabulary;
-- one non-recursive `runseal :canonical-frame` focused GPU regression workflow, one focused
-  `runseal :canonical-resources` same-process plateau workflow, and one non-recursive
-  `runseal :canonical-runtime` end-to-end acceptance workflow.
+- one non-recursive `runseal :canonical-actor` actor GPU workflow, one `runseal :canonical-frame`
+  focused GPU regression workflow, one `runseal :canonical-resources` same-process plateau
+  workflow, and one non-recursive `runseal :canonical-runtime` end-to-end acceptance workflow.
 
 Historical experiment READMEs and ADRs remain decision history. Their runtime modes,
 formats, controls, and wrappers are not live compatibility surfaces.
@@ -224,6 +227,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0068-neutral-canonical-operator-identity.md` | Accepted neutral canonical report/collection ownership and stable history-label rejection. |
 | `docs/adr/0069-bounded-actor-render-projection.md` | Accepted exact integer actor-to-window projection and deferred GPU binding boundary. |
 | `docs/adr/0070-self-contained-visible-record.md` | Accepted self-contained grounded GPU visible record and downstream source-page isolation. |
+| `docs/adr/0071-frame-safe-actor-gpu-admission.md` | Accepted fixed actor candidate, exact generation identity, frame-slotted upload, and single GPU path. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -262,6 +266,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0065-mandatory-canonical-operator-cleanup/README.md` | Accepted removal of historical canonical operator naming, neutral evidence ownership, and stable guard. |
 | `experiments/0066-bounded-actor-render-projection/README.md` | Accepted far-coordinate, seam, alias/rollover, edge, rejection, and replay evidence for one live actor projection. |
 | `experiments/0067-self-contained-visible-record/README.md` | Accepted grounded visible-record ownership, exact frame replay, bounded resources, and lifecycle evidence. |
+| `experiments/0068-frame-safe-actor-gpu-admission/README.md` | Accepted frame-safe actor admission, exact compaction identity, rollback, resource, and lifecycle evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -313,7 +318,8 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/rendering/terrain/transfer.rs` | Terrain GPU copy and slot lifecycle. |
 | `crates/engine-runtime/src/rendering/composition/mod.rs` | Atomic pair publication and fixed composition. |
 | `crates/engine-runtime/src/rendering/renderer/actor_projection.rs` | Immutable live-actor projection through the enabled published pair into exact bounded render-window evidence. |
-| `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources.rs` | Fixed visible-record layout, capacity, stride, and skeletal GPU resource ownership. |
+| `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/mod.rs` | Fixed visible-record layout, capacity, descriptors, and skeletal GPU resource ownership. |
+| `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/actor.rs` | Exact actor GPU record encoding and two-frame upload-resource ownership. |
 | `crates/engine-runtime/src/rendering/composition/traversal.rs` | Latest-wins traversal, prefetch, and rollover policy. |
 | `crates/engine-runtime/src/rendering/composition/probe.rs` | Canonical attachment and oracle evidence. |
 | `crates/engine-runtime/src/rendering/composition/probe/terrain_query.rs` | Dense query/contact oracle evidence and compact body-contact transition witness. |
@@ -324,6 +330,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
+| `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source actor GPU admission and rollback entry point. |
 | `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source canonical GPU frame and immediate replay entry point. |
 | `.runseal/wrappers/canonical-resources.ts` | Focused active/quiescent same-process GPU resource plateau entry point. |
 | `.runseal/wrappers/canonical-runtime.ts` | Direct canonical acceptance entry point over the converged runtime. |
@@ -337,6 +344,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls, retained-body history, and pre-owner actor support paths. |
 | `.runseal/support/guard/canonical-operator.ts` | Exact neutral canonical revision/collection and current evidence-path guard. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
+| `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |
 | `.runseal/support/actor/projection.ts` | Actor projection availability, far-coordinate, alias, edge, rollback, and replay acceptance support. |
 | `.runseal/support/actor/simulation.ts` | Retired-route rejection plus fractional, partition, rollback, and sole actor dual-commit support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
@@ -361,11 +369,17 @@ Git hooks path. `guard` is the authoritative non-GPU repository gate.
 ### 6.2 Focused canonical validation
 
 ```powershell
+runseal :canonical-actor
 runseal :canonical-frame
 runseal :canonical-resources
 ```
 
-This workflow cooks one fresh minimal signed pair, publishes it through the sole runtime, and
+The actor workflow cooks fresh signed sources and proves the capacity-one actor's exact generation
+identity, alternating frame-slot writes, existing-pipeline participation, despawn/respawn clearing,
+frustum rejection, outside-window rollback, and semantic capture. Its ignored evidence belongs
+under `out/captures/canonical-actor/`.
+
+The frame workflow cooks one fresh minimal signed pair, publishes it through the sole runtime, and
 checks the exact accepted GPU frame plus an immediate deterministic replay. Use it for focused
 renderer iteration; it is not an end-to-end acceptance substitute. Generated evidence belongs
 under `out/captures/canonical-frame/` and remains ignored.
@@ -389,7 +403,8 @@ directional object shadows, exact CPU terrain-height query/body contact and orac
 bounded contact transition witness, private simulation-schedule partition/rollback/one-hour proofs,
 private fixed-step/translation/batch contracts, retained runtime-actor lifecycle, and the sole
 explicit elapsed schedule/actor dual gate with partition equality, mid-batch rollback, retired-route
-rejection, frame/presentation independence, and bounded exact actor render projection, a same-process
+rejection, frame/presentation independence, bounded exact actor render projection, frame-safe actor
+presentation in prototype lifecycle, a same-process
 clear-only idle attachment capture, retired-control rejection, 64-publication resource plateau,
 and 16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
 

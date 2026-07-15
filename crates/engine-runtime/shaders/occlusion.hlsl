@@ -1,4 +1,5 @@
-static const uint CANDIDATE_CAPACITY = 25600;
+static const uint CANDIDATE_CAPACITY = 25601;
+static const uint OCCLUSION_GROUPS = 101;
 static const uint HIERARCHY_MIPS = 11;
 
 struct VisibleObject
@@ -8,7 +9,8 @@ struct VisibleObject
     uint semantic_region;
     uint archetype;
     uint lod;
-    uint stable_key;
+    uint stable_identity_low;
+    uint stable_identity_high;
     uint pose_slot;
     uint candidate_index;
     uint material;
@@ -205,7 +207,7 @@ void occlusion_classify_main(
 void occlusion_prefix_main(uint3 group_thread : SV_GroupThreadID)
 {
     uint thread_index = group_thread.x;
-    uint count = thread_index < 100u ? group_offsets[thread_index] : 0u;
+    uint count = thread_index < OCCLUSION_GROUPS ? group_offsets[thread_index] : 0u;
     compaction_scan[thread_index] = count;
     GroupMemoryBarrierWithGroupSync();
     for (uint offset = 1u; offset < 128u; offset <<= 1u)
@@ -219,11 +221,11 @@ void occlusion_prefix_main(uint3 group_thread : SV_GroupThreadID)
         compaction_scan[thread_index] = value;
         GroupMemoryBarrierWithGroupSync();
     }
-    if (thread_index < 100u)
+    if (thread_index < OCCLUSION_GROUPS)
     {
         group_offsets[thread_index] = compaction_scan[thread_index] - count;
     }
-    if (thread_index == 99u)
+    if (thread_index == OCCLUSION_GROUPS - 1u)
     {
         occlusion_counters.Store(0, compaction_scan[thread_index]);
     }

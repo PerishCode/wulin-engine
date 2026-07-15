@@ -8,7 +8,7 @@ use crate::scene::SceneState;
 use super::pipeline::{SKELETAL_CONSTANT_COUNT, SkeletalPipeline};
 use super::resources::{
     AnimationBuffers, COUNTER_BYTES, ExecutionResources, GROUND_BYTES, MAX_SHARED_POSES,
-    MAX_SKELETAL_VISIBLE, SAMPLE_BYTES,
+    SAMPLE_BYTES, SKELETAL_CANDIDATE_CAPACITY,
 };
 use super::surface::{SurfaceFrame, SurfaceRenderer};
 use crate::rendering::async_resident::PublishedSnapshot;
@@ -16,7 +16,7 @@ use crate::rendering::meshlet_scene::CatalogBuffers;
 use crate::rendering::resident::{transition, uav_barrier};
 use crate::rendering::terrain::TerrainProjection;
 
-pub const SKELETAL_REVISION: &str = "gpu-skeletal-crowds-v4-self-contained-visible";
+pub const SKELETAL_REVISION: &str = "gpu-skeletal-crowds-v5-dynamic-actor";
 
 #[derive(Clone, Copy)]
 pub struct SkeletalSettings {
@@ -74,6 +74,8 @@ pub struct SkeletalFrame<'a> {
     pub grounding_mode: u32,
     pub projection: TerrainProjection,
     pub presentation_tick: u32,
+    pub actor: Option<crate::rendering::ActorRenderProjection>,
+    pub frame_slot: u32,
 }
 
 impl SkeletalSceneRenderer {
@@ -83,9 +85,10 @@ impl SkeletalSceneRenderer {
         region_heap: &ID3D12DescriptorHeap,
         terrain_heap: &ID3D12DescriptorHeap,
         timestamp_frequency: u64,
-        width: u32,
-        height: u32,
+        extent: [u32; 2],
+        frame_slots: u32,
     ) -> Result<Self> {
+        let [width, height] = extent;
         let mesh_catalog = MeshletCatalog::build();
         let animation_catalog = AnimationCatalog::build();
         let mesh_catalog_sha256 = mesh_catalog.sha256();
@@ -97,12 +100,12 @@ impl SkeletalSceneRenderer {
         let resources = unsafe {
             ExecutionResources::new(
                 device,
-                region_heap,
-                terrain_heap,
+                [region_heap, terrain_heap],
                 &mesh_catalog,
                 &animation_catalog,
                 &mesh_buffers,
                 &animation_buffers,
+                frame_slots,
             )
         }?;
         let surface = unsafe {
@@ -137,6 +140,11 @@ impl SkeletalSceneRenderer {
         frame: SkeletalFrame<'_>,
     ) -> Result<()> {
         let settings = SkeletalSettings::for_tick(frame.presentation_tick);
+        let (actor_gpu, _) = unsafe {
+            self.resources
+                .actor_upload
+                .write(frame.frame_slot, frame.actor)
+        }?;
         let constants = self.constants(
             settings,
             frame.scene,
@@ -156,6 +164,7 @@ impl SkeletalSceneRenderer {
                 0,
             );
             command_list.SetComputeRootDescriptorTable(1, gpu_start);
+            command_list.SetComputeRootShaderResourceView(2, actor_gpu);
         }
         if frame.probe {
             unsafe {
@@ -175,7 +184,7 @@ impl SkeletalSceneRenderer {
             }
             command_list.SetPipelineState(&self.pipeline.cull);
             let [x, y, z] = frame.snapshot.config.dispatch();
-            command_list.Dispatch(x, y, z);
+            command_list.Dispatch(x + 1, y, z);
             for resource in [
                 &self.resources.visible,
                 &self.resources.counters,
@@ -332,7 +341,7 @@ impl SkeletalSceneRenderer {
             *destination = value.to_bits();
         }
         constants[16] = snapshot.config.active_region_count();
-        constants[17] = MAX_SKELETAL_VISIBLE;
+        constants[17] = SKELETAL_CANDIDATE_CAPACITY;
         constants[18] = (1 << CLIP_COUNT) - 1;
         constants[19] = u32::MAX;
         for (index, instance_slot) in snapshot.active_slots.iter().copied().enumerate() {
@@ -349,7 +358,7 @@ impl SkeletalSceneRenderer {
         constants[50] = settings.phase_count;
         constants[51] = settings.time_tick;
         constants[52] = u32::from(settings.unique_poses);
-        constants[53] = MAX_SKELETAL_VISIBLE;
+        constants[53] = SKELETAL_CANDIDATE_CAPACITY;
         constants[54] = MAX_SHARED_POSES;
         constants[55] = grounding_mode;
         constants[56..59].copy_from_slice(&animation_catalog::IMPORTED_SOURCE_CLIP_DURATION_UNITS);

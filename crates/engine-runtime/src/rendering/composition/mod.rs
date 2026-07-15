@@ -394,4 +394,13 @@ impl CompositionCoordinator {
             .context("actor render projection requires a published composition")?;
         Ok((published.global_config, published.config))
     }
+
+    pub(super) fn pending_actor_projection_config(
+        &self,
+    ) -> Option<(GlobalRegionConfig, LoadConfig)> {
+        self.pending
+            .as_ref()
+            .filter(|pending| !pending.purpose.prefetch())
+            .map(|pending| (pending.global_config, pending.config))
+    }
 }

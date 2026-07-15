@@ -17,10 +17,10 @@ use self::targets::{
 use self::upload::UploadedSurface;
 use super::occlusion::OcclusionResources;
 
-pub const CANDIDATE_CAPACITY: u32 = 25_600;
+pub const CANDIDATE_CAPACITY: u32 = super::super::resources::SKELETAL_CANDIDATE_CAPACITY;
 pub const STATS_BYTES: u64 = 32;
 pub const SAMPLE_COUNT: u32 = 6;
-pub const SAMPLE_STRIDE: u64 = 48;
+pub const SAMPLE_STRIDE: u64 = 52;
 pub const SAMPLE_BYTES: u64 = SAMPLE_COUNT as u64 * SAMPLE_STRIDE;
 
 pub struct SurfaceResources {

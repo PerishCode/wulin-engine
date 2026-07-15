@@ -20,8 +20,9 @@ motion 与 schema-3 presentation 的 capacity-one actor，prototype 已在 canon
 创建一个精确 grounded imported-Fox actor；
 reference host 已将 bounded monotonic elapsed policy 与至多两个等价
 transition 的 Win32 activation batch 组成唯一的 activation-before-sample 操作；prototype 现以
-Ready-only zero command 驱动 live schedule/actor transaction，但仍无 GPU actor binding、gravity、
-多 actor store、水平速度或 locomotion controller。live simulation/actor mutation 只保留双提交，
+Ready-only zero command 驱动 live schedule/actor transaction，capacity-one actor 也通过唯一
+skeletal/surface/shadow/occlusion 路径进入 GPU；仍无 gravity、多 actor store、水平速度或
+locomotion controller。live simulation/actor mutation 只保留双提交，
 不再暴露独立 schedule、body lifecycle 或 retained single/batch bypass。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
@@ -297,6 +298,14 @@ surface、shadow、occlusion 不再通过 `physical_index` 回读 streamed insta
 diagnostic 四个外部哈希和全部 shadow/occlusion 语义，只接受确定重放的新 raw shadow hash；
 276.9 秒聚焦资源门与 762.4 秒完整流程通过 32+32 traversal、active/quiescent 资源平台和 16 次
 生命周期。日常 GPU 与资源回归分别由 `runseal :canonical-frame` / `:canonical-resources` 承担。
+Experiment 0068 将唯一 runtime actor 作为固定 candidate 25,600 接入既有 cull group，并把
+visible identity 扩为两字完整 `u64` generation。一个 112-byte 双帧 upload resource 直接绑定 root
+SRV，复用已完成 frame-slot fence；无 GPU copy、新 pass/barrier/fence/wait 或 streamed-page 写入。
+21.539 秒 focused gate 精确接受 visible/frustum-rejected/despawn/respawn/replay/outside-window
+事务：可见 actor 只增加 16 meshlets、1,014 vertices、576 triangles、4,056 skin influences，语义
+ID 98,305 覆盖 3,866 pixels；失败帧不推进 frame index 或 upload write count。固定资源声明宽度
+共增加 416,148 bytes 和一个 resource object。260.779 秒资源门与 739.3 秒完整流程通过 64 次
+publication 平台、prototype actor 启动/重启及 16 次生命周期，Flavor 为 0 deny。
 
 ## Project model
 
@@ -314,6 +323,7 @@ runseal :init
 runseal :guard
 runseal :gpu-lab correctness
 runseal :gpu-lab benchmark
+runseal :canonical-actor
 runseal :canonical-frame
 runseal :canonical-resources
 runseal :canonical-runtime
@@ -351,6 +361,10 @@ acceptance or may be prepared with the documented cooker formats.
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
 minimal signed pair, checks the exact accepted canonical frame, immediately replays it, and owns
 complete process cleanup. It does not replace end-to-end acceptance.
+
+`runseal :canonical-actor` is the focused frame-safe actor GPU workflow. It proves exact dynamic
+candidate identity, alternating frame-slot writes, cull/surface/shadow/occlusion participation,
+despawn/respawn clearing, frustum rejection, outside-window rollback, and semantic capture.
 
 `runseal :canonical-resources` is the focused same-process resource workflow. It separates the
 bounded active publication plateau from post-workload recovery to the quiescent process baseline.

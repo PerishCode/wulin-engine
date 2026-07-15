@@ -6,6 +6,7 @@ pub const REGION_INSTANCE_SIDE: u32 = 32;
 pub const INSTANCES_PER_REGION: u32 = REGION_INSTANCE_SIDE * REGION_INSTANCE_SIDE;
 pub const REGION_OBJECT_ID_BASE: u32 = 65_536;
 pub const TERRAIN_OBJECT_ID_BASE: u32 = 32_768;
+pub const ACTOR_OBJECT_ID: u32 = 98_305;
 pub const MAX_ACTIVE_RADIUS: u32 = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -77,7 +78,17 @@ impl LoadConfig {
 }
 
 pub fn semantic_object(id: u32) -> Option<SemanticObject> {
-    terrain_semantic(id).or_else(|| region_semantic(id))
+    actor_semantic(id)
+        .or_else(|| terrain_semantic(id))
+        .or_else(|| region_semantic(id))
+}
+
+fn actor_semantic(id: u32) -> Option<SemanticObject> {
+    (id == ACTOR_OBJECT_ID).then(|| SemanticObject {
+        name: "runtime.actor".into(),
+        kind: "runtime-actor".into(),
+        color: [0.95, 0.35, 0.08, 1.0],
+    })
 }
 
 fn region_semantic(id: u32) -> Option<SemanticObject> {

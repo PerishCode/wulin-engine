@@ -1,4 +1,6 @@
 static const uint REGION_OBJECT_ID_BASE = 65536;
+static const uint ACTOR_OBJECT_ID = 98305;
+static const uint ACTOR_CANDIDATE_INDEX = 25600;
 static const uint MAX_BONES = 128;
 static const uint MATERIAL_TEXTURE_SIDE = 64;
 static const uint SAMPLE_COUNT = 6;
@@ -12,7 +14,8 @@ struct VisibleObject
     uint semantic_region;
     uint archetype;
     uint lod;
-    uint stable_key;
+    uint stable_identity_low;
+    uint stable_identity_high;
     uint pose_slot;
     uint candidate_index;
     uint material;
@@ -242,7 +245,9 @@ void ms_main(
         MeshVertexOutput output;
         output.position = mul(view_projection, float4(visible.position + rotated, 1.0));
         output.candidate_index = visible.candidate_index;
-        output.object_id = REGION_OBJECT_ID_BASE + visible.semantic_region + 1;
+        output.object_id = visible.candidate_index == ACTOR_CANDIDATE_INDEX
+            ? ACTOR_OBJECT_ID
+            : REGION_OBJECT_ID_BASE + visible.semantic_region + 1;
         output_vertices[group_thread] = output;
     }
     for (
@@ -472,7 +477,7 @@ void shade_main(
     uint2 payload = visibility_texture.Load(int3(pixel, 0));
     float4 color = background_color;
     uint visible_index = 0xffffffffu;
-    uint stable_key = 0xffffffffu;
+    uint2 stable_identity = uint2(0xffffffffu, 0xffffffffu);
     uint material_index = 0xffffffffu;
     uint packed_texel = 0xffffffffu;
     uint shadowed = 0u;
@@ -516,7 +521,7 @@ void shade_main(
         float3 world_position = world_positions[0] * bary.x
             + world_positions[1] * bary.y
             + world_positions[2] * bary.z;
-        stable_key = visible.stable_key;
+        stable_identity = uint2(visible.stable_identity_low, visible.stable_identity_high);
         material_index = visible.material;
         MaterialRecord material = surface_materials[material_index];
         uint mip = surface_shape.y;
@@ -584,19 +589,19 @@ void shade_main(
     int selected_sample = sample_index(pixel);
     if (selected_sample >= 0)
     {
-        uint offset = uint(selected_sample) * 48u;
+        uint offset = uint(selected_sample) * 52u;
         surface_samples.Store(offset + 0, payload.x);
         surface_samples.Store(offset + 4, payload.y);
         surface_samples.Store(offset + 8, visible_index);
-        surface_samples.Store(offset + 12, stable_key);
-        surface_samples.Store(offset + 16, material_index);
-        surface_samples.Store(offset + 20, surface_shape.y);
-        surface_samples.Store(offset + 24, pack_rgba8(color));
-        surface_samples.Store(offset + 28, packed_texel);
-        surface_samples.Store(offset + 32, shadowed);
-        surface_samples.Store(offset + 36, packed_shadow_texel);
-        surface_samples.Store(offset + 40, asuint(receiver_shadow_depth));
-        surface_samples.Store(offset + 44, asuint(stored_shadow_depth));
+        surface_samples.Store2(offset + 12, stable_identity);
+        surface_samples.Store(offset + 20, material_index);
+        surface_samples.Store(offset + 24, surface_shape.y);
+        surface_samples.Store(offset + 28, pack_rgba8(color));
+        surface_samples.Store(offset + 32, packed_texel);
+        surface_samples.Store(offset + 36, shadowed);
+        surface_samples.Store(offset + 40, packed_shadow_texel);
+        surface_samples.Store(offset + 44, asuint(receiver_shadow_depth));
+        surface_samples.Store(offset + 48, asuint(stored_shadow_depth));
     }
     GroupMemoryBarrierWithGroupSync();
     if (group_thread == 0)

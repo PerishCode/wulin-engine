@@ -27,6 +27,15 @@ impl Renderer {
         let (global_config, config) = self.composition.actor_projection_config()?;
         project(global_config, config, actor)
     }
+
+    pub(crate) fn preflight_actor(&self, actor: RuntimeActor) -> Result<()> {
+        self.project_actor(actor)?;
+        if let Some((global_config, config)) = self.composition.pending_actor_projection_config() {
+            project(global_config, config, actor)
+                .context("runtime actor is outside the pending render window")?;
+        }
+        Ok(())
+    }
 }
 
 fn project(

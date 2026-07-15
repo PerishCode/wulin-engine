@@ -33,7 +33,8 @@ struct VisibleObject
     uint semantic_region;
     uint archetype;
     uint lod;
-    uint stable_key;
+    uint stable_identity_low;
+    uint stable_identity_high;
     uint pose_slot;
     uint candidate_index;
     uint material;
@@ -82,6 +83,7 @@ StructuredBuffer<AffineTransform> catalog_samples : register(t58);
 ByteAddressBuffer terrain_tiles[REGION_SLOT_CAPACITY] : register(t63);
 StructuredBuffer<uint> region_local_ids[REGION_SLOT_CAPACITY] : register(t114);
 StructuredBuffer<PresentationRecord> region_presentations[REGION_SLOT_CAPACITY] : register(t164);
+StructuredBuffer<VisibleObject> actor_candidate : register(t214);
 
 RWStructuredBuffer<VisibleObject> visible_objects : register(u0);
 RWByteAddressBuffer indirect_and_counters : register(u1);
@@ -196,53 +198,93 @@ void reset_main(uint group_thread : SV_GroupIndex)
 [numthreads(256, 1, 1)]
 void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
 {
-    if (group_id.x >= load_shape.x)
+    if (group_id.x > load_shape.x)
+    {
+        return;
+    }
+    bool dynamic_actor = group_id.x == load_shape.x;
+    if (dynamic_actor && (group_id.y != 0u || group_thread != 0u))
     {
         return;
     }
     uint local_index = group_id.y * 256 + group_thread;
-    if (local_index >= INSTANCES_PER_REGION)
+    if (!dynamic_actor && local_index >= INSTANCES_PER_REGION)
     {
         return;
     }
-    uint packed_slots = active_slot_groups[group_id.x / 4][group_id.x % 4];
-    uint slot = packed_slots & 63u;
-    uint semantic_region = packed_slots >> 12u;
-    InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
-    uint local_id = region_local_ids[NonUniformResourceIndex(slot)][local_index];
-    PresentationRecord presentation =
-        region_presentations[NonUniformResourceIndex(slot)][local_index];
-    float3 position = object_position(instance, semantic_region);
-    uint logical_index = group_id.x * INSTANCES_PER_REGION + local_index;
-    float ground = 0.0;
-    if (pose_shape.w != 0)
+
+    float3 position;
+    float instance_height;
+    uint semantic_region;
+    uint stable_identity_low;
+    uint stable_identity_high;
+    uint logical_index;
+    PresentationRecord presentation;
+    if (dynamic_actor)
     {
-        uint terrain_slot = (packed_slots >> 6u) & 63u;
-        int ground_value;
-        if (pose_shape.w == 1u)
+        VisibleObject candidate = actor_candidate[0];
+        if (candidate.candidate_index == 0xffffffffu)
         {
-            uint cell_x = local_index % 32u;
-            uint cell_z = local_index / 32u;
-            ground_value = terrain_height(terrain_slot, cell_x + 1u, cell_z)
-                + terrain_height(terrain_slot, cell_x, cell_z + 1u);
-            ground = float(ground_value) / 512.0;
+            return;
         }
-        else
-        {
-            ground_value = terrain_ground_q16(terrain_slot, instance, semantic_region, position);
-            ground = float(ground_value) / 65536.0;
-        }
-        ground_numerators_out[logical_index] = ground_value;
+        position = candidate.position;
+        instance_height = candidate.height;
+        semantic_region = candidate.semantic_region;
+        stable_identity_low = candidate.stable_identity_low;
+        stable_identity_high = candidate.stable_identity_high;
+        logical_index = candidate.candidate_index;
+        presentation.archetype = candidate.archetype;
+        presentation.material = candidate.material;
+        presentation.yaw_q16 = candidate.yaw_q16;
+        presentation.animation = candidate.animation;
     }
-    position.y += ground;
-    float3 center = position + float3(0.0, instance.height * 0.5, 0.0);
+    else
+    {
+        uint packed_slots = active_slot_groups[group_id.x / 4][group_id.x % 4];
+        uint slot = packed_slots & 63u;
+        semantic_region = packed_slots >> 12u;
+        InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
+        uint local_id = region_local_ids[NonUniformResourceIndex(slot)][local_index];
+        presentation = region_presentations[NonUniformResourceIndex(slot)][local_index];
+        position = object_position(instance, semantic_region);
+        instance_height = instance.height;
+        stable_identity_low = object_stable_key(instance, local_id, semantic_region);
+        stable_identity_high = 0u;
+        logical_index = group_id.x * INSTANCES_PER_REGION + local_index;
+        float ground = 0.0;
+        if (pose_shape.w != 0)
+        {
+            uint terrain_slot = (packed_slots >> 6u) & 63u;
+            int ground_value;
+            if (pose_shape.w == 1u)
+            {
+                uint cell_x = local_index % 32u;
+                uint cell_z = local_index / 32u;
+                ground_value = terrain_height(terrain_slot, cell_x + 1u, cell_z)
+                    + terrain_height(terrain_slot, cell_x, cell_z + 1u);
+                ground = float(ground_value) / 512.0;
+            }
+            else
+            {
+                ground_value = terrain_ground_q16(
+                    terrain_slot,
+                    instance,
+                    semantic_region,
+                    position
+                );
+                ground = float(ground_value) / 65536.0;
+            }
+            ground_numerators_out[logical_index] = ground_value;
+        }
+        position.y += ground;
+    }
+    float3 center = position + float3(0.0, instance_height * 0.5, 0.0);
     float4 clip = mul(view_projection, float4(center, 1.0));
     bool in_frustum = clip.w > 0.0
         && abs(clip.x) <= clip.w
         && abs(clip.y) <= clip.w
         && clip.z >= 0.0
         && clip.z <= clip.w;
-    uint stable_key = object_stable_key(instance, local_id, semantic_region);
     uint archetype = presentation.archetype;
     if (!in_frustum || (load_shape.z & (1u << archetype)) == 0)
     {
@@ -302,11 +344,12 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     }
     VisibleObject visible;
     visible.position = position;
-    visible.height = instance.height;
+    visible.height = instance_height;
     visible.semantic_region = semantic_region;
     visible.archetype = archetype;
     visible.lod = lod;
-    visible.stable_key = stable_key;
+    visible.stable_identity_low = stable_identity_low;
+    visible.stable_identity_high = stable_identity_high;
     visible.pose_slot = pose_slot;
     visible.candidate_index = logical_index;
     visible.material = presentation.material;

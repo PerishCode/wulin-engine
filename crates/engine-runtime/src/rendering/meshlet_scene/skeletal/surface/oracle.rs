@@ -4,11 +4,14 @@ use glam::Vec3;
 use meshlet_catalog::Catalog as MeshletCatalog;
 use surface_catalog::{Catalog as SurfaceCatalog, TEXTURE_SIDE, decode_octahedral};
 
+use crate::rendering::ActorRenderProjection;
 use crate::rendering::terrain::TerrainProjection;
 use crate::resident::{InstanceRecord, PresentationRecord, canonical_stable_key};
 
 use super::super::oracle::pose_phase;
 use super::super::renderer::SkeletalSettings;
+use super::super::resources::ACTOR_CANDIDATE_INDEX;
+use super::super::resources::actor::ActorVisibleCandidate;
 use super::probe::SurfaceSample;
 use super::renderer::SurfaceSettings;
 
@@ -35,6 +38,7 @@ pub struct OracleInput<'a> {
     pub ground_denominator: u32,
     pub shadow_depth: &'a [u8],
     pub background_color: [f32; 4],
+    pub actor: Option<ActorRenderProjection>,
 }
 
 pub fn shade(sample: &SurfaceSample, input: OracleInput<'_>) -> Result<OracleResult> {
@@ -66,29 +70,54 @@ fn shade_visible(
     sample: &SurfaceSample,
     input: OracleInput<'_>,
 ) -> Result<(u32, [u32; 2], bool, [u32; 2])> {
-    let region_ordinal = (candidate / 1024) as usize;
-    let local_index = (candidate % 1024) as usize;
-    let region_records = input
-        .instance_records
-        .get(region_ordinal)
-        .context("surface sample candidate has no active region")?;
-    let instance = *region_records
-        .get(local_index)
-        .context("surface sample candidate has no physical record")?;
-    let local_id = *input
-        .local_ids
-        .get(region_ordinal)
-        .and_then(|ids| ids.get(local_index))
-        .context("surface sample candidate has no authored local ID")?;
-    let stable_key = canonical_stable_key(instance.region_id, local_id);
-    let presentation = *input
-        .presentations
-        .get(region_ordinal)
-        .and_then(|records| records.get(local_index))
-        .context("surface sample candidate has no presentation record")?;
+    let (position, object_height, presentation, stable_identity) =
+        if candidate == ACTOR_CANDIDATE_INDEX {
+            let actor = input
+                .actor
+                .context("surface sample actor candidate has no frame actor")?;
+            let visible = ActorVisibleCandidate::from_projection(actor)?;
+            (
+                visible.position,
+                visible.height,
+                actor.actor.presentation,
+                [visible.stable_identity_low, visible.stable_identity_high],
+            )
+        } else {
+            let region_ordinal = (candidate / 1024) as usize;
+            let local_index = (candidate % 1024) as usize;
+            let region_records = input
+                .instance_records
+                .get(region_ordinal)
+                .context("surface sample candidate has no active region")?;
+            let instance = *region_records
+                .get(local_index)
+                .context("surface sample candidate has no physical record")?;
+            let local_id = *input
+                .local_ids
+                .get(region_ordinal)
+                .and_then(|ids| ids.get(local_index))
+                .context("surface sample candidate has no authored local ID")?;
+            let presentation = *input
+                .presentations
+                .get(region_ordinal)
+                .and_then(|records| records.get(local_index))
+                .context("surface sample candidate has no presentation record")?;
+            let ground = input.ground_numerators[candidate as usize] as f32
+                / input.ground_denominator as f32;
+            let mut position = input
+                .projection
+                .position(region_ordinal, instance.position)?;
+            position[1] += ground;
+            (
+                position,
+                instance.height,
+                presentation,
+                [canonical_stable_key(instance.region_id, local_id), 0],
+            )
+        };
     ensure!(
-        sample.stable_key == Some(stable_key),
-        "surface sample stable key differs from its candidate address"
+        sample.stable_identity == Some(stable_identity),
+        "surface sample stable identity differs from its candidate address"
     );
     let palette = presentation.is_animated().then(|| {
         input.animation.evaluate_pose_for_archetype(
@@ -121,8 +150,8 @@ fn shade_visible(
         );
         let mut normal = Vec3::from_array(decoded);
         if !imported {
-            local.y *= instance.height;
-            normal.y /= instance.height;
+            local.y *= object_height;
+            normal.y /= object_height;
         }
         if let Some(palette) = &palette {
             let binding = input.animation.skin_bindings[vertex_index];
@@ -148,22 +177,15 @@ fn shade_visible(
                 });
         }
         if imported {
-            local.y *= instance.height;
-            normal.y /= instance.height;
+            local.y *= object_height;
+            normal.y /= object_height;
         }
         let rotated = Vec3::new(
             local.x * cosine - local.z * sine,
             local.y,
             local.x * sine + local.z * cosine,
         );
-        let ground =
-            input.ground_numerators[candidate as usize] as f32 / input.ground_denominator as f32;
-        world_positions[vertex] = Vec3::from_array(
-            input
-                .projection
-                .position(region_ordinal, instance.position)?,
-        ) + Vec3::Y * ground
-            + rotated;
+        world_positions[vertex] = Vec3::from_array(position) + rotated;
         normals[vertex] = Vec3::new(
             normal.x * cosine - normal.z * sine,
             normal.y,
