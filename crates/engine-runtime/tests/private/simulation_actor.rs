@@ -18,12 +18,13 @@ fn flat(_: TerrainPosition) -> Result<TerrainHeight> {
     })
 }
 
-fn command(delta_x_q9: i32, delta_z_q9: i32) -> SimulationActorCommand {
-    SimulationActorCommand {
+fn command(delta_x_q9: i32, delta_z_q9: i32) -> ActorSimulationCommand {
+    ActorSimulationCommand {
         delta_x_q9,
         delta_z_q9,
         step_up_limit_q16: 0,
         step_acceleration_q16: 0,
+        presentation: ActorPresentation::animated(7, 63, 0, 1, 0, 0),
     }
 }
 
@@ -52,6 +53,30 @@ fn fractional_elapsed_commits_no_actor_step() {
     assert_eq!(prepared.simulation.remainder_numerator, 60);
     assert_eq!(prepared.motion.output, input);
     assert_eq!(prepared.motion.terrain_query_count, 0);
+}
+
+#[test]
+fn invalid_presentation_fails_before_schedule_or_query_work() {
+    let schedule = SimulationSchedule::new();
+    let status = schedule.status_json();
+    let mut invalid = command(1, -1);
+    invalid.presentation = ActorPresentation::static_object(8, 0, 0);
+    let mut query_count = 0;
+    let result = prepare_simulation_actor(schedule, motion(), 125_000_000, invalid, |position| {
+        query_count += 1;
+        flat(position)
+    });
+    let error = match result {
+        Ok(_) => panic!("invalid simulation presentation unexpectedly succeeded"),
+        Err(error) => error,
+    };
+
+    assert_eq!(
+        error.to_string(),
+        "presentation archetype 8 exceeds catalog capacity"
+    );
+    assert_eq!(query_count, 0);
+    assert_eq!(schedule.status_json(), status);
 }
 
 #[test]

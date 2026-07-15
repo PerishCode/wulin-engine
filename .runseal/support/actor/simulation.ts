@@ -15,7 +15,7 @@ import {
     target,
 } from "../canonical-runtime.ts";
 
-const REVISION = "runtime-actor-simulation-v2";
+const REVISION = "runtime-actor-simulation-v3";
 const HALF_HEIGHT = 65_536;
 const MAX_ELAPSED = 125_000_000;
 const I32_MAX = 2_147_483_647;
@@ -51,6 +51,7 @@ function request(
         delta_z_q9: deltaZQ9,
         step_up_limit_q16: limit,
         step_acceleration_q16: acceleration,
+        ...PRESENTATION,
     };
 }
 

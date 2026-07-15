@@ -1,4 +1,4 @@
-use super::{ActorHandle, ActorPresentation, ActorSlot};
+use super::{ActorHandle, ActorPresentation, ActorSlot, RuntimeActor};
 use crate::RegionCoord;
 use crate::terrain_query::{TerrainBody, TerrainBodyMotion, TerrainPosition};
 
@@ -97,15 +97,18 @@ fn generation_exhaustion_leaves_empty_slot_unchanged() {
 }
 
 #[test]
-fn motion_replace_preserves_generation_and_presentation() {
+fn state_replace_preserves_generation_and_changes_complete_state() {
     let mut slot = ActorSlot::new();
     let actor = slot.spawn(motion(100, -3), presentation()).unwrap();
-    let replacement = motion(-200, 7);
+    let replacement = RuntimeActor {
+        motion: motion(-200, 7),
+        presentation: ActorPresentation::animated(7, 63, 17, 0, 0, 0),
+        ..actor
+    };
 
-    let output = slot.replace_motion(actor.handle, replacement).unwrap();
+    let output = slot.replace_state(actor.handle, replacement).unwrap();
     assert_eq!(output.handle, actor.handle);
-    assert_eq!(output.motion, replacement);
-    assert_eq!(output.presentation, actor.presentation);
+    assert_eq!(output, replacement);
     assert_eq!(slot.read(actor.handle).unwrap(), output);
 }
 
@@ -113,10 +116,28 @@ fn motion_replace_preserves_generation_and_presentation() {
 fn empty_and_wrong_handle_replace_preserve_slot() {
     let mut slot = ActorSlot::new();
     let absent = ActorHandle::new(1).unwrap();
-    assert!(slot.replace_motion(absent, motion(1, 2)).is_err());
+    let absent_replacement = RuntimeActor {
+        handle: absent,
+        motion: motion(1, 2),
+        presentation: presentation(),
+    };
+    assert!(slot.replace_state(absent, absent_replacement).is_err());
 
     let actor = slot.spawn(motion(3, 4), presentation()).unwrap();
     let wrong = ActorHandle::new(2).unwrap();
-    assert!(slot.replace_motion(wrong, motion(5, 6)).is_err());
+    let wrong_replacement = RuntimeActor {
+        handle: wrong,
+        motion: motion(5, 6),
+        presentation: presentation(),
+    };
+    assert!(slot.replace_state(wrong, wrong_replacement).is_err());
+    let invalid_replacement = RuntimeActor {
+        presentation: ActorPresentation::animated(7, 63, 0, 8, 0, 0),
+        ..actor
+    };
+    assert!(
+        slot.replace_state(actor.handle, invalid_replacement)
+            .is_err()
+    );
     assert_eq!(slot.read(actor.handle).unwrap(), actor);
 }

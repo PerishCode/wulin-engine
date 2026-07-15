@@ -12,7 +12,7 @@ import {
     target,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-actor-v2";
+const REVISION = "canonical-actor-v3";
 const COLLECTION = "canonical-actor";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];

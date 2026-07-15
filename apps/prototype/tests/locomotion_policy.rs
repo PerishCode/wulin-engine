@@ -1,5 +1,7 @@
 #[path = "../src/locomotion.rs"]
 mod locomotion;
+#[path = "../src/presentation.rs"]
+mod presentation;
 
 use reference_host::{HostInput, input::NativeMessage};
 
@@ -56,4 +58,29 @@ fn focus_loss_clears_motion_and_irrelevant_keys_do_not_change_it() {
     assert_eq!(locomotion::command(&input), expected(0, -32));
     input.ingest(vec![NativeMessage::FocusLost]);
     assert_eq!(locomotion::command(&input), expected(0, 0));
+}
+
+#[test]
+fn stationary_uses_survey_and_motion_uses_walk() {
+    let stationary = presentation::for_locomotion(command(&[]));
+    assert_eq!(stationary, presentation::initial());
+    assert_eq!(stationary.animation_clip(), Some(0));
+
+    for keys in [
+        vec![0x57],
+        vec![0x41],
+        vec![0x53],
+        vec![0x44],
+        vec![0x57, 0x41],
+        vec![0x53, 0x44],
+    ] {
+        let moving = presentation::for_locomotion(command(&keys));
+        assert_eq!(moving.animation_clip(), Some(1));
+        assert_eq!(moving.archetype, 7);
+        assert_eq!(moving.material, 63);
+        assert_eq!(moving.yaw_q16, 0);
+        assert_eq!(moving.animation_phase_offset(), Some(0));
+        assert_eq!(moving.animation_variant(), Some(0));
+        moving.validate().unwrap();
+    }
 }

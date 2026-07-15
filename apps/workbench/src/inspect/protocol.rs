@@ -21,6 +21,19 @@ pub(crate) struct ActorSpawnControl {
     pub animation: u32,
 }
 
+pub(crate) struct SimulationActorControl {
+    pub generation: u64,
+    pub elapsed_nanoseconds: u64,
+    pub delta_x_q9: i32,
+    pub delta_z_q9: i32,
+    pub step_up_limit_q16: i32,
+    pub step_acceleration_q16: i32,
+    pub archetype: u32,
+    pub material: u32,
+    pub yaw_q16: u32,
+    pub animation: u32,
+}
+
 pub enum ControlKind {
     Status,
     SetClearColor([f32; 4]),
@@ -100,14 +113,7 @@ pub enum ControlKind {
     ActorDespawn {
         generation: u64,
     },
-    SimulationActorAdvance {
-        generation: u64,
-        elapsed_nanoseconds: u64,
-        delta_x_q9: i32,
-        delta_z_q9: i32,
-        step_up_limit_q16: i32,
-        step_acceleration_q16: i32,
-    },
+    SimulationActorAdvance(SimulationActorControl),
     ObjectIoGateArm,
     ObjectIoGateRelease,
     ObjectCopyGateArm,

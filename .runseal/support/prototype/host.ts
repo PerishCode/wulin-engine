@@ -12,6 +12,7 @@ import {
     useSidecar,
 } from "../canonical-runtime.ts";
 import { holdPrototypeForwardKey } from "./input.ts";
+import { presentationInvariant } from "./presentation.ts";
 import { traversalInvariant } from "./traversal.ts";
 
 const CONFIG = "out/cooked/bootstrap/runtime.json";
@@ -152,11 +153,11 @@ function actorInvariant(launch: Json, center: Coord): Json {
     if (number(object(initial, "handle"), "generation") !== 1) {
         fail("prototype initial actor generation diverged");
     }
-    const presentation = object(initial, "presentation");
-    if (
-        number(presentation, "archetype") !== 7 || number(presentation, "material") !== 63 ||
-        number(presentation, "yawQ16") !== 0 || number(presentation, "animation") !== 1
-    ) fail("prototype initial actor presentation diverged");
+    const presentation = presentationInvariant(
+        object(initial, "presentation"),
+        0,
+        "prototype initial actor",
+    );
     const motion = object(initial, "motion");
     const body = object(motion, "body");
     const position = object(body, "position");
@@ -183,23 +184,26 @@ type ExpectedCommand = {
     deltaXQ9: number;
     deltaZQ9: number;
     stepUpLimitQ16: number;
+    animationClip: number;
 };
 
 const STATIONARY_COMMAND: ExpectedCommand = {
     deltaXQ9: 0,
     deltaZQ9: 0,
     stepUpLimitQ16: 32_768,
+    animationClip: 0,
 };
 const FORWARD_COMMAND: ExpectedCommand = {
     deltaXQ9: 0,
     deltaZQ9: -32,
     stepUpLimitQ16: 32_768,
+    animationClip: 1,
 };
 
 function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "simulation_driver");
-    if (driver.revision !== "live-prototype-locomotion-driver-v1") {
+    if (driver.revision !== "live-prototype-locomotion-driver-v2") {
         fail("prototype simulation driver revision diverged");
     }
     if (number(driver, "renderBlockCount") !== 0) {
@@ -227,6 +231,11 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
     if (number(command, "stepAccelerationQ16") !== -179) {
         fail("prototype gravity command diverged");
     }
+    const commandPresentation = presentationInvariant(
+        object(command, "presentation"),
+        expected.animationClip,
+        "prototype simulation command",
+    );
     const advance = object(driver, "advance");
     const simulation = object(advance, "simulation");
     const stepCount = number(simulation, "stepCount");
@@ -243,15 +252,20 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
     ) fail("prototype live actor batch diverged");
     const initial = object(actor, "input");
     const output = object(actor, "output");
+    const inputPresentation = presentationInvariant(
+        object(initial, "presentation"),
+        0,
+        "prototype simulation input",
+    );
+    const outputPresentation = presentationInvariant(
+        object(output, "presentation"),
+        expected.animationClip,
+        "prototype simulation output",
+    );
     if (expected.deltaXQ9 === 0 && expected.deltaZQ9 === 0) {
         same(output, initial, "prototype stationary actor output");
     } else {
         same(object(output, "handle"), object(initial, "handle"), "prototype moved actor handle");
-        same(
-            object(output, "presentation"),
-            object(initial, "presentation"),
-            "prototype moved actor presentation",
-        );
         const initialMotion = object(initial, "motion");
         const outputMotion = object(output, "motion");
         const initialBody = object(initialMotion, "body");
@@ -285,6 +299,11 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
         revision: driver.revision,
         outcome: sample.outcome,
         command,
+        presentation: {
+            command: commandPresentation,
+            input: inputPresentation,
+            output: outputPresentation,
+        },
         clockActive: true,
         boundedStepCount: true,
         renderBlockCount: 0,

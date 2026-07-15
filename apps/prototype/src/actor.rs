@@ -1,7 +1,6 @@
 use anyhow::{Context, Result, ensure};
 use engine_runtime::{
-    ActorPresentation, TERRAIN_BODY_HEIGHT_DENOMINATOR, TerrainBody, TerrainBodyMotion,
-    TerrainHeight, TerrainPosition,
+    TERRAIN_BODY_HEIGHT_DENOMINATOR, TerrainBody, TerrainBodyMotion, TerrainHeight, TerrainPosition,
 };
 
 const HALF_HEIGHT_Q16: i32 = 65_536;
@@ -23,8 +22,4 @@ pub(crate) fn initial_motion(
         .context("prototype initial actor center height overflowed")?;
     let body = TerrainBody::new(position, center_height_numerator, HALF_HEIGHT_Q16)?;
     Ok(TerrainBodyMotion::new(body, 0))
-}
-
-pub(crate) const fn initial_presentation() -> ActorPresentation {
-    ActorPresentation::animated(7, 63, 0, 1, 0, 0)
 }

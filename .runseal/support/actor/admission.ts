@@ -9,6 +9,7 @@ import {
     object,
     openSources,
     publish,
+    rejectedEvent,
     same,
     startClean,
     status,
@@ -20,10 +21,16 @@ const HALF_HEIGHT_Q16 = 65_536;
 const SHORT_STEP_NANOSECONDS = 16_666_666;
 const LONG_STEP_NANOSECONDS = 16_666_667;
 const I32_MAX = 2_147_483_647;
-const REVISION = "runtime-actor-simulation-v2";
-const PRESENTATION = { archetype: 7, material: 63, yaw_q16: 0, animation: 1 };
+const REVISION = "runtime-actor-simulation-v3";
+const SURVEY = { archetype: 7, material: 63, yaw_q16: 0, animation: 0 };
+const WALK = { ...SURVEY, animation: 1 };
 
-function request(generation: number, elapsedNanoseconds: number, deltaXQ9: number): Json {
+function request(
+    generation: number,
+    elapsedNanoseconds: number,
+    deltaXQ9: number,
+    presentation = SURVEY,
+): Json {
     return {
         generation,
         elapsed_nanoseconds: elapsedNanoseconds,
@@ -31,6 +38,7 @@ function request(generation: number, elapsedNanoseconds: number, deltaXQ9: numbe
         delta_z_q9: 0,
         step_up_limit_q16: I32_MAX,
         step_acceleration_q16: 0,
+        ...presentation,
     };
 }
 
@@ -43,7 +51,7 @@ function actorPayload(center: Coord, centerHeight: number): Json {
         center_height_numerator: centerHeight,
         half_height_numerator: HALF_HEIGHT_Q16,
         step_velocity_q16: 0,
-        ...PRESENTATION,
+        ...SURVEY,
     };
 }
 
@@ -60,11 +68,12 @@ async function groundedActor(center: Coord): Promise<Json> {
     );
 }
 
-function requireAdvance(value: Json, label: string): Json {
+function requireAdvance(value: Json, presentationMutations: number, label: string): Json {
     if (
         value.revision !== REVISION || value.outcome !== "advanced" ||
         number(value, "preparedStepCount") !== 1 || number(value, "terrainQueryCount") !== 1 ||
         number(value, "scheduleCommitCount") !== 1 || number(value, "actorCommitCount") !== 1 ||
+        number(value, "presentationMutationCount") !== presentationMutations ||
         number(value, "frameCount") !== 0 || number(value, "rendererWorkCount") !== 0
     ) fail(`${label} dual-commit evidence diverged`);
     return object(value, "actorSimulationAdvance");
@@ -97,6 +106,20 @@ async function prepublication(center: Coord): Promise<Json> {
         await event("actor.spawn", actorPayload(center, HALF_HEIGHT_Q16)),
         "actor",
     );
+    const invalidPresentation = await rejectedEvent("simulation.actor.advance", {
+        ...request(1, SHORT_STEP_NANOSECONDS, 0),
+        archetype: 8,
+    });
+    if (
+        typeof invalidPresentation.error !== "string" ||
+        !invalidPresentation.error.includes("presentation archetype 8 exceeds catalog capacity")
+    ) fail("invalid simulation presentation returned the wrong rejection");
+    same(await event("simulation.status"), before, "invalid presentation schedule rollback");
+    same(
+        object(await event("actor.read", { generation: 1 }), "actor"),
+        stored,
+        "invalid presentation actor rollback",
+    );
     const response = await event("simulation.actor.advance", {
         generation: 1,
         elapsed_nanoseconds: 1,
@@ -104,12 +127,15 @@ async function prepublication(center: Coord): Promise<Json> {
         delta_z_q9: -19,
         step_up_limit_q16: 0,
         step_acceleration_q16: 0,
+        ...WALK,
     });
     if (
         response.revision !== REVISION || response.outcome !== "advanced" ||
         number(response, "preparedStepCount") !== 0 ||
         number(response, "terrainQueryCount") !== 0 ||
-        number(response, "scheduleCommitCount") !== 1 || number(response, "actorCommitCount") !== 1
+        number(response, "scheduleCommitCount") !== 1 ||
+        number(response, "actorCommitCount") !== 1 ||
+        number(response, "presentationMutationCount") !== 0
     ) fail("prepublication actor admission changed the fractional commit");
     same(
         object(object(response, "actorSimulationAdvance"), "actor").input,
@@ -127,7 +153,7 @@ async function prepublication(center: Coord): Promise<Json> {
         number(after, "successfulAdvanceCount") !== number(before, "successfulAdvanceCount") + 1
     ) fail("prepublication schedule commit diverged");
     await event("actor.despawn", { generation: 1 });
-    return { before, response, after };
+    return { before, invalidPresentation, response, after };
 }
 
 async function heldPending(
@@ -154,8 +180,9 @@ async function heldPending(
     const admitted = requireAdvance(
         await event(
             "simulation.actor.advance",
-            request(2, SHORT_STEP_NANOSECONDS, 1),
+            request(2, SHORT_STEP_NANOSECONDS, 1, WALK),
         ),
+        1,
         "shared-window actor",
     );
     const committed = object(object(admitted, "actor"), "output");
@@ -166,21 +193,33 @@ async function heldPending(
         number(committedPosition, "localXQ9") !== 1 || number(committedPosition, "localZQ9") !== 0
     ) fail("shared-window actor committed the wrong position");
     same(committed.handle, actor.handle, "shared-window actor handle");
-    same(committed.presentation, actor.presentation, "shared-window actor presentation");
+    same(
+        object(object(admitted, "actor"), "input").presentation,
+        actor.presentation,
+        "shared-window actor input presentation",
+    );
+    const committedPresentation = object(committed, "presentation");
+    if (
+        number(committedPresentation, "archetype") !== 7 ||
+        number(committedPresentation, "material") !== 63 ||
+        number(committedPresentation, "yawQ16") !== 0 ||
+        number(committedPresentation, "animation") !== 1
+    ) fail("shared-window actor presentation commit diverged");
 
     const actorBeforeBlock = object(await event("actor.read", { generation: 2 }), "actor");
     const simulationBeforeBlock = await event("simulation.status");
     const pendingBeforeBlock = await event("canonical.status");
     const blocked = await event(
         "simulation.actor.advance",
-        request(2, LONG_STEP_NANOSECONDS, -4_098),
+        request(2, LONG_STEP_NANOSECONDS, -4_098, SURVEY),
     );
     if (
         blocked.revision !== REVISION || blocked.outcome !== "render-blocked" ||
         number(blocked, "preparedStepCount") !== 1 ||
         number(blocked, "terrainQueryCount") !== 1 ||
         number(blocked, "scheduleCommitCount") !== 0 ||
-        number(blocked, "actorCommitCount") !== 0 || "actorSimulationAdvance" in blocked
+        number(blocked, "actorCommitCount") !== 0 ||
+        number(blocked, "presentationMutationCount") !== 0 || "actorSimulationAdvance" in blocked
     ) fail(`pending-window actor returned the wrong backpressure: ${JSON.stringify(blocked)}`);
     same(
         object(await event("actor.read", { generation: 2 }), "actor"),

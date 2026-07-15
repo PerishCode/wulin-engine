@@ -1,12 +1,13 @@
 mod actor;
 mod camera;
 mod locomotion;
+mod presentation;
 mod time;
 
 use anyhow::{Context, Result};
 use engine_runtime::{
-    ActorSimulationAdvance, FrameRequest, GlobalRegionConfig, Runtime, RuntimeActor,
-    TerrainPosition,
+    ActorSimulationAdvance, ActorSimulationCommand, FrameRequest, GlobalRegionConfig, Runtime,
+    RuntimeActor, TerrainPosition,
 };
 use reference_host::{HostClock, HostClockStatus, HostElapsedSample, HostInput, bootstrap, window};
 use serde_json::{Value, json};
@@ -59,18 +60,18 @@ unsafe fn run() -> Result<()> {
             window::request_close(hwnd)?;
             continue;
         }
-        let command = locomotion::command(&input);
+        let locomotion = locomotion::command(&input);
+        let command = ActorSimulationCommand {
+            delta_x_q9: locomotion.delta_x_q9,
+            delta_z_q9: locomotion.delta_z_q9,
+            step_up_limit_q16: locomotion.step_up_limit_q16,
+            step_acceleration_q16: actor::GRAVITY_STEP_ACCELERATION_Q16,
+            presentation: presentation::for_locomotion(locomotion),
+        };
         let sample = clock.sample(&window::drain_activation())?;
         let outcome = time::admitted_elapsed(sample)
             .map(|elapsed_nanoseconds| {
-                runtime.advance_simulation_actor(
-                    runtime_actor.handle,
-                    elapsed_nanoseconds,
-                    command.delta_x_q9,
-                    command.delta_z_q9,
-                    command.step_up_limit_q16,
-                    actor::GRAVITY_STEP_ACCELERATION_Q16,
-                )
+                runtime.advance_simulation_actor(runtime_actor.handle, elapsed_nanoseconds, command)
             })
             .transpose()?;
         let advance = outcome
@@ -131,7 +132,7 @@ struct ReadinessEvidence {
     sample: HostElapsedSample,
     clock: HostClockStatus,
     advance: ActorSimulationAdvance,
-    command: locomotion::Command,
+    command: ActorSimulationCommand,
     bootstrap_frame_count: u64,
     live_frame_count: u64,
     anchored_camera: Value,
@@ -157,15 +158,10 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "state": evidence.advance.actor.output,
             },
             "simulation_driver": {
-                "revision": "live-prototype-locomotion-driver-v1",
+                "revision": "live-prototype-locomotion-driver-v2",
                 "sample": evidence.sample,
                 "clock": evidence.clock,
-                "command": {
-                    "deltaXQ9": evidence.command.delta_x_q9,
-                    "deltaZQ9": evidence.command.delta_z_q9,
-                    "stepUpLimitQ16": evidence.command.step_up_limit_q16,
-                    "stepAccelerationQ16": actor::GRAVITY_STEP_ACCELERATION_Q16,
-                },
+                "command": evidence.command,
                 "advance": evidence.advance,
                 "renderBlockCount": evidence.render_block_count,
                 "bootstrapFrameCount": evidence.bootstrap_frame_count,
@@ -200,6 +196,6 @@ fn spawn_initial_actor(
         .context("prototype initial terrain query failed")?;
     let motion = actor::initial_motion(position, terrain)?;
     runtime
-        .spawn_actor(motion, actor::initial_presentation())
+        .spawn_actor(motion, presentation::initial())
         .context("prototype initial actor spawn failed")
 }

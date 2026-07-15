@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::{ActorSpawnControl, ControlKind, ParsedControl, decode};
+use super::{ActorSpawnControl, ControlKind, ParsedControl, SimulationActorControl, decode};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -54,6 +54,10 @@ struct SimulationActorPayload {
     delta_z_q9: i32,
     step_up_limit_q16: i32,
     step_acceleration_q16: i32,
+    archetype: u32,
+    material: u32,
+    yaw_q16: u32,
+    animation: u32,
 }
 
 pub(super) fn height(value: Value) -> ParsedControl {
@@ -111,12 +115,18 @@ pub(super) fn actor_despawn(value: Value) -> ParsedControl {
 
 pub(super) fn simulation_actor_advance(value: Value) -> ParsedControl {
     let payload: SimulationActorPayload = decode(value)?;
-    Ok(ControlKind::SimulationActorAdvance {
-        generation: payload.generation,
-        elapsed_nanoseconds: payload.elapsed_nanoseconds,
-        delta_x_q9: payload.delta_x_q9,
-        delta_z_q9: payload.delta_z_q9,
-        step_up_limit_q16: payload.step_up_limit_q16,
-        step_acceleration_q16: payload.step_acceleration_q16,
-    })
+    Ok(ControlKind::SimulationActorAdvance(
+        SimulationActorControl {
+            generation: payload.generation,
+            elapsed_nanoseconds: payload.elapsed_nanoseconds,
+            delta_x_q9: payload.delta_x_q9,
+            delta_z_q9: payload.delta_z_q9,
+            step_up_limit_q16: payload.step_up_limit_q16,
+            step_acceleration_q16: payload.step_acceleration_q16,
+            archetype: payload.archetype,
+            material: payload.material,
+            yaw_q16: payload.yaw_q16,
+            animation: payload.animation,
+        },
+    ))
 }

@@ -40,7 +40,7 @@ fn camera_rig_is_fixed_actor_relative_policy() {
 }
 
 #[test]
-fn motion_touches_terrain_and_presentation_is_imported() {
+fn motion_touches_terrain() {
     let position =
         TerrainPosition::new(RegionCoord::new(1_i64 << 40, -(1_i64 << 40)), 0, 0).unwrap();
     let terrain = TerrainHeight {
@@ -50,19 +50,10 @@ fn motion_touches_terrain_and_presentation_is_imported() {
     };
 
     let motion = actor::initial_motion(position, terrain).unwrap();
-    let presentation = actor::initial_presentation();
-
     assert_eq!(motion.body().position(), position);
     assert_eq!(motion.body().center_height_numerator(), -65_536);
     assert_eq!(motion.body().half_height_numerator(), 65_536);
     assert_eq!(motion.step_velocity_q16(), 0);
-    assert_eq!(presentation.archetype, 7);
-    assert_eq!(presentation.material, 63);
-    assert_eq!(presentation.yaw_q16, 0);
-    assert_eq!(presentation.animation_clip(), Some(1));
-    assert_eq!(presentation.animation_phase_offset(), Some(0));
-    assert_eq!(presentation.animation_variant(), Some(0));
-    presentation.validate().unwrap();
 }
 
 #[test]
