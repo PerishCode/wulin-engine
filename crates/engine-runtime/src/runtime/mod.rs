@@ -249,6 +249,13 @@ impl Runtime {
             },
             |position| self.query_terrain_height(position),
         )?;
+        let candidate = RuntimeActor {
+            motion: prepared.motion.output,
+            ..input
+        };
+        if self.renderer.composition_enabled() {
+            self.renderer.preflight_actor(candidate)?;
+        }
         let output = self.actor.replace_motion(handle, prepared.motion.output)?;
         self.simulation_schedule = prepared.schedule;
         Ok(ActorSimulationAdvance {

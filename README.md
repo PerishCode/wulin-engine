@@ -325,6 +325,12 @@ renderer-private projection 在 checked Q9 中恢复 origin-relative scene cente
 `[9,4,12]` / `[0,-1,-3]` / `60°` rig，每个 live frame 前恰好 anchor 一次。35.608 秒 focused gate
 中两次独立进程都得到 `[9,6.1640625,12] → [0,1.1640625,-3]`，anchor/frame 为 3/3，三类失败仍
 无 readiness 且 Sidecar 最终清空。该阶段未启用水平输入、traversal 或跨窗口移动事务。
+Experiment 0072 将 renderer-private actor preflight 接入既有 simulation/actor 双提交：motion 与
+schedule 仍先在副本上完整准备，canonical candidate 必须同时落在 published 与非 prefetch
+pending window 后才能一起提交。31.577 秒 `canonical-actor` 在同一 held diagonal publication 下
+证明一次共享窗口提交与一次精确拒绝；拒绝后 actor、完整 schedule、pending token/stage 均不变，
+旧 actor 仍能成功出帧。原有两代 actor record 与四类 capture hash 保持不变；未新增 projection
+surface、frame/GPU resource 或同步路径。
 
 ## Project model
 
@@ -387,7 +393,8 @@ direct restart equality, and Sidecar cleanup.
 minimal signed pair, checks the exact accepted canonical frame, immediately replays it, and owns
 complete process cleanup. It does not replace end-to-end acceptance.
 
-`runseal :canonical-actor` is the focused frame-safe actor GPU workflow. It proves exact dynamic
+`runseal :canonical-actor` is the focused frame-safe actor GPU workflow. It proves transactional
+simulation-candidate admission against published and non-prefetch pending windows, exact dynamic
 candidate identity, alternating frame-slot writes, cull/surface/shadow/occlusion participation,
 despawn/respawn clearing, frustum rejection, outside-window rollback, and semantic capture.
 

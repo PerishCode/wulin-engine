@@ -109,6 +109,7 @@ for (
         "experiments/0069-prototype-gravity-admission/README.md",
         "experiments/0070-mandatory-actor-projection-cleanup/README.md",
         "experiments/0071-actor-relative-camera-anchor/README.md",
+        "experiments/0072-transactional-actor-render-admission/README.md",
         "assets/third-party/khronos-fox/README.md",
         "docs/adr/0035-authored-object-presentation.md",
         "docs/adr/0036-deterministic-temporal-presentation.md",
@@ -142,6 +143,7 @@ for (
         "docs/adr/0072-prototype-gravity-admission.md",
         "docs/adr/0073-retired-standalone-actor-projection.md",
         "docs/adr/0074-actor-relative-camera-mutation.md",
+        "docs/adr/0075-transactional-actor-render-admission.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",
@@ -173,6 +175,7 @@ for (
         ".runseal/support/temporal-presentation.ts",
         ".runseal/support/terrain/query.ts",
         ".runseal/support/actor/lifecycle.ts",
+        ".runseal/support/actor/admission.ts",
         ".runseal/support/actor/gpu.ts",
         ".runseal/support/actor/simulation.ts",
     ]
