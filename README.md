@@ -8,6 +8,12 @@
 
 ## Status
 
+**Plain Prototype v0 已完成阶段封版**：`runseal :prototype start` 可从无生成 source/config 的状态
+确定性准备有限 sandbox，并启动唯一 canonical renderer 下的原生窗口。当前边界包含一个 grounded
+imported-Fox actor、Ready-only 60 Hz gravity/W/A/S/D transaction、Survey/Walk 与精确八向 facing、
+actor-local clip phase、actor-relative camera 和启用一次的 engine traversal。它明确不是无限世界、
+持续 product traversal、gameplay interaction、multi-actor、networking 或 Wulin content 承诺。
+
 **Canonical runtime 收敛已完成**：signed terrain、固定 50 槽
 GPU residency、terrain-first composition、Sidecar 生命周期和项目自有 inspect 协议已经形成
 唯一、可重复的内容运行闭环。Experiment 0033 已在该闭环内接受 schema-3 authored object
@@ -397,6 +403,12 @@ phase 0、tick 46 为 phase 1；Walk 在 epoch 46 重启 phase 0、tick 47 为 p
 epoch，fractional/block/failure 全回滚。35.284 秒 `canonical-prototype-v8` 中静止/重启均保持 epoch
 1，native-W 在 live frame 3 原子提交 epoch `1 -> 3`、clip/yaw/Z `0/0/0 -> 1/49152/-32`。shader、
 streamed object time、GPU ABI/resource/copy/sync、format、camera 与 traversal 均未变化。
+Experiment 0082 不增加 feature，而是封存 plain Prototype v0 的诚实阶段边界。source-free
+`runseal :prototype start` 在 13.3 秒完成 289-center / 441-region sandbox 与 canonical readiness，
+restart 替换全部 product PID 且三份生成物哈希不变，stop 达到零进程；36.748 秒
+`canonical-prototype-v8` 和阶段唯一一次 744.8 秒 `canonical-runtime-v1` 均通过。后者覆盖 32+32
+traversal、64-publication resource plateau 与 16 lifecycle cycles。该实验只改 stage 文档及其
+registration/index，不增加 product code、operator behavior、diagnostic、format、GPU 或 Wulin 面。
 
 ## Project model
 

@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0081 and the current ADR set through 0084 define one live content runtime
+Experiments 0031-0082 and the current ADR set through 0085 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -177,6 +177,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
   post-spawn composition traversal with prefetch disabled and compact status evidence, one top-level
   current actor authority equal to committed simulation
   output with no spawn-time terrain/actor compatibility snapshot, and Escape limited to host exit;
+- one accepted plain Prototype v0 stage boundary over that exact self-contained finite single-actor
+  loop; it does not claim sustained product traversal, a source service, finite-edge behavior,
+  gameplay interaction, multiple actors, networking, or Wulin content;
 - one exact read-only CPU terrain-height query over the committed snapshot, addressed by signed
   region plus half-open local Q9 and independent from camera, render LOD, source I/O, and GPU work;
 - one caller-owned exact vertical terrain-body contact transaction with strict
@@ -263,6 +266,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0082-self-contained-prototype-operator.md` | Accepted deterministic finite-sandbox preparation and sole manual prototype wrapper. |
 | `docs/adr/0083-live-documentation-authority.md` | Accepted single current-boundary authority and prototype-operator documentation decision. |
 | `docs/adr/0084-actor-local-animation-epoch.md` | Accepted transactional actor animation epoch and frame-resolved GPU phase decision. |
+| `docs/adr/0085-plain-prototype-v0-stage-boundary.md` | Accepted finite single-actor plain Prototype v0 stage boundary. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -315,6 +319,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0079-self-contained-prototype-operator/README.md` | Accepted source-free cold start, deterministic sandbox, and wrapper-owned Sidecar lifecycle evidence. |
 | `experiments/0080-mandatory-live-documentation-authority-cleanup/README.md` | Accepted duplicate state-ledger removal and maintained prototype-operator documentation evidence. |
 | `experiments/0081-actor-local-animation-epoch/README.md` | Accepted actor-local Survey/Walk phase origin, GPU resolution, rollback, and prototype evidence. |
+| `experiments/0082-plain-prototype-v0-stage-seal/README.md` | Accepted source-free product, focused prototype, and long canonical Prototype v0 stage evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -518,8 +523,9 @@ W/A/S/D displacement on Ready samples, anchors one fixed camera rig before every
 enables camera-driven composition traversal once after spawn with prefetch disabled. Window close,
 Escape, and wrapper stop are its current controls. Start deterministically cooks the documented
 zero-origin `[-8,8]²` finite sandbox before Sidecar readiness; no prior acceptance output is
-required. Camera actions, infinite source service, sustained traversal policy, and multiple actors
-are not part of this workflow.
+required. This exact finite single-actor loop is the accepted plain Prototype v0 boundary. Camera
+actions, infinite source service, finite-edge behavior, sustained traversal policy, gameplay
+interaction, and multiple actors are not part of this workflow.
 
 ### 6.6 Experiment lifecycle
 
