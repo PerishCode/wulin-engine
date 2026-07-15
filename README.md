@@ -384,10 +384,16 @@ center/441 个 source region，写 strict bootstrap 后等待既有 Sidecar read
 写入前拒绝，restart/stop/status 不 cook。两次 source-free cold start 分别 11.8/11.1 秒，terrain/
 objects/config hashes 完全一致，restart 更换 PID，最终均为零残留进程。没有 inspect/test mode、
 Runtime/application/renderer/GPU/synchronization/format/traversal 或 canonical acceptance 变化。
+Experiment 0080 完成逢五清理：删除 `repository-model.md` 中滞留在 0066/0069 的 85 行重复 runtime
+状态账本，以 8 行稳定规则将变化中的 live capability 唯一指向 `AGENTS.md` section 4；repository
+model 只保留 dependency、directory、naming、promotion 与 data ownership。新门禁同时禁止 live
+文档重新暴露 direct prototype Sidecar command；一次故意回归在 0.7 秒、Rust build/test 前被拒绝。
+`init` 与单次 merge-checkpoint `guard` 通过，Flavor 为 0 deny / 5 个既有 warning；没有 runtime、
+application、GPU、format、Sidecar lifecycle、generated output 或 canonical acceptance 变化。
 
 ## Project model
 
-- [Repository model](docs/architecture/repository-model.md)
+- [Repository ownership model](docs/architecture/repository-model.md)
 - [Architecture decisions](docs/adr/README.md)
 - [Experiment protocol](docs/experiments/README.md)
 - [Agent operating rules](AGENTS.md)
