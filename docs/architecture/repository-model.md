@@ -2,14 +2,16 @@
 
 ## State
 
-Experiments through 0048 and ADR 0051 define the accepted canonical content runtime, reference
+Experiments through 0049 and ADR 0052 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
-motion, deterministic simulation schedule, and retired compatibility surface. The runtime remains in
+motion, exact canonical terrain-position translation, deterministic simulation schedule, and
+retired compatibility surface. The runtime remains in
 `crates/engine-runtime`. It owns camera state, signed
 terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
-time, the explicit rational 60 Hz simulation schedule, exact committed-snapshot terrain queries
-and caller-owned vertical contact/motion transactions, neutral frame targets, shaders, probes, and
-GPU device/resource lifecycle. It has no calibration
+time, the explicit rational 60 Hz simulation schedule, one signed-region/half-open-local-Q9 terrain
+position with exact checked translation, exact committed-snapshot terrain queries, caller-owned
+vertical contact/motion transactions, neutral frame targets, shaders, probes, and GPU
+device/resource lifecycle. It has no calibration
 scene, split-world control state, body store, live wall-clock driver, or runtime-owned step loop. The
 format/catalog crates and offline cookers remain independent reusable owners below it.
 
@@ -20,6 +22,11 @@ step, or advance time. Simulation advances only from explicit bounded elapsed na
 independent from presentation. Caller-owned terrain motion is the first explicit one-tick consumer;
 no host samples monotonic time or drives returned batches. Stall splitting, focus policy, and live
 step driving remain unpromoted.
+
+`TerrainPosition` is the sole horizontal identity shared by terrain query, contact, and fixed
+motion. Its pure Q9 translation canonicalizes positive, negative, and multi-region displacement
+without sampling terrain. Planar contact composition, slope/step policy, input mapping, and actor
+storage remain unpromoted.
 
 `crates/reference-host` owns the concrete Windows single-window/message lifecycle, normalized
 keyboard/focus state and bounded journal, strict bootstrap config/path validation, and hidden

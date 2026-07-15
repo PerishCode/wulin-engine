@@ -1,54 +1,23 @@
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 
-use crate::region::RegionCoord;
 use crate::streaming::address::GlobalRegionConfig;
 use crate::terrain::TerrainAssignment;
 
 mod motion;
+mod position;
 
 pub(crate) use motion::integrate_terrain_body_step;
 pub use motion::{TerrainBodyMotion, TerrainBodyStep};
+pub use position::{
+    TERRAIN_POSITION_DENOMINATOR, TERRAIN_POSITION_LOCAL_MAX_Q9_EXCLUSIVE,
+    TERRAIN_POSITION_LOCAL_MIN_Q9, TERRAIN_POSITION_REGION_SIDE_Q9, TerrainPosition,
+};
 
-pub const TERRAIN_QUERY_POSITION_DENOMINATOR: i32 = 512;
 pub const TERRAIN_QUERY_HEIGHT_DENOMINATOR: u32 = 65_536;
 pub const TERRAIN_BODY_HEIGHT_DENOMINATOR: u32 = TERRAIN_QUERY_HEIGHT_DENOMINATOR;
-pub const TERRAIN_QUERY_LOCAL_MIN_Q9: i32 = -4096;
-pub const TERRAIN_QUERY_LOCAL_MAX_Q9_EXCLUSIVE: i32 = 4096;
 
 const TERRAIN_CELL_SIDE_Q9: i32 = 256;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TerrainQueryPosition {
-    region: RegionCoord,
-    local_x_q9: i32,
-    local_z_q9: i32,
-}
-
-impl TerrainQueryPosition {
-    pub fn new(region: RegionCoord, local_x_q9: i32, local_z_q9: i32) -> Result<Self> {
-        ensure_local_coordinate("X", local_x_q9)?;
-        ensure_local_coordinate("Z", local_z_q9)?;
-        Ok(Self {
-            region,
-            local_x_q9,
-            local_z_q9,
-        })
-    }
-
-    pub const fn region(self) -> RegionCoord {
-        self.region
-    }
-
-    pub const fn local_x_q9(self) -> i32 {
-        self.local_x_q9
-    }
-
-    pub const fn local_z_q9(self) -> i32 {
-        self.local_z_q9
-    }
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -69,14 +38,14 @@ pub struct TerrainHeight {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TerrainBody {
-    position: TerrainQueryPosition,
+    position: TerrainPosition,
     center_height_numerator: i32,
     half_height_numerator: i32,
 }
 
 impl TerrainBody {
     pub fn new(
-        position: TerrainQueryPosition,
+        position: TerrainPosition,
         center_height_numerator: i32,
         half_height_numerator: i32,
     ) -> Result<Self> {
@@ -91,7 +60,7 @@ impl TerrainBody {
         })
     }
 
-    pub const fn position(self) -> TerrainQueryPosition {
+    pub const fn position(self) -> TerrainPosition {
         self.position
     }
 
@@ -173,7 +142,7 @@ pub(crate) fn query_published_height(
     config: GlobalRegionConfig,
     assignments: &[TerrainAssignment],
     tiles: &[terrain_format::TerrainTile],
-    position: TerrainQueryPosition,
+    position: TerrainPosition,
 ) -> Result<TerrainHeight> {
     let expected_count = config.local_config()?.active_region_count() as usize;
     ensure!(
@@ -181,13 +150,13 @@ pub(crate) fn query_published_height(
         "published terrain query snapshot has inconsistent active counts"
     );
     let addressed = config
-        .addressed_region(position.region)?
+        .addressed_region(position.region())?
         .context("terrain query region is outside the published active window")?;
 
     let mut matches = assignments
         .iter()
         .enumerate()
-        .filter(|(_, assignment)| assignment.global_region == position.region);
+        .filter(|(_, assignment)| assignment.global_region == position.region());
     let (index, assignment) = matches
         .next()
         .context("published terrain query snapshot is missing the addressed region")?;
@@ -205,15 +174,11 @@ pub(crate) fn query_published_height(
         "published terrain query tile identity disagrees with its assignment"
     );
 
-    Ok(sample_tile(tile, position.local_x_q9, position.local_z_q9))
-}
-
-fn ensure_local_coordinate(axis: &str, value: i32) -> Result<()> {
-    ensure!(
-        (TERRAIN_QUERY_LOCAL_MIN_Q9..TERRAIN_QUERY_LOCAL_MAX_Q9_EXCLUSIVE).contains(&value),
-        "terrain query local {axis} Q9 coordinate must be in [{TERRAIN_QUERY_LOCAL_MIN_Q9}, {TERRAIN_QUERY_LOCAL_MAX_Q9_EXCLUSIVE})"
-    );
-    Ok(())
+    Ok(sample_tile(
+        tile,
+        position.local_x_q9(),
+        position.local_z_q9(),
+    ))
 }
 
 fn sample_tile(
@@ -221,8 +186,8 @@ fn sample_tile(
     local_x_q9: i32,
     local_z_q9: i32,
 ) -> TerrainHeight {
-    let tile_x_q9 = local_x_q9 - TERRAIN_QUERY_LOCAL_MIN_Q9;
-    let tile_z_q9 = local_z_q9 - TERRAIN_QUERY_LOCAL_MIN_Q9;
+    let tile_x_q9 = local_x_q9 - TERRAIN_POSITION_LOCAL_MIN_Q9;
+    let tile_z_q9 = local_z_q9 - TERRAIN_POSITION_LOCAL_MIN_Q9;
     let cell_x = (tile_x_q9 / TERRAIN_CELL_SIDE_Q9) as usize;
     let cell_z = (tile_z_q9 / TERRAIN_CELL_SIDE_Q9) as usize;
     let u = tile_x_q9 - cell_x as i32 * TERRAIN_CELL_SIDE_Q9;
@@ -253,6 +218,7 @@ fn sample_tile(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::region::RegionCoord;
 
     fn tile(region_id: u32, corners: [i16; 4]) -> terrain_format::TerrainTile {
         let mut heights = [0; terrain_format::HEIGHT_COUNT];
@@ -275,8 +241,8 @@ mod tests {
         }
     }
 
-    fn position() -> TerrainQueryPosition {
-        TerrainQueryPosition::new(RegionCoord::ZERO, 0, 0).unwrap()
+    fn position() -> TerrainPosition {
+        TerrainPosition::new(RegionCoord::ZERO, 0, 0).unwrap()
     }
 
     fn height(height_numerator: i32, triangle: TerrainTriangle) -> TerrainHeight {
@@ -326,12 +292,12 @@ mod tests {
     #[test]
     fn enforces_half_open_coordinates() {
         let region = RegionCoord::new(7, -9);
-        assert!(TerrainQueryPosition::new(region, -4096, -4096).is_ok());
-        assert!(TerrainQueryPosition::new(region, 4095, 4095).is_ok());
-        assert!(TerrainQueryPosition::new(region, -4097, 0).is_err());
-        assert!(TerrainQueryPosition::new(region, 4096, 0).is_err());
-        assert!(TerrainQueryPosition::new(region, 0, -4097).is_err());
-        assert!(TerrainQueryPosition::new(region, 0, 4096).is_err());
+        assert!(TerrainPosition::new(region, -4096, -4096).is_ok());
+        assert!(TerrainPosition::new(region, 4095, 4095).is_ok());
+        assert!(TerrainPosition::new(region, -4097, 0).is_err());
+        assert!(TerrainPosition::new(region, 4096, 0).is_err());
+        assert!(TerrainPosition::new(region, 0, -4097).is_err());
+        assert!(TerrainPosition::new(region, 0, 4096).is_err());
     }
 
     #[test]
@@ -342,19 +308,18 @@ mod tests {
         for tile in &mut tiles {
             *tile = flat_tile(tile.region_id, 256);
         }
-        let adjacent =
-            TerrainQueryPosition::new(RegionCoord::new(far + 1, -far), -4096, 0).unwrap();
+        let adjacent = TerrainPosition::new(RegionCoord::new(far + 1, -far), -4096, 0).unwrap();
         let height = query_published_height(config, &assignments, &tiles, adjacent).unwrap();
         assert_eq!(height.height_numerator, 65_536);
-        assert!(TerrainQueryPosition::new(RegionCoord::new(far, -far), 4096, 0).is_err());
+        assert!(TerrainPosition::new(RegionCoord::new(far, -far), 4096, 0).is_err());
     }
 
     #[test]
     fn rejects_snapshot_mismatch() {
         let config = GlobalRegionConfig::new(0, 0, 0, 0, 0).unwrap();
         let (mut assignments, mut tiles) = snapshot(config, [0; 4]);
-        let position = TerrainQueryPosition::new(RegionCoord::ZERO, 0, 0).unwrap();
-        let outside = TerrainQueryPosition::new(RegionCoord::new(1, 0), 0, 0).unwrap();
+        let position = TerrainPosition::new(RegionCoord::ZERO, 0, 0).unwrap();
+        let outside = TerrainPosition::new(RegionCoord::new(1, 0), 0, 0).unwrap();
         assert!(query_published_height(config, &assignments, &tiles, outside).is_err());
 
         assignments[0].region_id += 1;

@@ -3,9 +3,9 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::terrain_query::{
-    TERRAIN_BODY_HEIGHT_DENOMINATOR, TERRAIN_QUERY_HEIGHT_DENOMINATOR,
-    TERRAIN_QUERY_POSITION_DENOMINATOR, TerrainBody, TerrainContactClassification,
-    TerrainQueryPosition, TerrainTriangle, resolve_body_contact,
+    TERRAIN_BODY_HEIGHT_DENOMINATOR, TERRAIN_POSITION_DENOMINATOR,
+    TERRAIN_QUERY_HEIGHT_DENOMINATOR, TerrainBody, TerrainContactClassification, TerrainPosition,
+    TerrainTriangle, resolve_body_contact,
 };
 
 use super::super::super::renderer::Renderer;
@@ -190,20 +190,15 @@ pub(super) fn probe(
                 for offset_q9 in [64_i32, 128, 192] {
                     let local_x_q9 = -4096 + cell_x * 256 + offset_q9;
                     let local_z_q9 = -4096 + cell_z * 256 + offset_q9;
-                    let position = TerrainQueryPosition::new(
-                        assignment.global_region,
-                        local_x_q9,
-                        local_z_q9,
-                    )?;
+                    let position =
+                        TerrainPosition::new(assignment.global_region, local_x_q9, local_z_q9)?;
                     let query = renderer.query_terrain_height(position)?;
                     let tile_x_q9 = local_x_q9 + 4096;
                     let tile_z_q9 = local_z_q9 + 4096;
                     let oracle_position = [
-                        minimum_x as f32
-                            + tile_x_q9 as f32 / TERRAIN_QUERY_POSITION_DENOMINATOR as f32,
+                        minimum_x as f32 + tile_x_q9 as f32 / TERRAIN_POSITION_DENOMINATOR as f32,
                         0.0,
-                        minimum_z as f32
-                            + tile_z_q9 as f32 / TERRAIN_QUERY_POSITION_DENOMINATOR as f32,
+                        minimum_z as f32 + tile_z_q9 as f32 / TERRAIN_POSITION_DENOMINATOR as f32,
                     ];
                     let (oracle_height, oracle_triangle) =
                         authority::sample_ground(tile, oracle_position, semantic_region_id);
@@ -370,7 +365,7 @@ pub(super) fn probe(
         global_config,
         region_count: assignments.len() as u32,
         sample_count,
-        position_denominator: TERRAIN_QUERY_POSITION_DENOMINATOR,
+        position_denominator: TERRAIN_POSITION_DENOMINATOR,
         height_denominator: TERRAIN_QUERY_HEIGHT_DENOMINATOR,
         result_sha256: format!("{:x}", result_digest.finalize()),
         identity_keyed_sha256: format!("{:x}", identity_digest.finalize()),
