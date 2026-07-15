@@ -17,11 +17,14 @@ use crate::timeline::{
 
 mod retained_batch;
 mod retained_body;
+mod simulation_body;
 
 pub use retained_batch::RetainedTerrainBodyBatch;
 use retained_batch::advance_motion_batch;
 use retained_body::TerrainBodySlot;
 pub use retained_body::{RetainedTerrainBody, RetainedTerrainBodyAdvance, TerrainBodyHandle};
+pub use simulation_body::RetainedSimulationAdvance;
+use simulation_body::{SimulationBodyCommand, prepare_simulation_body};
 
 #[derive(Clone, Copy)]
 pub struct FrameRequest {
@@ -256,6 +259,41 @@ impl Runtime {
             output,
             step_count,
             terrain_query_count: batch.terrain_query_count,
+        })
+    }
+
+    pub fn advance_simulation_body(
+        &mut self,
+        handle: TerrainBodyHandle,
+        elapsed_nanoseconds: u64,
+        delta_x_q9: i32,
+        delta_z_q9: i32,
+        step_up_limit_q16: i32,
+        step_acceleration_q16: i32,
+    ) -> Result<RetainedSimulationAdvance> {
+        let input = self.terrain_body.read(handle)?;
+        let prepared = prepare_simulation_body(
+            self.simulation_schedule,
+            input.motion,
+            elapsed_nanoseconds,
+            SimulationBodyCommand {
+                delta_x_q9,
+                delta_z_q9,
+                step_up_limit_q16,
+                step_acceleration_q16,
+            },
+            |position| self.query_terrain_height(position),
+        )?;
+        let output = self.terrain_body.replace(handle, prepared.body.output)?;
+        self.simulation_schedule = prepared.schedule;
+        Ok(RetainedSimulationAdvance {
+            simulation: prepared.simulation,
+            body: RetainedTerrainBodyBatch {
+                input,
+                output,
+                step_count: prepared.simulation.step_count,
+                terrain_query_count: prepared.body.terrain_query_count,
+            },
         })
     }
 

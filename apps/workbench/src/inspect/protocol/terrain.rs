@@ -62,6 +62,17 @@ struct RetainedBatchPayload {
     step_acceleration_q16: i32,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SimulationBodyPayload {
+    generation: u64,
+    elapsed_nanoseconds: u64,
+    delta_x_q9: i32,
+    delta_z_q9: i32,
+    step_up_limit_q16: i32,
+    step_acceleration_q16: i32,
+}
+
 pub(super) fn height(value: Value) -> ParsedControl {
     let payload: HeightPayload = decode(value)?;
     Ok(ControlKind::CanonicalTerrainHeight {
@@ -127,6 +138,18 @@ pub(super) fn body_retained_batch(value: Value) -> ParsedControl {
     Ok(ControlKind::CanonicalTerrainBodyRetainedBatch {
         generation: payload.generation,
         step_count: payload.step_count,
+        delta_x_q9: payload.delta_x_q9,
+        delta_z_q9: payload.delta_z_q9,
+        step_up_limit_q16: payload.step_up_limit_q16,
+        step_acceleration_q16: payload.step_acceleration_q16,
+    })
+}
+
+pub(super) fn simulation_body_advance(value: Value) -> ParsedControl {
+    let payload: SimulationBodyPayload = decode(value)?;
+    Ok(ControlKind::SimulationTerrainBodyAdvance {
+        generation: payload.generation,
+        elapsed_nanoseconds: payload.elapsed_nanoseconds,
         delta_x_q9: payload.delta_x_q9,
         delta_z_q9: payload.delta_z_q9,
         step_up_limit_q16: payload.step_up_limit_q16,

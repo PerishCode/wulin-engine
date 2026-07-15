@@ -152,6 +152,15 @@ enabled = false
 reason = "Retained batch tests exercise private multi-step rollback without exporting transaction internals."
 
 [[overrides]]
+match = "crates/engine-runtime/src/runtime/simulation_body.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Simulation-body tests exercise private dual-prepare rollback without exporting schedule internals."
+
+[[overrides]]
 match = "crates/reference-host/src/input.rs"
 kind = "file"
 priority = 10

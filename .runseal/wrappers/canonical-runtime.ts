@@ -50,12 +50,13 @@ import {
 } from "../support/terrain/contact.ts";
 import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 import { simulationScheduleGates } from "../support/simulation-schedule.ts";
+import { simulationBodyGates } from "../support/simulation-body.ts";
 import { retainedBodyGates } from "../support/terrain/retained-body.ts";
 import { retainedAdvanceGates } from "../support/terrain/retained-advance.ts";
 import { retainedBatchGates } from "../support/terrain/retained-batch.ts";
 
-const REVISION = "transactional-retained-terrain-body-batch-v1";
-const COLLECTION = "0056-transactional-retained-body-batch";
+const REVISION = "transactional-simulation-body-advance-v1";
+const COLLECTION = "0057-transactional-simulation-body-advance";
 const FAR = 2 ** 40;
 const BASE: Coord = [FAR, -FAR];
 
@@ -91,6 +92,7 @@ try {
     const retainedBody = await retainedBodyGates();
     const retainedAdvance = await retainedAdvanceGates(TERRAIN, OBJECTS_A, BASE);
     const retainedBatch = await retainedBatchGates(TERRAIN, OBJECTS_A, BASE);
+    const simulationBody = await simulationBodyGates(TERRAIN, OBJECTS_A, BASE);
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
@@ -353,6 +355,7 @@ try {
             retainedBody,
             retainedAdvance,
             retainedBatch,
+            simulationBody,
             compatibilityRemoval,
             terrainQuery,
             terrainContact,

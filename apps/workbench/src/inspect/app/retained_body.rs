@@ -128,6 +128,48 @@ pub(super) fn batch(
         .map_err(|error| protocol_error("retained_terrain_batch_failed", error))
 }
 
+pub(super) fn simulation_advance(
+    runtime: &mut Runtime,
+    generation: u64,
+    elapsed_nanoseconds: u64,
+    delta_x_q9: i32,
+    delta_z_q9: i32,
+    step_up_limit_q16: i32,
+    step_acceleration_q16: i32,
+) -> ControlResult {
+    TerrainBodyHandle::new(generation)
+        .and_then(|handle| {
+            runtime.advance_simulation_body(
+                handle,
+                elapsed_nanoseconds,
+                delta_x_q9,
+                delta_z_q9,
+                step_up_limit_q16,
+                step_acceleration_q16,
+            )
+        })
+        .map(|advance| {
+            json!({
+                "revision": "transactional-simulation-body-advance-v1",
+                "stepCount": advance.simulation.step_count,
+                "terrainQueryCount": advance.body.terrain_query_count,
+                "simulationBodyAdvance": advance,
+                "perOperationAllocationBytes": 0,
+                "sourceReadCount": 0,
+                "gpuCopyCount": 0,
+                "gpuReadbackCount": 0,
+                "fenceWaitCount": 0,
+                "synchronizationCount": 0,
+                "scheduleCommitCount": 1,
+                "retainedCommitCount": 1,
+                "presentationMutationCount": 0,
+                "frameCount": 0,
+                "rendererWorkCount": 0,
+            })
+        })
+        .map_err(|error| protocol_error("simulation_body_advance_failed", error))
+}
+
 fn lifecycle_response(operation: &str, retained: RetainedTerrainBody, live_count: u32) -> Value {
     json!({
         "revision": "retained-terrain-body-lifecycle-v1",
