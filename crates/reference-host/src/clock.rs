@@ -4,6 +4,8 @@ use anyhow::{Context, Result};
 use engine_runtime::SIMULATION_MAX_ELAPSED_NANOSECONDS;
 use serde::Serialize;
 
+use crate::activation::HostActivation;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(
     tag = "outcome",
@@ -71,30 +73,8 @@ impl HostClock {
         }
     }
 
-    pub fn sample(&mut self) -> Result<HostElapsedSample> {
-        self.sample_at(Instant::now())
-    }
-
-    pub fn suspend(&mut self) -> Result<()> {
-        if self.suspended {
-            return Ok(());
-        }
-        let suspend_count = increment(self.counters.suspend_count, "host-clock suspend count")?;
-        self.suspended = true;
-        self.baseline = None;
-        self.counters.suspend_count = suspend_count;
-        Ok(())
-    }
-
-    pub fn resume(&mut self) -> Result<()> {
-        if !self.suspended {
-            return Ok(());
-        }
-        let resume_count = increment(self.counters.resume_count, "host-clock resume count")?;
-        self.suspended = false;
-        self.baseline = None;
-        self.counters.resume_count = resume_count;
-        Ok(())
+    pub fn sample(&mut self, activations: &[HostActivation]) -> Result<HostElapsedSample> {
+        self.sample_at(activations, Instant::now())
     }
 
     pub const fn status(&self) -> HostClockStatus {
@@ -111,7 +91,50 @@ impl HostClock {
         }
     }
 
-    fn sample_at(&mut self, now: Instant) -> Result<HostElapsedSample> {
+    fn sample_at(
+        &mut self,
+        activations: &[HostActivation],
+        now: Instant,
+    ) -> Result<HostElapsedSample> {
+        let mut candidate = self.clone();
+        for activation in activations {
+            candidate.apply_activation(*activation)?;
+        }
+        let outcome = candidate.sample_current_at(now)?;
+        *self = candidate;
+        Ok(outcome)
+    }
+
+    fn apply_activation(&mut self, activation: HostActivation) -> Result<()> {
+        match activation {
+            HostActivation::Suspended => self.suspend(),
+            HostActivation::Resumed => self.resume(),
+        }
+    }
+
+    fn suspend(&mut self) -> Result<()> {
+        if self.suspended {
+            return Ok(());
+        }
+        let suspend_count = increment(self.counters.suspend_count, "host-clock suspend count")?;
+        self.suspended = true;
+        self.baseline = None;
+        self.counters.suspend_count = suspend_count;
+        Ok(())
+    }
+
+    fn resume(&mut self) -> Result<()> {
+        if !self.suspended {
+            return Ok(());
+        }
+        let resume_count = increment(self.counters.resume_count, "host-clock resume count")?;
+        self.suspended = false;
+        self.baseline = None;
+        self.counters.resume_count = resume_count;
+        Ok(())
+    }
+
+    fn sample_current_at(&mut self, now: Instant) -> Result<HostElapsedSample> {
         let sample_count = increment(self.counters.sample_count, "host-clock sample count")?;
 
         if self.suspended {

@@ -95,11 +95,11 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0060 and the current ADR set through 0063 define one live content runtime
+Experiments 0031-0061 and the current ADR set through 0064 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained terrain-body lifecycle plus a sole transactional schedule/body
-advance, disconnected bounded host elapsed/activation policies, one canonical translatable terrain
+advance, disconnected composed host time admission, one canonical translatable terrain
 position, one offline-cooked external
 geometry/material/rig source, and one deterministic object-shadow path:
 
@@ -135,15 +135,14 @@ geometry/material/rig source, and one deterministic object-shadow path:
   230,400-body checkpoint has no live inspect verb, runtime branch, or coverage mode;
 - one host-owned Win32 keyboard/focus adapter and bounded process-local normalized input journal
   with isolated deterministic replay;
-- one disconnected reference-host monotonic elapsed state machine with exact bounded samples,
-  explicit stall recovery, suspension/resume reset, and regression rollback;
+- one disconnected reference-host monotonic admission state machine that applies each ordered
+  activation batch before exact bounded sampling, with stall recovery, reset, and checked rollback;
 - one concrete Win32 activation reducer that maps arbitrary focus-loss/resume bursts into at most
   two order-equivalent typed transitions without an event queue;
 - one optional strict schema-1 bootstrap document that selects both sources and one signed global
   target, hides async progress, and emits readiness only after a canonical frame;
 - one concrete Windows reference-host owner for the single window/message lifecycle, normalized
-  input journal, bootstrap parser, canonical-ready driver, and disconnected elapsed/activation
-  policies;
+  input journal, bootstrap parser, canonical-ready driver, and disconnected composed time policy;
 - one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
   Escape limited to host exit;
 - one exact read-only CPU terrain-height query over the committed snapshot, addressed by signed
@@ -205,6 +204,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0061-bounded-host-elapsed-clock.md` | Accepted exact bounded monotonic host sampling, explicit stall recovery, suspension reset, and rollback. |
 | `docs/adr/0062-bounded-win32-activation.md` | Accepted bounded Win32 focus reduction, interrupted ordering, duplicate suppression, and reset. |
 | `docs/adr/0063-retired-independent-simulation-controls.md` | Accepted removal of independent schedule/body mutation, live schedule probe, and redundant process gates. |
+| `docs/adr/0064-composed-host-time-admission.md` | Accepted ordered activation-before-sample host time composition, candidate commit, and independent clock-control removal. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -236,6 +236,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0058-bounded-host-elapsed-clock/README.md` | Accepted bounded host elapsed outcomes, stall recovery, suspension reset, and deterministic replay evidence. |
 | `experiments/0059-bounded-host-activation/README.md` | Accepted bounded Win32 activation batches, exhaustive burst reduction, reset, and replay evidence. |
 | `experiments/0060-mandatory-simulation-control-cleanup/README.md` | Accepted independent simulation-control removal, recurring gate deletion, retired-verb rejection, and dual preservation evidence. |
+| `experiments/0061-composed-host-time-admission/README.md` | Accepted activation-before-sample ordering, interruption reset, rollback, and deterministic replay evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -255,7 +256,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/terrain_query/translation.rs` | Caller-owned exact planar body candidate, one-query contact composition, step-up bound, and atomic output decision. |
 | `crates/reference-host/src/window.rs` | Concrete single-window Win32 lifecycle, message pump, native input/activation capture, and close signaling. |
 | `crates/reference-host/src/activation.rs` | Constant-state focus-burst reduction and typed bounded activation transitions. |
-| `crates/reference-host/src/clock.rs` | Bounded monotonic elapsed policy, typed sample outcomes/status, stall recovery, and suspension reset. |
+| `crates/reference-host/src/clock.rs` | Activation-aware bounded monotonic admission, typed outcomes/status, candidate commit, stall recovery, and reset. |
 | `crates/reference-host/src/input.rs` | Normalized key state, bounded record lifecycle, canonical hashing, isolated replay, and held-state query. |
 | `crates/reference-host/src/bootstrap.rs` | Strict arguments/config/pack paths and hidden canonical-ready bootstrap driver. |
 | `crates/meshlet-catalog/build.rs` | Verified build-time glTF geometry/joint/weight cook, normalization, normals, LOD simplification, and canonical payload emission. |
