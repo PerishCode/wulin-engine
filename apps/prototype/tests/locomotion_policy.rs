@@ -62,25 +62,53 @@ fn focus_loss_clears_motion_and_irrelevant_keys_do_not_change_it() {
 
 #[test]
 fn stationary_uses_survey_and_motion_uses_walk() {
-    let stationary = presentation::for_locomotion(command(&[]));
+    let policy = presentation::Policy::new();
+    let stationary = policy.command(command(&[]));
     assert_eq!(stationary, presentation::initial());
     assert_eq!(stationary.animation_clip(), Some(0));
 
-    for keys in [
-        vec![0x57],
-        vec![0x41],
-        vec![0x53],
-        vec![0x44],
-        vec![0x57, 0x41],
-        vec![0x53, 0x44],
+    for (keys, yaw_q16) in [
+        (vec![0x44], 0),
+        (vec![0x53, 0x44], 8_192),
+        (vec![0x53], 16_384),
+        (vec![0x53, 0x41], 24_576),
+        (vec![0x41], 32_768),
+        (vec![0x57, 0x41], 40_960),
+        (vec![0x57], 49_152),
+        (vec![0x57, 0x44], 57_344),
     ] {
-        let moving = presentation::for_locomotion(command(&keys));
+        let moving = policy.command(command(&keys));
         assert_eq!(moving.animation_clip(), Some(1));
         assert_eq!(moving.archetype, 7);
         assert_eq!(moving.material, 63);
-        assert_eq!(moving.yaw_q16, 0);
+        assert_eq!(moving.yaw_q16, yaw_q16);
         assert_eq!(moving.animation_phase_offset(), Some(0));
         assert_eq!(moving.animation_variant(), Some(0));
         moving.validate().unwrap();
     }
+}
+
+#[test]
+fn facing_observes_only_nonzero_advances_and_stationary_retains_it() {
+    let mut policy = presentation::Policy::new();
+    let west = policy.command(command(&[0x57]));
+    assert_eq!(west.yaw_q16, 49_152);
+
+    policy.observe_advance(0, west);
+    assert_eq!(policy.command(command(&[])).yaw_q16, 0);
+
+    policy.observe_advance(1, west);
+    let stopped = policy.command(command(&[]));
+    assert_eq!(stopped.yaw_q16, 49_152);
+    assert_eq!(stopped.animation_clip(), Some(0));
+
+    let opposed = policy.command(command(&[0x57, 0x53]));
+    assert_eq!(opposed.yaw_q16, 49_152);
+    assert_eq!(opposed.animation_clip(), Some(0));
+
+    let east = policy.command(command(&[0x44]));
+    policy.observe_advance(0, east);
+    assert_eq!(policy.command(command(&[])).yaw_q16, 49_152);
+    policy.observe_advance(1, east);
+    assert_eq!(policy.command(command(&[])).yaw_q16, 0);
 }

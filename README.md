@@ -22,10 +22,11 @@ reference host 已将 bounded monotonic elapsed policy 与至多两个等价
 transition 的 Win32 activation batch 组成唯一的 activation-before-sample 操作；prototype 现以
 Ready-only fixed gravity 加固定 W/A/S/D 整数水平 command 驱动 live schedule/actor transaction；
 同一 typed command/commit 以 Survey 表示静止、Walk 表示非零位移，fractional 与 render-block 均不
-提前改变 presentation，并在每个 live frame 前通过唯一内部投影应用固定 actor-relative camera rig；
-capacity-one actor
-也通过唯一 skeletal/surface/shadow/occlusion 路径进入 GPU；prototype 在 spawn 后只启用一次
-composition traversal、保持 prefetch 关闭，并由首个 camera frame 调度精确对角目标；仍无多 actor
+提前改变 presentation；nonzero command 使用 Fox +X forward 的精确八方向 Q16 yaw，静止时保留最后
+一次 nonzero committed facing，并在每个 live frame 前通过唯一内部投影应用固定 actor-relative
+camera rig；capacity-one actor 也通过唯一 skeletal/surface/shadow/occlusion 路径进入 GPU；prototype
+在 spawn 后只启用一次 composition traversal、保持 prefetch 关闭，并由首个 camera frame 调度精确
+对角目标；仍无多 actor
 store、水平速度/加速度或转向动画。live simulation/actor mutation 只保留 typed advanced/render-blocked
 事务：只有通过 published 但缺失于 non-prefetch pending window 的候选是无提交背压，
 published-window 与其余错误仍终止；
@@ -370,6 +371,13 @@ step/query `1/1` 与 schedule/actor/presentation mutation `0/0/0`；38.080 秒
 `canonical-prototype-v6` 中两个静止进程保持 clip 0，native-W 进程在同一 transaction 得到 clip 1
 与 Z `0 -> -32`。没有旧 scalar signature、motion-only commit type、schema-2 fallback、第二条
 presentation mutation、blend/yaw policy 或 renderer/GPU/synchronization 变化。
+Experiment 0078 接受 prototype-owned committed facing policy：D/S+A 等八个 normalized 方向精确
+映射到 Q16 yaw `0..57344`，zero/opposed input 保留最后一次 nonzero admitted output，而 fractional
+advance 与 typed block 不推进 policy。38.726 秒 `canonical-prototype-v7` 中两个静止进程保持
+yaw/clip `0/0`，native-W 进程在同一 transaction 将 yaw/clip 变为 `49152/1` 并提交 Z
+`0 -> -32`、step/query `1/1`；camera/frame、traversal、restart、failure 与 cleanup 证据不变。
+没有 Runtime/inspect API、actor readback、第二条 presentation mutation、renderer/GPU/resource、
+synchronization、format、traversal 或 camera 变化。
 
 ## Project model
 
@@ -426,10 +434,11 @@ acceptance or may be prepared with the documented cooker formats.
 `runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
 runtime/prototype/reference-host tests, cooks the three required signed centers, and proves
 strict bootstrap failure, grounded gravity admission, exact stationary and native-W fixed
-locomotion with transactional Survey/Walk selection, one committed current actor authority,
-actor-relative camera/frame ordering, typed render-block consumption with zero normal-path blocks,
-one exact camera-derived traversal schedule
-with prefetch disabled, direct restart equality, and Sidecar cleanup.
+locomotion with transactional Survey/Walk selection and exact committed eight-way facing, one
+committed current actor authority, actor-relative camera/frame ordering, typed render-block
+consumption with zero normal-path blocks,
+one exact camera-derived traversal schedule with prefetch disabled, direct restart equality, and
+Sidecar cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
 minimal signed pair, checks the exact accepted canonical frame, immediately replays it, and owns
