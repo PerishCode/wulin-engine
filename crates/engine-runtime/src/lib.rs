@@ -16,7 +16,8 @@ pub use runtime::{FrameRequest, Runtime};
 pub use streaming::address::GlobalRegionConfig;
 pub(crate) use streaming::{address, async_resident, objects, terrain};
 pub use terrain_query::{
-    TERRAIN_QUERY_HEIGHT_DENOMINATOR, TERRAIN_QUERY_LOCAL_MAX_Q9_EXCLUSIVE,
-    TERRAIN_QUERY_LOCAL_MIN_Q9, TERRAIN_QUERY_POSITION_DENOMINATOR, TerrainHeight,
-    TerrainQueryPosition, TerrainTriangle,
+    TERRAIN_BODY_HEIGHT_DENOMINATOR, TERRAIN_QUERY_HEIGHT_DENOMINATOR,
+    TERRAIN_QUERY_LOCAL_MAX_Q9_EXCLUSIVE, TERRAIN_QUERY_LOCAL_MIN_Q9,
+    TERRAIN_QUERY_POSITION_DENOMINATOR, TerrainBody, TerrainBodyContact,
+    TerrainContactClassification, TerrainHeight, TerrainQueryPosition, TerrainTriangle,
 };

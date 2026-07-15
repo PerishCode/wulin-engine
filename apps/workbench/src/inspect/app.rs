@@ -1,6 +1,6 @@
 use std::sync::mpsc::Receiver;
 
-use engine_runtime::{GlobalRegionConfig, RegionCoord, Runtime, TerrainQueryPosition};
+use engine_runtime::{GlobalRegionConfig, RegionCoord, Runtime, TerrainBody, TerrainQueryPosition};
 use reference_host::{
     bootstrap::{PackKind, validate_pack_path},
     window,
@@ -148,6 +148,40 @@ pub(crate) fn handle_commands(
                 })
             })
             .map_err(|error| protocol_error("terrain_query_failed", error)),
+            ControlKind::CanonicalTerrainContact {
+                region_x,
+                region_z,
+                local_x_q9,
+                local_z_q9,
+                center_height_numerator,
+                half_height_numerator,
+            } => TerrainQueryPosition::new(
+                RegionCoord::new(region_x, region_z),
+                local_x_q9,
+                local_z_q9,
+            )
+            .and_then(|position| {
+                TerrainBody::new(position, center_height_numerator, half_height_numerator)
+            })
+            .and_then(|body| {
+                runtime.resolve_terrain_contact(body).map(|contact| {
+                    json!({
+                        "revision": "exact-terrain-body-contact-v1",
+                        "inputBody": body,
+                        "contact": contact,
+                        "perResolutionAllocationBytes": 0,
+                        "sourceReadCount": 0,
+                        "gpuCopyCount": 0,
+                        "gpuReadbackCount": 0,
+                        "fenceWaitCount": 0,
+                        "synchronizationCount": 0,
+                    })
+                })
+            })
+            .map_err(|error| protocol_error("terrain_contact_failed", error)),
+            ControlKind::CanonicalTerrainContactProbe => runtime
+                .terrain_body_contact_probe()
+                .map_err(|error| protocol_error("terrain_contact_probe_failed", error)),
             ControlKind::ObjectIoGateArm => gate(runtime.arm_object_io_gate()),
             ControlKind::ObjectIoGateRelease => gate(runtime.release_object_io_gate()),
             ControlKind::ObjectCopyGateArm => gate(runtime.arm_object_copy_gate()),

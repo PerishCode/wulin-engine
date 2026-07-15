@@ -151,6 +151,11 @@ Experiment 0045 删除了 canonical 收敛前遗留的 calibration scene、split
 迁到中性 frame-target owner。645.2 秒验收中，idle shell 的 921,600 个 semantic 值全部为 0，
 六个旧 verb 均返回 `unknown_event`；全部 canonical/shadow/query hash 保持精确，527-handle 平台
 零增长，32+32 traversal 和 16 次生命周期通过。idle shell 现在明确只做清屏，不再伪装场景。
+Experiment 0046 在该精确 terrain snapshot 上接受了调用方持有的垂直 body-contact 事务：正
+separation 保持悬空、零值严格 touching、负值只施加最小向上修正，不引入 actor、持久状态、
+模拟时钟、重力或移动。显式验收一次解析 230,400 个 body，三类各 76,800、零 oracle mismatch；
+通用 probe 仅保留 225 个确定性见证。701.5 秒最终流程中，四类 hold、失败回滚、32+32 traversal、
+531-handle 零增长平台和 16 次生命周期全部通过，既有 GPU/capture hash 不变。
 
 ## Project model
 
@@ -206,6 +211,7 @@ deterministic presentation time, fixed camera-visible directional object shadows
 runtime and timeline ownership, successful-frame transactions, deterministic host input/replay,
 strict configured canonical readiness, shared reference-host ownership, plain prototype
 startup/restart/cleanup, exact published-snapshot CPU terrain queries,
+exact caller-owned vertical terrain contact and bounded transition witnesses,
 clear-only idle behavior and retired-control rejection, composition, fault rollback,
 traversal/prefetch/rollover, the 64-publication
 resource plateau, and 16 complete lifecycle cycles without invoking an older experiment workflow.

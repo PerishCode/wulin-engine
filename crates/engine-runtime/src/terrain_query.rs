@@ -7,6 +7,7 @@ use crate::terrain::TerrainAssignment;
 
 pub const TERRAIN_QUERY_POSITION_DENOMINATOR: i32 = 512;
 pub const TERRAIN_QUERY_HEIGHT_DENOMINATOR: u32 = 65_536;
+pub const TERRAIN_BODY_HEIGHT_DENOMINATOR: u32 = TERRAIN_QUERY_HEIGHT_DENOMINATOR;
 pub const TERRAIN_QUERY_LOCAL_MIN_Q9: i32 = -4096;
 pub const TERRAIN_QUERY_LOCAL_MAX_Q9_EXCLUSIVE: i32 = 4096;
 
@@ -58,6 +59,109 @@ pub struct TerrainHeight {
     pub height_numerator: i32,
     pub height_denominator: u32,
     pub triangle: TerrainTriangle,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerrainBody {
+    position: TerrainQueryPosition,
+    center_height_numerator: i32,
+    half_height_numerator: i32,
+}
+
+impl TerrainBody {
+    pub fn new(
+        position: TerrainQueryPosition,
+        center_height_numerator: i32,
+        half_height_numerator: i32,
+    ) -> Result<Self> {
+        ensure!(
+            half_height_numerator > 0,
+            "terrain body half-height numerator must be positive"
+        );
+        Ok(Self {
+            position,
+            center_height_numerator,
+            half_height_numerator,
+        })
+    }
+
+    pub const fn position(self) -> TerrainQueryPosition {
+        self.position
+    }
+
+    pub const fn center_height_numerator(self) -> i32 {
+        self.center_height_numerator
+    }
+
+    pub const fn half_height_numerator(self) -> i32 {
+        self.half_height_numerator
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TerrainContactClassification {
+    Separated,
+    Touching,
+    Penetrating,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerrainBodyContact {
+    pub classification: TerrainContactClassification,
+    pub terrain: TerrainHeight,
+    pub separation_numerator: i64,
+    pub correction_numerator: i64,
+    pub resolved_body: TerrainBody,
+    pub height_denominator: u32,
+}
+
+pub(crate) fn resolve_body_contact(
+    body: TerrainBody,
+    terrain: TerrainHeight,
+) -> Result<TerrainBodyContact> {
+    ensure!(
+        terrain.height_denominator == TERRAIN_BODY_HEIGHT_DENOMINATOR,
+        "terrain body contact height denominator disagrees with terrain query authority"
+    );
+    let foot_height_numerator = i64::from(body.center_height_numerator)
+        .checked_sub(i64::from(body.half_height_numerator))
+        .context("terrain body foot height overflowed signed 64-bit arithmetic")?;
+    let separation_numerator = foot_height_numerator
+        .checked_sub(i64::from(terrain.height_numerator))
+        .context("terrain body separation overflowed signed 64-bit arithmetic")?;
+    let classification = match separation_numerator.cmp(&0) {
+        std::cmp::Ordering::Greater => TerrainContactClassification::Separated,
+        std::cmp::Ordering::Equal => TerrainContactClassification::Touching,
+        std::cmp::Ordering::Less => TerrainContactClassification::Penetrating,
+    };
+    let correction_numerator = if classification == TerrainContactClassification::Penetrating {
+        separation_numerator
+            .checked_neg()
+            .context("terrain body correction overflowed signed 64-bit arithmetic")?
+    } else {
+        0
+    };
+    let resolved_center = i64::from(body.center_height_numerator)
+        .checked_add(correction_numerator)
+        .context("resolved terrain body center overflowed signed 64-bit arithmetic")?;
+    let resolved_body = TerrainBody::new(
+        body.position,
+        i32::try_from(resolved_center)
+            .context("resolved terrain body center is outside the signed 32-bit Q16 range")?,
+        body.half_height_numerator,
+    )?;
+
+    Ok(TerrainBodyContact {
+        classification,
+        terrain,
+        separation_numerator,
+        correction_numerator,
+        resolved_body,
+        height_denominator: TERRAIN_BODY_HEIGHT_DENOMINATOR,
+    })
 }
 
 pub(crate) fn query_published_height(
@@ -166,6 +270,18 @@ mod tests {
         }
     }
 
+    fn position() -> TerrainQueryPosition {
+        TerrainQueryPosition::new(RegionCoord::ZERO, 0, 0).unwrap()
+    }
+
+    fn height(height_numerator: i32, triangle: TerrainTriangle) -> TerrainHeight {
+        TerrainHeight {
+            height_numerator,
+            height_denominator: TERRAIN_QUERY_HEIGHT_DENOMINATOR,
+            triangle,
+        }
+    }
+
     fn snapshot(
         config: GlobalRegionConfig,
         corners: [i16; 4],
@@ -255,5 +371,72 @@ mod tests {
             sample_tile(&minimum, 4095, 4095).height_numerator,
             -8_388_608
         );
+    }
+
+    #[test]
+    fn resolves_contact_exactly() {
+        let terrain = height(-100, TerrainTriangle::First);
+        let separated = TerrainBody::new(position(), -89, 10).unwrap();
+        let touching = TerrainBody::new(position(), -90, 10).unwrap();
+        let penetrating = TerrainBody::new(position(), -91, 10).unwrap();
+
+        let separated_contact = resolve_body_contact(separated, terrain).unwrap();
+        assert_eq!(
+            separated_contact.classification,
+            TerrainContactClassification::Separated
+        );
+        assert_eq!(separated_contact.separation_numerator, 1);
+        assert_eq!(separated_contact.correction_numerator, 0);
+        assert_eq!(separated_contact.resolved_body, separated);
+
+        let touching_contact = resolve_body_contact(touching, terrain).unwrap();
+        assert_eq!(
+            touching_contact.classification,
+            TerrainContactClassification::Touching
+        );
+        assert_eq!(touching_contact.separation_numerator, 0);
+        assert_eq!(touching_contact.correction_numerator, 0);
+        assert_eq!(touching_contact.resolved_body, touching);
+
+        let penetrating_contact = resolve_body_contact(penetrating, terrain).unwrap();
+        assert_eq!(
+            penetrating_contact.classification,
+            TerrainContactClassification::Penetrating
+        );
+        assert_eq!(penetrating_contact.separation_numerator, -1);
+        assert_eq!(penetrating_contact.correction_numerator, 1);
+        assert_eq!(penetrating_contact.resolved_body, touching);
+    }
+
+    #[test]
+    fn validates_shape_and_triangle() {
+        for triangle in [
+            TerrainTriangle::First,
+            TerrainTriangle::Diagonal,
+            TerrainTriangle::Second,
+        ] {
+            let body = TerrainBody::new(position(), 65_536, 65_536).unwrap();
+            let contact = resolve_body_contact(body, height(0, triangle)).unwrap();
+            assert_eq!(contact.terrain.triangle, triangle);
+            assert_eq!(contact.height_denominator, 65_536);
+        }
+        assert!(TerrainBody::new(position(), 0, 0).is_err());
+        assert!(TerrainBody::new(position(), 0, -1).is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_resolution() {
+        let body = TerrainBody::new(position(), i32::MAX, 1).unwrap();
+        let mismatch = TerrainHeight {
+            height_numerator: 0,
+            height_denominator: 1,
+            triangle: TerrainTriangle::Diagonal,
+        };
+        assert!(resolve_body_contact(body, mismatch).is_err());
+
+        let maximum = height(i32::MAX, TerrainTriangle::Second);
+        assert!(resolve_body_contact(body, maximum).is_err());
+        let extreme = TerrainBody::new(position(), i32::MIN, i32::MAX).unwrap();
+        assert!(resolve_body_contact(extreme, maximum).is_err());
     }
 }
