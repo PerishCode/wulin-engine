@@ -136,21 +136,27 @@ function startupInvariant(launch: Json): Json {
 }
 
 function actorInvariant(launch: Json, center: Coord): Json {
-    const actorAuthority = object(object(launch, "readiness"), "actor");
+    const readiness = object(launch, "readiness");
+    const actorAuthority = object(readiness, "actor");
     if (number(actorAuthority, "capacity") !== 1 || number(actorAuthority, "liveCount") !== 1) {
         fail("prototype readiness actor cardinality diverged");
     }
-    const terrain = object(actorAuthority, "terrain");
-    const actor = object(actorAuthority, "state");
-    if (number(object(actor, "handle"), "generation") !== 1) {
+    const current = object(actorAuthority, "state");
+    const batch = object(
+        object(object(readiness, "simulation_driver"), "advance"),
+        "actor",
+    );
+    const initial = object(batch, "input");
+    same(current, object(batch, "output"), "prototype current actor authority");
+    if (number(object(initial, "handle"), "generation") !== 1) {
         fail("prototype initial actor generation diverged");
     }
-    const presentation = object(actor, "presentation");
+    const presentation = object(initial, "presentation");
     if (
         number(presentation, "archetype") !== 7 || number(presentation, "material") !== 63 ||
         number(presentation, "yawQ16") !== 0 || number(presentation, "animation") !== 1
     ) fail("prototype initial actor presentation diverged");
-    const motion = object(actor, "motion");
+    const motion = object(initial, "motion");
     const body = object(motion, "body");
     const position = object(body, "position");
     const region = object(position, "region");
@@ -158,14 +164,18 @@ function actorInvariant(launch: Json, center: Coord): Json {
         number(region, "x") !== center[0] || number(region, "z") !== center[1] ||
         number(position, "localXQ9") !== 0 || number(position, "localZQ9") !== 0
     ) fail("prototype initial actor position diverged");
-    const halfHeight = number(body, "halfHeightNumerator");
-    const terrainHeight = number(terrain, "heightNumerator");
     if (
-        number(terrain, "heightDenominator") !== 65_536 || halfHeight !== 65_536 ||
-        number(body, "centerHeightNumerator") !== terrainHeight + halfHeight ||
+        number(body, "halfHeightNumerator") !== 65_536 ||
         number(motion, "stepVelocityQ16") !== 0
     ) fail("prototype initial actor grounding diverged");
-    return actorAuthority;
+    return {
+        capacity: 1,
+        liveCount: 1,
+        generation: 1,
+        presentation,
+        initialAtCenter: true,
+        currentMatchesAdvance: true,
+    };
 }
 
 type ExpectedCommand = {
@@ -230,8 +240,7 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
         number(actor, "stepCount") !== stepCount ||
         number(actor, "terrainQueryCount") !== stepCount
     ) fail("prototype live actor batch diverged");
-    const initial = object(object(readiness, "actor"), "state");
-    same(object(actor, "input"), initial, "prototype live actor input");
+    const initial = object(actor, "input");
     const output = object(actor, "output");
     if (expected.deltaXQ9 === 0 && expected.deltaZQ9 === 0) {
         same(output, initial, "prototype stationary actor output");
@@ -301,10 +310,7 @@ function cameraDriverInvariant(launch: Json): Json {
     if (driver.revision !== "live-prototype-actor-camera-v1") {
         fail("prototype camera driver revision diverged");
     }
-    const actor = object(
-        object(object(object(readiness, "simulation_driver"), "advance"), "actor"),
-        "output",
-    );
+    const actor = object(object(readiness, "actor"), "state");
     same(object(driver, "actor"), object(actor, "handle"), "prototype camera actor handle");
     const rig = object(driver, "rig");
     same(numericArray(rig, "positionOffset"), [9, 4, 12], "prototype camera position rig");
