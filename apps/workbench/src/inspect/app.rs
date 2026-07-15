@@ -227,9 +227,6 @@ pub(crate) fn handle_commands(
                         })
                 })
                 .map_err(|error| protocol_error("terrain_motion_failed", error)),
-            ControlKind::CanonicalTerrainContactProbe => runtime
-                .terrain_body_contact_probe()
-                .map_err(|error| protocol_error("terrain_contact_probe_failed", error)),
             ControlKind::ObjectIoGateArm => gate(runtime.arm_object_io_gate()),
             ControlKind::ObjectIoGateRelease => gate(runtime.release_object_io_gate()),
             ControlKind::ObjectCopyGateArm => gate(runtime.arm_object_copy_gate()),

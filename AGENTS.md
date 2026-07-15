@@ -95,7 +95,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0049 and the current ADR set through 0052 define one live content runtime
+Experiments 0031-0050 and the current ADR set through 0053 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, one caller-owned fixed terrain-motion consumer,
 one canonical translatable terrain position, one offline-cooked external geometry/material/rig
@@ -124,6 +124,8 @@ source, and one deterministic object-shadow path:
   store, horizontal motion, or gameplay tuning;
 - one signed-region/half-open-local-Q9 `TerrainPosition` shared by query/contact/motion, with exact
   checked positive, negative, and multi-region planar translation and no compatibility alias;
+- one bounded 225-body contact transition witness in the generic canonical probe; the historical
+  230,400-body checkpoint has no live inspect verb, runtime branch, or coverage mode;
 - one host-owned Win32 keyboard/focus adapter and bounded process-local normalized input journal
   with isolated deterministic replay;
 - one optional strict schema-1 bootstrap document that selects both sources and one signed global
@@ -180,6 +182,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0050-runtime-fixed-simulation-schedule.md` | Accepted explicit rational fixed schedule, transactional bounds, and presentation-independent time contract. |
 | `docs/adr/0051-caller-owned-fixed-terrain-motion.md` | Accepted caller-owned one-tick vertical motion, exact contact composition, and deferred live-driving contract. |
 | `docs/adr/0052-canonical-terrain-position-translation.md` | Accepted query-neutral terrain position, Euclidean seam normalization, and checked translation contract. |
+| `docs/adr/0053-retired-dense-contact-acceptance.md` | Accepted removal of the historical dense contact command/mode and retention of one bounded witness. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -200,6 +203,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0047-deterministic-simulation-schedule/README.md` | Accepted exact 60 Hz rational schedule, partition/replay, rollback, independence, and lifecycle evidence. |
 | `experiments/0048-fixed-terrain-body-motion/README.md` | Accepted one-tick terrain-body motion, schedule-partition replay, rollback, and zero-non-CPU-work evidence. |
 | `experiments/0049-exact-terrain-position-translation/README.md` | Accepted canonical terrain position, exact signed seam translation, overflow rollback, and oracle-sweep evidence. |
+| `experiments/0050-retired-dense-contact-surface/README.md` | Accepted dense contact history removal, retired-verb rejection, and bounded-witness preservation evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -248,10 +252,11 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0048 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0050 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
-| `.runseal/support/terrain/contact.ts` | Exact contact rejection, direct classification, dense proof, and witness acceptance support. |
+| `.runseal/support/terrain/contact.ts` | Exact contact rejection, direct classification, and bounded-witness acceptance support. |
+| `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for the retired dense contact command and runtime coverage mode. |
 | `.runseal/support/terrain/motion.ts` | Fixed-step trajectory, schedule-partition replay, rollback, restart, and independence acceptance support. |
 | `.runseal/support/simulation-schedule.ts` | Partition, replay, rollback, process reset, and temporal-independence acceptance support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
@@ -292,7 +297,7 @@ clear-only idle attachment capture, retired-control rejection, 64-publication re
 and 16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0048-fixed-terrain-body-motion/` and remains ignored.
+`out/captures/0050-retired-dense-contact-surface/` and remains ignored.
 
 ### 6.3 Manual workbench
 

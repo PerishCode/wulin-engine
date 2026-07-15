@@ -146,20 +146,6 @@ export async function terrainContactGates(
         witnessClassifications.penetrating !== 75 || witness.correctedCount !== 75
     ) fail("terrain body-contact transition witness diverged");
 
-    const dense = await event("canonical.terrain.contact.probe");
-    const classifications = object(dense, "classifications");
-    if (
-        dense.revision !== "exact-terrain-body-contact-v1" || dense.bodyCount !== 230_400 ||
-        dense.halfHeightNumerator !== 65_536 || dense.heightDenominator !== 65_536 ||
-        dense.resultSha256 === dense.identityKeyedSha256 ||
-        classifications.separated !== 76_800 || classifications.touching !== 76_800 ||
-        classifications.penetrating !== 76_800 || dense.correctedCount !== 76_800 ||
-        dense.oracleMismatchCount !== 0 || dense.firstOracleMismatch !== null ||
-        dense.perResolutionAllocationBytes !== 0 || dense.sourceReadCount !== 0 ||
-        dense.gpuCopyCount !== 0 || dense.gpuReadbackCount !== 0 ||
-        dense.fenceWaitCount !== 0 || dense.synchronizationCount !== 0
-    ) fail("dense terrain body-contact evidence diverged");
-
     return {
         unavailable,
         invalidZeroHalfHeight,
@@ -169,6 +155,5 @@ export async function terrainContactGates(
         overflow,
         samples,
         witness,
-        dense,
     };
 }

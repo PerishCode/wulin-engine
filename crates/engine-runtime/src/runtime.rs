@@ -190,10 +190,6 @@ impl Runtime {
         integrate_terrain_body_step(motion, step_acceleration_q16, terrain)
     }
 
-    pub fn terrain_body_contact_probe(&self) -> Result<Value> {
-        self.renderer.terrain_body_contact_probe()
-    }
-
     pub fn simulation_status(&self) -> Value {
         self.simulation_schedule.status_json()
     }

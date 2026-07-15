@@ -2,10 +2,10 @@
 
 ## State
 
-Experiments through 0049 and ADR 0052 define the accepted canonical content runtime, reference
+Experiments through 0050 and ADR 0053 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
 motion, exact canonical terrain-position translation, deterministic simulation schedule, and
-retired compatibility surface. The runtime remains in
+retired compatibility/history surfaces. The runtime remains in
 `crates/engine-runtime`. It owns camera state, signed
 terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
 time, the explicit rational 60 Hz simulation schedule, one signed-region/half-open-local-Q9 terrain
@@ -27,6 +27,10 @@ step driving remain unpromoted.
 motion. Its pure Q9 translation canonicalizes positive, negative, and multi-region displacement
 without sampling terrain. Planar contact composition, slope/step policy, input mapping, and actor
 storage remain unpromoted.
+
+Exact contact retains one public direct transaction and one 225-body witness embedded in the
+generic canonical probe. The accepted one-time 230,400-body dense checkpoint is documentation-only;
+its inspect verb, runtime/renderer branch, and coverage mode are forbidden from the live surface.
 
 `crates/reference-host` owns the concrete Windows single-window/message lifecycle, normalized
 keyboard/focus state and bounded journal, strict bootstrap config/path validation, and hidden
