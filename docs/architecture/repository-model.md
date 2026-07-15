@@ -2,11 +2,11 @@
 
 ## State
 
-Experiments through 0058 and ADR 0061 define the accepted canonical content runtime, reference
+Experiments through 0059 and ADR 0062 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
 motion/planar terrain transaction contracts, deterministic simulation schedule, one retained body
-lifecycle plus transactional stored single/batch and explicit-time dual advance, a disconnected
-bounded host elapsed policy, and retired compatibility/history surfaces. The
+lifecycle plus transactional stored single/batch and explicit-time dual advance, disconnected
+bounded host elapsed/activation policies, and retired compatibility/history surfaces. The
 runtime remains in
 `crates/engine-runtime`. It owns camera state, signed
 terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
@@ -26,11 +26,15 @@ step, or advance time. Simulation advances only from explicit bounded elapsed na
 independent from presentation. Private pure terrain transactions establish the one-tick spatial
 contract; they have no copied-value inspect command or public `Runtime` mutation method. The retained
 slot establishes process-local ownership and spawn/read/despawn lifetime. One explicit handle-
-addressed operation runs the planar-first tick and commits only after success. No
+addressed operation runs the planar-first tick and commits only after success.
 `reference-host` owns exact monotonic elapsed admission: first/resumed samples reset, bounded deltas
 are preserved, stalls are explicit and advance their baseline, suspension accumulates nothing, and
-regression rolls back. Neither application samples this clock or drives returned batches. Win32
-focus-resume transport, stall disposition, input policy, and live step driving remain unpromoted.
+regression rolls back. Neither application samples this clock or drives returned batches.
+Activation consumption, stall disposition, input policy, and live step driving remain unpromoted.
+
+The concrete window separately reduces `WM_KILLFOCUS` / `WM_SETFOCUS` bursts into at most two
+order-equivalent typed transitions. It stores no activation event queue and has no application
+consumer yet. Input focus-loss cleanup remains an independent normalized-input responsibility.
 
 The retained batch accepts an explicit 0..=8 count, repeats one controlled spatial command in local
 motion, and replaces the slot only after every tick succeeds. It does not mutate the schedule.
@@ -51,7 +55,8 @@ its inspect verb, runtime/renderer branch, and coverage mode are forbidden from 
 `crates/reference-host` owns the concrete Windows single-window/message lifecycle, normalized
 keyboard/focus state and bounded journal, strict bootstrap config/path validation, hidden
 canonical-ready driver, and a disconnected bounded monotonic elapsed policy. It is not a
-cross-platform abstraction.
+cross-platform abstraction. Its bounded activation reducer is concrete Win32 transport, not a
+portable event layer.
 
 `apps/workbench` is the native diagnostic composition root. It retains inspect transport,
 operator capture persistence, perception response shaping, diagnostic readiness, pause/failure
