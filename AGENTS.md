@@ -97,7 +97,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0078 and the current ADR set through 0081 define one live content runtime
+Experiments 0031-0079 and the current ADR set through 0082 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -182,7 +182,10 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one non-recursive `runseal :canonical-prototype` host/application workflow, one non-recursive
   `runseal :canonical-actor` actor GPU workflow, one `runseal :canonical-frame`
   focused GPU regression workflow, one `runseal :canonical-resources` same-process plateau
-  workflow, and one non-recursive `runseal :canonical-runtime` end-to-end acceptance workflow.
+  workflow, and one non-recursive `runseal :canonical-runtime` end-to-end acceptance workflow;
+- one self-contained `runseal :prototype` manual operator that deterministically cooks a finite
+  zero-origin 289-center/441-region sandbox, writes strict bootstrap, and delegates the existing
+  non-diagnostic Sidecar lifecycle without an acceptance-artifact prerequisite.
 
 Historical experiment READMEs and ADRs remain decision history. Their runtime modes,
 formats, controls, and wrappers are not live compatibility surfaces.
@@ -199,7 +202,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `sidecar.toml` | Debug-layer workbench lifecycle. |
 | `sidecar.benchmark.toml` | Release workbench lifecycle. |
 | `sidecar.bootstrap.toml` | Configured canonical-readiness workbench lifecycle. |
-| `sidecar.prototype.toml` | Non-diagnostic configured prototype lifecycle. |
+| `sidecar.prototype.toml` | Underlying non-diagnostic configured prototype lifecycle. |
 | `docs/architecture/repository-model.md` | Ownership and dependency direction. |
 | `docs/adr/README.md` | ADR naming, status, and maintenance rules. |
 | `docs/adr/0034-canonical-runtime-convergence.md` | Accepted single-runtime, operator-surface, and attachment contract. |
@@ -250,6 +253,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0079-prototype-traversal-activation.md` | Accepted one-time post-spawn prototype traversal, exact first camera target, and compact existing-status evidence. |
 | `docs/adr/0080-transactional-actor-presentation-command.md` | Accepted typed motion/presentation command, zero-step preservation, complete candidate commit, and prototype Survey/Walk policy. |
 | `docs/adr/0081-committed-prototype-locomotion-facing.md` | Accepted exact eight-way Q16 facing and nonzero-advance committed policy state. |
+| `docs/adr/0082-self-contained-prototype-operator.md` | Accepted deterministic finite-sandbox preparation and sole manual prototype wrapper. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -299,6 +303,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0076-prototype-traversal-activation/README.md` | Accepted one-time prototype traversal activation, exact diagonal schedule, and no-prefetch process evidence. |
 | `experiments/0077-transactional-locomotion-presentation/README.md` | Accepted atomic motion/presentation admission, fractional/block rollback, and prototype Survey/Walk evidence. |
 | `experiments/0078-committed-locomotion-facing/README.md` | Accepted exact eight-way locomotion yaw, stationary retention, and native-W transactional evidence. |
+| `experiments/0079-self-contained-prototype-operator/README.md` | Accepted source-free cold start, deterministic sandbox, and wrapper-owned Sidecar lifecycle evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -365,6 +370,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/init.ts` | Toolchain and repository initialization. |
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
+| `.runseal/wrappers/prototype.ts` | Self-contained finite-sandbox cook, strict bootstrap, and manual prototype lifecycle entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
 | `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype gravity/locomotion/facing/presentation/camera/traversal/backpressure, restart, failure, and lifecycle entry point. |
 | `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source typed motion/presentation candidate admission, actor GPU, and rollback entry point. |
@@ -486,17 +492,20 @@ not select renderer modes, fixture variants, pass order, or local schedules.
 ### 6.5 Plain prototype
 
 ```powershell
-# With out/cooked/bootstrap/runtime.json prepared:
-sidecar start --config sidecar.prototype.toml
-sidecar stop --config sidecar.prototype.toml
+runseal :prototype start
+runseal :prototype status
+runseal :prototype restart
+runseal :prototype stop
 ```
 
 The prototype has no inspect endpoint or idle-shell mode. It shows the same canonical runtime only
 after configured content is ready, advances one grounded runtime actor with fixed gravity and fixed
 W/A/S/D displacement on Ready samples, anchors one fixed camera rig before every live frame, and
 enables camera-driven composition traversal once after spawn with prefetch disabled. Window close,
-Escape, and Sidecar stop are its current controls; camera actions, sustained traversal policy, and
-multiple actors are not part of this workflow.
+Escape, and wrapper stop are its current controls. Start deterministically cooks the documented
+zero-origin `[-8,8]²` finite sandbox before Sidecar readiness; no prior acceptance output is
+required. Camera actions, infinite source service, sustained traversal policy, and multiple actors
+are not part of this workflow.
 
 ### 6.6 Experiment lifecycle
 

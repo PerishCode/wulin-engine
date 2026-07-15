@@ -54,6 +54,7 @@ async function requireWrapperSet(): Promise<void> {
         "gpu-lab.ts",
         "guard.ts",
         "init.ts",
+        "prototype.ts",
         "workbench.ts",
     ];
     if (JSON.stringify(names) !== JSON.stringify(expected)) {
@@ -446,6 +447,7 @@ await run("deno check", "deno", [
     ".runseal/wrappers/init.ts",
     ".runseal/wrappers/guard.ts",
     ".runseal/wrappers/gpu-lab.ts",
+    ".runseal/wrappers/prototype.ts",
     ".runseal/wrappers/workbench.ts",
     ".runseal/wrappers/canonical-actor.ts",
     ".runseal/wrappers/canonical-prototype.ts",
