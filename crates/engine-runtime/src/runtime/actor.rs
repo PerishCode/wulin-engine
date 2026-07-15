@@ -79,15 +79,19 @@ impl ActorSlot {
         Ok(actor)
     }
 
-    pub fn replace_motion(
+    pub fn replace_state(
         &mut self,
         handle: ActorHandle,
-        motion: TerrainBodyMotion,
+        replacement: RuntimeActor,
     ) -> Result<RuntimeActor> {
+        replacement.presentation.validate()?;
         let input = self.read(handle)?;
-        let output = RuntimeActor { motion, ..input };
-        self.actor = Some(output);
-        Ok(output)
+        ensure!(
+            replacement.handle == input.handle,
+            "replacement actor handle diverged"
+        );
+        self.actor = Some(replacement);
+        Ok(replacement)
     }
 }
 

@@ -20,10 +20,11 @@ mod simulation_actor;
 use actor::ActorSlot;
 pub use actor::{ActorHandle, RuntimeActor};
 pub use region_format::PresentationRecord as ActorPresentation;
+use simulation_actor::prepare_simulation_actor;
 pub use simulation_actor::{
-    ActorMotionBatch, ActorSimulationAdvance, ActorSimulationOutcome, ActorSimulationRenderBlock,
+    ActorSimulationAdvance, ActorSimulationCommand, ActorSimulationOutcome,
+    ActorSimulationRenderBlock, ActorStateTransition,
 };
-use simulation_actor::{SimulationActorCommand, prepare_simulation_actor};
 
 #[derive(Clone, Copy)]
 pub struct FrameRequest {
@@ -233,26 +234,23 @@ impl Runtime {
         &mut self,
         handle: ActorHandle,
         elapsed_nanoseconds: u64,
-        delta_x_q9: i32,
-        delta_z_q9: i32,
-        step_up_limit_q16: i32,
-        step_acceleration_q16: i32,
+        command: ActorSimulationCommand,
     ) -> Result<ActorSimulationOutcome> {
         let input = self.actor.read(handle)?;
         let prepared = prepare_simulation_actor(
             self.simulation_schedule,
             input.motion,
             elapsed_nanoseconds,
-            SimulationActorCommand {
-                delta_x_q9,
-                delta_z_q9,
-                step_up_limit_q16,
-                step_acceleration_q16,
-            },
+            command,
             |position| self.query_terrain_height(position),
         )?;
         let candidate = RuntimeActor {
             motion: prepared.motion.output,
+            presentation: if prepared.simulation.step_count == 0 {
+                input.presentation
+            } else {
+                command.presentation
+            },
             ..input
         };
         if self.renderer.composition_enabled() {
@@ -267,11 +265,11 @@ impl Runtime {
             }
             admission.require()?;
         }
-        let output = self.actor.replace_motion(handle, prepared.motion.output)?;
+        let output = self.actor.replace_state(handle, candidate)?;
         self.simulation_schedule = prepared.schedule;
         Ok(ActorSimulationOutcome::Advanced(ActorSimulationAdvance {
             simulation: prepared.simulation,
-            actor: ActorMotionBatch {
+            actor: ActorStateTransition {
                 input,
                 output,
                 step_count: prepared.simulation.step_count,

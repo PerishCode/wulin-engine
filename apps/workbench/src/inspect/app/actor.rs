@@ -1,12 +1,12 @@
 use engine_runtime::{
-    ActorHandle, ActorPresentation, ActorSimulationAdvance, ActorSimulationOutcome,
-    ActorSimulationRenderBlock, RegionCoord, Runtime, RuntimeActor, TerrainBody, TerrainBodyMotion,
-    TerrainPosition,
+    ActorHandle, ActorPresentation, ActorSimulationAdvance, ActorSimulationCommand,
+    ActorSimulationOutcome, ActorSimulationRenderBlock, RegionCoord, Runtime, RuntimeActor,
+    TerrainBody, TerrainBodyMotion, TerrainPosition,
 };
 use serde_json::{Value, json};
 
 use super::{ControlResult, protocol_error};
-use crate::inspect::protocol::ActorSpawnControl;
+use crate::inspect::protocol::{ActorSpawnControl, SimulationActorControl};
 
 pub(super) fn spawn(runtime: &mut Runtime, payload: ActorSpawnControl) -> ControlResult {
     TerrainPosition::new(
@@ -53,22 +53,25 @@ pub(super) fn despawn(runtime: &mut Runtime, generation: u64) -> ControlResult {
 
 pub(super) fn simulation_advance(
     runtime: &mut Runtime,
-    generation: u64,
-    elapsed_nanoseconds: u64,
-    delta_x_q9: i32,
-    delta_z_q9: i32,
-    step_up_limit_q16: i32,
-    step_acceleration_q16: i32,
+    payload: SimulationActorControl,
 ) -> ControlResult {
-    ActorHandle::new(generation)
+    ActorHandle::new(payload.generation)
         .and_then(|handle| {
             runtime.advance_simulation_actor(
                 handle,
-                elapsed_nanoseconds,
-                delta_x_q9,
-                delta_z_q9,
-                step_up_limit_q16,
-                step_acceleration_q16,
+                payload.elapsed_nanoseconds,
+                ActorSimulationCommand {
+                    delta_x_q9: payload.delta_x_q9,
+                    delta_z_q9: payload.delta_z_q9,
+                    step_up_limit_q16: payload.step_up_limit_q16,
+                    step_acceleration_q16: payload.step_acceleration_q16,
+                    presentation: ActorPresentation {
+                        archetype: payload.archetype,
+                        material: payload.material,
+                        yaw_q16: payload.yaw_q16,
+                        animation: payload.animation,
+                    },
+                },
             )
         })
         .map(simulation_response)
@@ -83,8 +86,10 @@ fn simulation_response(outcome: ActorSimulationOutcome) -> Value {
 }
 
 fn advanced_response(advance: ActorSimulationAdvance) -> Value {
+    let presentation_mutation_count =
+        u32::from(advance.actor.input.presentation != advance.actor.output.presentation);
     json!({
-        "revision": "runtime-actor-simulation-v2",
+        "revision": "runtime-actor-simulation-v3",
         "outcome": "advanced",
         "preparedStepCount": advance.simulation.step_count,
         "terrainQueryCount": advance.actor.terrain_query_count,
@@ -97,7 +102,7 @@ fn advanced_response(advance: ActorSimulationAdvance) -> Value {
         "synchronizationCount": 0,
         "scheduleCommitCount": 1,
         "actorCommitCount": 1,
-        "presentationMutationCount": 0,
+        "presentationMutationCount": presentation_mutation_count,
         "frameCount": 0,
         "rendererWorkCount": 0,
     })
@@ -105,7 +110,7 @@ fn advanced_response(advance: ActorSimulationAdvance) -> Value {
 
 fn blocked_response(blocked: ActorSimulationRenderBlock) -> Value {
     json!({
-        "revision": "runtime-actor-simulation-v2",
+        "revision": "runtime-actor-simulation-v3",
         "outcome": "render-blocked",
         "preparedStepCount": blocked.prepared_step_count,
         "terrainQueryCount": blocked.terrain_query_count,

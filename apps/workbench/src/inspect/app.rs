@@ -177,22 +177,9 @@ pub(crate) fn handle_commands(
             ControlKind::ActorSpawn(payload) => actor::spawn(runtime, payload),
             ControlKind::ActorRead { generation } => actor::read(runtime, generation),
             ControlKind::ActorDespawn { generation } => actor::despawn(runtime, generation),
-            ControlKind::SimulationActorAdvance {
-                generation,
-                elapsed_nanoseconds,
-                delta_x_q9,
-                delta_z_q9,
-                step_up_limit_q16,
-                step_acceleration_q16,
-            } => actor::simulation_advance(
-                runtime,
-                generation,
-                elapsed_nanoseconds,
-                delta_x_q9,
-                delta_z_q9,
-                step_up_limit_q16,
-                step_acceleration_q16,
-            ),
+            ControlKind::SimulationActorAdvance(payload) => {
+                actor::simulation_advance(runtime, payload)
+            }
             ControlKind::ObjectIoGateArm => gate(runtime.arm_object_io_gate()),
             ControlKind::ObjectIoGateRelease => gate(runtime.release_object_io_gate()),
             ControlKind::ObjectCopyGateArm => gate(runtime.arm_object_copy_gate()),

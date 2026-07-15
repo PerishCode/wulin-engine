@@ -20,8 +20,10 @@ motion 与 schema-3 presentation 的 capacity-one actor，prototype 已在 canon
 创建一个精确 grounded imported-Fox actor；
 reference host 已将 bounded monotonic elapsed policy 与至多两个等价
 transition 的 Win32 activation batch 组成唯一的 activation-before-sample 操作；prototype 现以
-Ready-only fixed gravity 加固定 W/A/S/D 整数水平 command 驱动 live schedule/actor transaction，
-并在每个 live frame 前通过唯一内部投影应用固定 actor-relative camera rig；capacity-one actor
+Ready-only fixed gravity 加固定 W/A/S/D 整数水平 command 驱动 live schedule/actor transaction；
+同一 typed command/commit 以 Survey 表示静止、Walk 表示非零位移，fractional 与 render-block 均不
+提前改变 presentation，并在每个 live frame 前通过唯一内部投影应用固定 actor-relative camera rig；
+capacity-one actor
 也通过唯一 skeletal/surface/shadow/occlusion 路径进入 GPU；prototype 在 spawn 后只启用一次
 composition traversal、保持 prefetch 关闭，并由首个 camera frame 调度精确对角目标；仍无多 actor
 store、水平速度/加速度或转向动画。live simulation/actor mutation 只保留 typed advanced/render-blocked
@@ -360,6 +362,14 @@ Experiment 0076 接受 prototype-owned 一次性 traversal activation：canonica
 `canonical-prototype-v5` 中三次独立进程均为 session/desired/attempt/schedule `1/1/1/1`、publication
 0，且无 queue/block/failure/prefetch/rollover。该阶段只观察既有 composition status，不新增 inspect、
 Runtime API、engine traversal 算法、renderer/GPU resource、同步或格式路径。
+Experiment 0077 将 motion 与 desired presentation 收进唯一 typed actor-simulation command：只有
+nonzero fixed step 才构造完整 actor candidate，并在既有 published/pending preflight 后与 schedule
+一起提交；fractional、invalid、fatal 与 typed block 都保留完整旧 actor。30.932 秒
+`canonical-actor-v3` 证明 Survey→Walk 与 X `0 -> 1` 同时提交、随后 Walk→Survey block 的
+step/query `1/1` 与 schedule/actor/presentation mutation `0/0/0`；38.080 秒
+`canonical-prototype-v6` 中两个静止进程保持 clip 0，native-W 进程在同一 transaction 得到 clip 1
+与 Z `0 -> -32`。没有旧 scalar signature、motion-only commit type、schema-2 fallback、第二条
+presentation mutation、blend/yaw policy 或 renderer/GPU/synchronization 变化。
 
 ## Project model
 
@@ -416,8 +426,9 @@ acceptance or may be prepared with the documented cooker formats.
 `runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
 runtime/prototype/reference-host tests, cooks the three required signed centers, and proves
 strict bootstrap failure, grounded gravity admission, exact stationary and native-W fixed
-locomotion, one committed current actor authority, actor-relative camera/frame ordering, typed
-render-block consumption with zero normal-path blocks, one exact camera-derived traversal schedule
+locomotion with transactional Survey/Walk selection, one committed current actor authority,
+actor-relative camera/frame ordering, typed render-block consumption with zero normal-path blocks,
+one exact camera-derived traversal schedule
 with prefetch disabled, direct restart equality, and Sidecar cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
@@ -425,8 +436,8 @@ minimal signed pair, checks the exact accepted canonical frame, immediately repl
 complete process cleanup. It does not replace end-to-end acceptance.
 
 `runseal :canonical-actor` is the focused frame-safe actor GPU workflow. It proves typed
-advanced/render-blocked simulation-candidate admission against published and non-prefetch pending
-windows, exact rollback and retained rendering, dynamic candidate identity, alternating frame-slot
+advanced/render-blocked motion/presentation candidate admission against published and non-prefetch
+pending windows, exact rollback and retained rendering, dynamic candidate identity, alternating frame-slot
 writes, cull/surface/shadow/occlusion participation, despawn/respawn clearing, frustum rejection,
 outside-window rollback, and semantic capture.
 
