@@ -46,6 +46,13 @@ export function string(value: Json, name: string): string {
     return field;
 }
 
+export function assertObjectCopies(publication: Json, expected: number, label: string): void {
+    const objects = object(object(publication, "published"), "objects");
+    for (const key of ["uploadedRegionCount", "identityCopyCount", "presentationCopyCount"]) {
+        if (number(objects, key) !== expected) fail(`${label} object triple copy count diverged`);
+    }
+}
+
 export function same(actual: unknown, expected: unknown, label: string): void {
     const left = JSON.stringify(actual);
     const right = JSON.stringify(expected);

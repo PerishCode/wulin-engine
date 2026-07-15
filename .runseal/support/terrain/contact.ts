@@ -1,4 +1,4 @@
-import { event, fail, type Json, number, object, rejectedEvent } from "./canonical-runtime.ts";
+import { event, fail, type Json, number, object, rejectedEvent } from "../canonical-runtime.ts";
 
 const I32_MAX = 2_147_483_647;
 const HALF_HEIGHT = 65_536;

@@ -1,6 +1,8 @@
 use std::sync::mpsc::Receiver;
 
-use engine_runtime::{GlobalRegionConfig, RegionCoord, Runtime, TerrainBody, TerrainQueryPosition};
+use engine_runtime::{
+    GlobalRegionConfig, RegionCoord, Runtime, TerrainBody, TerrainBodyMotion, TerrainQueryPosition,
+};
 use reference_host::{
     bootstrap::{PackKind, validate_pack_path},
     window,
@@ -200,6 +202,43 @@ pub(crate) fn handle_commands(
                 })
             })
             .map_err(|error| protocol_error("terrain_contact_failed", error)),
+            ControlKind::CanonicalTerrainBodyStep {
+                region_x,
+                region_z,
+                local_x_q9,
+                local_z_q9,
+                center_height_numerator,
+                half_height_numerator,
+                step_velocity_q16,
+                step_acceleration_q16,
+            } => TerrainQueryPosition::new(
+                RegionCoord::new(region_x, region_z),
+                local_x_q9,
+                local_z_q9,
+            )
+            .and_then(|position| {
+                TerrainBody::new(position, center_height_numerator, half_height_numerator)
+            })
+            .map(|body| TerrainBodyMotion::new(body, step_velocity_q16))
+            .and_then(|motion| {
+                runtime
+                    .step_terrain_body(motion, step_acceleration_q16)
+                    .map(|step| {
+                        json!({
+                            "revision": "exact-fixed-terrain-body-motion-v1",
+                            "step": step,
+                            "perStepAllocationBytes": 0,
+                            "sourceReadCount": 0,
+                            "gpuCopyCount": 0,
+                            "gpuReadbackCount": 0,
+                            "fenceWaitCount": 0,
+                            "synchronizationCount": 0,
+                            "scheduleMutationCount": 0,
+                            "presentationMutationCount": 0,
+                        })
+                    })
+            })
+            .map_err(|error| protocol_error("terrain_motion_failed", error)),
             ControlKind::CanonicalTerrainContactProbe => runtime
                 .terrain_body_contact_probe()
                 .map_err(|error| protocol_error("terrain_contact_probe_failed", error)),

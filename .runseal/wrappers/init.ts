@@ -111,7 +111,7 @@ for (
         ".runseal/support/prototype-host.ts",
         ".runseal/support/cooked-gltf-presentation.ts",
         ".runseal/support/temporal-presentation.ts",
-        ".runseal/support/terrain-query.ts",
+        ".runseal/support/terrain/query.ts",
     ]
 ) await requireFile(file);
 

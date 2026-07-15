@@ -1,4 +1,4 @@
-import { event, fail, type Json, number, object, rejectedEvent } from "./canonical-runtime.ts";
+import { event, fail, type Json, number, object, rejectedEvent } from "../canonical-runtime.ts";
 
 function requireQueryRejection(value: Json, label: string): void {
     if (

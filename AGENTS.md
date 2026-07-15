@@ -95,10 +95,10 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0047 and the current ADR set through 0050 define one live content runtime
+Experiments 0031-0048 and the current ADR set through 0051 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
-one explicit deterministic simulation schedule, one offline-cooked external geometry/material/rig
-source, and one deterministic object-shadow path:
+one explicit deterministic simulation schedule, one caller-owned fixed terrain-motion consumer,
+one offline-cooked external geometry/material/rig source, and one deterministic object-shadow path:
 
 - signed `i64` terrain packs (`.wlt`);
 - signed schema-3 object packs (`.wlr`) with explicit authored local IDs and presentation;
@@ -117,7 +117,10 @@ source, and one deterministic object-shadow path:
 - one runtime frame transaction that renders an immutable pre-commit tick and advances only after
   a successful canonical frame;
 - one runtime-owned rational 60 Hz simulation schedule driven only by explicit bounded elapsed
-  nanoseconds, independent from frames and presentation, with no live clock or step consumer;
+  nanoseconds, independent from frames and presentation, with no live clock or internal step loop;
+- one caller-owned exact vertical terrain-body motion transaction that consumes exactly one fixed
+  tick through checked semi-implicit integration and committed-snapshot contact, without a body
+  store, horizontal motion, or gameplay tuning;
 - one host-owned Win32 keyboard/focus adapter and bounded process-local normalized input journal
   with isolated deterministic replay;
 - one optional strict schema-1 bootstrap document that selects both sources and one signed global
@@ -172,6 +175,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0048-idle-shell-compatibility-removal.md` | Accepted calibration/split-world removal, clear-only idle shell, and neutral frame-target ownership. |
 | `docs/adr/0049-exact-terrain-body-contact.md` | Accepted caller-owned exact terrain contact, minimum correction, bounded witness, and deferred simulation policy. |
 | `docs/adr/0050-runtime-fixed-simulation-schedule.md` | Accepted explicit rational fixed schedule, transactional bounds, and presentation-independent time contract. |
+| `docs/adr/0051-caller-owned-fixed-terrain-motion.md` | Accepted caller-owned one-tick vertical motion, exact contact composition, and deferred live-driving contract. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -190,16 +194,18 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0045-active-compatibility-removal/README.md` | Accepted calibration/world compatibility removal, idle zero-semantic evidence, and exact canonical regression. |
 | `experiments/0046-exact-terrain-body-contact/README.md` | Accepted exact terrain body contact, explicit dense proof, compact transition witness, and lifecycle evidence. |
 | `experiments/0047-deterministic-simulation-schedule/README.md` | Accepted exact 60 Hz rational schedule, partition/replay, rollback, independence, and lifecycle evidence. |
+| `experiments/0048-fixed-terrain-body-motion/README.md` | Accepted one-tick terrain-body motion, schedule-partition replay, rollback, and zero-non-CPU-work evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
 | `crates/engine-runtime/src/lib.rs` | Public runtime, capture, semantic, and signed-address surface. |
-| `crates/engine-runtime/src/runtime.rs` | Sole renderer/scene facade, frame-transaction coordinator, and explicit simulation schedule owner. |
+| `crates/engine-runtime/src/runtime.rs` | Sole renderer/scene facade, frame-transaction coordinator, explicit simulation schedule owner, and committed-terrain motion entry point. |
 | `crates/engine-runtime/src/region.rs` | Signed global region value and checked offset owner. |
 | `crates/engine-runtime/src/timeline/mod.rs` | Presentation and simulation timeline ownership boundary. |
 | `crates/engine-runtime/src/timeline/presentation.rs` | Deterministic presentation state, controls, counters, and successful-frame commit. |
 | `crates/engine-runtime/src/timeline/simulation.rs` | Exact rational simulation accumulator, checked transaction, typed batch, and isolated long-duration probe. |
-| `crates/engine-runtime/src/terrain_query.rs` | Signed half-open Q9 position, exact height query, caller-owned body, and minimum-correction contact transaction. |
+| `crates/engine-runtime/src/terrain_query/mod.rs` | Signed half-open Q9 position, exact height query, caller-owned body, and minimum-correction contact transaction. |
+| `crates/engine-runtime/src/terrain_query/motion.rs` | Caller-owned fixed vertical motion, checked one-tick integration, and grounded composition. |
 | `crates/reference-host/src/window.rs` | Concrete single-window Win32 lifecycle, message pump, native input capture, and close signaling. |
 | `crates/reference-host/src/input.rs` | Normalized key state, bounded record lifecycle, canonical hashing, isolated replay, and held-state query. |
 | `crates/reference-host/src/bootstrap.rs` | Strict arguments/config/pack paths and hidden canonical-ready bootstrap driver. |
@@ -236,15 +242,16 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0047 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0048 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
-| `.runseal/support/terrain-contact.ts` | Exact contact rejection, direct classification, dense proof, and witness acceptance support. |
+| `.runseal/support/terrain/contact.ts` | Exact contact rejection, direct classification, dense proof, and witness acceptance support. |
+| `.runseal/support/terrain/motion.ts` | Fixed-step trajectory, schedule-partition replay, rollback, restart, and independence acceptance support. |
 | `.runseal/support/simulation-schedule.ts` | Partition, replay, rollback, process reset, and temporal-independence acceptance support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
 | `.runseal/support/prototype-host.ts` | Prototype no-ready failure, exact readiness, restart, and no-inspect lifecycle support. |
-| `.runseal/support/terrain-query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |
+| `.runseal/support/terrain/query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
 | `.runseal/support/temporal-presentation.ts` | Fixed-quantum duration time, common-period, and held-pair acceptance support. |
 
@@ -273,12 +280,13 @@ presentation time, deterministic host input and process-restart replay, configur
 readiness, shared reference-host ownership, prototype startup/restart/cleanup, fixed camera-visible
 directional object shadows, exact CPU terrain-height query/body contact and oracle evidence, a
 bounded contact transition witness, the explicit simulation schedule and its partition/replay,
-rollback, restart, frame, and presentation-independence gates, a same-process
+rollback, restart, frame, and presentation-independence gates, exact fixed terrain-body motion and
+schedule-partition replay, a same-process
 clear-only idle attachment capture, retired-control rejection, 64-publication resource plateau,
 and 16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0047-deterministic-simulation-schedule/` and remains ignored.
+`out/captures/0048-fixed-terrain-body-motion/` and remains ignored.
 
 ### 6.3 Manual workbench
 
@@ -309,7 +317,8 @@ sidecar stop --config sidecar.prototype.toml
 
 The prototype has no inspect endpoint or idle-shell mode. It shows the same canonical runtime only
 after configured content is ready; window close, Escape, and Sidecar stop are its current lifecycle
-controls. Camera actions, simulation, terrain contact, and actors are not part of this workflow.
+controls. Camera actions, live simulation/motion driving, and runtime actors are not part of this
+workflow.
 
 ### 6.5 Experiment lifecycle
 
