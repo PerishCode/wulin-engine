@@ -5,7 +5,7 @@ mod time;
 
 use anyhow::{Context, Result};
 use engine_runtime::{
-    ActorSimulationAdvance, FrameRequest, GlobalRegionConfig, Runtime, RuntimeActor, TerrainHeight,
+    ActorSimulationAdvance, FrameRequest, GlobalRegionConfig, Runtime, RuntimeActor,
     TerrainPosition,
 };
 use reference_host::{HostClock, HostClockStatus, HostElapsedSample, HostInput, bootstrap, window};
@@ -38,7 +38,7 @@ unsafe fn run() -> Result<()> {
     let mut runtime = unsafe { Runtime::new(hwnd, WIDTH, HEIGHT)? };
     let mut input = HostInput::new();
     let ready = unsafe { bootstrap::drive(&mut runtime, &mut input, &plan, CLEAR_COLOR)? };
-    let (terrain, runtime_actor) = spawn_initial_actor(&mut runtime, plan.global_config())?;
+    let runtime_actor = spawn_initial_actor(&mut runtime, plan.global_config())?;
     let mut clock = HostClock::new();
     let mut startup = Some(ready.status);
     let bootstrap_frame_count = ready.frame_count;
@@ -103,8 +103,6 @@ unsafe fn run() -> Result<()> {
         {
             publish_readiness(ReadinessEvidence {
                 startup,
-                terrain,
-                runtime_actor,
                 sample,
                 clock,
                 advance,
@@ -125,8 +123,6 @@ unsafe fn run() -> Result<()> {
 
 struct ReadinessEvidence {
     startup: Value,
-    terrain: TerrainHeight,
-    runtime_actor: RuntimeActor,
     sample: HostElapsedSample,
     clock: HostClockStatus,
     advance: ActorSimulationAdvance,
@@ -152,8 +148,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
             "actor": {
                 "capacity": 1,
                 "liveCount": 1,
-                "terrain": evidence.terrain,
-                "state": evidence.runtime_actor,
+                "state": evidence.advance.actor.output,
             },
             "simulation_driver": {
                 "revision": "live-prototype-locomotion-driver-v1",
@@ -173,7 +168,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
             },
             "camera_driver": {
                 "revision": "live-prototype-actor-camera-v1",
-                "actor": evidence.runtime_actor.handle,
+                "actor": evidence.advance.actor.output.handle,
                 "rig": {
                     "positionOffset": camera::POSITION_OFFSET,
                     "targetOffset": camera::TARGET_OFFSET,
@@ -191,15 +186,14 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
 fn spawn_initial_actor(
     runtime: &mut Runtime,
     global_config: GlobalRegionConfig,
-) -> Result<(TerrainHeight, RuntimeActor)> {
+) -> Result<RuntimeActor> {
     let position = TerrainPosition::new(global_config.global_center, 0, 0)
         .context("prototype initial actor position failed")?;
     let terrain = runtime
         .query_terrain_height(position)
         .context("prototype initial terrain query failed")?;
     let motion = actor::initial_motion(position, terrain)?;
-    let runtime_actor = runtime
+    runtime
         .spawn_actor(motion, actor::initial_presentation())
-        .context("prototype initial actor spawn failed")?;
-    Ok((terrain, runtime_actor))
+        .context("prototype initial actor spawn failed")
 }
