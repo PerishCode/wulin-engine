@@ -1,90 +1,13 @@
 # Repository Model
 
-## State
+## Current boundary authority
 
-Experiments through 0066 and ADR 0069 define the accepted canonical content runtime, reference
-host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
-motion/planar terrain transaction contracts, deterministic simulation schedule, one retained actor
-lifecycle plus a sole explicit-time dual advance, one live prototype host-time driver,
-and retired compatibility/history surfaces. The
-runtime remains in
-`crates/engine-runtime`. It owns camera state, signed
-terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
-time, the explicit rational 60 Hz simulation schedule, one signed-region/half-open-local-Q9 terrain
-position with exact checked translation, exact committed-snapshot terrain queries, caller-owned
-vertical contact, private terrain motion/translation/advance composition, neutral frame targets,
-shaders, probes, and GPU
-device/resource lifecycle. It also owns one optional `RuntimeActor` behind a checked nonzero
-generation handle; that actor directly owns exact `TerrainBodyMotion` and the existing schema-3
-`PresentationRecord`. The renderer can read that exact generation through one immutable projection
-transaction that returns the enabled published pair, active ordinal, centered semantic region,
-window-relative Q9 position, and unchanged Q16 heights/presentation without creating float global
-coordinates or GPU actor storage. Prototype creates one grounded imported-Fox actor only after
-canonical publication from the configured center and exact committed terrain. Runtime has no calibration
-scene, split-world control state, multi-actor store, GPU actor plane, live wall-clock driver, or
-autonomous step loop. The
-format/catalog crates and offline cookers remain independent reusable owners below it.
+The changing live capability boundary has one owner: [AGENTS.md: Current Runtime
+Boundary](../../AGENTS.md#4-current-runtime-boundary). Historical experiment and ADR documents
+explain how that boundary was reached; they are not current operator or compatibility surfaces.
 
-The runtime owns the sole mutable presentation timeline, successful-frame commit, and simulation
-schedule. The renderer consumes an immutable pre-commit tick for GPU work and evidence; it cannot
-pause, set,
-step, or advance time. Simulation advances only from explicit bounded elapsed nanoseconds and is
-independent from presentation. Private pure terrain transactions establish the one-tick spatial
-contract; they have no copied-value inspect command or public `Runtime` mutation method. The actor
-slot establishes one process-local identity plus motion/presentation lifetime. One explicit elapsed,
-actor-addressed operation prepares schedule/motion copies and commits both only after success while
-preserving actor identity and presentation.
-`reference-host` owns exact monotonic elapsed admission. Each complete ordered activation batch is
-applied to a candidate clock before exactly one sample; success commits both together. First and
-resumed samples reset, bounded deltas are preserved, stalls are explicit and advance their baseline,
-suspension accumulates nothing, and failure rolls back the complete transition. Independent public
-clock pause controls do not exist. Prototype consumes the clock after input/exit handling and
-advances only Ready outcomes; reset, suspension, and stalls do no Runtime work. Workbench sampling,
-input motion policy, and nonzero commands remain unpromoted.
-
-The concrete window separately reduces `WM_KILLFOCUS` / `WM_SETFOCUS` bursts into at most two
-order-equivalent typed transitions. It stores no activation event queue; prototype drains one
-complete batch before each clock sample. Input focus-loss cleanup remains an independent normalized-
-input responsibility.
-
-The private motion batch accepts an explicit 0..=8 count and repeats one controlled spatial command
-in local motion. Runtime's sole public mutation composes it with caller-supplied elapsed and commits
-schedule/actor together. No independent schedule-only, body-only, or detached body lifecycle
-mutation remains.
-Prototype is the sole live caller and orders a Ready-only zero command before its frame.
-
-`TerrainPosition` is the sole horizontal identity shared by terrain query, contact, and fixed
-motion. Its pure Q9 translation canonicalizes positive, negative, and multi-region displacement
-without sampling terrain. Bounded planar contact composition and planar-first vertical ordering are
-accepted. The actor render projection is the only accepted simulation/render spatial join. It
-validates the generation before composition lookup, requires the enabled published pair, reuses
-signed active addressing and the canonical terrain projection, and rejects actors outside the
-active window without clipping. Slope policy, input mapping, multi-actor storage, semantic actor
-identity, and GPU actor presentation binding remain unpromoted.
-
-Exact contact retains one public direct transaction and one 225-body witness embedded in the
-generic canonical probe. The accepted one-time 230,400-body dense checkpoint is documentation-only;
-its inspect verb, runtime/renderer branch, and coverage mode are forbidden from the live surface.
-
-`crates/reference-host` owns the concrete Windows single-window/message lifecycle, normalized
-keyboard/focus state and bounded journal, strict bootstrap config/path validation, hidden
-canonical-ready driver, and activation-aware monotonic admission consumed by prototype. It is not a
-cross-platform abstraction. Its bounded activation reducer is concrete Win32 transport, not a
-portable event layer.
-
-`apps/workbench` is the native diagnostic composition root. It retains inspect transport,
-operator capture persistence, perception response shaping, diagnostic readiness, pause/failure
-shaping, and fault gates. `apps/prototype` is the plain non-diagnostic composition root: configured
-canonical startup is mandatory, it creates one grounded imported-Fox actor before readiness,
-drives Ready-only zero-command schedule/actor transactions before frames, and publishes readiness
-after the first nonzero commit/frame. Escape only requests host exit. Nonzero motion, GPU actor
-resource/candidate binding, camera actions, and
-gameplay interaction remain unpromoted. Directories are created only when they own real files.
-
-The one direct acceptance operator has neutral revision `canonical-runtime-v1`, cooks under
-`out/cooked/canonical-runtime/`, and writes its ignored report under
-`out/captures/canonical-runtime/`. Historical experiment collections are evidence records, not live
-operator namespaces or fallback output paths.
+This document owns only the stable repository dependency, directory, naming, promotion, and data
+rules below. It deliberately does not duplicate a stage-specific runtime capability snapshot.
 
 ## Dependency direction
 

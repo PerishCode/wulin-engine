@@ -1,5 +1,6 @@
 import { requireContactHistoryRemoved } from "../support/guard/contact-removal.ts";
 import { requireCanonicalOperatorIdentity } from "../support/guard/canonical-operator.ts";
+import { requireLiveOperatorSurface } from "../support/guard/live-operator-surface.ts";
 import { requireSimulationHistoryRemoved } from "../support/guard/simulation-control-removal.ts";
 import { requireTerrainHistoryRemoved } from "../support/guard/terrain-transaction-removal.ts";
 
@@ -36,29 +37,6 @@ async function requireSingleOwner(
         .filter((line) => line.length > 0);
     if (output.code !== 0 || lines.length !== 1 || !lines[0].startsWith(expectedPrefix)) {
         fail(`guard: ${label} ownership diverged: ${JSON.stringify(lines)}`);
-    }
-}
-
-async function requireWrapperSet(): Promise<void> {
-    const names: string[] = [];
-    for await (const entry of Deno.readDir(`${root}/.runseal/wrappers`)) {
-        if (entry.isFile) names.push(entry.name);
-    }
-    names.sort();
-    const expected = [
-        "canonical-actor.ts",
-        "canonical-frame.ts",
-        "canonical-prototype.ts",
-        "canonical-resources.ts",
-        "canonical-runtime.ts",
-        "gpu-lab.ts",
-        "guard.ts",
-        "init.ts",
-        "prototype.ts",
-        "workbench.ts",
-    ];
-    if (JSON.stringify(names) !== JSON.stringify(expected)) {
-        fail(`guard: Runseal wrapper set diverged: ${JSON.stringify(names)}`);
     }
 }
 
@@ -417,8 +395,8 @@ const profilePath = Deno.env.get("RUNSEAL_PROFILE_PATH");
 if (!profilePath) fail("guard: RUNSEAL_PROFILE_PATH is not set");
 const root = profilePath.replace(/[\\/][^\\/]+$/, "");
 
-await requireWrapperSet();
 await requireCanonicalOperatorIdentity(root, fail);
+await requireLiveOperatorSurface(root, fail);
 await requireRuntimeBoundary();
 await requireCalibrationSurfaceRemoved();
 await requireContactHistoryRemoved(root, fail);

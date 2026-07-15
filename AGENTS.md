@@ -97,6 +97,9 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
+This section is the sole changing live capability ledger. The repository model owns stable
+structure and dependency rules and must not duplicate a stage snapshot.
+
 Experiments 0031-0079 and the current ADR set through 0082 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
@@ -203,7 +206,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `sidecar.benchmark.toml` | Release workbench lifecycle. |
 | `sidecar.bootstrap.toml` | Configured canonical-readiness workbench lifecycle. |
 | `sidecar.prototype.toml` | Underlying non-diagnostic configured prototype lifecycle. |
-| `docs/architecture/repository-model.md` | Ownership and dependency direction. |
+| `docs/architecture/repository-model.md` | Stable ownership/dependency rules and current-boundary authority pointer. |
 | `docs/adr/README.md` | ADR naming, status, and maintenance rules. |
 | `docs/adr/0034-canonical-runtime-convergence.md` | Accepted single-runtime, operator-surface, and attachment contract. |
 | `docs/adr/0035-authored-object-presentation.md` | Accepted schema-3 triple-plane object presentation authority and publication contract. |
@@ -254,6 +257,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0080-transactional-actor-presentation-command.md` | Accepted typed motion/presentation command, zero-step preservation, complete candidate commit, and prototype Survey/Walk policy. |
 | `docs/adr/0081-committed-prototype-locomotion-facing.md` | Accepted exact eight-way Q16 facing and nonzero-advance committed policy state. |
 | `docs/adr/0082-self-contained-prototype-operator.md` | Accepted deterministic finite-sandbox preparation and sole manual prototype wrapper. |
+| `docs/adr/0083-live-documentation-authority.md` | Accepted single current-boundary authority and prototype-operator documentation decision. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -304,6 +308,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0077-transactional-locomotion-presentation/README.md` | Accepted atomic motion/presentation admission, fractional/block rollback, and prototype Survey/Walk evidence. |
 | `experiments/0078-committed-locomotion-facing/README.md` | Accepted exact eight-way locomotion yaw, stationary retention, and native-W transactional evidence. |
 | `experiments/0079-self-contained-prototype-operator/README.md` | Accepted source-free cold start, deterministic sandbox, and wrapper-owned Sidecar lifecycle evidence. |
+| `experiments/0080-mandatory-live-documentation-authority-cleanup/README.md` | Accepted duplicate state-ledger removal and maintained prototype-operator documentation evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -386,6 +391,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/terrain-transaction-removal.ts` | Forbidden-file/symbol gate for retired copied-value terrain mutation controls and support. |
 | `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls, retained-body history, and pre-owner actor support paths. |
 | `.runseal/support/guard/canonical-operator.ts` | Exact neutral canonical revision/collection and current evidence-path guard. |
+| `.runseal/support/guard/live-operator-surface.ts` | Exact wrapper set, single current-boundary authority, and maintained prototype-operator documentation gate. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/actor/admission.ts` | Schema-2 prepublication/advanced evidence, typed pending block, zero-commit rollback, and retained-frame support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |
