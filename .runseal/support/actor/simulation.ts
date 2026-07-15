@@ -15,7 +15,7 @@ import {
     target,
 } from "../canonical-runtime.ts";
 
-const REVISION = "runtime-actor-simulation-v1";
+const REVISION = "runtime-actor-simulation-v2";
 const HALF_HEIGHT = 65_536;
 const MAX_ELAPSED = 125_000_000;
 const I32_MAX = 2_147_483_647;
@@ -112,7 +112,8 @@ function requireAdvance(
     label: string,
 ): Json {
     if (
-        response.revision !== REVISION || number(response, "stepCount") !== stepCount ||
+        response.revision !== REVISION || response.outcome !== "advanced" ||
+        number(response, "preparedStepCount") !== stepCount ||
         number(response, "terrainQueryCount") !== queryCount ||
         response.perOperationAllocationBytes !== 0 || response.sourceReadCount !== 0 ||
         response.gpuCopyCount !== 0 || response.gpuReadbackCount !== 0 ||

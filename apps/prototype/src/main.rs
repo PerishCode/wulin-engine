@@ -43,6 +43,7 @@ unsafe fn run() -> Result<()> {
     let bootstrap_frame_count = ready.frame_count;
     let mut live_frame_count = 0_u64;
     let mut camera_anchor_count = 0_u64;
+    let mut render_block_count = 0_u64;
     unsafe { window::show(hwnd) };
 
     'running: loop {
@@ -55,7 +56,7 @@ unsafe fn run() -> Result<()> {
             continue;
         }
         let sample = clock.sample(&window::drain_activation())?;
-        let advance = time::admitted_elapsed(sample)
+        let outcome = time::admitted_elapsed(sample)
             .map(|elapsed_nanoseconds| {
                 runtime.advance_simulation_actor(
                     runtime_actor.handle,
@@ -67,6 +68,10 @@ unsafe fn run() -> Result<()> {
                 )
             })
             .transpose()?;
+        let advance = outcome
+            .map(|outcome| time::consume_actor_outcome(outcome, &mut render_block_count))
+            .transpose()?
+            .flatten();
         let completed = advance
             .filter(|advance| advance.simulation.step_count != 0)
             .map(|advance| (sample, clock.status(), advance));
@@ -105,6 +110,7 @@ unsafe fn run() -> Result<()> {
                 live_frame_count,
                 anchored_camera,
                 camera_anchor_count,
+                render_block_count,
             })?;
         }
     }
@@ -125,6 +131,7 @@ struct ReadinessEvidence {
     live_frame_count: u64,
     anchored_camera: Value,
     camera_anchor_count: u64,
+    render_block_count: u64,
 }
 
 fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
@@ -145,7 +152,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "state": evidence.runtime_actor,
             },
             "simulation_driver": {
-                "revision": "live-prototype-gravity-driver-v1",
+                "revision": "live-prototype-gravity-driver-v2",
                 "sample": evidence.sample,
                 "clock": evidence.clock,
                 "command": {
@@ -155,6 +162,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                     "stepAccelerationQ16": actor::GRAVITY_STEP_ACCELERATION_Q16,
                 },
                 "advance": evidence.advance,
+                "renderBlockCount": evidence.render_block_count,
                 "bootstrapFrameCount": evidence.bootstrap_frame_count,
                 "liveFrameCount": evidence.live_frame_count,
                 "totalFrameCount": total_frame_count,

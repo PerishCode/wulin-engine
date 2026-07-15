@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use serde::Serialize;
 
 use crate::address::GlobalRegionConfig;
@@ -23,19 +23,53 @@ pub struct ActorRenderProjection {
     pub height_denominator: u32,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ActorRenderWindow {
+    Active,
+    Pending,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ActorRenderAdmission {
+    Admitted,
+    Blocked(ActorRenderWindow),
+}
+
+impl ActorRenderAdmission {
+    pub(crate) const fn pending_blocked(self) -> bool {
+        matches!(self, Self::Blocked(ActorRenderWindow::Pending))
+    }
+
+    pub(crate) fn require(self) -> Result<()> {
+        match self {
+            Self::Admitted => Ok(()),
+            Self::Blocked(ActorRenderWindow::Active) => {
+                bail!("runtime actor is outside the active render window")
+            }
+            Self::Blocked(ActorRenderWindow::Pending) => {
+                bail!("runtime actor is outside the pending render window")
+            }
+        }
+    }
+}
+
 impl Renderer {
     pub(crate) fn project_actor(&self, actor: RuntimeActor) -> Result<ActorRenderProjection> {
         let (global_config, config) = self.composition.actor_projection_config()?;
         project(global_config, config, actor)
     }
 
-    pub(crate) fn preflight_actor(&self, actor: RuntimeActor) -> Result<()> {
-        self.project_actor(actor)?;
-        if let Some((global_config, config)) = self.composition.pending_actor_projection_config() {
-            project(global_config, config, actor)
-                .context("runtime actor is outside the pending render window")?;
+    pub(crate) fn preflight_actor(&self, actor: RuntimeActor) -> Result<ActorRenderAdmission> {
+        let (global_config, config) = self.composition.actor_projection_config()?;
+        if project_if_active(global_config, config, actor)?.is_none() {
+            return Ok(ActorRenderAdmission::Blocked(ActorRenderWindow::Active));
         }
-        Ok(())
+        if let Some((global_config, config)) = self.composition.pending_actor_projection_config()
+            && project_if_active(global_config, config, actor)?.is_none()
+        {
+            return Ok(ActorRenderAdmission::Blocked(ActorRenderWindow::Pending));
+        }
+        Ok(ActorRenderAdmission::Admitted)
     }
 
     pub(crate) fn actor_scene_center(&self, actor: RuntimeActor) -> Result<[f32; 3]> {
@@ -68,19 +102,28 @@ fn project(
     config: crate::load::LoadConfig,
     actor: RuntimeActor,
 ) -> Result<ActorRenderProjection> {
+    project_if_active(global_config, config, actor)?
+        .context("runtime actor is outside the active render window")
+}
+
+fn project_if_active(
+    global_config: GlobalRegionConfig,
+    config: crate::load::LoadConfig,
+    actor: RuntimeActor,
+) -> Result<Option<ActorRenderProjection>> {
     ensure!(
         global_config.local_config()? == config,
         "actor render projection local/global configs diverged"
     );
     let body = actor.motion.body();
     let position = body.position();
-    let active_index = global_config
-        .active_index(position.region())
-        .context("runtime actor is outside the active render window")?;
+    let Some(active_index) = global_config.active_index(position.region()) else {
+        return Ok(None);
+    };
     let projection = TerrainProjection::for_objects(config)?;
     let window_position_q9 =
         projection.position_q9(active_index, [position.local_x_q9(), position.local_z_q9()])?;
-    Ok(ActorRenderProjection {
+    Ok(Some(ActorRenderProjection {
         actor,
         global_config,
         active_region_index: active_index as u32,
@@ -90,7 +133,7 @@ fn project(
         half_height_q16: body.half_height_numerator(),
         position_denominator: TERRAIN_POSITION_DENOMINATOR,
         height_denominator: TERRAIN_BODY_HEIGHT_DENOMINATOR,
-    })
+    }))
 }
 
 #[cfg(test)]

@@ -167,8 +167,11 @@ function actorInvariant(launch: Json, center: Coord): Json {
 function simulationDriverInvariant(launch: Json): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "simulation_driver");
-    if (driver.revision !== "live-prototype-gravity-driver-v1") {
+    if (driver.revision !== "live-prototype-gravity-driver-v2") {
         fail("prototype simulation driver revision diverged");
+    }
+    if (number(driver, "renderBlockCount") !== 0) {
+        fail("prototype normal readiness encountered render backpressure");
     }
     const sample = object(driver, "sample");
     const elapsed = number(sample, "elapsedNanoseconds");
@@ -219,6 +222,7 @@ function simulationDriverInvariant(launch: Json): Json {
         command,
         clockActive: true,
         boundedStepCount: true,
+        renderBlockCount: 0,
         tickStartsAtZero: true,
         groundedActorStable: true,
         queryPerStep: true,

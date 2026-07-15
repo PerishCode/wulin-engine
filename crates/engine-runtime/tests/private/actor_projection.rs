@@ -157,6 +157,10 @@ fn outside_window_and_config_divergence_fail_without_projection() {
     let center = RegionCoord::new(FAR, -FAR);
     let global = config(center, center);
     let outside = actor(center.checked_offset(3, 0).unwrap(), [0, 0]);
+    assert_eq!(
+        project_if_active(global, global.local_config().unwrap(), outside).unwrap(),
+        None
+    );
     assert!(
         project(global, global.local_config().unwrap(), outside)
             .unwrap_err()
@@ -170,6 +174,23 @@ fn outside_window_and_config_divergence_fail_without_projection() {
             .to_string()
             .contains("local/global configs diverged")
     );
+    assert_eq!(
+        ActorRenderAdmission::Blocked(ActorRenderWindow::Active)
+            .require()
+            .unwrap_err()
+            .to_string(),
+        "runtime actor is outside the active render window"
+    );
+    assert_eq!(
+        ActorRenderAdmission::Blocked(ActorRenderWindow::Pending)
+            .require()
+            .unwrap_err()
+            .to_string(),
+        "runtime actor is outside the pending render window"
+    );
+    assert!(!ActorRenderAdmission::Admitted.pending_blocked());
+    assert!(!ActorRenderAdmission::Blocked(ActorRenderWindow::Active).pending_blocked());
+    assert!(ActorRenderAdmission::Blocked(ActorRenderWindow::Pending).pending_blocked());
 }
 
 fn camera_bits(camera: Camera) -> ([u32; 3], [u32; 3], u32, u32) {

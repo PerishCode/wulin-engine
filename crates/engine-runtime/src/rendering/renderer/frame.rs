@@ -30,13 +30,13 @@ impl Renderer {
         if self.composition_enabled()
             && let Some(actor) = actor
         {
-            self.preflight_actor(actor)?;
+            self.preflight_actor(actor)?.require()?;
         }
         unsafe { self.drive_composition_traversal(scene.camera())? };
         if self.composition_enabled()
             && let Some(actor) = actor
         {
-            self.preflight_actor(actor)?;
+            self.preflight_actor(actor)?.require()?;
         }
         unsafe { self.poll_cooked_object_completion()? };
         let terrain_outcome = unsafe { self.poll_terrain_completion()? };
