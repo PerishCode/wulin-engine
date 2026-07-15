@@ -68,6 +68,15 @@ pub enum ControlKind {
         local_x_q9: i32,
         local_z_q9: i32,
     },
+    CanonicalTerrainContact {
+        region_x: i64,
+        region_z: i64,
+        local_x_q9: i32,
+        local_z_q9: i32,
+        center_height_numerator: i32,
+        half_height_numerator: i32,
+    },
+    CanonicalTerrainContactProbe,
     ObjectIoGateArm,
     ObjectIoGateRelease,
     ObjectCopyGateArm,
@@ -157,6 +166,17 @@ struct CanonicalTerrainHeightPayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CanonicalTerrainContactPayload {
+    region_x: i64,
+    region_z: i64,
+    local_x_q9: i32,
+    local_z_q9: i32,
+    center_height_numerator: i32,
+    half_height_numerator: i32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct InputPostPayload {
     messages: Vec<InputPostMessage>,
 }
@@ -204,6 +224,8 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "canonical.prefetch.disable" => Ok(ControlKind::CanonicalPrefetchDisable),
         "canonical.probe" => Ok(ControlKind::CanonicalProbe),
         "canonical.terrain.height" => parse_canonical_terrain_height(payload),
+        "canonical.terrain.contact" => parse_canonical_terrain_contact(payload),
+        "canonical.terrain.contact.probe" => Ok(ControlKind::CanonicalTerrainContactProbe),
         "canonical.objects.io_gate.arm" => Ok(ControlKind::ObjectIoGateArm),
         "canonical.objects.io_gate.release" => Ok(ControlKind::ObjectIoGateRelease),
         "canonical.objects.copy_gate.arm" => Ok(ControlKind::ObjectCopyGateArm),
@@ -288,6 +310,18 @@ fn parse_canonical_terrain_height(value: Value) -> ParsedControl {
         region_z: payload.region_z,
         local_x_q9: payload.local_x_q9,
         local_z_q9: payload.local_z_q9,
+    })
+}
+
+fn parse_canonical_terrain_contact(value: Value) -> ParsedControl {
+    let payload: CanonicalTerrainContactPayload = decode(value)?;
+    Ok(ControlKind::CanonicalTerrainContact {
+        region_x: payload.region_x,
+        region_z: payload.region_z,
+        local_x_q9: payload.local_x_q9,
+        local_z_q9: payload.local_z_q9,
+        center_height_numerator: payload.center_height_numerator,
+        half_height_numerator: payload.half_height_numerator,
     })
 }
 

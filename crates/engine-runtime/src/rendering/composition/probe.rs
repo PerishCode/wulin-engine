@@ -142,7 +142,13 @@ impl Renderer {
             .as_ref()
             .context("composition probe has no published pair")?;
         let projection = self.terrain_renderer.projection()?;
-        let terrain_query = terrain_query::probe(self, assignments, tiles, projection)?;
+        let terrain_query = terrain_query::probe(
+            self,
+            assignments,
+            tiles,
+            projection,
+            terrain_query::BodyContactCoverage::Witness,
+        )?;
         ensure!(
             snapshot.object_stable_seed_namespace == authority::object_source_namespace(),
             "composition object stable-seed namespace does not match its authority"
@@ -365,6 +371,35 @@ impl Renderer {
                 combined_gpu_ms: terrain_total_ms + skeletal_timing[4],
             },
         })
+    }
+
+    pub fn terrain_body_contact_probe(&self) -> Result<Value> {
+        let assignments = self
+            .terrain_renderer
+            .active_assignments()
+            .context("terrain body contact probe has no terrain mapping")?;
+        let tiles = self
+            .terrain_renderer
+            .published_tiles()
+            .context("terrain body contact probe has no terrain tiles")?;
+        ensure!(
+            assignments.len() == tiles.len(),
+            "terrain body contact mapping shape differs from tile shape"
+        );
+        self.composition
+            .published
+            .as_ref()
+            .context("terrain body contact probe has no published pair")?;
+        let projection = self.terrain_renderer.projection()?;
+        let contact = terrain_query::probe(
+            self,
+            assignments,
+            tiles,
+            projection,
+            terrain_query::BodyContactCoverage::Dense,
+        )?
+        .into_body_contact();
+        serde_json::to_value(contact).context("terrain body contact probe encoding failed")
     }
 }
 

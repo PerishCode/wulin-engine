@@ -405,6 +405,23 @@ export function validateProbe(value: Json, allowPending = false): void {
         terrainQuery.gpuReadbackCount !== 0 || terrainQuery.fenceWaitCount !== 0 ||
         terrainQuery.synchronizationCount !== 0
     ) fail("canonical terrain query diverged");
+    const terrainContactWitness = object(terrainQuery, "bodyContactWitness");
+    const bodyClassifications = object(terrainContactWitness, "classifications");
+    if (
+        terrainContactWitness.revision !== "exact-terrain-body-contact-witness-v1" ||
+        terrainContactWitness.bodyCount !== 225 ||
+        terrainContactWitness.halfHeightNumerator !== 65_536 ||
+        terrainContactWitness.heightDenominator !== 65_536 ||
+        bodyClassifications.separated !== 75 || bodyClassifications.touching !== 75 ||
+        bodyClassifications.penetrating !== 75 || terrainContactWitness.correctedCount !== 75 ||
+        terrainContactWitness.oracleMismatchCount !== 0 ||
+        terrainContactWitness.firstOracleMismatch !== null ||
+        terrainContactWitness.perResolutionAllocationBytes !== 0 ||
+        terrainContactWitness.sourceReadCount !== 0 || terrainContactWitness.gpuCopyCount !== 0 ||
+        terrainContactWitness.gpuReadbackCount !== 0 ||
+        terrainContactWitness.fenceWaitCount !== 0 ||
+        terrainContactWitness.synchronizationCount !== 0
+    ) fail("canonical terrain body-contact witness diverged");
     const terrain = object(value, "terrain");
     const global = object(terrain, "globalAddressing");
     const cpuEdges = object(terrain, "cpuEdges");
@@ -459,6 +476,7 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
     const skeletal = object(surface, "skeletal");
     const terrain = object(probeValue, "terrain");
     const terrainQuery = object(probeValue, "terrainQuery");
+    const terrainContactWitness = object(terrainQuery, "bodyContactWitness");
     const surfaceSamples = array(surface, "samples").map((value) => {
         const sample = value as Json;
         return {
@@ -514,6 +532,12 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
             minimumHeightNumerator: terrainQuery.minimumHeightNumerator,
             maximumHeightNumerator: terrainQuery.maximumHeightNumerator,
             triangles: terrainQuery.triangles,
+        },
+        terrainContactWitness: {
+            resultSha256: terrainContactWitness.resultSha256,
+            identityKeyedSha256: terrainContactWitness.identityKeyedSha256,
+            classifications: terrainContactWitness.classifications,
+            correctedCount: terrainContactWitness.correctedCount,
         },
         skeletal: {
             settings: skeletal.settings,
@@ -687,6 +711,7 @@ function stableProbeSummary(value: Json): Json {
     const canonical = object(value, "canonicalObjects");
     const grounding = object(value, "grounding");
     const terrainQuery = object(value, "terrainQuery");
+    const terrainContactWitness = object(terrainQuery, "bodyContactWitness");
     const pair = object(object(value, "pair"), "published");
     return {
         token: pair.token,
@@ -696,6 +721,9 @@ function stableProbeSummary(value: Json): Json {
         terrainQueryResultSha256: terrainQuery.resultSha256,
         terrainQueryIdentitySha256: terrainQuery.identityKeyedSha256,
         terrainQueryMismatchCount: terrainQuery.oracleMismatchCount,
+        terrainContactWitnessResultSha256: terrainContactWitness.resultSha256,
+        terrainContactWitnessIdentitySha256: terrainContactWitness.identityKeyedSha256,
+        terrainContactWitnessMismatchCount: terrainContactWitness.oracleMismatchCount,
         mismatchCount: grounding.mismatchCount,
         combinedGpuMs: object(value, "timing").combinedGpuMs,
     };

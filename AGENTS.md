@@ -95,7 +95,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0044 and the current ADR set through 0047 define one live content runtime
+Experiments 0031-0046 and the current ADR set through 0049 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one offline-cooked external geometry/material/rig source, and one deterministic object-shadow
 path:
@@ -126,6 +126,9 @@ path:
   Escape limited to host exit;
 - one exact read-only CPU terrain-height query over the committed snapshot, addressed by signed
   region plus half-open local Q9 and independent from camera, render LOD, source I/O, and GPU work;
+- one caller-owned exact vertical terrain-body contact transaction with strict
+  separated/touching/penetrating classification, minimum upward correction, and no runtime body
+  store, simulation clock, gravity, or locomotion policy;
 - one clear-only diagnostic idle shell with neutral reverse-Z depth and semantic frame targets,
   no calibration scene, and no split-world control surface;
 - one compact `input.*` / `camera.*` / `source.*` / `canonical.*` inspect vocabulary;
@@ -164,6 +167,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0046-reference-platform-host.md` | Accepted concrete Windows host ownership, workbench/prototype separation, and non-diagnostic composition contract. |
 | `docs/adr/0047-canonical-terrain-query.md` | Accepted signed fixed-point CPU terrain-height query and published-snapshot failure contract. |
 | `docs/adr/0048-idle-shell-compatibility-removal.md` | Accepted calibration/split-world removal, clear-only idle shell, and neutral frame-target ownership. |
+| `docs/adr/0049-exact-terrain-body-contact.md` | Accepted caller-owned exact terrain contact, minimum correction, bounded witness, and deferred simulation policy. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -180,6 +184,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0043-thin-prototype-host/README.md` | Accepted shared reference host, plain prototype startup, terminal failure, and lifecycle evidence. |
 | `experiments/0044-exact-canonical-terrain-query/README.md` | Accepted exact CPU height query, independent oracle, atomic publication, and lifecycle evidence. |
 | `experiments/0045-active-compatibility-removal/README.md` | Accepted calibration/world compatibility removal, idle zero-semantic evidence, and exact canonical regression. |
+| `experiments/0046-exact-terrain-body-contact/README.md` | Accepted exact terrain body contact, explicit dense proof, compact transition witness, and lifecycle evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -187,7 +192,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/runtime.rs` | Sole renderer/scene facade and frame-transaction coordinator. |
 | `crates/engine-runtime/src/region.rs` | Signed global region value and checked offset owner. |
 | `crates/engine-runtime/src/timeline.rs` | Deterministic presentation timeline state, controls, counters, and successful-frame commit. |
-| `crates/engine-runtime/src/terrain_query.rs` | Signed half-open Q9 position, exact height/triangle result, and published-snapshot integer query. |
+| `crates/engine-runtime/src/terrain_query.rs` | Signed half-open Q9 position, exact height query, caller-owned body, and minimum-correction contact transaction. |
 | `crates/reference-host/src/window.rs` | Concrete single-window Win32 lifecycle, message pump, native input capture, and close signaling. |
 | `crates/reference-host/src/input.rs` | Normalized key state, bounded record lifecycle, canonical hashing, isolated replay, and held-state query. |
 | `crates/reference-host/src/bootstrap.rs` | Strict arguments/config/pack paths and hidden canonical-ready bootstrap driver. |
@@ -216,7 +221,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/rendering/composition/mod.rs` | Atomic pair publication and fixed composition. |
 | `crates/engine-runtime/src/rendering/composition/traversal.rs` | Latest-wins traversal, prefetch, and rollover policy. |
 | `crates/engine-runtime/src/rendering/composition/probe.rs` | Canonical attachment and oracle evidence. |
-| `crates/engine-runtime/src/rendering/composition/probe/terrain_query.rs` | Dense public-query and independent grounding-oracle evidence. |
+| `crates/engine-runtime/src/rendering/composition/probe/terrain_query.rs` | Dense query/contact oracle evidence and compact body-contact transition witness. |
 | `crates/engine-runtime/src/rendering/frame_targets.rs` | Neutral reverse-Z depth and semantic render-target ownership. |
 | `crates/engine-runtime/src/rendering/renderer/frame.rs` | Clear-only idle-shell/canonical frame dispatch. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/surface/shadow.rs` | Fixed directional-light projection and shadow probe oracle. |
@@ -224,9 +229,10 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0045 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0046 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
+| `.runseal/support/terrain-contact.ts` | Exact contact rejection, direct classification, dense proof, and witness acceptance support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
 | `.runseal/support/prototype-host.ts` | Prototype no-ready failure, exact readiness, restart, and no-inspect lifecycle support. |
@@ -257,12 +263,13 @@ source reordering, movement, aliasing, failure rollback, all four fault gates, r
 and prepared traversal, rollover, the runtime-owned frame transaction and deterministic
 presentation time, deterministic host input and process-restart replay, configured canonical
 readiness, shared reference-host ownership, prototype startup/restart/cleanup, fixed camera-visible
-directional object shadows, exact CPU terrain-height query and oracle evidence, a same-process
+directional object shadows, exact CPU terrain-height query/body contact and oracle evidence, a
+bounded contact transition witness, a same-process
 clear-only idle attachment capture, retired-control rejection, 64-publication resource plateau,
 and 16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0045-active-compatibility-removal/` and remains ignored.
+`out/captures/0046-exact-terrain-body-contact/` and remains ignored.
 
 ### 6.3 Manual workbench
 

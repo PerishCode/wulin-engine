@@ -45,13 +45,17 @@ import {
     sourceDurationGates,
 } from "../support/cooked-gltf-presentation.ts";
 import { hostInputGates } from "../support/host-input-replay.ts";
-import { bootstrapGates } from "../support/runtime-bootstrap.ts";
+import { bootstrapGates as bootstrapGate } from "../support/runtime-bootstrap.ts";
 import { prototypeHostGates } from "../support/prototype-host.ts";
 import { terrainQueryGates, unavailableTerrainQueryGate } from "../support/terrain-query.ts";
+import {
+    terrainContactGates as contactGates,
+    unavailableTerrainContactGate as unavailableContact,
+} from "../support/terrain-contact.ts";
 import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 
-const REVISION = "active-compatibility-removal-v1";
-const COLLECTION = "0045-active-compatibility-removal";
+const REVISION = "exact-terrain-body-contact-v1";
+const COLLECTION = "0046-exact-terrain-body-contact";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -166,23 +170,19 @@ const terrainCorruption = await corruptTerrain(TERRAIN_CORRUPT, [BASE[0] + 75, B
 let acceptance: Json | undefined;
 try {
     console.log("==> canonical correctness and failure gates");
-    const bootstrap = await bootstrapGates(
-        TERRAIN,
-        OBJECTS_A,
-        OBJECTS_CORRUPT,
-        BASE,
-        COLLECTION,
-    );
+    const bootstrap = await bootstrapGate(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE, COLLECTION);
     const prototype = await prototypeHostGates(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE);
     const hostInput = await hostInputGates();
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
+    const unavailableTerrainContact = await unavailableContact(BASE);
     await openSources(TERRAIN, OBJECTS_A);
     const basePublication = await publish(target(BASE));
     assertObjectCopies(basePublication, 25, "cold publication");
     const orderA = await frame("order-a", COLLECTION);
     const terrainQuery = await terrainQueryGates(BASE, orderA, unavailableTerrainQuery);
+    const terrainContact = await contactGates(BASE, orderA, unavailableTerrainContact);
     const orderStable = object(orderA, "stable");
     const orderShadow = object(object(orderStable, "surface"), "shadow");
     if (
@@ -445,6 +445,7 @@ try {
             hostInput,
             compatibilityRemoval,
             terrainQuery,
+            terrainContact,
             basePublication,
             orderA,
             temporal,

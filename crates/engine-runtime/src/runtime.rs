@@ -7,7 +7,9 @@ use windows::Win32::Foundation::HWND;
 use crate::rendering::{RenderFrame, RenderOutcome, Renderer};
 use crate::scene::SceneState;
 use crate::streaming::address::GlobalRegionConfig;
-use crate::terrain_query::{TerrainHeight, TerrainQueryPosition};
+use crate::terrain_query::{
+    TerrainBody, TerrainBodyContact, TerrainHeight, TerrainQueryPosition, resolve_body_contact,
+};
 use crate::timeline::PresentationTimeline;
 
 #[derive(Clone, Copy)]
@@ -162,6 +164,15 @@ impl Runtime {
 
     pub fn query_terrain_height(&self, position: TerrainQueryPosition) -> Result<TerrainHeight> {
         self.renderer.query_terrain_height(position)
+    }
+
+    pub fn resolve_terrain_contact(&self, body: TerrainBody) -> Result<TerrainBodyContact> {
+        let terrain = self.query_terrain_height(body.position())?;
+        resolve_body_contact(body, terrain)
+    }
+
+    pub fn terrain_body_contact_probe(&self) -> Result<Value> {
+        self.renderer.terrain_body_contact_probe()
     }
 
     pub fn presentation_time_status(&self) -> Value {
