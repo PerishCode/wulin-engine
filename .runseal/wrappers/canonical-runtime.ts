@@ -42,7 +42,7 @@ import {
 } from "../support/cooked-gltf-presentation.ts";
 import { hostInputGates } from "../support/host-input-replay.ts";
 import { bootstrapGates as bootstrapGate } from "../support/runtime-bootstrap.ts";
-import { prototypeHostGates } from "../support/prototype-host.ts";
+import { prototypeHostGates } from "../support/prototype/host.ts";
 import { terrainQueryGates, unavailableTerrainQueryGate } from "../support/terrain/query.ts";
 import {
     terrainContactGates as contactGates,
