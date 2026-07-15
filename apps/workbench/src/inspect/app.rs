@@ -15,7 +15,7 @@ use crate::{
 use super::protocol::{ControlKind, ControlResult, ProtocolError};
 use super::server::ControlCommand;
 
-mod retained_body;
+mod actor;
 
 pub(crate) fn handle_commands(
     hwnd: HWND,
@@ -174,40 +174,17 @@ pub(crate) fn handle_commands(
                     })
                 })
                 .map_err(|error| protocol_error("terrain_contact_failed", error)),
-            ControlKind::CanonicalTerrainBodySpawn {
-                region_x,
-                region_z,
-                local_x_q9,
-                local_z_q9,
-                center_height_numerator,
-                half_height_numerator,
-                step_velocity_q16,
-            } => retained_body::spawn(
-                runtime,
-                retained_body::MotionPayload {
-                    region_x,
-                    region_z,
-                    local_x_q9,
-                    local_z_q9,
-                    center_height_numerator,
-                    half_height_numerator,
-                    step_velocity_q16,
-                },
-            ),
-            ControlKind::CanonicalTerrainBodyRead { generation } => {
-                retained_body::read(runtime, generation)
-            }
-            ControlKind::CanonicalTerrainBodyDespawn { generation } => {
-                retained_body::despawn(runtime, generation)
-            }
-            ControlKind::SimulationTerrainBodyAdvance {
+            ControlKind::ActorSpawn(payload) => actor::spawn(runtime, payload),
+            ControlKind::ActorRead { generation } => actor::read(runtime, generation),
+            ControlKind::ActorDespawn { generation } => actor::despawn(runtime, generation),
+            ControlKind::SimulationActorAdvance {
                 generation,
                 elapsed_nanoseconds,
                 delta_x_q9,
                 delta_z_q9,
                 step_up_limit_q16,
                 step_acceleration_q16,
-            } => retained_body::simulation_advance(
+            } => actor::simulation_advance(
                 runtime,
                 generation,
                 elapsed_nanoseconds,

@@ -1,20 +1,9 @@
 use anyhow::{Context, Result, anyhow, ensure};
-use serde::Serialize;
 
-use super::RetainedTerrainBody;
 use crate::terrain_query::{
     TerrainBodyMotion, TerrainHeight, TerrainPosition, advance_terrain_body,
 };
 use crate::timeline::SIMULATION_MAX_STEPS_PER_ADVANCE;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RetainedTerrainBodyBatch {
-    pub input: RetainedTerrainBody,
-    pub output: RetainedTerrainBody,
-    pub step_count: u32,
-    pub terrain_query_count: u32,
-}
 
 pub(crate) struct MotionBatch {
     pub output: TerrainBodyMotion,
@@ -32,7 +21,7 @@ pub(crate) fn advance_motion_batch(
 ) -> Result<MotionBatch> {
     ensure!(
         step_count <= SIMULATION_MAX_STEPS_PER_ADVANCE,
-        "retained terrain body batch step count must be in [0, {SIMULATION_MAX_STEPS_PER_ADVANCE}]"
+        "terrain-body motion batch step count must be in [0, {SIMULATION_MAX_STEPS_PER_ADVANCE}]"
     );
     let mut output = input;
     let mut terrain_query_count = 0_u32;
@@ -47,14 +36,14 @@ pub(crate) fn advance_motion_batch(
         )
         .map_err(|error| {
             anyhow!(
-                "retained terrain body batch step {} of {step_count} failed: {error:#}",
+                "terrain-body motion batch step {} of {step_count} failed: {error:#}",
                 index + 1
             )
         })?;
         output = advance.output;
         terrain_query_count = terrain_query_count
             .checked_add(advance.terrain_query_count)
-            .context("retained terrain body batch query count overflowed")?;
+            .context("terrain-body motion batch query count overflowed")?;
     }
     Ok(MotionBatch {
         output,
@@ -63,5 +52,5 @@ pub(crate) fn advance_motion_batch(
 }
 
 #[cfg(test)]
-#[path = "../../tests/private/retained_batch.rs"]
+#[path = "../../tests/private/motion_batch.rs"]
 mod tests;

@@ -8,8 +8,15 @@ export async function requireSimulationHistoryRemoved(
     for (
         const path of [
             ".runseal/support/simulation-schedule.ts",
+            ".runseal/support/simulation-body.ts",
+            ".runseal/support/terrain/retained-body.ts",
             ".runseal/support/terrain/retained-advance.ts",
             ".runseal/support/terrain/retained-batch.ts",
+            "apps/prototype/src/body.rs",
+            "apps/workbench/src/inspect/app/retained_body.rs",
+            "crates/engine-runtime/src/runtime/retained_batch.rs",
+            "crates/engine-runtime/src/runtime/retained_body.rs",
+            "crates/engine-runtime/src/runtime/simulation_body.rs",
         ]
     ) {
         try {
@@ -26,16 +33,20 @@ export async function requireSimulationHistoryRemoved(
         "CanonicalTerrainBodyRetained(Advance|Batch)",
         "RetainedTerrainBodyAdvance",
         "pub fn (advance_simulation|simulation_schedule_probe|advance_retained_terrain_body|advance_retained_body_batch)\\(",
-        "simulation_(advance|probe)_failed",
+        "(^|[^a-z_])simulation_(advance|probe)_failed",
         "retained_terrain_(advance|batch)_failed",
         "simulation\\.(advance|probe)",
         "canonical\\.terrain\\.body\\.retained\\.(advance|batch)",
+        "TerrainBodyHandle|TerrainBodySlot|RetainedTerrainBody(Batch)?|RetainedSimulationAdvance",
+        "(spawn|read|despawn)_terrain_body|advance_simulation_body",
+        "CanonicalTerrainBody(Spawn|Read|Despawn)|SimulationTerrainBodyAdvance",
+        "canonical\\.terrain\\.body\\.(spawn|read|despawn)|simulation\\.terrain\\.body\\.advance",
     ].join("|");
     await requireAbsent(
         root,
         fail,
         livePattern,
-        ["apps", "crates/engine-runtime/src"],
+        ["apps", "crates/engine-runtime/src", ".runseal/wrappers/init.ts", "flavor.toml"],
         "independent simulation mutation symbol",
     );
 
@@ -43,12 +54,19 @@ export async function requireSimulationHistoryRemoved(
         "simulationScheduleGates",
         "retainedAdvanceGates",
         "retainedBatchGates",
+        "retainedBodyGates",
+        "simulationBodyGates",
     ].join("|");
     await requireAbsent(
         root,
         fail,
         gatePattern,
-        [".runseal/wrappers", ".runseal/support/terrain"],
+        [
+            ".runseal/wrappers",
+            ".runseal/support/actor.ts",
+            ".runseal/support/simulation-actor.ts",
+            ".runseal/support/prototype-host.ts",
+        ],
         "independent simulation gate",
     );
 }

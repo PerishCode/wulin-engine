@@ -2,9 +2,9 @@
 
 ## State
 
-Experiments through 0063 and ADR 0066 define the accepted canonical content runtime, reference
+Experiments through 0064 and ADR 0067 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
-motion/planar terrain transaction contracts, deterministic simulation schedule, one retained body
+motion/planar terrain transaction contracts, deterministic simulation schedule, one retained actor
 lifecycle plus a sole explicit-time dual advance, one live prototype host-time driver,
 and retired compatibility/history surfaces. The
 runtime remains in
@@ -14,11 +14,12 @@ time, the explicit rational 60 Hz simulation schedule, one signed-region/half-op
 position with exact checked translation, exact committed-snapshot terrain queries, caller-owned
 vertical contact, private terrain motion/translation/advance composition, neutral frame targets,
 shaders, probes, and GPU
-device/resource lifecycle. It also owns one optional neutral `TerrainBodyMotion` behind a checked
-nonzero generation handle. Prototype now creates that body only after canonical publication from
-the configured center and exact committed terrain. Runtime has no calibration scene, split-world
-control state, multi-body
-store, live wall-clock driver, or autonomous step loop. The
+device/resource lifecycle. It also owns one optional `RuntimeActor` behind a checked nonzero
+generation handle; that actor directly owns exact `TerrainBodyMotion` and the existing schema-3
+`PresentationRecord`. Prototype creates one grounded imported-Fox actor only after canonical
+publication from the configured center and exact committed terrain. Runtime has no calibration
+scene, split-world control state, multi-actor store, GPU actor plane, live wall-clock driver, or
+autonomous step loop. The
 format/catalog crates and offline cookers remain independent reusable owners below it.
 
 The runtime owns the sole mutable presentation timeline, successful-frame commit, and simulation
@@ -26,9 +27,10 @@ schedule. The renderer consumes an immutable pre-commit tick for GPU work and ev
 pause, set,
 step, or advance time. Simulation advances only from explicit bounded elapsed nanoseconds and is
 independent from presentation. Private pure terrain transactions establish the one-tick spatial
-contract; they have no copied-value inspect command or public `Runtime` mutation method. The retained
-slot establishes process-local ownership and spawn/read/despawn lifetime. One explicit elapsed,
-handle-addressed operation prepares schedule/body copies and commits both only after success.
+contract; they have no copied-value inspect command or public `Runtime` mutation method. The actor
+slot establishes one process-local identity plus motion/presentation lifetime. One explicit elapsed,
+actor-addressed operation prepares schedule/motion copies and commits both only after success while
+preserving actor identity and presentation.
 `reference-host` owns exact monotonic elapsed admission. Each complete ordered activation batch is
 applied to a candidate clock before exactly one sample; success commits both together. First and
 resumed samples reset, bounded deltas are preserved, stalls are explicit and advance their baseline,
@@ -42,15 +44,16 @@ order-equivalent typed transitions. It stores no activation event queue; prototy
 complete batch before each clock sample. Input focus-loss cleanup remains an independent normalized-
 input responsibility.
 
-The private retained batch accepts an explicit 0..=8 count and repeats one controlled spatial
-command in local motion. Runtime's sole public mutation composes it with caller-supplied elapsed and
-commits schedule/body together. No independent schedule-only or body-only mutation remains.
+The private motion batch accepts an explicit 0..=8 count and repeats one controlled spatial command
+in local motion. Runtime's sole public mutation composes it with caller-supplied elapsed and commits
+schedule/actor together. No independent schedule-only, body-only, or detached body lifecycle
+mutation remains.
 Prototype is the sole live caller and orders a Ready-only zero command before its frame.
 
 `TerrainPosition` is the sole horizontal identity shared by terrain query, contact, and fixed
 motion. Its pure Q9 translation canonicalizes positive, negative, and multi-region displacement
 without sampling terrain. Bounded planar contact composition and planar-first vertical ordering are
-accepted. Slope policy, input mapping, multi-actor storage, and presentation binding remain
+accepted. Slope policy, input mapping, multi-actor storage, and GPU actor presentation binding remain
 unpromoted.
 
 Exact contact retains one public direct transaction and one 225-body witness embedded in the
@@ -66,10 +69,10 @@ portable event layer.
 `apps/workbench` is the native diagnostic composition root. It retains inspect transport,
 operator capture persistence, perception response shaping, diagnostic readiness, pause/failure
 shaping, and fault gates. `apps/prototype` is the plain non-diagnostic composition root: configured
-canonical startup is mandatory, it creates one exact grounded retained body before readiness,
-drives Ready-only zero-command schedule/body transactions before frames, and publishes readiness
-after the first nonzero commit/frame. Escape only requests host exit. Nonzero motion, runtime actors,
-camera actions, and
+canonical startup is mandatory, it creates one grounded imported-Fox actor before readiness,
+drives Ready-only zero-command schedule/actor transactions before frames, and publishes readiness
+after the first nonzero commit/frame. Escape only requests host exit. Nonzero motion, GPU actor
+binding, camera actions, and
 gameplay interaction remain unpromoted. Directories are created only when they own real files.
 
 ## Dependency direction

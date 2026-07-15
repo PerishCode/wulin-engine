@@ -1,41 +1,50 @@
 use anyhow::Result;
 use serde::Serialize;
 
-use super::RetainedTerrainBodyBatch;
-use super::retained_batch::{MotionBatch, advance_motion_batch};
+use super::RuntimeActor;
+use super::motion_batch::{MotionBatch, advance_motion_batch};
 use crate::terrain_query::{TerrainBodyMotion, TerrainHeight, TerrainPosition};
 use crate::timeline::{SimulationAdvance, SimulationSchedule};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RetainedSimulationAdvance {
-    pub simulation: SimulationAdvance,
-    pub body: RetainedTerrainBodyBatch,
+pub struct ActorMotionBatch {
+    pub input: RuntimeActor,
+    pub output: RuntimeActor,
+    pub step_count: u32,
+    pub terrain_query_count: u32,
 }
 
-pub(crate) struct PreparedSimulationBody {
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActorSimulationAdvance {
+    pub simulation: SimulationAdvance,
+    pub actor: ActorMotionBatch,
+}
+
+pub(crate) struct PreparedSimulationActor {
     pub schedule: SimulationSchedule,
     pub simulation: SimulationAdvance,
-    pub body: MotionBatch,
+    pub motion: MotionBatch,
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct SimulationBodyCommand {
+pub(crate) struct SimulationActorCommand {
     pub delta_x_q9: i32,
     pub delta_z_q9: i32,
     pub step_up_limit_q16: i32,
     pub step_acceleration_q16: i32,
 }
 
-pub(crate) fn prepare_simulation_body(
+pub(crate) fn prepare_simulation_actor(
     mut schedule: SimulationSchedule,
     input: TerrainBodyMotion,
     elapsed_nanoseconds: u64,
-    command: SimulationBodyCommand,
+    command: SimulationActorCommand,
     query: impl FnMut(TerrainPosition) -> Result<TerrainHeight>,
-) -> Result<PreparedSimulationBody> {
+) -> Result<PreparedSimulationActor> {
     let simulation = schedule.advance(elapsed_nanoseconds)?;
-    let body = advance_motion_batch(
+    let motion = advance_motion_batch(
         input,
         simulation.step_count,
         command.delta_x_q9,
@@ -44,13 +53,13 @@ pub(crate) fn prepare_simulation_body(
         command.step_acceleration_q16,
         query,
     )?;
-    Ok(PreparedSimulationBody {
+    Ok(PreparedSimulationActor {
         schedule,
         simulation,
-        body,
+        motion,
     })
 }
 
 #[cfg(test)]
-#[path = "../../tests/private/simulation_body.rs"]
+#[path = "../../tests/private/simulation_actor.rs"]
 mod tests;

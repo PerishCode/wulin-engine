@@ -73,7 +73,7 @@ fn bounds_and_mid_batch_failure_return_no_output() {
     };
     assert_eq!(
         error.to_string(),
-        "retained terrain body batch step 3 of 8 failed: controlled third query failure"
+        "terrain-body motion batch step 3 of 8 failed: controlled third query failure"
     );
     assert_eq!(queries, 3);
 }

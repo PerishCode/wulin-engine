@@ -131,38 +131,43 @@ function startupInvariant(launch: Json): Json {
     };
 }
 
-function simulationBodyInvariant(launch: Json, center: Coord): Json {
-    const simulationBody = object(object(launch, "readiness"), "simulation_body");
-    if (number(simulationBody, "capacity") !== 1 || number(simulationBody, "liveCount") !== 1) {
-        fail("prototype readiness retained-body cardinality diverged");
+function actorInvariant(launch: Json, center: Coord): Json {
+    const actorAuthority = object(object(launch, "readiness"), "actor");
+    if (number(actorAuthority, "capacity") !== 1 || number(actorAuthority, "liveCount") !== 1) {
+        fail("prototype readiness actor cardinality diverged");
     }
-    const terrain = object(simulationBody, "terrain");
-    const retained = object(simulationBody, "retained");
-    if (number(object(retained, "handle"), "generation") !== 1) {
-        fail("prototype initial body generation diverged");
+    const terrain = object(actorAuthority, "terrain");
+    const actor = object(actorAuthority, "state");
+    if (number(object(actor, "handle"), "generation") !== 1) {
+        fail("prototype initial actor generation diverged");
     }
-    const motion = object(retained, "motion");
+    const presentation = object(actor, "presentation");
+    if (
+        number(presentation, "archetype") !== 7 || number(presentation, "material") !== 63 ||
+        number(presentation, "yawQ16") !== 0 || number(presentation, "animation") !== 1
+    ) fail("prototype initial actor presentation diverged");
+    const motion = object(actor, "motion");
     const body = object(motion, "body");
     const position = object(body, "position");
     const region = object(position, "region");
     if (
         number(region, "x") !== center[0] || number(region, "z") !== center[1] ||
         number(position, "localXQ9") !== 0 || number(position, "localZQ9") !== 0
-    ) fail("prototype initial body position diverged");
+    ) fail("prototype initial actor position diverged");
     const halfHeight = number(body, "halfHeightNumerator");
     const terrainHeight = number(terrain, "heightNumerator");
     if (
         number(terrain, "heightDenominator") !== 65_536 || halfHeight !== 65_536 ||
         number(body, "centerHeightNumerator") !== terrainHeight + halfHeight ||
         number(motion, "stepVelocityQ16") !== 0
-    ) fail("prototype initial body grounding diverged");
-    return simulationBody;
+    ) fail("prototype initial actor grounding diverged");
+    return actorAuthority;
 }
 
 function simulationDriverInvariant(launch: Json): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "simulation_driver");
-    if (driver.revision !== "live-prototype-time-driver-v1") {
+    if (driver.revision !== "live-prototype-actor-driver-v1") {
         fail("prototype simulation driver revision diverged");
     }
     const sample = object(driver, "sample");
@@ -193,14 +198,14 @@ function simulationDriverInvariant(launch: Json): Json {
         number(simulation, "endTick") !== stepCount ||
         number(simulation, "remainderDenominator") !== 1_000_000_000
     ) fail("prototype live simulation advance diverged");
-    const body = object(advance, "body");
+    const actor = object(advance, "actor");
     if (
-        number(body, "stepCount") !== stepCount ||
-        number(body, "terrainQueryCount") !== stepCount
-    ) fail("prototype live body batch diverged");
-    const initial = object(object(readiness, "simulation_body"), "retained");
-    same(object(body, "input"), initial, "prototype live body input");
-    same(object(body, "output"), initial, "prototype live body output");
+        number(actor, "stepCount") !== stepCount ||
+        number(actor, "terrainQueryCount") !== stepCount
+    ) fail("prototype live actor batch diverged");
+    const initial = object(object(readiness, "actor"), "state");
+    same(object(actor, "input"), initial, "prototype live actor input");
+    same(object(actor, "output"), initial, "prototype live actor output");
     const bootstrapFrames = number(driver, "bootstrapFrameCount");
     const liveFrames = number(driver, "liveFrameCount");
     if (
@@ -214,7 +219,7 @@ function simulationDriverInvariant(launch: Json): Json {
         clockActive: true,
         boundedStepCount: true,
         tickStartsAtZero: true,
-        bodyStable: true,
+        actorStable: true,
         queryPerStep: true,
         readinessAfterFrame: true,
     };
@@ -272,9 +277,9 @@ export async function prototypeHostGates(
     }
     same(startupInvariant(restarted), startupInvariant(first), "prototype restart configuration");
     same(
-        simulationBodyInvariant(restarted, base),
-        simulationBodyInvariant(first, base),
-        "prototype restart simulation body",
+        actorInvariant(restarted, base),
+        actorInvariant(first, base),
+        "prototype restart actor authority",
     );
     same(
         simulationDriverInvariant(restarted),

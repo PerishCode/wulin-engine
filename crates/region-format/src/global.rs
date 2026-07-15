@@ -8,11 +8,10 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use super::{
-    InstanceRecord, PAYLOAD_ALIGNMENT, PRESENTATION_ANIMATION_CLIP_COUNT,
-    PRESENTATION_ANIMATION_PHASE_COUNT, PRESENTATION_ARCHETYPE_COUNT, PRESENTATION_BYTES,
-    PRESENTATION_MATERIAL_COUNT, PresentationRecord, RECORD_BYTES, RECORDS_PER_REGION,
-    REGION_BYTES, align_up, decode_presentation, decode_record, encode_presentation, encode_record,
-    hex, push_u32, push_u32_to, push_u64, push_u64_to, u32_at, u64_at,
+    InstanceRecord, PAYLOAD_ALIGNMENT, PRESENTATION_BYTES, PresentationRecord, RECORD_BYTES,
+    RECORDS_PER_REGION, REGION_BYTES, align_up, decode_presentation, decode_record,
+    encode_presentation, encode_record, hex, push_u32, push_u32_to, push_u64, push_u64_to, u32_at,
+    u64_at,
 };
 
 pub const GLOBAL_MAGIC: [u8; 8] = *b"WLRGN003";
@@ -504,41 +503,12 @@ fn validate_presentations(
         region.z
     );
     for presentation in presentations {
-        ensure!(
-            presentation.archetype < PRESENTATION_ARCHETYPE_COUNT,
-            "signed object region ({},{}) contains invalid presentation archetype {}",
-            region.x,
-            region.z,
-            presentation.archetype
-        );
-        ensure!(
-            presentation.material < PRESENTATION_MATERIAL_COUNT,
-            "signed object region ({},{}) contains invalid presentation material {}",
-            region.x,
-            region.z,
-            presentation.material
-        );
-        ensure!(
-            presentation.yaw_q16 <= u16::MAX.into(),
-            "signed object region ({},{}) contains invalid presentation yaw {}",
-            region.x,
-            region.z,
-            presentation.yaw_q16
-        );
-        if presentation.is_animated() {
-            ensure!(
-                presentation.animation_clip().unwrap() < PRESENTATION_ANIMATION_CLIP_COUNT,
-                "signed object region ({},{}) contains invalid animation clip",
-                region.x,
-                region.z
-            );
-            ensure!(
-                presentation.animation_phase_offset().unwrap() < PRESENTATION_ANIMATION_PHASE_COUNT,
-                "signed object region ({},{}) contains invalid animation phase offset",
-                region.x,
-                region.z
-            );
-        }
+        presentation.validate().with_context(|| {
+            format!(
+                "signed object region ({},{}) contains invalid presentation",
+                region.x, region.z
+            )
+        })?;
     }
     Ok(())
 }
