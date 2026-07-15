@@ -16,7 +16,8 @@ authority 原子发布，并由唯一的 runtime-owned source-duration presentat
 时间变化不会触发内容 I/O、GPU page copy 或 pair 重发布。独立的显式 60 Hz simulation
 schedule、调用方持有的垂直 fixed-step motion 和有上修正上限的平面 terrain-body transaction
 已经建立，并已固定 planar-first 的单 tick 组合顺序。`Runtime` 现持有一个带代际句柄的中性
-terrain-body 槽；reference host 已将 bounded monotonic elapsed policy 与至多两个等价
+terrain-body 槽，prototype 已在 canonical publication 后创建一个精确 grounded retained body；
+reference host 已将 bounded monotonic elapsed policy 与至多两个等价
 transition 的 Win32 activation batch 组成唯一的 activation-before-sample 操作；但仍无 live
 wall-clock driver、多 actor store、水平速度或 locomotion controller。live simulation/body
 mutation 只保留 schedule/body 双提交，不再暴露独立 schedule 或 retained single/batch bypass。
@@ -253,6 +254,12 @@ reset，resume/loss 则保持 suspended，独立 public `suspend` / `resume` 已
 与 guard 通过，组合 replay SHA-256 为
 `15ab39e6b25ea2a63a97378c51f7ec73242d53d87331245174b4efffef01301e`；两个 application loop
 仍不采样时间，因此没有运行进程/GPU/全量验收。
+Experiment 0062 让非诊断 prototype 在 canonical publication 成功后、readiness 之前，从既有
+`globalCenter` 与 local Q9 `(0,0)` 查询 committed terrain 并创建一个 generation-1 retained body。
+固定 half-height 为 65,536 Q16、velocity 为 0，foot 与 terrain byte-exact touching；远端测试点
+terrain/center 分别为 `76288/141824`。2 个纯测试与 50.4 秒定向 lifecycle gate 通过，两次进程
+body 证据完全一致且 PID 不同，invalid/missing/corrupt 均不发 readiness，最终无残留 PID；没有
+运行 workbench GPU/资源/遍历全量验收。
 
 ## Project model
 

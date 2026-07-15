@@ -2,7 +2,7 @@
 
 ## State
 
-Experiments through 0061 and ADR 0064 define the accepted canonical content runtime, reference
+Experiments through 0062 and ADR 0065 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
 motion/planar terrain transaction contracts, deterministic simulation schedule, one retained body
 lifecycle plus a sole explicit-time dual advance, disconnected composed host time admission,
@@ -15,7 +15,9 @@ position with exact checked translation, exact committed-snapshot terrain querie
 vertical contact, private terrain motion/translation/advance composition, neutral frame targets,
 shaders, probes, and GPU
 device/resource lifecycle. It also owns one optional neutral `TerrainBodyMotion` behind a checked
-nonzero generation handle. It has no calibration scene, split-world control state, multi-body
+nonzero generation handle. Prototype now creates that body only after canonical publication from
+the configured center and exact committed terrain. Runtime has no calibration scene, split-world
+control state, multi-body
 store, live wall-clock driver, or autonomous step loop. The
 format/catalog crates and offline cookers remain independent reusable owners below it.
 
@@ -62,8 +64,9 @@ portable event layer.
 `apps/workbench` is the native diagnostic composition root. It retains inspect transport,
 operator capture persistence, perception response shaping, diagnostic readiness, pause/failure
 shaping, and fault gates. `apps/prototype` is the plain non-diagnostic composition root: configured
-canonical startup is mandatory, it continuously frames the same runtime, and Escape only requests
-host exit. Live schedule/motion driving, runtime actors, camera actions, and
+canonical startup is mandatory, it creates one exact grounded retained body before readiness,
+continuously frames the same runtime, and Escape only requests host exit. Live schedule/motion
+driving, runtime actors, camera actions, and
 gameplay interaction remain unpromoted. Directories are created only when they own real files.
 
 ## Dependency direction
