@@ -54,26 +54,6 @@ pub(crate) fn handle_commands(
                 .replay()
                 .map_err(|error| protocol_error("input_replay_failed", error)),
             ControlKind::SimulationStatus => Ok(runtime.simulation_status()),
-            ControlKind::SimulationProbe => runtime
-                .simulation_schedule_probe()
-                .map_err(|error| protocol_error("simulation_probe_failed", error)),
-            ControlKind::SimulationAdvance {
-                elapsed_nanoseconds,
-            } => runtime
-                .advance_simulation(elapsed_nanoseconds)
-                .map(|advance| {
-                    json!({
-                        "revision": "deterministic-fixed-simulation-schedule-v1",
-                        "advance": advance,
-                        "perAdvanceAllocationBytes": 0,
-                        "sourceReadCount": 0,
-                        "gpuCopyCount": 0,
-                        "gpuReadbackCount": 0,
-                        "fenceWaitCount": 0,
-                        "synchronizationCount": 0,
-                    })
-                })
-                .map_err(|error| protocol_error("simulation_advance_failed", error)),
             ControlKind::InputPost { messages } => window::post_input(hwnd, &messages)
                 .map(|()| json!({"postedMessageCount": messages.len()}))
                 .map_err(|error| protocol_error("native_input_failed", error)),
@@ -220,36 +200,6 @@ pub(crate) fn handle_commands(
             ControlKind::CanonicalTerrainBodyDespawn { generation } => {
                 retained_body::despawn(runtime, generation)
             }
-            ControlKind::CanonicalTerrainBodyRetainedAdvance {
-                generation,
-                delta_x_q9,
-                delta_z_q9,
-                step_up_limit_q16,
-                step_acceleration_q16,
-            } => retained_body::advance(
-                runtime,
-                generation,
-                delta_x_q9,
-                delta_z_q9,
-                step_up_limit_q16,
-                step_acceleration_q16,
-            ),
-            ControlKind::CanonicalTerrainBodyRetainedBatch {
-                generation,
-                step_count,
-                delta_x_q9,
-                delta_z_q9,
-                step_up_limit_q16,
-                step_acceleration_q16,
-            } => retained_body::batch(
-                runtime,
-                generation,
-                step_count,
-                delta_x_q9,
-                delta_z_q9,
-                step_up_limit_q16,
-                step_acceleration_q16,
-            ),
             ControlKind::SimulationTerrainBodyAdvance {
                 generation,
                 elapsed_nanoseconds,

@@ -89,6 +89,7 @@ for (
         "experiments/0057-transactional-simulation-body-advance/README.md",
         "experiments/0058-bounded-host-elapsed-clock/README.md",
         "experiments/0059-bounded-host-activation/README.md",
+        "experiments/0060-mandatory-simulation-control-cleanup/README.md",
         "assets/third-party/khronos-fox/README.md",
         "docs/adr/0035-authored-object-presentation.md",
         "docs/adr/0036-deterministic-temporal-presentation.md",
@@ -110,6 +111,7 @@ for (
         "docs/adr/0060-transactional-simulation-body-advance.md",
         "docs/adr/0061-bounded-host-elapsed-clock.md",
         "docs/adr/0062-bounded-win32-activation.md",
+        "docs/adr/0063-retired-independent-simulation-controls.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",
@@ -126,6 +128,7 @@ for (
         ".runseal/wrappers/canonical-runtime.ts",
         ".runseal/support/canonical-runtime.ts",
         ".runseal/support/canonical-setup.ts",
+        ".runseal/support/guard/simulation-control-removal.ts",
         ".runseal/support/guard/terrain-transaction-removal.ts",
         ".runseal/support/host-input-replay.ts",
         ".runseal/support/runtime-bootstrap.ts",
@@ -134,8 +137,6 @@ for (
         ".runseal/support/temporal-presentation.ts",
         ".runseal/support/terrain/query.ts",
         ".runseal/support/terrain/retained-body.ts",
-        ".runseal/support/terrain/retained-advance.ts",
-        ".runseal/support/terrain/retained-batch.ts",
         ".runseal/support/simulation-body.ts",
     ]
 ) await requireFile(file);

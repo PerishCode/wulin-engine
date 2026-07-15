@@ -43,27 +43,6 @@ struct BodyHandlePayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct RetainedAdvancePayload {
-    generation: u64,
-    delta_x_q9: i32,
-    delta_z_q9: i32,
-    step_up_limit_q16: i32,
-    step_acceleration_q16: i32,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RetainedBatchPayload {
-    generation: u64,
-    step_count: u32,
-    delta_x_q9: i32,
-    delta_z_q9: i32,
-    step_up_limit_q16: i32,
-    step_acceleration_q16: i32,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct SimulationBodyPayload {
     generation: u64,
     elapsed_nanoseconds: u64,
@@ -119,29 +98,6 @@ pub(super) fn body_despawn(value: Value) -> ParsedControl {
     let payload: BodyHandlePayload = decode(value)?;
     Ok(ControlKind::CanonicalTerrainBodyDespawn {
         generation: payload.generation,
-    })
-}
-
-pub(super) fn body_retained_advance(value: Value) -> ParsedControl {
-    let payload: RetainedAdvancePayload = decode(value)?;
-    Ok(ControlKind::CanonicalTerrainBodyRetainedAdvance {
-        generation: payload.generation,
-        delta_x_q9: payload.delta_x_q9,
-        delta_z_q9: payload.delta_z_q9,
-        step_up_limit_q16: payload.step_up_limit_q16,
-        step_acceleration_q16: payload.step_acceleration_q16,
-    })
-}
-
-pub(super) fn body_retained_batch(value: Value) -> ParsedControl {
-    let payload: RetainedBatchPayload = decode(value)?;
-    Ok(ControlKind::CanonicalTerrainBodyRetainedBatch {
-        generation: payload.generation,
-        step_count: payload.step_count,
-        delta_x_q9: payload.delta_x_q9,
-        delta_z_q9: payload.delta_z_q9,
-        step_up_limit_q16: payload.step_up_limit_q16,
-        step_acceleration_q16: payload.step_acceleration_q16,
     })
 }
 

@@ -56,6 +56,43 @@ function requireFailure(value: Json, label: string, detail: string): void {
     ) fail(`${label} returned the wrong simulation-body rejection: ${JSON.stringify(value)}`);
 }
 
+async function retiredControlGate(): Promise<Json[]> {
+    const requests: [string, Json][] = [
+        ["simulation.advance", { elapsed_nanoseconds: 1 }],
+        ["simulation.probe", {}],
+        [
+            "canonical.terrain.body.retained.advance",
+            {
+                generation: 1,
+                delta_x_q9: 0,
+                delta_z_q9: 0,
+                step_up_limit_q16: 0,
+                step_acceleration_q16: 0,
+            },
+        ],
+        [
+            "canonical.terrain.body.retained.batch",
+            {
+                generation: 1,
+                step_count: 1,
+                delta_x_q9: 0,
+                delta_z_q9: 0,
+                step_up_limit_q16: 0,
+                step_acceleration_q16: 0,
+            },
+        ],
+    ];
+    const evidence: Json[] = [];
+    for (const [verb, payload] of requests) {
+        const rejected = await rejectedEvent(verb, payload);
+        if (typeof rejected.error !== "string" || !rejected.error.startsWith("unknown_event: ")) {
+            fail(`${verb} did not fail through the retired-control contract`);
+        }
+        evidence.push({ verb, rejected });
+    }
+    return evidence;
+}
+
 function requireAdvance(
     response: Json,
     elapsed: number,
@@ -131,6 +168,7 @@ function requireStatus(
 async function prepublication(base: [number, number]): Promise<Json> {
     await startClean();
     await event("workbench.pause");
+    const retiredControls = await retiredControlGate();
     const initialSimulation = await event("simulation.status");
     const initialPresentation = await event("canonical.time.status");
     const empty = await rejectedEvent(
@@ -178,7 +216,7 @@ async function prepublication(base: [number, number]): Promise<Json> {
     same(object(object(fractional, "body"), "output"), stored, "fractional body identity");
     requireStatus(await event("simulation.status"), 0, 60, 1, 0, "fractional dual commit");
     same(await event("canonical.time.status"), initialPresentation, "dual time isolation");
-    return { empty, malformed, stale, oversized, fractional };
+    return { retiredControls, empty, malformed, stale, oversized, fractional };
 }
 
 async function startPublished(

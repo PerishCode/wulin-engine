@@ -95,10 +95,10 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0059 and the current ADR set through 0062 define one live content runtime
+Experiments 0031-0060 and the current ADR set through 0063 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
-contracts consumed by one retained terrain-body lifecycle plus transactional stored single/batch
+contracts consumed by one retained terrain-body lifecycle plus a sole transactional schedule/body
 advance, disconnected bounded host elapsed/activation policies, one canonical translatable terrain
 position, one offline-cooked external
 geometry/material/rig source, and one deterministic object-shadow path:
@@ -125,13 +125,10 @@ geometry/material/rig source, and one deterministic object-shadow path:
   with focused tests but no copied-value inspect command or public `Runtime` mutation method;
 - one runtime-owned optional retained `TerrainBodyMotion` with capacity one, checked nonzero
   generation handles, exact spawn/read/despawn semantics, and no multi-body or actor policy;
-- one handle-addressed retained planar-first advance that validates before query, commits only the
-  complete successful copied-value output under the same generation, and preserves state on every
-  validation, query, arithmetic, or contact failure;
-- one explicit 0..=8 retained-body batch that copies once, executes only local motion, accumulates
-  exact query count, commits once after complete success, and leaves simulation time unchanged;
-- one caller-supplied elapsed simulation/body transaction that prepares a schedule copy and local
-  retained batch, then commits both together without wall-clock or frame-loop ownership;
+- one private 0..=8 retained-body batch that executes only local motion and preserves its exact
+  single-tick/rollback tests without an independent live mutation route;
+- one sole caller-supplied elapsed simulation/body transaction that prepares a schedule copy and
+  local retained batch, then commits both together without wall-clock or frame-loop ownership;
 - one signed-region/half-open-local-Q9 `TerrainPosition` shared by query/contact/motion, with exact
   checked positive, negative, and multi-region planar translation and no compatibility alias;
 - one bounded 225-body contact transition witness in the generic canonical probe; the historical
@@ -207,6 +204,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0060-transactional-simulation-body-advance.md` | Accepted explicit elapsed schedule/body preparation, dual commit, partition equality, and complete rollback. |
 | `docs/adr/0061-bounded-host-elapsed-clock.md` | Accepted exact bounded monotonic host sampling, explicit stall recovery, suspension reset, and rollback. |
 | `docs/adr/0062-bounded-win32-activation.md` | Accepted bounded Win32 focus reduction, interrupted ordering, duplicate suppression, and reset. |
+| `docs/adr/0063-retired-independent-simulation-controls.md` | Accepted removal of independent schedule/body mutation, live schedule probe, and redundant process gates. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -237,18 +235,19 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0057-transactional-simulation-body-advance/README.md` | Accepted explicit elapsed dual commit, coarse/nominal equality, and schedule/body rollback evidence. |
 | `experiments/0058-bounded-host-elapsed-clock/README.md` | Accepted bounded host elapsed outcomes, stall recovery, suspension reset, and deterministic replay evidence. |
 | `experiments/0059-bounded-host-activation/README.md` | Accepted bounded Win32 activation batches, exhaustive burst reduction, reset, and replay evidence. |
+| `experiments/0060-mandatory-simulation-control-cleanup/README.md` | Accepted independent simulation-control removal, recurring gate deletion, retired-verb rejection, and dual preservation evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
 | `crates/engine-runtime/src/lib.rs` | Public runtime, capture, semantic, and signed-address surface. |
-| `crates/engine-runtime/src/runtime/mod.rs` | Sole renderer/scene facade, frame-transaction coordinator, simulation schedule/retained-body owner, and committed-terrain transaction entry point. |
+| `crates/engine-runtime/src/runtime/mod.rs` | Sole renderer/scene facade, frame coordinator, schedule/retained-body owner, and dual simulation/body mutation entry point. |
 | `crates/engine-runtime/src/runtime/retained_body.rs` | Single retained terrain-body slot, nonzero generation handle, lifecycle, and checked motion replacement. |
-| `crates/engine-runtime/src/runtime/retained_batch.rs` | Bounded local multi-tick execution, exact query accumulation, failing-step context, and batch result ownership. |
+| `crates/engine-runtime/src/runtime/retained_batch.rs` | Private bounded local multi-tick execution, exact query accumulation, failing-step context, and dual-result ownership. |
 | `crates/engine-runtime/src/runtime/simulation_body.rs` | Prepared schedule/body composition, explicit elapsed result, and private dual-rollback tests. |
 | `crates/engine-runtime/src/region.rs` | Signed global region value and checked offset owner. |
 | `crates/engine-runtime/src/timeline/mod.rs` | Presentation and simulation timeline ownership boundary. |
 | `crates/engine-runtime/src/timeline/presentation.rs` | Deterministic presentation state, controls, counters, and successful-frame commit. |
-| `crates/engine-runtime/src/timeline/simulation.rs` | Exact rational simulation accumulator, checked transaction, typed batch, and isolated long-duration probe. |
+| `crates/engine-runtime/src/timeline/simulation.rs` | Exact rational simulation accumulator, checked transaction, typed batch, and private one-hour proof. |
 | `crates/engine-runtime/src/terrain_query/mod.rs` | Exact height query, caller-owned body, and minimum-correction contact transaction. |
 | `crates/engine-runtime/src/terrain_query/advance.rs` | Planar-first translation/vertical composition, destination-height reuse, ordered blocked-origin query, and final tick output. |
 | `crates/engine-runtime/src/terrain_query/motion.rs` | Caller-owned fixed vertical motion, checked one-tick integration, and grounded composition. |
@@ -275,9 +274,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `apps/prototype/src/main.rs` | Mandatory-bootstrap non-diagnostic composition root, continuous frame loop, and host-exit input consumer. |
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
-| `apps/workbench/src/inspect/protocol/terrain.rs` | Strict terrain query/contact, retained lifecycle/batch, and explicit simulation-body payload decoding. |
+| `apps/workbench/src/inspect/protocol/terrain.rs` | Strict terrain query/contact, retained lifecycle, and sole explicit simulation-body payload decoding. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch. |
-| `apps/workbench/src/inspect/app/retained_body.rs` | Strict retained lifecycle/batch/simulation dispatch and zero-non-CPU-work evidence response. |
+| `apps/workbench/src/inspect/app/retained_body.rs` | Strict retained lifecycle/dual-simulation dispatch and zero-non-CPU-work evidence response. |
 | `crates/engine-runtime/src/streaming/address.rs` | Signed global window and bounded projection. |
 | `crates/engine-runtime/src/streaming/objects/mod.rs` | Bounded schema-3 object I/O transactions. |
 | `crates/engine-runtime/src/streaming/terrain/mod.rs` | Bounded signed terrain I/O transactions. |
@@ -294,18 +293,16 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0057 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0060 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/canonical-setup.ts` | Typed deterministic test/build, source-cooking, identity, and corruption setup owner. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
 | `.runseal/support/terrain/contact.ts` | Exact contact rejection, direct classification, and bounded-witness acceptance support. |
 | `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for the retired dense contact command and runtime coverage mode. |
 | `.runseal/support/guard/terrain-transaction-removal.ts` | Forbidden-file/symbol gate for retired copied-value terrain mutation controls and support. |
+| `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent schedule/body mutation controls and support. |
 | `.runseal/support/terrain/retained-body.ts` | Retained-body lifecycle, stale-handle rollback, generation replay, restart reset, and independence support. |
-| `.runseal/support/terrain/retained-advance.ts` | Retained read-compute-commit, query ordering, failure rollback, replay, and independence support. |
-| `.runseal/support/terrain/retained-batch.ts` | Bounded batch, partition equality, mid-batch rollback, restart, and time-independence support. |
-| `.runseal/support/simulation-schedule.ts` | Partition, replay, rollback, process reset, and temporal-independence acceptance support. |
-| `.runseal/support/simulation-body.ts` | Fractional, coarse/nominal, query/arithmetic rollback, and dual-commit acceptance support. |
+| `.runseal/support/simulation-body.ts` | Retired-route rejection plus fractional, coarse/nominal, query/arithmetic rollback, and sole dual-commit support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
 | `.runseal/support/prototype-host.ts` | Prototype no-ready failure, exact readiness, restart, and no-inspect lifecycle support. |
@@ -337,15 +334,15 @@ and prepared traversal, rollover, the runtime-owned frame transaction and determ
 presentation time, deterministic host input and process-restart replay, configured canonical
 readiness, shared reference-host ownership, prototype startup/restart/cleanup, fixed camera-visible
 directional object shadows, exact CPU terrain-height query/body contact and oracle evidence, a
-bounded contact transition witness, the explicit simulation schedule and its partition/replay,
-rollback, restart, frame, and presentation-independence gates, retained terrain-body lifecycle and
-transactional planar-first single/batch advance, partition equality, and mid-batch rollback over the
-private fixed-step/translation contracts, explicit elapsed schedule/body dual commit and rollback, a same-process
+bounded contact transition witness, private simulation-schedule partition/rollback/one-hour proofs,
+private fixed-step/translation/batch contracts, retained terrain-body lifecycle, and the sole
+explicit elapsed schedule/body dual gate with partition equality, mid-batch rollback, retired-route
+rejection, and frame/presentation independence, a same-process
 clear-only idle attachment capture, retired-control rejection, 64-publication resource plateau,
 and 16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0057-transactional-simulation-body-advance/` and remains ignored.
+`out/captures/0060-mandatory-simulation-control-cleanup/` and remains ignored.
 
 ### 6.3 Manual workbench
 
