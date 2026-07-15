@@ -19,8 +19,8 @@ pub use terrain_query::{
     TERRAIN_BODY_HEIGHT_DENOMINATOR, TERRAIN_POSITION_DENOMINATOR,
     TERRAIN_POSITION_LOCAL_MAX_Q9_EXCLUSIVE, TERRAIN_POSITION_LOCAL_MIN_Q9,
     TERRAIN_POSITION_REGION_SIDE_Q9, TERRAIN_QUERY_HEIGHT_DENOMINATOR, TerrainBody,
-    TerrainBodyContact, TerrainBodyMotion, TerrainBodyStep, TerrainContactClassification,
-    TerrainHeight, TerrainPosition, TerrainTriangle,
+    TerrainBodyContact, TerrainBodyMotion, TerrainBodyStep, TerrainBodyTranslation,
+    TerrainContactClassification, TerrainHeight, TerrainPosition, TerrainTriangle,
 };
 pub use timeline::{
     SIMULATION_MAX_ELAPSED_NANOSECONDS, SIMULATION_MAX_STEPS_PER_ADVANCE,

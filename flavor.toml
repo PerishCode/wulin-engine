@@ -116,6 +116,15 @@ enabled = false
 reason = "Canonical translation tests exercise the private normalization formula without exporting its implementation helpers."
 
 [[overrides]]
+match = "crates/engine-runtime/src/terrain_query/translation.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Bounded terrain-body translation tests exercise private query sequencing without exporting a test surface."
+
+[[overrides]]
 match = "crates/reference-host/src/input.rs"
 kind = "file"
 priority = 10

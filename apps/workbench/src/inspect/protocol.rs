@@ -91,6 +91,18 @@ pub enum ControlKind {
         step_velocity_q16: i32,
         step_acceleration_q16: i32,
     },
+    CanonicalTerrainBodyTranslate {
+        region_x: i64,
+        region_z: i64,
+        local_x_q9: i32,
+        local_z_q9: i32,
+        center_height_numerator: i32,
+        half_height_numerator: i32,
+        step_velocity_q16: i32,
+        delta_x_q9: i32,
+        delta_z_q9: i32,
+        step_up_limit_q16: i32,
+    },
     ObjectIoGateArm,
     ObjectIoGateRelease,
     ObjectCopyGateArm,
@@ -204,6 +216,21 @@ struct CanonicalTerrainBodyStepPayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CanonicalTerrainBodyTranslatePayload {
+    region_x: i64,
+    region_z: i64,
+    local_x_q9: i32,
+    local_z_q9: i32,
+    center_height_numerator: i32,
+    half_height_numerator: i32,
+    step_velocity_q16: i32,
+    delta_x_q9: i32,
+    delta_z_q9: i32,
+    step_up_limit_q16: i32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SimulationAdvancePayload {
     elapsed_nanoseconds: u64,
 }
@@ -262,6 +289,7 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "canonical.terrain.height" => parse_canonical_terrain_height(payload),
         "canonical.terrain.contact" => parse_canonical_terrain_contact(payload),
         "canonical.terrain.body.step" => parse_terrain_body_step(payload),
+        "canonical.terrain.body.translate" => parse_terrain_body_translate(payload),
         "canonical.objects.io_gate.arm" => Ok(ControlKind::ObjectIoGateArm),
         "canonical.objects.io_gate.release" => Ok(ControlKind::ObjectIoGateRelease),
         "canonical.objects.copy_gate.arm" => Ok(ControlKind::ObjectCopyGateArm),
@@ -379,6 +407,22 @@ fn parse_terrain_body_step(value: Value) -> ParsedControl {
         half_height_numerator: payload.half_height_numerator,
         step_velocity_q16: payload.step_velocity_q16,
         step_acceleration_q16: payload.step_acceleration_q16,
+    })
+}
+
+fn parse_terrain_body_translate(value: Value) -> ParsedControl {
+    let payload: CanonicalTerrainBodyTranslatePayload = decode(value)?;
+    Ok(ControlKind::CanonicalTerrainBodyTranslate {
+        region_x: payload.region_x,
+        region_z: payload.region_z,
+        local_x_q9: payload.local_x_q9,
+        local_z_q9: payload.local_z_q9,
+        center_height_numerator: payload.center_height_numerator,
+        half_height_numerator: payload.half_height_numerator,
+        step_velocity_q16: payload.step_velocity_q16,
+        delta_x_q9: payload.delta_x_q9,
+        delta_z_q9: payload.delta_z_q9,
+        step_up_limit_q16: payload.step_up_limit_q16,
     })
 }
 

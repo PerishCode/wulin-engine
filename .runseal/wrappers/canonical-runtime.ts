@@ -56,9 +56,10 @@ import {
 import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 import { simulationScheduleGates } from "../support/simulation-schedule.ts";
 import { terrainMotionGates } from "../support/terrain/motion.ts";
+import { terrainTranslationGates } from "../support/terrain/translation.ts";
 
-const REVISION = "retired-dense-contact-surface-v1";
-const COLLECTION = "0050-retired-dense-contact-surface";
+const REVISION = "bounded-terrain-body-translation-v1";
+const COLLECTION = "0051-bounded-terrain-body-translation";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -169,6 +170,7 @@ try {
     const hostInput = await hostInputGates();
     const simulationSchedule = await simulationScheduleGates();
     const terrainMotion = await terrainMotionGates(TERRAIN, OBJECTS_A, BASE);
+    const terrainTranslation = await terrainTranslationGates(TERRAIN, OBJECTS_A, BASE);
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
@@ -441,6 +443,7 @@ try {
             hostInput,
             simulationSchedule,
             terrainMotion,
+            terrainTranslation,
             compatibilityRemoval,
             terrainQuery,
             terrainContact,

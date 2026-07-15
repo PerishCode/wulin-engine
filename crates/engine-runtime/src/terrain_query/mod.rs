@@ -6,6 +6,7 @@ use crate::terrain::TerrainAssignment;
 
 mod motion;
 mod position;
+mod translation;
 
 pub(crate) use motion::integrate_terrain_body_step;
 pub use motion::{TerrainBodyMotion, TerrainBodyStep};
@@ -13,6 +14,8 @@ pub use position::{
     TERRAIN_POSITION_DENOMINATOR, TERRAIN_POSITION_LOCAL_MAX_Q9_EXCLUSIVE,
     TERRAIN_POSITION_LOCAL_MIN_Q9, TERRAIN_POSITION_REGION_SIDE_Q9, TerrainPosition,
 };
+pub use translation::TerrainBodyTranslation;
+pub(crate) use translation::translate_terrain_body;
 
 pub const TERRAIN_QUERY_HEIGHT_DENOMINATOR: u32 = 65_536;
 pub const TERRAIN_BODY_HEIGHT_DENOMINATOR: u32 = TERRAIN_QUERY_HEIGHT_DENOMINATOR;
