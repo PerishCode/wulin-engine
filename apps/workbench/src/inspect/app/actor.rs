@@ -1,22 +1,13 @@
 use engine_runtime::{
-    RegionCoord, RetainedTerrainBody, Runtime, TerrainBody, TerrainBodyHandle, TerrainBodyMotion,
-    TerrainPosition,
+    ActorHandle, ActorPresentation, RegionCoord, Runtime, RuntimeActor, TerrainBody,
+    TerrainBodyMotion, TerrainPosition,
 };
 use serde_json::{Value, json};
 
 use super::{ControlResult, protocol_error};
+use crate::inspect::protocol::ActorSpawnControl;
 
-pub(super) struct MotionPayload {
-    pub region_x: i64,
-    pub region_z: i64,
-    pub local_x_q9: i32,
-    pub local_z_q9: i32,
-    pub center_height_numerator: i32,
-    pub half_height_numerator: i32,
-    pub step_velocity_q16: i32,
-}
-
-pub(super) fn spawn(runtime: &mut Runtime, payload: MotionPayload) -> ControlResult {
+pub(super) fn spawn(runtime: &mut Runtime, payload: ActorSpawnControl) -> ControlResult {
     TerrainPosition::new(
         RegionCoord::new(payload.region_x, payload.region_z),
         payload.local_x_q9,
@@ -30,23 +21,33 @@ pub(super) fn spawn(runtime: &mut Runtime, payload: MotionPayload) -> ControlRes
         )
     })
     .map(|body| TerrainBodyMotion::new(body, payload.step_velocity_q16))
-    .and_then(|motion| runtime.spawn_terrain_body(motion))
-    .map(|retained| lifecycle_response("spawn", retained, 1))
-    .map_err(|error| protocol_error("terrain_body_lifecycle_failed", error))
+    .and_then(|motion| {
+        runtime.spawn_actor(
+            motion,
+            ActorPresentation {
+                archetype: payload.archetype,
+                material: payload.material,
+                yaw_q16: payload.yaw_q16,
+                animation: payload.animation,
+            },
+        )
+    })
+    .map(|actor| lifecycle_response("spawn", actor, 1, 1))
+    .map_err(|error| protocol_error("actor_lifecycle_failed", error))
 }
 
 pub(super) fn read(runtime: &Runtime, generation: u64) -> ControlResult {
-    TerrainBodyHandle::new(generation)
-        .and_then(|handle| runtime.read_terrain_body(handle))
-        .map(|retained| lifecycle_response("read", retained, 1))
-        .map_err(|error| protocol_error("terrain_body_lifecycle_failed", error))
+    ActorHandle::new(generation)
+        .and_then(|handle| runtime.read_actor(handle))
+        .map(|actor| lifecycle_response("read", actor, 1, 0))
+        .map_err(|error| protocol_error("actor_lifecycle_failed", error))
 }
 
 pub(super) fn despawn(runtime: &mut Runtime, generation: u64) -> ControlResult {
-    TerrainBodyHandle::new(generation)
-        .and_then(|handle| runtime.despawn_terrain_body(handle))
-        .map(|retained| lifecycle_response("despawn", retained, 0))
-        .map_err(|error| protocol_error("terrain_body_lifecycle_failed", error))
+    ActorHandle::new(generation)
+        .and_then(|handle| runtime.despawn_actor(handle))
+        .map(|actor| lifecycle_response("despawn", actor, 0, 1))
+        .map_err(|error| protocol_error("actor_lifecycle_failed", error))
 }
 
 pub(super) fn simulation_advance(
@@ -58,9 +59,9 @@ pub(super) fn simulation_advance(
     step_up_limit_q16: i32,
     step_acceleration_q16: i32,
 ) -> ControlResult {
-    TerrainBodyHandle::new(generation)
+    ActorHandle::new(generation)
         .and_then(|handle| {
-            runtime.advance_simulation_body(
+            runtime.advance_simulation_actor(
                 handle,
                 elapsed_nanoseconds,
                 delta_x_q9,
@@ -71,10 +72,10 @@ pub(super) fn simulation_advance(
         })
         .map(|advance| {
             json!({
-                "revision": "transactional-simulation-body-advance-v1",
+                "revision": "runtime-actor-simulation-v1",
                 "stepCount": advance.simulation.step_count,
-                "terrainQueryCount": advance.body.terrain_query_count,
-                "simulationBodyAdvance": advance,
+                "terrainQueryCount": advance.actor.terrain_query_count,
+                "actorSimulationAdvance": advance,
                 "perOperationAllocationBytes": 0,
                 "sourceReadCount": 0,
                 "gpuCopyCount": 0,
@@ -82,22 +83,27 @@ pub(super) fn simulation_advance(
                 "fenceWaitCount": 0,
                 "synchronizationCount": 0,
                 "scheduleCommitCount": 1,
-                "retainedCommitCount": 1,
+                "actorCommitCount": 1,
                 "presentationMutationCount": 0,
                 "frameCount": 0,
                 "rendererWorkCount": 0,
             })
         })
-        .map_err(|error| protocol_error("simulation_body_advance_failed", error))
+        .map_err(|error| protocol_error("actor_simulation_advance_failed", error))
 }
 
-fn lifecycle_response(operation: &str, retained: RetainedTerrainBody, live_count: u32) -> Value {
+fn lifecycle_response(
+    operation: &str,
+    actor: RuntimeActor,
+    live_count: u32,
+    actor_mutation_count: u32,
+) -> Value {
     json!({
-        "revision": "retained-terrain-body-lifecycle-v1",
+        "revision": "retained-runtime-actor-v1",
         "operation": operation,
         "capacity": 1,
         "liveCount": live_count,
-        "retained": retained,
+        "actor": actor,
         "perOperationAllocationBytes": 0,
         "terrainQueryCount": 0,
         "sourceReadCount": 0,
@@ -106,6 +112,7 @@ fn lifecycle_response(operation: &str, retained: RetainedTerrainBody, live_count
         "fenceWaitCount": 0,
         "synchronizationCount": 0,
         "scheduleMutationCount": 0,
+        "actorMutationCount": actor_mutation_count,
         "presentationMutationCount": 0,
         "frameCount": 0,
         "rendererWorkCount": 0,

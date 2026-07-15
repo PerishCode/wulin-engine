@@ -134,31 +134,31 @@ enabled = false
 reason = "Planar-first terrain-body advance tests exercise private composition and query reuse without exporting a test surface."
 
 [[overrides]]
-match = "crates/engine-runtime/src/runtime/retained_body.rs"
+match = "crates/engine-runtime/src/runtime/actor.rs"
 kind = "file"
 priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "Retained-body lifecycle tests exercise private slot exhaustion and rollback without exporting storage internals."
+reason = "Actor lifecycle tests exercise private slot exhaustion, presentation admission, and rollback without exporting storage internals."
 
 [[overrides]]
-match = "crates/engine-runtime/src/runtime/retained_batch.rs"
+match = "crates/engine-runtime/src/runtime/motion_batch.rs"
 kind = "file"
 priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "Retained batch tests exercise private multi-step rollback without exporting transaction internals."
+reason = "Motion batch tests exercise private multi-step rollback without exporting transaction internals."
 
 [[overrides]]
-match = "crates/engine-runtime/src/runtime/simulation_body.rs"
+match = "crates/engine-runtime/src/runtime/simulation_actor.rs"
 kind = "file"
 priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "Simulation-body tests exercise private dual-prepare rollback without exporting schedule internals."
+reason = "Simulation-actor tests exercise private dual-prepare rollback without exporting schedule internals."
 
 [[overrides]]
 match = "crates/reference-host/src/activation.rs"

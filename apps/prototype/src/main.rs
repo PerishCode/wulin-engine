@@ -1,10 +1,10 @@
-mod body;
+mod actor;
 mod time;
 
 use anyhow::{Context, Result};
 use engine_runtime::{
-    FrameRequest, GlobalRegionConfig, RetainedSimulationAdvance, RetainedTerrainBody, Runtime,
-    TerrainHeight, TerrainPosition,
+    ActorSimulationAdvance, FrameRequest, GlobalRegionConfig, Runtime, RuntimeActor, TerrainHeight,
+    TerrainPosition,
 };
 use reference_host::{HostClock, HostClockStatus, HostElapsedSample, HostInput, bootstrap, window};
 use serde_json::{Value, json};
@@ -36,7 +36,7 @@ unsafe fn run() -> Result<()> {
     let mut runtime = unsafe { Runtime::new(hwnd, WIDTH, HEIGHT)? };
     let mut input = HostInput::new();
     let ready = unsafe { bootstrap::drive(&mut runtime, &mut input, &plan, CLEAR_COLOR)? };
-    let (terrain, simulation_body) = spawn_initial_body(&mut runtime, plan.global_config())?;
+    let (terrain, runtime_actor) = spawn_initial_actor(&mut runtime, plan.global_config())?;
     let mut clock = HostClock::new();
     let mut startup = Some(ready.status);
     let bootstrap_frame_count = ready.frame_count;
@@ -55,8 +55,8 @@ unsafe fn run() -> Result<()> {
         let sample = clock.sample(&window::drain_activation())?;
         let advance = time::admitted_elapsed(sample)
             .map(|elapsed_nanoseconds| {
-                runtime.advance_simulation_body(
-                    simulation_body.handle,
+                runtime.advance_simulation_actor(
+                    runtime_actor.handle,
                     elapsed_nanoseconds,
                     0,
                     0,
@@ -85,7 +85,7 @@ unsafe fn run() -> Result<()> {
             publish_readiness(ReadinessEvidence {
                 startup,
                 terrain,
-                simulation_body,
+                runtime_actor,
                 sample,
                 clock,
                 advance,
@@ -103,10 +103,10 @@ unsafe fn run() -> Result<()> {
 struct ReadinessEvidence {
     startup: Value,
     terrain: TerrainHeight,
-    simulation_body: RetainedTerrainBody,
+    runtime_actor: RuntimeActor,
     sample: HostElapsedSample,
     clock: HostClockStatus,
-    advance: RetainedSimulationAdvance,
+    advance: ActorSimulationAdvance,
     bootstrap_frame_count: u64,
     live_frame_count: u64,
 }
@@ -122,14 +122,14 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
             "role": "prototype",
             "instance_id": std::process::id().to_string(),
             "startup": evidence.startup,
-            "simulation_body": {
+            "actor": {
                 "capacity": 1,
                 "liveCount": 1,
                 "terrain": evidence.terrain,
-                "retained": evidence.simulation_body,
+                "state": evidence.runtime_actor,
             },
             "simulation_driver": {
-                "revision": "live-prototype-time-driver-v1",
+                "revision": "live-prototype-actor-driver-v1",
                 "sample": evidence.sample,
                 "clock": evidence.clock,
                 "command": {
@@ -148,18 +148,18 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
     Ok(())
 }
 
-fn spawn_initial_body(
+fn spawn_initial_actor(
     runtime: &mut Runtime,
     global_config: GlobalRegionConfig,
-) -> Result<(TerrainHeight, RetainedTerrainBody)> {
+) -> Result<(TerrainHeight, RuntimeActor)> {
     let position = TerrainPosition::new(global_config.global_center, 0, 0)
-        .context("prototype initial body position failed")?;
+        .context("prototype initial actor position failed")?;
     let terrain = runtime
         .query_terrain_height(position)
         .context("prototype initial terrain query failed")?;
-    let motion = body::initial_motion(position, terrain)?;
-    let retained = runtime
-        .spawn_terrain_body(motion)
-        .context("prototype initial body spawn failed")?;
-    Ok((terrain, retained))
+    let motion = actor::initial_motion(position, terrain)?;
+    let runtime_actor = runtime
+        .spawn_actor(motion, actor::initial_presentation())
+        .context("prototype initial actor spawn failed")?;
+    Ok((terrain, runtime_actor))
 }

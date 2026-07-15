@@ -3,6 +3,8 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 use anyhow::Result;
+use anyhow::ensure;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 mod global;
@@ -36,7 +38,8 @@ pub struct InstanceRecord {
 const _: [(); RECORD_BYTES as usize] = [(); size_of::<InstanceRecord>()];
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PresentationRecord {
     pub archetype: u32,
     pub material: u32,
@@ -98,6 +101,35 @@ impl PresentationRecord {
         } else {
             None
         }
+    }
+
+    pub fn validate(self) -> Result<()> {
+        ensure!(
+            self.archetype < PRESENTATION_ARCHETYPE_COUNT,
+            "presentation archetype {} exceeds catalog capacity",
+            self.archetype
+        );
+        ensure!(
+            self.material < PRESENTATION_MATERIAL_COUNT,
+            "presentation material {} exceeds catalog capacity",
+            self.material
+        );
+        ensure!(
+            self.yaw_q16 <= u16::MAX.into(),
+            "presentation yaw {} exceeds Q16 range",
+            self.yaw_q16
+        );
+        if self.is_animated() {
+            ensure!(
+                self.animation_clip().unwrap() < PRESENTATION_ANIMATION_CLIP_COUNT,
+                "presentation animation clip exceeds catalog capacity"
+            );
+            ensure!(
+                self.animation_phase_offset().unwrap() < PRESENTATION_ANIMATION_PHASE_COUNT,
+                "presentation animation phase exceeds catalog capacity"
+            );
+        }
+        Ok(())
     }
 }
 

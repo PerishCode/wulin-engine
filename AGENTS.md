@@ -95,10 +95,10 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0063 and the current ADR set through 0066 define one live content runtime
+Experiments 0031-0064 and the current ADR set through 0067 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
-contracts consumed by one retained terrain-body lifecycle plus a sole transactional schedule/body
+contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
 advance, one prototype live host-time driver, one canonical translatable terrain
 position, one offline-cooked external
 geometry/material/rig source, and one deterministic object-shadow path:
@@ -123,13 +123,13 @@ geometry/material/rig source, and one deterministic object-shadow path:
   nanoseconds, independent from frames and presentation, with one prototype Ready-only driver;
 - private pure terrain-body motion, bounded planar translation, and planar-first advance contracts
   with focused tests but no copied-value inspect command or public `Runtime` mutation method;
-- one runtime-owned optional retained `TerrainBodyMotion` with capacity one, checked nonzero
-  generation handles, exact spawn/read/despawn semantics, one prototype-owned grounded bootstrap
-  consumer, and no multi-body or actor policy;
-- one private 0..=8 retained-body batch that executes only local motion and preserves its exact
+- one runtime-owned optional `RuntimeActor` with capacity one, checked nonzero generation handles,
+  exact spawn/read/despawn semantics, exact schema-3 presentation, and one prototype consumer;
+- one private 0..=8 terrain-body motion batch that executes only local motion and preserves exact
   single-tick/rollback tests without an independent live mutation route;
-- one sole caller-supplied elapsed simulation/body transaction that prepares a schedule copy and
-  local retained batch, then commits both together; Runtime owns no wall clock while prototype is
+- one sole caller-supplied elapsed simulation/actor transaction that prepares a schedule copy and
+  local motion batch, then commits both together while preserving presentation; Runtime owns no
+  wall clock while prototype is
   its first live bounded-elapsed caller;
 - one signed-region/half-open-local-Q9 `TerrainPosition` shared by query/contact/motion, with exact
   checked positive, negative, and multi-region planar translation and no compatibility alias;
@@ -146,8 +146,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one concrete Windows reference-host owner for the single window/message lifecycle, normalized
   input journal, bootstrap parser, canonical-ready driver, and composed time policy;
 - one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
-  one grounded retained body, Ready-only zero-command live simulation before each frame, readiness
-  after a nonzero commit/frame, and Escape limited to host exit;
+  one grounded imported-Fox actor, Ready-only zero-command live simulation before each frame,
+  readiness after a nonzero commit/frame, and Escape limited to host exit;
 - one exact read-only CPU terrain-height query over the committed snapshot, addressed by signed
   region plus half-open local Q9 and independent from camera, render LOD, source I/O, and GPU work;
 - one caller-owned exact vertical terrain-body contact transaction with strict
@@ -155,7 +155,7 @@ geometry/material/rig source, and one deterministic object-shadow path:
   mutation, gravity, or locomotion policy;
 - one clear-only diagnostic idle shell with neutral reverse-Z depth and semantic frame targets,
   no calibration scene, and no split-world control surface;
-- one compact `input.*` / `simulation.*` / `camera.*` / `source.*` / `canonical.*` inspect
+- one compact `input.*` / `actor.*` / `simulation.*` / `camera.*` / `source.*` / `canonical.*` inspect
   vocabulary;
 - one non-recursive `runseal :canonical-runtime` acceptance workflow.
 
@@ -210,6 +210,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0064-composed-host-time-admission.md` | Accepted ordered activation-before-sample host time composition, candidate commit, and independent clock-control removal. |
 | `docs/adr/0065-prototype-body-bootstrap.md` | Accepted prototype-owned grounded retained-body bootstrap, readiness evidence, and terminal failure ordering. |
 | `docs/adr/0066-live-prototype-time-driver.md` | Accepted prototype activation/time/simulation/frame ordering, typed no-advance outcomes, and post-commit readiness. |
+| `docs/adr/0067-retained-runtime-actor-authority.md` | Accepted direct actor motion/presentation ownership, generation lifecycle, and retained-body API retirement. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -244,14 +245,15 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0061-composed-host-time-admission/README.md` | Accepted activation-before-sample ordering, interruption reset, rollback, and deterministic replay evidence. |
 | `experiments/0062-prototype-body-bootstrap/README.md` | Accepted post-publication grounded prototype body, restart equality, failure ordering, and lifecycle evidence. |
 | `experiments/0063-live-prototype-time-driver/README.md` | Accepted Ready-only live schedule/body driving, zero-command stability, post-frame readiness, and lifecycle evidence. |
+| `experiments/0064-retained-runtime-actor-authority/README.md` | Accepted capacity-one actor identity/motion/presentation authority, direct promotion, and process evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
 | `crates/engine-runtime/src/lib.rs` | Public runtime, capture, semantic, and signed-address surface. |
-| `crates/engine-runtime/src/runtime/mod.rs` | Sole renderer/scene facade, frame coordinator, schedule/retained-body owner, and dual simulation/body mutation entry point. |
-| `crates/engine-runtime/src/runtime/retained_body.rs` | Single retained terrain-body slot, nonzero generation handle, lifecycle, and checked motion replacement. |
-| `crates/engine-runtime/src/runtime/retained_batch.rs` | Private bounded local multi-tick execution, exact query accumulation, failing-step context, and dual-result ownership. |
-| `crates/engine-runtime/src/runtime/simulation_body.rs` | Prepared schedule/body composition, explicit elapsed result, and private dual-rollback tests. |
+| `crates/engine-runtime/src/runtime/mod.rs` | Sole renderer/scene facade, frame coordinator, schedule/actor owner, and dual simulation/actor mutation entry point. |
+| `crates/engine-runtime/src/runtime/actor.rs` | Capacity-one actor slot, nonzero generation, exact motion/presentation lifetime, and checked replacement. |
+| `crates/engine-runtime/src/runtime/motion_batch.rs` | Private bounded local multi-tick motion execution, query accumulation, and failing-step context. |
+| `crates/engine-runtime/src/runtime/simulation_actor.rs` | Prepared schedule/motion composition, explicit actor result, and private dual-rollback tests. |
 | `crates/engine-runtime/src/region.rs` | Signed global region value and checked offset owner. |
 | `crates/engine-runtime/src/timeline/mod.rs` | Presentation and simulation timeline ownership boundary. |
 | `crates/engine-runtime/src/timeline/presentation.rs` | Deterministic presentation state, controls, counters, and successful-frame commit. |
@@ -275,18 +277,19 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/surface-catalog/build.rs` | Verified build-time Fox material/PNG validation, box reduction, mip generation, and payload emission. |
 | `crates/surface-catalog/src/imported_material.rs` | Strict canonical imported-material payload decoder, mip verification, and metadata owner. |
 | `crates/region-format/src/global.rs` | Signed schema-3 spatial, identity, and presentation object pack codec. |
+| `crates/region-format/src/lib.rs` | Canonical spatial/presentation record ABI, constructors, field bounds, and shared validation. |
 | `crates/terrain-format/src/global.rs` | Signed terrain pack codec and exact lookup. |
 | `crates/canonical-object-fixture/src/lib.rs` | Deterministic arbitrary-Q8 authored object fixture. |
 | `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
 | `apps/prototype/src/main.rs` | Non-diagnostic composition root, Ready-only simulation/frame ordering, post-commit readiness, and host-exit input consumer. |
-| `apps/prototype/src/body.rs` | Prototype-owned fixed initial body shape and exact committed-terrain grounding policy. |
+| `apps/prototype/src/actor.rs` | Prototype-owned grounded motion and exact imported-Fox actor presentation policy. |
 | `apps/prototype/src/time.rs` | Prototype-only typed HostClock outcome admission policy. |
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
-| `apps/workbench/src/inspect/protocol/terrain.rs` | Strict terrain query/contact, retained lifecycle, and sole explicit simulation-body payload decoding. |
+| `apps/workbench/src/inspect/protocol/terrain.rs` | Strict terrain query/contact plus actor lifecycle/simulation payload decoding. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch. |
-| `apps/workbench/src/inspect/app/retained_body.rs` | Strict retained lifecycle/dual-simulation dispatch and zero-non-CPU-work evidence response. |
+| `apps/workbench/src/inspect/app/actor.rs` | Strict actor lifecycle/dual-simulation dispatch and zero-non-CPU-work evidence response. |
 | `crates/engine-runtime/src/streaming/address.rs` | Signed global window and bounded projection. |
 | `crates/engine-runtime/src/streaming/objects/mod.rs` | Bounded schema-3 object I/O transactions. |
 | `crates/engine-runtime/src/streaming/terrain/mod.rs` | Bounded signed terrain I/O transactions. |
@@ -303,16 +306,16 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0060 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct canonical acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/canonical-setup.ts` | Typed deterministic test/build, source-cooking, identity, and corruption setup owner. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
 | `.runseal/support/terrain/contact.ts` | Exact contact rejection, direct classification, and bounded-witness acceptance support. |
 | `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for the retired dense contact command and runtime coverage mode. |
 | `.runseal/support/guard/terrain-transaction-removal.ts` | Forbidden-file/symbol gate for retired copied-value terrain mutation controls and support. |
-| `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent schedule/body mutation controls and support. |
-| `.runseal/support/terrain/retained-body.ts` | Retained-body lifecycle, stale-handle rollback, generation replay, restart reset, and independence support. |
-| `.runseal/support/simulation-body.ts` | Retired-route rejection plus fractional, coarse/nominal, query/arithmetic rollback, and sole dual-commit support. |
+| `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls and retained-body public history. |
+| `.runseal/support/actor.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
+| `.runseal/support/simulation-actor.ts` | Retired-route rejection plus fractional, partition, rollback, and sole actor dual-commit support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
 | `.runseal/support/prototype-host.ts` | Prototype no-ready failure, exact readiness, restart, and no-inspect lifecycle support. |

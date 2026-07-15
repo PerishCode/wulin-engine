@@ -49,8 +49,8 @@ import {
     unavailableTerrainContactGate as unavailableContact,
 } from "../support/terrain/contact.ts";
 import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
-import { simulationBodyGates } from "../support/simulation-body.ts";
-import { retainedBodyGates } from "../support/terrain/retained-body.ts";
+import { actorGates } from "../support/actor.ts";
+import { simulationActorGates } from "../support/simulation-actor.ts";
 
 const REVISION = "mandatory-simulation-control-cleanup-v1";
 const COLLECTION = "0060-mandatory-simulation-control-cleanup";
@@ -85,8 +85,8 @@ try {
     const bootstrap = await bootstrapGate(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE, COLLECTION);
     const prototype = await prototypeHostGates(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE);
     const hostInput = await hostInputGates();
-    const retainedBody = await retainedBodyGates();
-    const simulationBody = await simulationBodyGates(TERRAIN, OBJECTS_A, BASE);
+    const actor = await actorGates();
+    const simulationActor = await simulationActorGates(TERRAIN, OBJECTS_A, BASE);
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
@@ -345,8 +345,8 @@ try {
             bootstrap,
             prototype,
             hostInput,
-            retainedBody,
-            simulationBody,
+            actor,
+            simulationActor,
             compatibilityRemoval,
             terrainQuery,
             terrainContact,

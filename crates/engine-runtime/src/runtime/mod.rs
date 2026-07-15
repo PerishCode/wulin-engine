@@ -13,15 +13,15 @@ use crate::terrain_query::{
 };
 use crate::timeline::{PresentationTimeline, SimulationSchedule};
 
-mod retained_batch;
-mod retained_body;
-mod simulation_body;
+mod actor;
+mod motion_batch;
+mod simulation_actor;
 
-pub use retained_batch::RetainedTerrainBodyBatch;
-use retained_body::TerrainBodySlot;
-pub use retained_body::{RetainedTerrainBody, TerrainBodyHandle};
-pub use simulation_body::RetainedSimulationAdvance;
-use simulation_body::{SimulationBodyCommand, prepare_simulation_body};
+use actor::ActorSlot;
+pub use actor::{ActorHandle, RuntimeActor};
+pub use region_format::PresentationRecord as ActorPresentation;
+pub use simulation_actor::{ActorMotionBatch, ActorSimulationAdvance};
+use simulation_actor::{SimulationActorCommand, prepare_simulation_actor};
 
 #[derive(Clone, Copy)]
 pub struct FrameRequest {
@@ -36,7 +36,7 @@ pub struct Runtime {
     scene: SceneState,
     presentation_timeline: PresentationTimeline,
     simulation_schedule: SimulationSchedule,
-    terrain_body: TerrainBodySlot,
+    actor: ActorSlot,
 }
 
 impl Runtime {
@@ -52,7 +52,7 @@ impl Runtime {
             scene: SceneState::new(),
             presentation_timeline: PresentationTimeline::new(),
             simulation_schedule: SimulationSchedule::new(),
-            terrain_body: TerrainBodySlot::new(),
+            actor: ActorSlot::new(),
         })
     }
 
@@ -191,36 +191,37 @@ impl Runtime {
         resolve_body_contact(body, terrain)
     }
 
-    pub fn spawn_terrain_body(&mut self, motion: TerrainBodyMotion) -> Result<RetainedTerrainBody> {
-        self.terrain_body.spawn(motion)
-    }
-
-    pub fn read_terrain_body(&self, handle: TerrainBodyHandle) -> Result<RetainedTerrainBody> {
-        self.terrain_body.read(handle)
-    }
-
-    pub fn despawn_terrain_body(
+    pub fn spawn_actor(
         &mut self,
-        handle: TerrainBodyHandle,
-    ) -> Result<RetainedTerrainBody> {
-        self.terrain_body.despawn(handle)
+        motion: TerrainBodyMotion,
+        presentation: ActorPresentation,
+    ) -> Result<RuntimeActor> {
+        self.actor.spawn(motion, presentation)
     }
 
-    pub fn advance_simulation_body(
+    pub fn read_actor(&self, handle: ActorHandle) -> Result<RuntimeActor> {
+        self.actor.read(handle)
+    }
+
+    pub fn despawn_actor(&mut self, handle: ActorHandle) -> Result<RuntimeActor> {
+        self.actor.despawn(handle)
+    }
+
+    pub fn advance_simulation_actor(
         &mut self,
-        handle: TerrainBodyHandle,
+        handle: ActorHandle,
         elapsed_nanoseconds: u64,
         delta_x_q9: i32,
         delta_z_q9: i32,
         step_up_limit_q16: i32,
         step_acceleration_q16: i32,
-    ) -> Result<RetainedSimulationAdvance> {
-        let input = self.terrain_body.read(handle)?;
-        let prepared = prepare_simulation_body(
+    ) -> Result<ActorSimulationAdvance> {
+        let input = self.actor.read(handle)?;
+        let prepared = prepare_simulation_actor(
             self.simulation_schedule,
             input.motion,
             elapsed_nanoseconds,
-            SimulationBodyCommand {
+            SimulationActorCommand {
                 delta_x_q9,
                 delta_z_q9,
                 step_up_limit_q16,
@@ -228,15 +229,15 @@ impl Runtime {
             },
             |position| self.query_terrain_height(position),
         )?;
-        let output = self.terrain_body.replace(handle, prepared.body.output)?;
+        let output = self.actor.replace_motion(handle, prepared.motion.output)?;
         self.simulation_schedule = prepared.schedule;
-        Ok(RetainedSimulationAdvance {
+        Ok(ActorSimulationAdvance {
             simulation: prepared.simulation,
-            body: RetainedTerrainBodyBatch {
+            actor: ActorMotionBatch {
                 input,
                 output,
                 step_count: prepared.simulation.step_count,
-                terrain_query_count: prepared.body.terrain_query_count,
+                terrain_query_count: prepared.motion.terrain_query_count,
             },
         })
     }

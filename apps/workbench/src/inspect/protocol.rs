@@ -7,6 +7,20 @@ use crate::perception::{PixelPoint, PixelRegion};
 
 mod terrain;
 
+pub(crate) struct ActorSpawnControl {
+    pub region_x: i64,
+    pub region_z: i64,
+    pub local_x_q9: i32,
+    pub local_z_q9: i32,
+    pub center_height_numerator: i32,
+    pub half_height_numerator: i32,
+    pub step_velocity_q16: i32,
+    pub archetype: u32,
+    pub material: u32,
+    pub yaw_q16: u32,
+    pub animation: u32,
+}
+
 pub enum ControlKind {
     Status,
     SetClearColor([f32; 4]),
@@ -79,22 +93,14 @@ pub enum ControlKind {
         center_height_numerator: i32,
         half_height_numerator: i32,
     },
-    CanonicalTerrainBodySpawn {
-        region_x: i64,
-        region_z: i64,
-        local_x_q9: i32,
-        local_z_q9: i32,
-        center_height_numerator: i32,
-        half_height_numerator: i32,
-        step_velocity_q16: i32,
-    },
-    CanonicalTerrainBodyRead {
+    ActorSpawn(ActorSpawnControl),
+    ActorRead {
         generation: u64,
     },
-    CanonicalTerrainBodyDespawn {
+    ActorDespawn {
         generation: u64,
     },
-    SimulationTerrainBodyAdvance {
+    SimulationActorAdvance {
         generation: u64,
         elapsed_nanoseconds: u64,
         delta_x_q9: i32,
@@ -231,10 +237,10 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "canonical.probe" => Ok(ControlKind::CanonicalProbe),
         "canonical.terrain.height" => terrain::height(payload),
         "canonical.terrain.contact" => terrain::contact(payload),
-        "canonical.terrain.body.spawn" => terrain::body_spawn(payload),
-        "canonical.terrain.body.read" => terrain::body_read(payload),
-        "canonical.terrain.body.despawn" => terrain::body_despawn(payload),
-        "simulation.terrain.body.advance" => terrain::simulation_body_advance(payload),
+        "actor.spawn" => terrain::actor_spawn(payload),
+        "actor.read" => terrain::actor_read(payload),
+        "actor.despawn" => terrain::actor_despawn(payload),
+        "simulation.actor.advance" => terrain::simulation_actor_advance(payload),
         "canonical.objects.io_gate.arm" => Ok(ControlKind::ObjectIoGateArm),
         "canonical.objects.io_gate.release" => Ok(ControlKind::ObjectIoGateRelease),
         "canonical.objects.copy_gate.arm" => Ok(ControlKind::ObjectCopyGateArm),
