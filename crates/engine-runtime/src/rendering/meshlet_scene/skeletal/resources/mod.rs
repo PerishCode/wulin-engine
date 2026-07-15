@@ -1,34 +1,38 @@
 use std::mem::size_of;
-use std::ptr;
 
 use animation_catalog::{Affine, BONE_COUNT, Bone, Catalog as AnimationCatalog, SkinBinding};
 use anyhow::{Context, Result};
 use meshlet_catalog::{Catalog as MeshletCatalog, Lod, Meshlet, Vertex};
-use windows::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0};
 use windows::Win32::Graphics::Direct3D12::*;
 use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_R32_TYPELESS, DXGI_FORMAT_UNKNOWN};
-use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObject};
-use windows::core::Interface;
 
 use crate::async_resident::ASYNC_CACHE_CAPACITY;
 use crate::load::INSTANCES_PER_REGION;
 use crate::rendering::meshlet_scene::CatalogBuffers;
-use crate::rendering::resident::create_buffer;
 use crate::resident::ACTIVE_REGION_CAPACITY;
 
 use super::buffers::{readback_buffer, uav_buffer};
+use actor::{ACTOR_VISIBLE_RECORD_BYTES, ActorFrameUpload};
+use catalog::upload_payloads;
+
+pub(super) mod actor;
+mod catalog;
 
 pub const COUNTER_BYTES: u64 = 80;
 pub const SAMPLE_BYTES: u64 = 224;
-pub const GROUND_BYTES: u64 = MAX_SKELETAL_VISIBLE as u64 * 4;
+pub const STREAMED_CANDIDATE_CAPACITY: u32 = ACTIVE_REGION_CAPACITY as u32 * INSTANCES_PER_REGION;
+pub const ACTOR_CANDIDATE_INDEX: u32 = STREAMED_CANDIDATE_CAPACITY;
+pub const SKELETAL_CANDIDATE_CAPACITY: u32 = STREAMED_CANDIDATE_CAPACITY + 1;
+pub const GROUND_BYTES: u64 = STREAMED_CANDIDATE_CAPACITY as u64 * 4;
 pub const QUERY_COUNT: u32 = 9;
 pub const MAX_SHARED_POSES: u32 = animation_catalog::MAX_POSE_KEYS;
-pub const MAX_SKELETAL_VISIBLE: u32 = ACTIVE_REGION_CAPACITY as u32 * INSTANCES_PER_REGION;
-pub const PALETTE_BYTES: u64 = MAX_SKELETAL_VISIBLE as u64 * BONE_COUNT as u64 * 48;
+pub const PALETTE_BYTES: u64 = SKELETAL_CANDIDATE_CAPACITY as u64 * BONE_COUNT as u64 * 48;
 const DESCRIPTOR_COUNT: u32 = 220;
-pub const VISIBLE_OBJECT_BYTES: u32 = 52;
+pub const VISIBLE_OBJECT_BYTES: u32 = ACTOR_VISIBLE_RECORD_BYTES;
 pub const VISIBLE_OBJECT_WORDS: usize = VISIBLE_OBJECT_BYTES as usize / 4;
-pub const VISIBLE_CANDIDATE_WORD: usize = 9;
+pub const VISIBLE_IDENTITY_LOW_WORD: usize = 7;
+pub const VISIBLE_IDENTITY_HIGH_WORD: usize = 8;
+pub const VISIBLE_CANDIDATE_WORD: usize = 10;
 
 pub struct AnimationBuffers {
     pub bones: ID3D12Resource,
@@ -61,6 +65,7 @@ impl AnimationBuffers {
 }
 
 pub struct ExecutionResources {
+    pub actor_upload: ActorFrameUpload,
     pub visible: ID3D12Resource,
     pub counters: ID3D12Resource,
     pub animated_indices: ID3D12Resource,
@@ -80,21 +85,23 @@ pub struct ExecutionResources {
 impl ExecutionResources {
     pub unsafe fn new(
         device: &ID3D12Device,
-        region_heap: &ID3D12DescriptorHeap,
-        terrain_heap: &ID3D12DescriptorHeap,
+        source_heaps: [&ID3D12DescriptorHeap; 2],
         mesh_catalog: &MeshletCatalog,
         animation_catalog: &AnimationCatalog,
         mesh: &CatalogBuffers,
         animation: &AnimationBuffers,
+        frame_slots: u32,
     ) -> Result<Self> {
+        let actor_upload = unsafe { ActorFrameUpload::new(device, frame_slots) }?;
         let visible = unsafe {
             uav_buffer(
                 device,
-                MAX_SKELETAL_VISIBLE as u64 * VISIBLE_OBJECT_BYTES as u64,
+                SKELETAL_CANDIDATE_CAPACITY as u64 * VISIBLE_OBJECT_BYTES as u64,
             )
         }?;
         let counters = unsafe { uav_buffer(device, COUNTER_BYTES) }?;
-        let animated_indices = unsafe { uav_buffer(device, MAX_SKELETAL_VISIBLE as u64 * 4) }?;
+        let animated_indices =
+            unsafe { uav_buffer(device, SKELETAL_CANDIDATE_CAPACITY as u64 * 4) }?;
         let pose_bitset = unsafe { uav_buffer(device, MAX_SHARED_POSES as u64 / 8) }?;
         let active_pose_keys = unsafe { uav_buffer(device, MAX_SHARED_POSES as u64 * 4) }?;
         let palette = unsafe { uav_buffer(device, PALETTE_BYTES) }?;
@@ -103,7 +110,7 @@ impl ExecutionResources {
         let heap = unsafe {
             create_heap(
                 device,
-                [region_heap, terrain_heap],
+                source_heaps,
                 mesh_catalog,
                 animation_catalog,
                 mesh,
@@ -134,6 +141,7 @@ impl ExecutionResources {
         let sample_readback = unsafe { readback_buffer(device, SAMPLE_BYTES) }?;
         let ground_readback = unsafe { readback_buffer(device, GROUND_BYTES) }?;
         Ok(Self {
+            actor_upload,
             visible,
             counters,
             animated_indices,
@@ -209,7 +217,12 @@ unsafe fn create_heap(
         );
     }
     for (offset, resource, count, stride) in [
-        (50, uavs[0], MAX_SKELETAL_VISIBLE, VISIBLE_OBJECT_BYTES),
+        (
+            50,
+            uavs[0],
+            SKELETAL_CANDIDATE_CAPACITY,
+            VISIBLE_OBJECT_BYTES,
+        ),
         (
             51,
             &mesh.vertices,
@@ -285,7 +298,7 @@ unsafe fn create_heap(
         structured_uav(
             device,
             uavs[0],
-            MAX_SKELETAL_VISIBLE,
+            SKELETAL_CANDIDATE_CAPACITY,
             VISIBLE_OBJECT_BYTES,
             cpu_handle(start, increment, 61),
         );
@@ -298,7 +311,7 @@ unsafe fn create_heap(
         structured_uav(
             device,
             uavs[2],
-            MAX_SKELETAL_VISIBLE,
+            SKELETAL_CANDIDATE_CAPACITY,
             4,
             cpu_handle(start, increment, 63),
         );
@@ -331,14 +344,14 @@ unsafe fn create_heap(
         structured_srv(
             device,
             uavs[7],
-            MAX_SKELETAL_VISIBLE,
+            STREAMED_CANDIDATE_CAPACITY,
             4,
             cpu_handle(start, increment, 118),
         );
         structured_uav(
             device,
             uavs[7],
-            MAX_SKELETAL_VISIBLE,
+            STREAMED_CANDIDATE_CAPACITY,
             4,
             cpu_handle(start, increment, 119),
         );
@@ -422,79 +435,4 @@ fn cpu_handle(
     D3D12_CPU_DESCRIPTOR_HANDLE {
         ptr: start.ptr + increment * index,
     }
-}
-
-unsafe fn upload_payloads(
-    device: &ID3D12Device,
-    queue: &ID3D12CommandQueue,
-    payloads: &[Vec<u8>],
-) -> Result<Vec<ID3D12Resource>> {
-    let mut defaults = Vec::with_capacity(payloads.len());
-    let mut uploads = Vec::with_capacity(payloads.len());
-    for bytes in payloads {
-        defaults.push(unsafe {
-            create_buffer(
-                device,
-                bytes.len() as u64,
-                D3D12_HEAP_TYPE_DEFAULT,
-                D3D12_RESOURCE_STATE_COPY_DEST,
-                D3D12_RESOURCE_FLAG_NONE,
-            )
-        }?);
-        let upload = unsafe {
-            create_buffer(
-                device,
-                bytes.len() as u64,
-                D3D12_HEAP_TYPE_UPLOAD,
-                D3D12_RESOURCE_STATE_GENERIC_READ,
-                D3D12_RESOURCE_FLAG_NONE,
-            )
-        }?;
-        let mut mapped = ptr::null_mut();
-        unsafe {
-            upload.Map(
-                0,
-                Some(&D3D12_RANGE { Begin: 0, End: 0 }),
-                Some(&mut mapped),
-            )
-        }
-        .context("animation upload map failed")?;
-        unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), mapped.cast(), bytes.len()) };
-        unsafe { upload.Unmap(0, None) };
-        uploads.push(upload);
-    }
-    let allocator: ID3D12CommandAllocator =
-        unsafe { device.CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT) }
-            .context("animation catalog allocator creation failed")?;
-    let list: ID3D12GraphicsCommandList =
-        unsafe { device.CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, &allocator, None) }
-            .context("animation catalog command list creation failed")?;
-    for ((default, upload), bytes) in defaults.iter().zip(&uploads).zip(payloads) {
-        unsafe {
-            list.CopyBufferRegion(default, 0, upload, 0, bytes.len() as u64);
-            crate::rendering::device::transition(
-                &list,
-                default,
-                D3D12_RESOURCE_STATE_COPY_DEST,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-            );
-        }
-    }
-    unsafe { list.Close() }.context("animation catalog command list close failed")?;
-    let command: ID3D12CommandList = list.cast()?;
-    unsafe { queue.ExecuteCommandLists(&[Some(command)]) };
-    let fence: ID3D12Fence = unsafe { device.CreateFence(0, D3D12_FENCE_FLAG_NONE) }
-        .context("animation catalog fence creation failed")?;
-    let event = unsafe { CreateEventW(None, false, false, None) }
-        .context("animation catalog event creation failed")?;
-    unsafe { queue.Signal(&fence, 1) }.context("animation catalog signal failed")?;
-    unsafe { fence.SetEventOnCompletion(1, event) }
-        .context("animation catalog wait setup failed")?;
-    let wait = unsafe { WaitForSingleObject(event, INFINITE) };
-    unsafe { CloseHandle(event) }.context("animation catalog event close failed")?;
-    anyhow::ensure!(
-        wait == WAIT_OBJECT_0,
-        "animation catalog wait returned {wait:?}"
-    );
-    Ok(defaults)
 }

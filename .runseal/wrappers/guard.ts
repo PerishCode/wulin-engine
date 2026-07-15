@@ -46,6 +46,7 @@ async function requireWrapperSet(): Promise<void> {
     }
     names.sort();
     const expected = [
+        "canonical-actor.ts",
         "canonical-frame.ts",
         "canonical-resources.ts",
         "canonical-runtime.ts",
@@ -445,12 +446,14 @@ await run("deno check", "deno", [
     ".runseal/wrappers/guard.ts",
     ".runseal/wrappers/gpu-lab.ts",
     ".runseal/wrappers/workbench.ts",
+    ".runseal/wrappers/canonical-actor.ts",
     ".runseal/wrappers/canonical-runtime.ts",
     ".runseal/support/canonical-runtime.ts",
     ".runseal/support/host-input-replay.ts",
     ".runseal/support/runtime-bootstrap.ts",
     ".runseal/support/prototype-host.ts",
     ".runseal/support/actor/lifecycle.ts",
+    ".runseal/support/actor/gpu.ts",
     ".runseal/support/actor/projection.ts",
     ".runseal/support/actor/simulation.ts",
     ".runseal/support/terrain/query.ts",

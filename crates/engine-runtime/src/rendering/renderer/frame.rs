@@ -21,12 +21,23 @@ impl Renderer {
             presentation_tick,
             presentation_status,
             simulation_status,
+            actor,
             scene,
         } = frame;
         debug_assert!(!capture_object_ids || capture);
         debug_assert!(!probe || self.composition_enabled());
         debug_assert!(!probe || presentation_status.is_some());
+        if self.composition_enabled()
+            && let Some(actor) = actor
+        {
+            self.preflight_actor(actor)?;
+        }
         unsafe { self.drive_composition_traversal(scene.camera())? };
+        if self.composition_enabled()
+            && let Some(actor) = actor
+        {
+            self.preflight_actor(actor)?;
+        }
         unsafe { self.poll_cooked_object_completion()? };
         let terrain_outcome = unsafe { self.poll_terrain_completion()? };
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() } as usize;
@@ -42,6 +53,11 @@ impl Renderer {
         if let Some(delta) = self.take_composition_camera_shift() {
             scene.translate_camera_regions(delta)?;
         }
+        let actor_projection = if self.composition_enabled() {
+            actor.map(|actor| self.project_actor(actor)).transpose()?
+        } else {
+            None
+        };
 
         unsafe {
             transition(
@@ -94,6 +110,8 @@ impl Renderer {
                         grounding_mode: self.composition_grounding_mode(),
                         projection,
                         presentation_tick,
+                        actor: actor_projection,
+                        frame_slot: index as u32,
                     },
                 )?;
             } else {
@@ -181,6 +199,7 @@ impl Renderer {
                         presentation_status,
                         simulation_status
                             .context("composition probe requires a simulation status snapshot")?,
+                        actor_projection,
                     )
                 }?)
             } else {

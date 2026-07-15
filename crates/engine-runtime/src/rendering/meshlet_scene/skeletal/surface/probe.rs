@@ -42,7 +42,7 @@ pub struct SurfaceSample {
     pub primitive_index: Option<u32>,
     pub barycentrics: Option<[f32; 3]>,
     pub visible_index: Option<u32>,
-    pub stable_key: Option<u32>,
+    pub stable_identity: Option<[u32; 2]>,
     pub material_index: Option<u32>,
     pub mip_level: u32,
     pub rgba8: u32,
@@ -133,6 +133,7 @@ pub struct ProbeInput<'a> {
     pub history_reset_count: u64,
     pub bypass_reason: &'static str,
     pub bound_proof: BoundProof,
+    pub actor: Option<crate::rendering::ActorRenderProjection>,
 }
 
 pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {
@@ -206,6 +207,7 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {
                 ground_denominator: input.ground_denominator,
                 shadow_depth: &shadow_depth.bytes,
                 background_color: input.background_color,
+                actor: input.actor,
             },
         )?;
         sample.expected_rgba8 = result.expected_rgba8;
@@ -398,25 +400,26 @@ fn decode_samples(
                 "surface sample references an invalid candidate or primitive"
             );
             ensure!(
-                words[5] == settings.mip_level,
+                words[6] == settings.mip_level,
                 "surface sample mip differs from the configured mip"
             );
             if visible {
                 ensure!(
                     words[2] != u32::MAX
                         && words[3] != u32::MAX
-                        && words[4] < settings.material_count,
+                        && words[4] != u32::MAX
+                        && words[5] < settings.material_count,
                     "visible surface sample metadata is invalid"
                 );
                 ensure!(
-                    words[8] <= 1
-                        && (words[9] & 0xffff) < super::shadow::MAP_SIDE
-                        && (words[9] >> 16) < super::shadow::MAP_SIDE,
+                    words[9] <= 1
+                        && (words[10] & 0xffff) < super::shadow::MAP_SIDE
+                        && (words[10] >> 16) < super::shadow::MAP_SIDE,
                     "visible surface sample shadow metadata is invalid"
                 );
             } else {
                 ensure!(
-                    words[2..5].iter().all(|word| *word == u32::MAX),
+                    words[2..6].iter().all(|word| *word == u32::MAX),
                     "background surface sample contains visible metadata"
                 );
             }
@@ -434,19 +437,19 @@ fn decode_samples(
                 primitive_index: visible.then_some(primitive),
                 barycentrics,
                 visible_index: visible.then_some(words[2]),
-                stable_key: visible.then_some(words[3]),
-                material_index: visible.then_some(words[4]),
-                mip_level: words[5],
-                rgba8: words[6],
+                stable_identity: visible.then_some([words[3], words[4]]),
+                material_index: visible.then_some(words[5]),
+                mip_level: words[6],
+                rgba8: words[7],
                 expected_rgba8: 0,
-                texel: visible.then_some([words[7] & 0xffff, words[7] >> 16]),
+                texel: visible.then_some([words[8] & 0xffff, words[8] >> 16]),
                 expected_texel: None,
-                shadowed: visible.then_some(words[8] != 0),
+                shadowed: visible.then_some(words[9] != 0),
                 expected_shadowed: None,
-                shadow_texel: visible.then_some([words[9] & 0xffff, words[9] >> 16]),
+                shadow_texel: visible.then_some([words[10] & 0xffff, words[10] >> 16]),
                 expected_shadow_texel: None,
-                receiver_shadow_depth: visible.then_some(f32::from_bits(words[10])),
-                stored_shadow_depth: visible.then_some(f32::from_bits(words[11])),
+                receiver_shadow_depth: visible.then_some(f32::from_bits(words[11])),
+                stored_shadow_depth: visible.then_some(f32::from_bits(words[12])),
                 maximum_channel_delta: 0,
             })
         })

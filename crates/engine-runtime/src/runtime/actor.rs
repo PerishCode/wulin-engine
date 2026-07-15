@@ -69,6 +69,10 @@ impl ActorSlot {
         Ok(actor)
     }
 
+    pub const fn current(&self) -> Option<RuntimeActor> {
+        self.actor
+    }
+
     pub fn despawn(&mut self, handle: ActorHandle) -> Result<RuntimeActor> {
         let actor = self.read(handle)?;
         self.actor = None;

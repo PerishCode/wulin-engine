@@ -16,6 +16,7 @@ pub(in crate::rendering) struct CompositionProbeInput<'a> {
     pub instance_records: &'a [Vec<crate::resident::InstanceRecord>],
     pub local_ids: &'a [Vec<u32>],
     pub presentations: &'a [Vec<crate::resident::PresentationRecord>],
+    pub actor: Option<crate::rendering::ActorRenderProjection>,
 }
 
 impl SkeletalSceneRenderer {
@@ -43,6 +44,7 @@ impl SkeletalSceneRenderer {
                 instance_records: input.instance_records,
                 local_ids: input.local_ids,
                 presentations: input.presentations,
+                actor: input.actor,
             })
         }
     }

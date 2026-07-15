@@ -97,6 +97,9 @@ impl SurfaceRenderer {
             uav_barrier(command_list, &self.resources.occlusion.counters);
             uav_barrier(command_list, &self.resources.occlusion.candidate_mask);
             uav_barrier(command_list, &self.resources.occlusion.group_offsets);
+            if frame.probe {
+                self.record_history_probe_copies(command_list);
+            }
             transition(
                 command_list,
                 &self.resources.occlusion.hierarchy,

@@ -233,6 +233,15 @@ enabled = false
 reason = "Actor projection tests exercise the private published-pair join without exporting composition state."
 
 [[overrides]]
+match = "crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/actor.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Actor upload encoding tests exercise the private exact GPU record without exporting renderer resource ownership."
+
+[[overrides]]
 match = "crates/engine-runtime/src/rendering/terrain/transfer.rs"
 kind = "file"
 priority = 10

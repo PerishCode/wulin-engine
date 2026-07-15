@@ -122,6 +122,7 @@ impl Renderer {
         presentation_tick: u32,
         presentation_status: &serde_json::Value,
         simulation_status: &serde_json::Value,
+        actor: Option<crate::rendering::ActorRenderProjection>,
     ) -> Result<CompositionProbe> {
         let snapshot = self
             .async_resident_renderer
@@ -286,6 +287,7 @@ impl Renderer {
                     instance_records: records,
                     local_ids: &payload_readback.local_ids,
                     presentations: &payload_readback.presentations,
+                    actor,
                 },
             )
         }?;
@@ -315,6 +317,7 @@ impl Renderer {
                     projection,
                     ground_numerators: &cpu,
                     ground_denominator: authority::GROUND_DENOMINATOR,
+                    actor,
                 },
             )
         }?;

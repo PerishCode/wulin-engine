@@ -74,6 +74,16 @@ unsafe fn create_root(device: &ID3D12Device) -> Result<ID3D12RootSignature> {
             },
             ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
         },
+        D3D12_ROOT_PARAMETER {
+            ParameterType: D3D12_ROOT_PARAMETER_TYPE_SRV,
+            Anonymous: D3D12_ROOT_PARAMETER_0 {
+                Descriptor: D3D12_ROOT_DESCRIPTOR {
+                    ShaderRegister: 214,
+                    RegisterSpace: 0,
+                },
+            },
+            ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+        },
     ];
     let desc = D3D12_ROOT_SIGNATURE_DESC {
         NumParameters: parameters.len() as u32,

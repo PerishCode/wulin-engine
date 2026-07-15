@@ -64,6 +64,7 @@ impl Runtime {
     /// the thread that created the runtime while no external code uses its native GPU objects.
     pub unsafe fn frame(&mut self, request: FrameRequest) -> Result<RenderOutcome> {
         let presentation_tick = self.presentation_timeline.tick();
+        let actor = self.actor.current();
         let presentation_status = request
             .probe
             .then(|| self.presentation_timeline.status_json());
@@ -79,6 +80,7 @@ impl Runtime {
                 presentation_tick,
                 presentation_status: presentation_status.as_ref(),
                 simulation_status: simulation_status.as_ref(),
+                actor,
                 scene: &mut self.scene,
             })
         }?;

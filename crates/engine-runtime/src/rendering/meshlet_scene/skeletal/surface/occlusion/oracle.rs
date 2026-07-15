@@ -6,10 +6,13 @@ use glam::{Vec3, Vec4};
 use meshlet_catalog::Catalog;
 use serde::Serialize;
 
+use crate::rendering::ActorRenderProjection;
 use crate::rendering::terrain::TerrainProjection;
 use crate::resident::{InstanceRecord, PresentationRecord};
 use crate::scene::SceneState;
 
+use super::super::super::resources::ACTOR_CANDIDATE_INDEX;
+use super::super::super::resources::actor::ActorVisibleCandidate;
 use super::super::resources::CANDIDATE_CAPACITY;
 use super::{
     BOUND_RADIAL_BIAS, BOUND_RADIAL_SCALE, BOUND_VERTICAL_PAD, DEPTH_BIAS, HierarchyMip,
@@ -158,6 +161,7 @@ pub struct QueryInput<'a> {
     pub extent: [u32; 2],
     pub hierarchy: &'a [HierarchyMip],
     pub history_queried: bool,
+    pub actor: Option<ActorRenderProjection>,
 }
 
 pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
@@ -192,60 +196,106 @@ pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
                 .projection
                 .position(region_ordinal, instance.position)?;
             position[1] += ground;
-            let center = Vec3::from_array(position) + Vec3::Y * instance.height * 0.5;
-            let clip = matrix * center.extend(1.0);
             let presentation = input.presentations[region_ordinal][local_index];
-            let archetype = presentation.archetype;
-            let visible = clip.w > 0.0
-                && clip.x.abs() <= clip.w
-                && clip.y.abs() <= clip.w
-                && clip.z >= 0.0
-                && clip.z <= clip.w;
-            if !visible {
-                continue;
-            }
-            let lod = if clip.w < 42.0 {
-                0
-            } else if clip.w < 70.0 {
-                1
-            } else {
-                2
-            };
-            let descriptor = input.mesh.lod(archetype, lod);
-            let animated = presentation.is_animated();
-            oracle.source_visible += 1;
-            oracle.source_meshlets += descriptor.meshlet_count;
-            oracle.source_vertices += descriptor.vertex_count;
-            oracle.source_triangles += descriptor.primitive_count;
-            if animated {
-                oracle.source_skin_influences += descriptor.vertex_count * 4;
-            }
-            let occluded = input.history_queried
-                && query_occluded(
-                    matrix,
-                    position,
-                    instance.height,
-                    archetype,
-                    width,
-                    height,
-                    input.hierarchy,
-                );
-            if occluded {
-                oracle.occluded += 1;
-                mask[candidate as usize] = 2;
-            } else {
-                oracle.survivors += 1;
-                oracle.submitted_meshlets += descriptor.meshlet_count;
-                oracle.submitted_vertices += descriptor.vertex_count;
-                oracle.submitted_triangles += descriptor.primitive_count;
-                if animated {
-                    oracle.submitted_skin_influences += descriptor.vertex_count * 4;
-                }
-                mask[candidate as usize] = 1;
-            }
+            evaluate_candidate(
+                input.mesh,
+                matrix,
+                position,
+                instance.height,
+                presentation,
+                candidate,
+                [width, height],
+                input.hierarchy,
+                input.history_queried,
+                &mut oracle,
+                &mut mask,
+            );
         }
     }
+    if let Some(actor) = input.actor {
+        let candidate = ActorVisibleCandidate::from_projection(actor)?;
+        evaluate_candidate(
+            input.mesh,
+            matrix,
+            candidate.position,
+            candidate.height,
+            actor.actor.presentation,
+            ACTOR_CANDIDATE_INDEX,
+            [width, height],
+            input.hierarchy,
+            input.history_queried,
+            &mut oracle,
+            &mut mask,
+        );
+    }
     Ok((oracle, mask))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_candidate(
+    mesh: &Catalog,
+    matrix: glam::Mat4,
+    position: [f32; 3],
+    object_height: f32,
+    presentation: PresentationRecord,
+    candidate: u32,
+    extent: [u32; 2],
+    hierarchy: &[HierarchyMip],
+    history_queried: bool,
+    oracle: &mut OcclusionOracle,
+    mask: &mut [u32],
+) {
+    let [width, height] = extent;
+    let center = Vec3::from_array(position) + Vec3::Y * object_height * 0.5;
+    let clip = matrix * center.extend(1.0);
+    let archetype = presentation.archetype;
+    let visible = clip.w > 0.0
+        && clip.x.abs() <= clip.w
+        && clip.y.abs() <= clip.w
+        && clip.z >= 0.0
+        && clip.z <= clip.w;
+    if !visible {
+        return;
+    }
+    let lod = if clip.w < 42.0 {
+        0
+    } else if clip.w < 70.0 {
+        1
+    } else {
+        2
+    };
+    let descriptor = mesh.lod(archetype, lod);
+    let animated = presentation.is_animated();
+    oracle.source_visible += 1;
+    oracle.source_meshlets += descriptor.meshlet_count;
+    oracle.source_vertices += descriptor.vertex_count;
+    oracle.source_triangles += descriptor.primitive_count;
+    if animated {
+        oracle.source_skin_influences += descriptor.vertex_count * 4;
+    }
+    let occluded = history_queried
+        && query_occluded(
+            matrix,
+            position,
+            object_height,
+            archetype,
+            width,
+            height,
+            hierarchy,
+        );
+    if occluded {
+        oracle.occluded += 1;
+        mask[candidate as usize] = 2;
+    } else {
+        oracle.survivors += 1;
+        oracle.submitted_meshlets += descriptor.meshlet_count;
+        oracle.submitted_vertices += descriptor.vertex_count;
+        oracle.submitted_triangles += descriptor.primitive_count;
+        if animated {
+            oracle.submitted_skin_influences += descriptor.vertex_count * 4;
+        }
+        mask[candidate as usize] = 1;
+    }
 }
 
 fn query_occluded(
