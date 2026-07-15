@@ -20,7 +20,9 @@ mod simulation_actor;
 use actor::ActorSlot;
 pub use actor::{ActorHandle, RuntimeActor};
 pub use region_format::PresentationRecord as ActorPresentation;
-pub use simulation_actor::{ActorMotionBatch, ActorSimulationAdvance};
+pub use simulation_actor::{
+    ActorMotionBatch, ActorSimulationAdvance, ActorSimulationOutcome, ActorSimulationRenderBlock,
+};
 use simulation_actor::{SimulationActorCommand, prepare_simulation_actor};
 
 #[derive(Clone, Copy)]
@@ -235,7 +237,7 @@ impl Runtime {
         delta_z_q9: i32,
         step_up_limit_q16: i32,
         step_acceleration_q16: i32,
-    ) -> Result<ActorSimulationAdvance> {
+    ) -> Result<ActorSimulationOutcome> {
         let input = self.actor.read(handle)?;
         let prepared = prepare_simulation_actor(
             self.simulation_schedule,
@@ -254,11 +256,20 @@ impl Runtime {
             ..input
         };
         if self.renderer.composition_enabled() {
-            self.renderer.preflight_actor(candidate)?;
+            let admission = self.renderer.preflight_actor(candidate)?;
+            if admission.pending_blocked() {
+                return Ok(ActorSimulationOutcome::RenderBlocked(
+                    ActorSimulationRenderBlock {
+                        prepared_step_count: prepared.simulation.step_count,
+                        terrain_query_count: prepared.motion.terrain_query_count,
+                    },
+                ));
+            }
+            admission.require()?;
         }
         let output = self.actor.replace_motion(handle, prepared.motion.output)?;
         self.simulation_schedule = prepared.schedule;
-        Ok(ActorSimulationAdvance {
+        Ok(ActorSimulationOutcome::Advanced(ActorSimulationAdvance {
             simulation: prepared.simulation,
             actor: ActorMotionBatch {
                 input,
@@ -266,7 +277,7 @@ impl Runtime {
                 step_count: prepared.simulation.step_count,
                 terrain_query_count: prepared.motion.terrain_query_count,
             },
-        })
+        }))
     }
 
     pub fn simulation_status(&self) -> Value {

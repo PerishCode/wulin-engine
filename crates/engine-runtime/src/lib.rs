@@ -13,8 +13,8 @@ pub use region::RegionCoord;
 pub use rendering::gpu_capture::CapturedPixels;
 pub use rendering::{CapturedFrame, RenderOutcome};
 pub use runtime::{
-    ActorHandle, ActorMotionBatch, ActorPresentation, ActorSimulationAdvance, FrameRequest,
-    Runtime, RuntimeActor,
+    ActorHandle, ActorMotionBatch, ActorPresentation, ActorSimulationAdvance,
+    ActorSimulationOutcome, ActorSimulationRenderBlock, FrameRequest, Runtime, RuntimeActor,
 };
 pub use streaming::address::GlobalRegionConfig;
 pub(crate) use streaming::{address, async_resident, objects, terrain};

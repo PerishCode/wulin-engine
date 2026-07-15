@@ -1,6 +1,7 @@
 use engine_runtime::{
-    ActorHandle, ActorPresentation, RegionCoord, Runtime, RuntimeActor, TerrainBody,
-    TerrainBodyMotion, TerrainPosition,
+    ActorHandle, ActorPresentation, ActorSimulationAdvance, ActorSimulationOutcome,
+    ActorSimulationRenderBlock, RegionCoord, Runtime, RuntimeActor, TerrainBody, TerrainBodyMotion,
+    TerrainPosition,
 };
 use serde_json::{Value, json};
 
@@ -70,26 +71,56 @@ pub(super) fn simulation_advance(
                 step_acceleration_q16,
             )
         })
-        .map(|advance| {
-            json!({
-                "revision": "runtime-actor-simulation-v1",
-                "stepCount": advance.simulation.step_count,
-                "terrainQueryCount": advance.actor.terrain_query_count,
-                "actorSimulationAdvance": advance,
-                "perOperationAllocationBytes": 0,
-                "sourceReadCount": 0,
-                "gpuCopyCount": 0,
-                "gpuReadbackCount": 0,
-                "fenceWaitCount": 0,
-                "synchronizationCount": 0,
-                "scheduleCommitCount": 1,
-                "actorCommitCount": 1,
-                "presentationMutationCount": 0,
-                "frameCount": 0,
-                "rendererWorkCount": 0,
-            })
-        })
+        .map(simulation_response)
         .map_err(|error| protocol_error("actor_simulation_advance_failed", error))
+}
+
+fn simulation_response(outcome: ActorSimulationOutcome) -> Value {
+    match outcome {
+        ActorSimulationOutcome::Advanced(advance) => advanced_response(advance),
+        ActorSimulationOutcome::RenderBlocked(blocked) => blocked_response(blocked),
+    }
+}
+
+fn advanced_response(advance: ActorSimulationAdvance) -> Value {
+    json!({
+        "revision": "runtime-actor-simulation-v2",
+        "outcome": "advanced",
+        "preparedStepCount": advance.simulation.step_count,
+        "terrainQueryCount": advance.actor.terrain_query_count,
+        "actorSimulationAdvance": advance,
+        "perOperationAllocationBytes": 0,
+        "sourceReadCount": 0,
+        "gpuCopyCount": 0,
+        "gpuReadbackCount": 0,
+        "fenceWaitCount": 0,
+        "synchronizationCount": 0,
+        "scheduleCommitCount": 1,
+        "actorCommitCount": 1,
+        "presentationMutationCount": 0,
+        "frameCount": 0,
+        "rendererWorkCount": 0,
+    })
+}
+
+fn blocked_response(blocked: ActorSimulationRenderBlock) -> Value {
+    json!({
+        "revision": "runtime-actor-simulation-v2",
+        "outcome": "render-blocked",
+        "preparedStepCount": blocked.prepared_step_count,
+        "terrainQueryCount": blocked.terrain_query_count,
+        "perOperationAllocationBytes": 0,
+        "sourceReadCount": 0,
+        "gpuCopyCount": 0,
+        "gpuReadbackCount": 0,
+        "fenceWaitCount": 0,
+        "synchronizationCount": 0,
+        "scheduleCommitCount": 0,
+        "actorCommitCount": 0,
+        "presentationMutationCount": 0,
+        "frameCount": 0,
+        "rendererWorkCount": 0,
+    })
 }
 
 fn lifecycle_response(

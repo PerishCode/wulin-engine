@@ -22,6 +22,20 @@ pub struct ActorSimulationAdvance {
     pub actor: ActorMotionBatch,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActorSimulationRenderBlock {
+    pub prepared_step_count: u32,
+    pub terrain_query_count: u32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "outcome", content = "evidence", rename_all = "kebab-case")]
+pub enum ActorSimulationOutcome {
+    Advanced(ActorSimulationAdvance),
+    RenderBlocked(ActorSimulationRenderBlock),
+}
+
 pub(crate) struct PreparedSimulationActor {
     pub schedule: SimulationSchedule,
     pub simulation: SimulationAdvance,

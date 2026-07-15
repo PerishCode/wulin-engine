@@ -9,7 +9,6 @@ import {
     object,
     openSources,
     publish,
-    rejectedEvent,
     same,
     startClean,
     status,
@@ -21,6 +20,7 @@ const HALF_HEIGHT_Q16 = 65_536;
 const SHORT_STEP_NANOSECONDS = 16_666_666;
 const LONG_STEP_NANOSECONDS = 16_666_667;
 const I32_MAX = 2_147_483_647;
+const REVISION = "runtime-actor-simulation-v2";
 const PRESENTATION = { archetype: 7, material: 63, yaw_q16: 0, animation: 1 };
 
 function request(generation: number, elapsedNanoseconds: number, deltaXQ9: number): Json {
@@ -62,8 +62,8 @@ async function groundedActor(center: Coord): Promise<Json> {
 
 function requireAdvance(value: Json, label: string): Json {
     if (
-        value.revision !== "runtime-actor-simulation-v1" ||
-        number(value, "stepCount") !== 1 || number(value, "terrainQueryCount") !== 1 ||
+        value.revision !== REVISION || value.outcome !== "advanced" ||
+        number(value, "preparedStepCount") !== 1 || number(value, "terrainQueryCount") !== 1 ||
         number(value, "scheduleCommitCount") !== 1 || number(value, "actorCommitCount") !== 1 ||
         number(value, "frameCount") !== 0 || number(value, "rendererWorkCount") !== 0
     ) fail(`${label} dual-commit evidence diverged`);
@@ -106,8 +106,9 @@ async function prepublication(center: Coord): Promise<Json> {
         step_acceleration_q16: 0,
     });
     if (
-        response.revision !== "runtime-actor-simulation-v1" ||
-        number(response, "stepCount") !== 0 || number(response, "terrainQueryCount") !== 0 ||
+        response.revision !== REVISION || response.outcome !== "advanced" ||
+        number(response, "preparedStepCount") !== 0 ||
+        number(response, "terrainQueryCount") !== 0 ||
         number(response, "scheduleCommitCount") !== 1 || number(response, "actorCommitCount") !== 1
     ) fail("prepublication actor admission changed the fractional commit");
     same(
@@ -170,15 +171,17 @@ async function heldPending(
     const actorBeforeBlock = object(await event("actor.read", { generation: 2 }), "actor");
     const simulationBeforeBlock = await event("simulation.status");
     const pendingBeforeBlock = await event("canonical.status");
-    const blocked = await rejectedEvent(
+    const blocked = await event(
         "simulation.actor.advance",
         request(2, LONG_STEP_NANOSECONDS, -4_098),
     );
     if (
-        typeof blocked.error !== "string" ||
-        blocked.error !==
-            "actor_simulation_advance_failed: runtime actor is outside the pending render window"
-    ) fail(`pending-window actor returned the wrong rejection: ${JSON.stringify(blocked)}`);
+        blocked.revision !== REVISION || blocked.outcome !== "render-blocked" ||
+        number(blocked, "preparedStepCount") !== 1 ||
+        number(blocked, "terrainQueryCount") !== 1 ||
+        number(blocked, "scheduleCommitCount") !== 0 ||
+        number(blocked, "actorCommitCount") !== 0 || "actorSimulationAdvance" in blocked
+    ) fail(`pending-window actor returned the wrong backpressure: ${JSON.stringify(blocked)}`);
     same(
         object(await event("actor.read", { generation: 2 }), "actor"),
         actorBeforeBlock,
