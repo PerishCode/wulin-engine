@@ -1,11 +1,13 @@
 mod body;
+mod time;
 
 use anyhow::{Context, Result};
 use engine_runtime::{
-    FrameRequest, GlobalRegionConfig, RetainedTerrainBody, Runtime, TerrainHeight, TerrainPosition,
+    FrameRequest, GlobalRegionConfig, RetainedSimulationAdvance, RetainedTerrainBody, Runtime,
+    TerrainHeight, TerrainPosition,
 };
-use reference_host::{HostInput, bootstrap, window};
-use serde_json::json;
+use reference_host::{HostClock, HostClockStatus, HostElapsedSample, HostInput, bootstrap, window};
+use serde_json::{Value, json};
 
 const WIDTH: u32 = 1280;
 const HEIGHT: u32 = 720;
@@ -35,22 +37,11 @@ unsafe fn run() -> Result<()> {
     let mut input = HostInput::new();
     let ready = unsafe { bootstrap::drive(&mut runtime, &mut input, &plan, CLEAR_COLOR)? };
     let (terrain, simulation_body) = spawn_initial_body(&mut runtime, plan.global_config())?;
+    let mut clock = HostClock::new();
+    let mut startup = Some(ready.status);
+    let bootstrap_frame_count = ready.frame_count;
+    let mut live_frame_count = 0_u64;
     unsafe { window::show(hwnd) };
-
-    println!(
-        "{}",
-        json!({
-            "role": "prototype",
-            "instance_id": std::process::id().to_string(),
-            "startup": ready.status,
-            "simulation_body": {
-                "capacity": 1,
-                "liveCount": 1,
-                "terrain": terrain,
-                "retained": simulation_body,
-            },
-        })
-    );
 
     'running: loop {
         if !window::pump_messages() {
@@ -61,6 +52,22 @@ unsafe fn run() -> Result<()> {
             window::request_close(hwnd)?;
             continue;
         }
+        let sample = clock.sample(&window::drain_activation())?;
+        let advance = time::admitted_elapsed(sample)
+            .map(|elapsed_nanoseconds| {
+                runtime.advance_simulation_body(
+                    simulation_body.handle,
+                    elapsed_nanoseconds,
+                    0,
+                    0,
+                    0,
+                    0,
+                )
+            })
+            .transpose()?;
+        let completed = advance
+            .filter(|advance| advance.simulation.step_count != 0)
+            .map(|advance| (sample, clock.status(), advance));
         unsafe {
             let _ = runtime.frame(FrameRequest {
                 clear_color: CLEAR_COLOR,
@@ -69,10 +76,75 @@ unsafe fn run() -> Result<()> {
                 probe: false,
             })?;
         }
+        live_frame_count = live_frame_count
+            .checked_add(1)
+            .context("prototype live frame count overflowed")?;
+        if let Some((sample, clock, advance)) = completed
+            && let Some(startup) = startup.take()
+        {
+            publish_readiness(ReadinessEvidence {
+                startup,
+                terrain,
+                simulation_body,
+                sample,
+                clock,
+                advance,
+                bootstrap_frame_count,
+                live_frame_count,
+            })?;
+        }
     }
 
     unsafe { runtime.wait_idle()? };
     window::teardown()?;
+    Ok(())
+}
+
+struct ReadinessEvidence {
+    startup: Value,
+    terrain: TerrainHeight,
+    simulation_body: RetainedTerrainBody,
+    sample: HostElapsedSample,
+    clock: HostClockStatus,
+    advance: RetainedSimulationAdvance,
+    bootstrap_frame_count: u64,
+    live_frame_count: u64,
+}
+
+fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
+    let total_frame_count = evidence
+        .bootstrap_frame_count
+        .checked_add(evidence.live_frame_count)
+        .context("prototype total frame count overflowed")?;
+    println!(
+        "{}",
+        json!({
+            "role": "prototype",
+            "instance_id": std::process::id().to_string(),
+            "startup": evidence.startup,
+            "simulation_body": {
+                "capacity": 1,
+                "liveCount": 1,
+                "terrain": evidence.terrain,
+                "retained": evidence.simulation_body,
+            },
+            "simulation_driver": {
+                "revision": "live-prototype-time-driver-v1",
+                "sample": evidence.sample,
+                "clock": evidence.clock,
+                "command": {
+                    "deltaXQ9": 0,
+                    "deltaZQ9": 0,
+                    "stepUpLimitQ16": 0,
+                    "stepAccelerationQ16": 0,
+                },
+                "advance": evidence.advance,
+                "bootstrapFrameCount": evidence.bootstrap_frame_count,
+                "liveFrameCount": evidence.live_frame_count,
+                "totalFrameCount": total_frame_count,
+            },
+        })
+    );
     Ok(())
 }
 

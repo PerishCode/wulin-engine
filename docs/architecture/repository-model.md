@@ -2,10 +2,10 @@
 
 ## State
 
-Experiments through 0062 and ADR 0065 define the accepted canonical content runtime, reference
+Experiments through 0063 and ADR 0066 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
 motion/planar terrain transaction contracts, deterministic simulation schedule, one retained body
-lifecycle plus a sole explicit-time dual advance, disconnected composed host time admission,
+lifecycle plus a sole explicit-time dual advance, one live prototype host-time driver,
 and retired compatibility/history surfaces. The
 runtime remains in
 `crates/engine-runtime`. It owns camera state, signed
@@ -33,17 +33,19 @@ handle-addressed operation prepares schedule/body copies and commits both only a
 applied to a candidate clock before exactly one sample; success commits both together. First and
 resumed samples reset, bounded deltas are preserved, stalls are explicit and advance their baseline,
 suspension accumulates nothing, and failure rolls back the complete transition. Independent public
-clock pause controls do not exist. Neither application samples this clock or consumes returned
-elapsed outcomes. Stall disposition, input policy, and live step driving remain unpromoted.
+clock pause controls do not exist. Prototype consumes the clock after input/exit handling and
+advances only Ready outcomes; reset, suspension, and stalls do no Runtime work. Workbench sampling,
+input motion policy, and nonzero commands remain unpromoted.
 
 The concrete window separately reduces `WM_KILLFOCUS` / `WM_SETFOCUS` bursts into at most two
-order-equivalent typed transitions. It stores no activation event queue and has no application
-consumer yet. Input focus-loss cleanup remains an independent normalized-input responsibility.
+order-equivalent typed transitions. It stores no activation event queue; prototype drains one
+complete batch before each clock sample. Input focus-loss cleanup remains an independent normalized-
+input responsibility.
 
 The private retained batch accepts an explicit 0..=8 count and repeats one controlled spatial
 command in local motion. Runtime's sole public mutation composes it with caller-supplied elapsed and
-commits schedule/body together. No independent schedule-only or body-only mutation remains. No host
-samples time or invokes the dual transaction from a frame.
+commits schedule/body together. No independent schedule-only or body-only mutation remains.
+Prototype is the sole live caller and orders a Ready-only zero command before its frame.
 
 `TerrainPosition` is the sole horizontal identity shared by terrain query, contact, and fixed
 motion. Its pure Q9 translation canonicalizes positive, negative, and multi-region displacement
@@ -57,7 +59,7 @@ its inspect verb, runtime/renderer branch, and coverage mode are forbidden from 
 
 `crates/reference-host` owns the concrete Windows single-window/message lifecycle, normalized
 keyboard/focus state and bounded journal, strict bootstrap config/path validation, hidden
-canonical-ready driver, and disconnected activation-aware monotonic admission. It is not a
+canonical-ready driver, and activation-aware monotonic admission consumed by prototype. It is not a
 cross-platform abstraction. Its bounded activation reducer is concrete Win32 transport, not a
 portable event layer.
 
@@ -65,8 +67,9 @@ portable event layer.
 operator capture persistence, perception response shaping, diagnostic readiness, pause/failure
 shaping, and fault gates. `apps/prototype` is the plain non-diagnostic composition root: configured
 canonical startup is mandatory, it creates one exact grounded retained body before readiness,
-continuously frames the same runtime, and Escape only requests host exit. Live schedule/motion
-driving, runtime actors, camera actions, and
+drives Ready-only zero-command schedule/body transactions before frames, and publishes readiness
+after the first nonzero commit/frame. Escape only requests host exit. Nonzero motion, runtime actors,
+camera actions, and
 gameplay interaction remain unpromoted. Directories are created only when they own real files.
 
 ## Dependency direction
