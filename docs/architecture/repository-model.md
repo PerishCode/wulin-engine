@@ -2,10 +2,11 @@
 
 ## State
 
-Experiments through 0056 and ADR 0059 define the accepted canonical content runtime, reference
+Experiments through 0057 and ADR 0060 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
 motion/planar terrain transaction contracts, deterministic simulation schedule, one retained body
-lifecycle plus transactional stored single/batch advance, and retired compatibility/history surfaces. The
+lifecycle plus transactional stored single/batch and explicit-time dual advance, and retired
+compatibility/history surfaces. The
 runtime remains in
 `crates/engine-runtime`. It owns camera state, signed
 terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
@@ -15,7 +16,7 @@ vertical contact, private terrain motion/translation/advance composition, neutra
 shaders, probes, and GPU
 device/resource lifecycle. It also owns one optional neutral `TerrainBodyMotion` behind a checked
 nonzero generation handle. It has no calibration scene, split-world control state, multi-body
-store, live wall-clock driver, or runtime-owned step loop. The
+store, live wall-clock driver, or autonomous step loop. The
 format/catalog crates and offline cookers remain independent reusable owners below it.
 
 The runtime owns the sole mutable presentation timeline, successful-frame commit, and simulation
@@ -31,9 +32,10 @@ focus policy, and live
 step driving remain unpromoted.
 
 The retained batch accepts an explicit 0..=8 count, repeats one controlled spatial command in local
-motion, and replaces the slot only after every tick succeeds. It does not mutate the schedule. A
-future live driver therefore still needs an atomic schedule preview/body batch/final commit boundary;
-sequencing the two existing committed operations is not accepted.
+motion, and replaces the slot only after every tick succeeds. It does not mutate the schedule.
+Runtime also owns one explicit caller-supplied elapsed schedule/body dual transaction. No host samples
+time or invokes it from a frame; sequencing the two older independently committed operations remains
+unaccepted.
 
 `TerrainPosition` is the sole horizontal identity shared by terrain query, contact, and fixed
 motion. Its pure Q9 translation canonicalizes positive, negative, and multi-region displacement

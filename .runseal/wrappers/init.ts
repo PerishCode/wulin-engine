@@ -53,6 +53,7 @@ for (
         "crates/engine-runtime/src/runtime/mod.rs",
         "crates/engine-runtime/src/runtime/retained_batch.rs",
         "crates/engine-runtime/src/runtime/retained_body.rs",
+        "crates/engine-runtime/src/runtime/simulation_body.rs",
         "crates/engine-runtime/src/timeline/mod.rs",
         "crates/engine-runtime/src/rendering/composition/mod.rs",
         "crates/engine-runtime/src/streaming/objects/mod.rs",
@@ -83,6 +84,7 @@ for (
         "experiments/0054-transactional-retained-body-advance/README.md",
         "experiments/0055-mandatory-terrain-transaction-cleanup/README.md",
         "experiments/0056-transactional-retained-body-batch/README.md",
+        "experiments/0057-transactional-simulation-body-advance/README.md",
         "assets/third-party/khronos-fox/README.md",
         "docs/adr/0035-authored-object-presentation.md",
         "docs/adr/0036-deterministic-temporal-presentation.md",
@@ -101,6 +103,7 @@ for (
         "docs/adr/0057-transactional-retained-body-advance.md",
         "docs/adr/0058-retired-caller-owned-terrain-transactions.md",
         "docs/adr/0059-transactional-retained-body-batch.md",
+        "docs/adr/0060-transactional-simulation-body-advance.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",
@@ -127,6 +130,7 @@ for (
         ".runseal/support/terrain/retained-body.ts",
         ".runseal/support/terrain/retained-advance.ts",
         ".runseal/support/terrain/retained-batch.ts",
+        ".runseal/support/simulation-body.ts",
     ]
 ) await requireFile(file);
 
