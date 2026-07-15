@@ -12,7 +12,9 @@ pub use load::{SemanticObject, semantic_object};
 pub use region::RegionCoord;
 pub use rendering::gpu_capture::CapturedPixels;
 pub use rendering::{CapturedFrame, RenderOutcome};
-pub use runtime::{FrameRequest, RetainedTerrainBody, Runtime, TerrainBodyHandle};
+pub use runtime::{
+    FrameRequest, RetainedTerrainBody, RetainedTerrainBodyAdvance, Runtime, TerrainBodyHandle,
+};
 pub use streaming::address::GlobalRegionConfig;
 pub(crate) use streaming::{address, async_resident, objects, terrain};
 pub use terrain_query::{

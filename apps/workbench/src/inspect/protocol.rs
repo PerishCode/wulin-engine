@@ -133,6 +133,13 @@ pub enum ControlKind {
     CanonicalTerrainBodyDespawn {
         generation: u64,
     },
+    CanonicalTerrainBodyRetainedAdvance {
+        generation: u64,
+        delta_x_q9: i32,
+        delta_z_q9: i32,
+        step_up_limit_q16: i32,
+        step_acceleration_q16: i32,
+    },
     ObjectIoGateArm,
     ObjectIoGateRelease,
     ObjectCopyGateArm,
@@ -276,6 +283,7 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "canonical.terrain.body.spawn" => terrain::body_spawn(payload),
         "canonical.terrain.body.read" => terrain::body_read(payload),
         "canonical.terrain.body.despawn" => terrain::body_despawn(payload),
+        "canonical.terrain.body.retained.advance" => terrain::body_retained_advance(payload),
         "canonical.objects.io_gate.arm" => Ok(ControlKind::ObjectIoGateArm),
         "canonical.objects.io_gate.release" => Ok(ControlKind::ObjectIoGateRelease),
         "canonical.objects.copy_gate.arm" => Ok(ControlKind::ObjectCopyGateArm),

@@ -201,6 +201,12 @@ despawn 只接受当前非零代际句柄；占用、错误或陈旧句柄和代
 测试和 18.48 秒进程门通过，两次独立进程 replay 的 SHA-256 均为
 `74f1b0e22b17fdc603d66082773e0824e0a54307364b0e57c1162f4bc1e11ced`。该边界尚不驱动
 stored motion，也不提前选择多 actor 容量、ECS、input 或 presentation policy。
+Experiment 0054 让该 retained body 首次执行原子 stored advance：先校验并复制 live generation，
+完整复用 planar-first copied-value transaction，只有全部 query/contact/arithmetic 成功后才以同一
+generation 提交 output。accepted/downhill 各一次 query，blocked 两次；snapshot 越界与速度溢出
+后读回值完全不变。56 个聚焦测试和 23.36 秒双进程门通过，result/replay SHA-256 均为
+`54dacac84b69c1ef1e98d127de23e646b0d18e6c9934e50d3e832abefa56f529`。操作仍不读取
+simulation schedule，不采样 wall clock/input，也不绑定 actor presentation。
 
 ## Project model
 
@@ -262,6 +268,7 @@ terrain-body motion and schedule-partition independence, bounded planar terrain-
 with atomic blocked output and no downhill snap, planar-first single-tick composition with
 destination-query reuse and blocked-origin progress,
 one retained terrain-body generation lifecycle with exact failure rollback and process reset,
+transactional retained planar-first advance with commit-after-success rollback semantics,
 clear-only idle behavior and retired-control rejection, composition, fault rollback,
 traversal/prefetch/rollover, the 64-publication
 resource plateau, and 16 complete lifecycle cycles without invoking an older experiment workflow.

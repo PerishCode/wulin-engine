@@ -59,9 +59,10 @@ import { terrainMotionGates } from "../support/terrain/motion.ts";
 import { terrainTranslationGates } from "../support/terrain/translation.ts";
 import { terrainAdvanceGates } from "../support/terrain/advance.ts";
 import { retainedBodyGates } from "../support/terrain/retained-body.ts";
+import { retainedAdvanceGates } from "../support/terrain/retained-advance.ts";
 
-const REVISION = "retained-terrain-body-lifecycle-v1";
-const COLLECTION = "0053-retained-terrain-body-lifecycle";
+const REVISION = "transactional-retained-terrain-body-advance-v1";
+const COLLECTION = "0054-transactional-retained-body-advance";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -175,6 +176,7 @@ try {
     const terrainTranslation = await terrainTranslationGates(TERRAIN, OBJECTS_A, BASE);
     const terrainAdvance = await terrainAdvanceGates(TERRAIN, OBJECTS_A, BASE);
     const retainedBody = await retainedBodyGates();
+    const retainedAdvance = await retainedAdvanceGates(TERRAIN, OBJECTS_A, BASE);
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
@@ -450,6 +452,7 @@ try {
             terrainTranslation,
             terrainAdvance,
             retainedBody,
+            retainedAdvance,
             compatibilityRemoval,
             terrainQuery,
             terrainContact,

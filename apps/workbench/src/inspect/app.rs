@@ -337,6 +337,20 @@ pub(crate) fn handle_commands(
             ControlKind::CanonicalTerrainBodyDespawn { generation } => {
                 retained_body::despawn(runtime, generation)
             }
+            ControlKind::CanonicalTerrainBodyRetainedAdvance {
+                generation,
+                delta_x_q9,
+                delta_z_q9,
+                step_up_limit_q16,
+                step_acceleration_q16,
+            } => retained_body::advance(
+                runtime,
+                generation,
+                delta_x_q9,
+                delta_z_q9,
+                step_up_limit_q16,
+                step_acceleration_q16,
+            ),
             ControlKind::ObjectIoGateArm => gate(runtime.arm_object_io_gate()),
             ControlKind::ObjectIoGateRelease => gate(runtime.release_object_io_gate()),
             ControlKind::ObjectCopyGateArm => gate(runtime.arm_object_copy_gate()),

@@ -70,3 +70,27 @@ fn generation_exhaustion_leaves_empty_slot_unchanged() {
     assert_eq!(slot.generation, u64::MAX);
     assert!(slot.retained.is_none());
 }
+
+#[test]
+fn replace_preserves_generation_and_changes_only_motion() {
+    let mut slot = TerrainBodySlot::new();
+    let retained = slot.spawn(motion(100, -3)).unwrap();
+    let replacement = motion(-200, 7);
+
+    let output = slot.replace(retained.handle, replacement).unwrap();
+    assert_eq!(output.handle, retained.handle);
+    assert_eq!(output.motion, replacement);
+    assert_eq!(slot.read(retained.handle).unwrap(), output);
+}
+
+#[test]
+fn empty_and_wrong_handle_replace_preserve_slot() {
+    let mut slot = TerrainBodySlot::new();
+    let absent = TerrainBodyHandle::new(1).unwrap();
+    assert!(slot.replace(absent, motion(1, 2)).is_err());
+
+    let retained = slot.spawn(motion(3, 4)).unwrap();
+    let wrong = TerrainBodyHandle::new(2).unwrap();
+    assert!(slot.replace(wrong, motion(5, 6)).is_err());
+    assert_eq!(slot.read(retained.handle).unwrap(), retained);
+}

@@ -2,10 +2,11 @@
 
 ## State
 
-Experiments through 0053 and ADR 0056 define the accepted canonical content runtime, reference
+Experiments through 0054 and ADR 0057 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
 motion, exact planar-first terrain advance, deterministic simulation schedule, one retained body
-lifecycle, and retired compatibility/history surfaces. The runtime remains in
+lifecycle plus transactional stored advance, and retired compatibility/history surfaces. The
+runtime remains in
 `crates/engine-runtime`. It owns camera state, signed
 terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
 time, the explicit rational 60 Hz simulation schedule, one signed-region/half-open-local-Q9 terrain
@@ -21,8 +22,9 @@ schedule. The renderer consumes an immutable pre-commit tick for GPU work and ev
 pause, set,
 step, or advance time. Simulation advances only from explicit bounded elapsed nanoseconds and is
 independent from presentation. Caller-owned terrain motion is the first explicit one-tick consumer;
-the retained slot establishes only process-local ownership and spawn/read/despawn lifetime, not
-stored advancement. No host samples monotonic time or drives returned batches. Stall splitting,
+the retained slot establishes process-local ownership and spawn/read/despawn lifetime. One explicit
+handle-addressed operation now runs the same planar-first tick and commits only after success. No
+host samples monotonic time or drives returned batches. Stall splitting,
 focus policy, and live
 step driving remain unpromoted.
 

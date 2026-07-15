@@ -79,6 +79,7 @@ for (
         "experiments/0043-thin-prototype-host/README.md",
         "experiments/0044-exact-canonical-terrain-query/README.md",
         "experiments/0053-retained-terrain-body-lifecycle/README.md",
+        "experiments/0054-transactional-retained-body-advance/README.md",
         "assets/third-party/khronos-fox/README.md",
         "docs/adr/0035-authored-object-presentation.md",
         "docs/adr/0036-deterministic-temporal-presentation.md",
@@ -94,6 +95,7 @@ for (
         "docs/adr/0046-reference-platform-host.md",
         "docs/adr/0047-canonical-terrain-query.md",
         "docs/adr/0056-retained-terrain-body-lifecycle.md",
+        "docs/adr/0057-transactional-retained-body-advance.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",
@@ -116,6 +118,7 @@ for (
         ".runseal/support/temporal-presentation.ts",
         ".runseal/support/terrain/query.ts",
         ".runseal/support/terrain/retained-body.ts",
+        ".runseal/support/terrain/retained-advance.ts",
     ]
 ) await requireFile(file);
 
