@@ -131,6 +131,34 @@ function startupInvariant(launch: Json): Json {
     };
 }
 
+function simulationBodyInvariant(launch: Json, center: Coord): Json {
+    const simulationBody = object(object(launch, "readiness"), "simulation_body");
+    if (number(simulationBody, "capacity") !== 1 || number(simulationBody, "liveCount") !== 1) {
+        fail("prototype readiness retained-body cardinality diverged");
+    }
+    const terrain = object(simulationBody, "terrain");
+    const retained = object(simulationBody, "retained");
+    if (number(object(retained, "handle"), "generation") !== 1) {
+        fail("prototype initial body generation diverged");
+    }
+    const motion = object(retained, "motion");
+    const body = object(motion, "body");
+    const position = object(body, "position");
+    const region = object(position, "region");
+    if (
+        number(region, "x") !== center[0] || number(region, "z") !== center[1] ||
+        number(position, "localXQ9") !== 0 || number(position, "localZQ9") !== 0
+    ) fail("prototype initial body position diverged");
+    const halfHeight = number(body, "halfHeightNumerator");
+    const terrainHeight = number(terrain, "heightNumerator");
+    if (
+        number(terrain, "heightDenominator") !== 65_536 || halfHeight !== 65_536 ||
+        number(body, "centerHeightNumerator") !== terrainHeight + halfHeight ||
+        number(motion, "stepVelocityQ16") !== 0
+    ) fail("prototype initial body grounding diverged");
+    return simulationBody;
+}
+
 async function sidecarStatus(): Promise<Json> {
     const output = await new Deno.Command("sidecar", {
         args: ["status", "--config", SIDECAR, "--format", "json"],
@@ -182,6 +210,11 @@ export async function prototypeHostGates(
         fail("prototype evidence restart reused the process identity");
     }
     same(startupInvariant(restarted), startupInvariant(first), "prototype restart configuration");
+    same(
+        simulationBodyInvariant(restarted, base),
+        simulationBodyInvariant(first, base),
+        "prototype restart simulation body",
+    );
 
     await lifecycle("start");
     const firstSidecar = await sidecarStatus();

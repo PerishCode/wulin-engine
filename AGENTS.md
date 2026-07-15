@@ -95,7 +95,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0061 and the current ADR set through 0064 define one live content runtime
+Experiments 0031-0062 and the current ADR set through 0065 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained terrain-body lifecycle plus a sole transactional schedule/body
@@ -124,7 +124,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - private pure terrain-body motion, bounded planar translation, and planar-first advance contracts
   with focused tests but no copied-value inspect command or public `Runtime` mutation method;
 - one runtime-owned optional retained `TerrainBodyMotion` with capacity one, checked nonzero
-  generation handles, exact spawn/read/despawn semantics, and no multi-body or actor policy;
+  generation handles, exact spawn/read/despawn semantics, one prototype-owned grounded bootstrap
+  consumer, and no multi-body or actor policy;
 - one private 0..=8 retained-body batch that executes only local motion and preserves its exact
   single-tick/rollback tests without an independent live mutation route;
 - one sole caller-supplied elapsed simulation/body transaction that prepares a schedule copy and
@@ -144,7 +145,7 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one concrete Windows reference-host owner for the single window/message lifecycle, normalized
   input journal, bootstrap parser, canonical-ready driver, and disconnected composed time policy;
 - one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
-  Escape limited to host exit;
+  one exact grounded retained body after canonical publication and Escape limited to host exit;
 - one exact read-only CPU terrain-height query over the committed snapshot, addressed by signed
   region plus half-open local Q9 and independent from camera, render LOD, source I/O, and GPU work;
 - one caller-owned exact vertical terrain-body contact transaction with strict
@@ -205,6 +206,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0062-bounded-win32-activation.md` | Accepted bounded Win32 focus reduction, interrupted ordering, duplicate suppression, and reset. |
 | `docs/adr/0063-retired-independent-simulation-controls.md` | Accepted removal of independent schedule/body mutation, live schedule probe, and redundant process gates. |
 | `docs/adr/0064-composed-host-time-admission.md` | Accepted ordered activation-before-sample host time composition, candidate commit, and independent clock-control removal. |
+| `docs/adr/0065-prototype-body-bootstrap.md` | Accepted prototype-owned grounded retained-body bootstrap, readiness evidence, and terminal failure ordering. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -237,6 +239,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0059-bounded-host-activation/README.md` | Accepted bounded Win32 activation batches, exhaustive burst reduction, reset, and replay evidence. |
 | `experiments/0060-mandatory-simulation-control-cleanup/README.md` | Accepted independent simulation-control removal, recurring gate deletion, retired-verb rejection, and dual preservation evidence. |
 | `experiments/0061-composed-host-time-admission/README.md` | Accepted activation-before-sample ordering, interruption reset, rollback, and deterministic replay evidence. |
+| `experiments/0062-prototype-body-bootstrap/README.md` | Accepted post-publication grounded prototype body, restart equality, failure ordering, and lifecycle evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -272,7 +275,8 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/canonical-object-fixture/src/lib.rs` | Deterministic arbitrary-Q8 authored object fixture. |
 | `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
-| `apps/prototype/src/main.rs` | Mandatory-bootstrap non-diagnostic composition root, continuous frame loop, and host-exit input consumer. |
+| `apps/prototype/src/main.rs` | Mandatory-bootstrap non-diagnostic composition root, grounded retained-body bootstrap, continuous frame loop, and host-exit input consumer. |
+| `apps/prototype/src/body.rs` | Prototype-owned fixed initial body shape and exact committed-terrain grounding policy. |
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
 | `apps/workbench/src/inspect/protocol/terrain.rs` | Strict terrain query/contact, retained lifecycle, and sole explicit simulation-body payload decoding. |
