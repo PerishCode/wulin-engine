@@ -11,9 +11,9 @@ fn bounded_samples_are_exact() {
     let mut clock = HostClock::new();
     let mut now = Instant::now();
 
-    assert_eq!(clock.sample_at(now).unwrap(), HostElapsedSample::Reset);
+    assert_eq!(clock.sample_at(&[], now).unwrap(), HostElapsedSample::Reset);
     assert_eq!(
-        clock.sample_at(now).unwrap(),
+        clock.sample_at(&[], now).unwrap(),
         HostElapsedSample::Ready {
             elapsed_nanoseconds: 0
         }
@@ -22,7 +22,7 @@ fn bounded_samples_are_exact() {
     for elapsed_nanoseconds in [16_666_666, 16_666_667, SIMULATION_MAX_ELAPSED_NANOSECONDS] {
         now += Duration::from_nanos(elapsed_nanoseconds);
         assert_eq!(
-            clock.sample_at(now).unwrap(),
+            clock.sample_at(&[], now).unwrap(),
             HostElapsedSample::Ready {
                 elapsed_nanoseconds
             }
@@ -31,7 +31,7 @@ fn bounded_samples_are_exact() {
 
     now += Duration::from_nanos(SIMULATION_MAX_ELAPSED_NANOSECONDS + 1);
     assert_eq!(
-        clock.sample_at(now).unwrap(),
+        clock.sample_at(&[], now).unwrap(),
         HostElapsedSample::Stalled {
             elapsed_nanoseconds: SIMULATION_MAX_ELAPSED_NANOSECONDS + 1,
             maximum_elapsed_nanoseconds: SIMULATION_MAX_ELAPSED_NANOSECONDS,
@@ -39,7 +39,7 @@ fn bounded_samples_are_exact() {
     );
     now += Duration::from_nanos(1);
     assert_eq!(
-        clock.sample_at(now).unwrap(),
+        clock.sample_at(&[], now).unwrap(),
         HostElapsedSample::Ready {
             elapsed_nanoseconds: 1
         }
@@ -66,28 +66,42 @@ fn suspend_resume_are_idempotent() {
     let mut clock = HostClock::new();
     let base = Instant::now();
 
-    assert_eq!(clock.sample_at(base).unwrap(), HostElapsedSample::Reset);
     assert_eq!(
-        clock.sample_at(base + Duration::from_nanos(8)).unwrap(),
-        HostElapsedSample::Ready {
-            elapsed_nanoseconds: 8
-        }
-    );
-    clock.suspend().unwrap();
-    clock.suspend().unwrap();
-    assert_eq!(
-        clock.sample_at(base + Duration::from_secs(60)).unwrap(),
-        HostElapsedSample::Suspended
-    );
-    clock.resume().unwrap();
-    clock.resume().unwrap();
-    assert_eq!(
-        clock.sample_at(base + Duration::from_secs(60)).unwrap(),
+        clock.sample_at(&[], base).unwrap(),
         HostElapsedSample::Reset
     );
     assert_eq!(
         clock
-            .sample_at(base + Duration::from_secs(60) + Duration::from_nanos(3))
+            .sample_at(&[], base + Duration::from_nanos(8))
+            .unwrap(),
+        HostElapsedSample::Ready {
+            elapsed_nanoseconds: 8
+        }
+    );
+    assert_eq!(
+        clock
+            .sample_at(
+                &[HostActivation::Suspended, HostActivation::Suspended],
+                base + Duration::from_secs(60),
+            )
+            .unwrap(),
+        HostElapsedSample::Suspended
+    );
+    assert_eq!(
+        clock
+            .sample_at(
+                &[HostActivation::Resumed, HostActivation::Resumed],
+                base + Duration::from_secs(60),
+            )
+            .unwrap(),
+        HostElapsedSample::Reset
+    );
+    assert_eq!(
+        clock
+            .sample_at(
+                &[],
+                base + Duration::from_secs(60) + Duration::from_nanos(3),
+            )
             .unwrap(),
         HostElapsedSample::Ready {
             elapsed_nanoseconds: 3
@@ -111,15 +125,80 @@ fn suspend_resume_are_idempotent() {
 }
 
 #[test]
+fn activation_batches_precede_sampling() {
+    let mut clock = HostClock::new();
+    let base = Instant::now();
+
+    assert_eq!(
+        clock.sample_at(&[HostActivation::Suspended], base).unwrap(),
+        HostElapsedSample::Suspended
+    );
+    assert_eq!(
+        clock
+            .sample_at(&[HostActivation::Resumed], base + Duration::from_secs(60))
+            .unwrap(),
+        HostElapsedSample::Reset
+    );
+    assert_eq!(
+        clock
+            .sample_at(
+                &[],
+                base + Duration::from_secs(60) + Duration::from_nanos(7)
+            )
+            .unwrap(),
+        HostElapsedSample::Ready {
+            elapsed_nanoseconds: 7
+        }
+    );
+
+    assert_eq!(
+        clock
+            .sample_at(
+                &[HostActivation::Suspended, HostActivation::Resumed],
+                base + Duration::from_secs(120),
+            )
+            .unwrap(),
+        HostElapsedSample::Reset
+    );
+    assert_eq!(
+        clock
+            .sample_at(
+                &[HostActivation::Resumed, HostActivation::Suspended],
+                base + Duration::from_secs(180),
+            )
+            .unwrap(),
+        HostElapsedSample::Suspended
+    );
+}
+
+#[test]
 fn monotonic_regression_rolls_back() {
     let mut clock = HostClock::new();
     let base = Instant::now();
-    clock.sample_at(base + Duration::from_secs(10)).unwrap();
+    clock
+        .sample_at(&[], base + Duration::from_secs(10))
+        .unwrap();
     let before = clock.clone();
 
-    let error = clock.sample_at(base + Duration::from_secs(9)).unwrap_err();
+    let error = clock
+        .sample_at(&[], base + Duration::from_secs(9))
+        .unwrap_err();
 
     assert!(error.to_string().contains("regressed"));
+    assert_eq!(clock, before);
+}
+
+#[test]
+fn activation_and_sample_failure_roll_back_together() {
+    let mut clock = HostClock::new();
+    clock.counters.sample_count = u64::MAX;
+    let before = clock.clone();
+
+    let error = clock
+        .sample_at(&[HostActivation::Suspended], Instant::now())
+        .unwrap_err();
+
+    assert!(error.to_string().contains("sample count overflowed"));
     assert_eq!(clock, before);
 }
 
@@ -134,27 +213,36 @@ fn replay_is_exact() {
     assert_eq!(first_hash, second_hash);
     assert_eq!(
         first_hash,
-        "3a873571ca7a754272eeaecb0dc7fe9d5183703e88a100a1907cc9ae8bacea7d"
+        "15ab39e6b25ea2a63a97378c51f7ec73242d53d87331245174b4efffef01301e"
     );
 }
 
 fn replay_evidence() -> Value {
     let mut clock = HostClock::new();
     let mut now = Instant::now();
-    let mut outcomes = vec![clock.sample_at(now).unwrap()];
+    let mut outcomes = vec![clock.sample_at(&[HostActivation::Suspended], now).unwrap()];
+
+    now += Duration::from_secs(10);
+    outcomes.push(clock.sample_at(&[HostActivation::Resumed], now).unwrap());
 
     now += Duration::from_nanos(16_666_666);
-    outcomes.push(clock.sample_at(now).unwrap());
+    outcomes.push(clock.sample_at(&[], now).unwrap());
     now += Duration::from_nanos(SIMULATION_MAX_ELAPSED_NANOSECONDS + 1);
-    outcomes.push(clock.sample_at(now).unwrap());
+    outcomes.push(clock.sample_at(&[], now).unwrap());
     now += Duration::from_nanos(1);
-    outcomes.push(clock.sample_at(now).unwrap());
-    clock.suspend().unwrap();
+    outcomes.push(clock.sample_at(&[], now).unwrap());
     now += Duration::from_secs(60);
-    outcomes.push(clock.sample_at(now).unwrap());
-    clock.resume().unwrap();
-    outcomes.push(clock.sample_at(now).unwrap());
-    outcomes.push(clock.sample_at(now).unwrap());
+    outcomes.push(
+        clock
+            .sample_at(&[HostActivation::Suspended, HostActivation::Resumed], now)
+            .unwrap(),
+    );
+    outcomes.push(clock.sample_at(&[], now).unwrap());
+    outcomes.push(
+        clock
+            .sample_at(&[HostActivation::Resumed, HostActivation::Suspended], now)
+            .unwrap(),
+    );
 
     json!({
         "outcomes": outcomes,
@@ -164,7 +252,7 @@ fn replay_evidence() -> Value {
 
 fn evidence_hash(evidence: &Value) -> String {
     let mut digest = Sha256::new();
-    digest.update(b"wulin-host-elapsed-clock-v1\0");
+    digest.update(b"wulin-composed-host-time-admission-v1\0");
     digest.update(serde_json::to_vec(evidence).unwrap());
     format!("{:x}", digest.finalize())
 }

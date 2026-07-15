@@ -16,8 +16,8 @@ authority 原子发布，并由唯一的 runtime-owned source-duration presentat
 时间变化不会触发内容 I/O、GPU page copy 或 pair 重发布。独立的显式 60 Hz simulation
 schedule、调用方持有的垂直 fixed-step motion 和有上修正上限的平面 terrain-body transaction
 已经建立，并已固定 planar-first 的单 tick 组合顺序。`Runtime` 现持有一个带代际句柄的中性
-terrain-body 槽；reference host 另有尚未接线的 bounded monotonic elapsed policy，以及把任意
-Win32 focus burst 规约为至多两个等价 transition 的 activation transport；但仍无 live
+terrain-body 槽；reference host 已将 bounded monotonic elapsed policy 与至多两个等价
+transition 的 Win32 activation batch 组成唯一的 activation-before-sample 操作；但仍无 live
 wall-clock driver、多 actor store、水平速度或 locomotion controller。live simulation/body
 mutation 只保留 schedule/body 双提交，不再暴露独立 schedule 或 retained single/batch bypass。
 
@@ -247,6 +247,12 @@ single/batch 四条独立控制链、四个 `Runtime` forwarding、obsolete resu
 纯 schedule、single/batch 与 dual authority。53.3 秒 fresh setup + dual gate 在既有首进程中确认
 四个旧 verb 均为 `unknown_event`，dual SHA-256 仍为
 `d816aa37f7c5ad56d4bfe3c9d062dec4dda276ed9b3e51c838f9a29fa7027c8a`，没有运行全量流程。
+Experiment 0061 将两项 host policy 收敛为一次 checked transition：完整 ordered activation batch
+先作用于候选 `HostClock`，随后只采样一次，全部成功才提交；loss/resume 跨越 60 秒仍只产生
+reset，resume/loss 则保持 suspended，独立 public `suspend` / `resume` 已删除。21 个 focused test
+与 guard 通过，组合 replay SHA-256 为
+`15ab39e6b25ea2a63a97378c51f7ec73242d53d87331245174b4efffef01301e`；两个 application loop
+仍不采样时间，因此没有运行进程/GPU/全量验收。
 
 ## Project model
 

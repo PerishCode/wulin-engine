@@ -2,11 +2,11 @@
 
 ## State
 
-Experiments through 0060 and ADR 0063 define the accepted canonical content runtime, reference
+Experiments through 0061 and ADR 0064 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
 motion/planar terrain transaction contracts, deterministic simulation schedule, one retained body
-lifecycle plus a sole explicit-time dual advance, disconnected bounded host elapsed/activation
-policies, and retired compatibility/history surfaces. The
+lifecycle plus a sole explicit-time dual advance, disconnected composed host time admission,
+and retired compatibility/history surfaces. The
 runtime remains in
 `crates/engine-runtime`. It owns camera state, signed
 terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
@@ -27,10 +27,12 @@ independent from presentation. Private pure terrain transactions establish the o
 contract; they have no copied-value inspect command or public `Runtime` mutation method. The retained
 slot establishes process-local ownership and spawn/read/despawn lifetime. One explicit elapsed,
 handle-addressed operation prepares schedule/body copies and commits both only after success.
-`reference-host` owns exact monotonic elapsed admission: first/resumed samples reset, bounded deltas
-are preserved, stalls are explicit and advance their baseline, suspension accumulates nothing, and
-regression rolls back. Neither application samples this clock or drives returned batches.
-Activation consumption, stall disposition, input policy, and live step driving remain unpromoted.
+`reference-host` owns exact monotonic elapsed admission. Each complete ordered activation batch is
+applied to a candidate clock before exactly one sample; success commits both together. First and
+resumed samples reset, bounded deltas are preserved, stalls are explicit and advance their baseline,
+suspension accumulates nothing, and failure rolls back the complete transition. Independent public
+clock pause controls do not exist. Neither application samples this clock or consumes returned
+elapsed outcomes. Stall disposition, input policy, and live step driving remain unpromoted.
 
 The concrete window separately reduces `WM_KILLFOCUS` / `WM_SETFOCUS` bursts into at most two
 order-equivalent typed transitions. It stores no activation event queue and has no application
@@ -53,7 +55,7 @@ its inspect verb, runtime/renderer branch, and coverage mode are forbidden from 
 
 `crates/reference-host` owns the concrete Windows single-window/message lifecycle, normalized
 keyboard/focus state and bounded journal, strict bootstrap config/path validation, hidden
-canonical-ready driver, and a disconnected bounded monotonic elapsed policy. It is not a
+canonical-ready driver, and disconnected activation-aware monotonic admission. It is not a
 cross-platform abstraction. Its bounded activation reducer is concrete Win32 transport, not a
 portable event layer.
 
