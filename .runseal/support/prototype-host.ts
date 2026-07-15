@@ -11,6 +11,7 @@ import {
     string,
     useSidecar,
 } from "./canonical-runtime.ts";
+import { holdPrototypeForwardKey } from "./prototype-input.ts";
 
 const CONFIG = "out/cooked/bootstrap/runtime.json";
 const SIDECAR = "sidecar.prototype.toml";
@@ -79,7 +80,7 @@ async function readinessLine(reader: ReadableStreamDefaultReader<string>): Promi
     fail("prototype readiness timeout expired");
 }
 
-async function capturedReady(label: string): Promise<Json> {
+async function capturedReady(label: string, holdForward = false): Promise<Json> {
     const started = performance.now();
     const child = new Deno.Command(EXECUTABLE, {
         args: [`--bootstrap=${CONFIG}`],
@@ -92,7 +93,9 @@ async function capturedReady(label: string): Promise<Json> {
         .pipeThrough(new TextDecoderStream())
         .getReader();
     let value: Json;
+    let nativeInput: Json | null = null;
     try {
+        if (holdForward) nativeInput = await holdPrototypeForwardKey(child.pid);
         const line = await readinessLine(reader);
         value = JSON.parse(line) as Json;
         if (value.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
@@ -113,6 +116,7 @@ async function capturedReady(label: string): Promise<Json> {
         elapsedMs: performance.now() - started,
         forcedEvidenceExitCode: status.code,
         stderr: (await stderr).trim().slice(-4_096),
+        nativeInput,
         readiness: value,
     };
 }
@@ -164,10 +168,27 @@ function actorInvariant(launch: Json, center: Coord): Json {
     return actorAuthority;
 }
 
-function simulationDriverInvariant(launch: Json): Json {
+type ExpectedCommand = {
+    deltaXQ9: number;
+    deltaZQ9: number;
+    stepUpLimitQ16: number;
+};
+
+const STATIONARY_COMMAND: ExpectedCommand = {
+    deltaXQ9: 0,
+    deltaZQ9: 0,
+    stepUpLimitQ16: 32_768,
+};
+const FORWARD_COMMAND: ExpectedCommand = {
+    deltaXQ9: 0,
+    deltaZQ9: -32,
+    stepUpLimitQ16: 32_768,
+};
+
+function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "simulation_driver");
-    if (driver.revision !== "live-prototype-gravity-driver-v2") {
+    if (driver.revision !== "live-prototype-locomotion-driver-v1") {
         fail("prototype simulation driver revision diverged");
     }
     if (number(driver, "renderBlockCount") !== 0) {
@@ -187,9 +208,11 @@ function simulationDriverInvariant(launch: Json): Json {
                 number(clock, "stallCount") + number(clock, "suspendedSampleCount")
     ) fail("prototype simulation driver clock status diverged");
     const command = object(driver, "command");
-    for (const field of ["deltaXQ9", "deltaZQ9", "stepUpLimitQ16"]) {
-        if (number(command, field) !== 0) fail(`prototype simulation command ${field} diverged`);
-    }
+    if (
+        number(command, "deltaXQ9") !== expected.deltaXQ9 ||
+        number(command, "deltaZQ9") !== expected.deltaZQ9 ||
+        number(command, "stepUpLimitQ16") !== expected.stepUpLimitQ16
+    ) fail("prototype simulation locomotion command diverged");
     if (number(command, "stepAccelerationQ16") !== -179) {
         fail("prototype gravity command diverged");
     }
@@ -209,7 +232,39 @@ function simulationDriverInvariant(launch: Json): Json {
     ) fail("prototype live actor batch diverged");
     const initial = object(object(readiness, "actor"), "state");
     same(object(actor, "input"), initial, "prototype live actor input");
-    same(object(actor, "output"), initial, "prototype live actor output");
+    const output = object(actor, "output");
+    if (expected.deltaXQ9 === 0 && expected.deltaZQ9 === 0) {
+        same(output, initial, "prototype stationary actor output");
+    } else {
+        same(object(output, "handle"), object(initial, "handle"), "prototype moved actor handle");
+        same(
+            object(output, "presentation"),
+            object(initial, "presentation"),
+            "prototype moved actor presentation",
+        );
+        const initialMotion = object(initial, "motion");
+        const outputMotion = object(output, "motion");
+        const initialBody = object(initialMotion, "body");
+        const outputBody = object(outputMotion, "body");
+        if (
+            number(outputBody, "halfHeightNumerator") !==
+                number(initialBody, "halfHeightNumerator") ||
+            number(outputMotion, "stepVelocityQ16") !== 0
+        ) fail("prototype moved actor vertical state diverged");
+        const initialPosition = object(initialBody, "position");
+        const outputPosition = object(outputBody, "position");
+        same(
+            object(outputPosition, "region"),
+            object(initialPosition, "region"),
+            "prototype moved actor region",
+        );
+        if (
+            number(outputPosition, "localXQ9") !==
+                number(initialPosition, "localXQ9") + expected.deltaXQ9 * stepCount ||
+            number(outputPosition, "localZQ9") !==
+                number(initialPosition, "localZQ9") + expected.deltaZQ9 * stepCount
+        ) fail("prototype moved actor horizontal displacement diverged");
+    }
     const bootstrapFrames = number(driver, "bootstrapFrameCount");
     const liveFrames = number(driver, "liveFrameCount");
     if (
@@ -224,7 +279,8 @@ function simulationDriverInvariant(launch: Json): Json {
         boundedStepCount: true,
         renderBlockCount: 0,
         tickStartsAtZero: true,
-        groundedActorStable: true,
+        exactHorizontalDisplacement: true,
+        groundedAfterBatch: true,
         queryPerStep: true,
         readinessAfterFrame: true,
     };
@@ -245,7 +301,10 @@ function cameraDriverInvariant(launch: Json): Json {
     if (driver.revision !== "live-prototype-actor-camera-v1") {
         fail("prototype camera driver revision diverged");
     }
-    const actor = object(object(readiness, "actor"), "state");
+    const actor = object(
+        object(object(object(readiness, "simulation_driver"), "advance"), "actor"),
+        "output",
+    );
     same(object(driver, "actor"), object(actor, "handle"), "prototype camera actor handle");
     const rig = object(driver, "rig");
     same(numericArray(rig, "positionOffset"), [9, 4, 12], "prototype camera position rig");
@@ -257,16 +316,19 @@ function cameraDriverInvariant(launch: Json): Json {
         object(object(actor, "motion"), "body"),
         "centerHeightNumerator",
     );
+    const position = object(object(object(actor, "motion"), "body"), "position");
+    const actorX = number(position, "localXQ9") / 512;
+    const actorZ = number(position, "localZQ9") / 512;
     const camera = object(driver, "camera");
     const anchorY = centerHeightQ16 / 65_536;
     same(
         numericArray(camera, "position"),
-        [9, anchorY + 4, 12],
+        [actorX + 9, anchorY + 4, actorZ + 12],
         "prototype anchored camera position",
     );
     same(
         numericArray(camera, "target"),
-        [0, anchorY - 1, -3],
+        [actorX, anchorY - 1, actorZ - 3],
         "prototype anchored camera target",
     );
     if (
@@ -334,6 +396,7 @@ export async function prototypeHostGates(
     await writeDocument(document(terrain, objects, base));
     const first = await capturedReady("prototype first process");
     const restarted = await capturedReady("prototype restarted process");
+    const forward = await capturedReady("prototype forward locomotion", true);
     if (number(first, "processId") === number(restarted, "processId")) {
         fail("prototype evidence restart reused the process identity");
     }
@@ -344,8 +407,8 @@ export async function prototypeHostGates(
         "prototype restart actor authority",
     );
     same(
-        simulationDriverInvariant(restarted),
-        simulationDriverInvariant(first),
+        simulationDriverInvariant(restarted, STATIONARY_COMMAND),
+        simulationDriverInvariant(first, STATIONARY_COMMAND),
         "prototype restart simulation driver",
     );
     same(
@@ -353,6 +416,16 @@ export async function prototypeHostGates(
         cameraDriverInvariant(first),
         "prototype restart camera driver",
     );
+    same(startupInvariant(forward), startupInvariant(first), "prototype locomotion configuration");
+    same(
+        actorInvariant(forward, base),
+        actorInvariant(first, base),
+        "prototype locomotion initial actor authority",
+    );
+    const forwardInvariant = {
+        simulation: simulationDriverInvariant(forward, FORWARD_COMMAND),
+        camera: cameraDriverInvariant(forward),
+    };
 
     await lifecycle("start");
     const firstSidecar = await sidecarStatus();
@@ -379,6 +452,8 @@ export async function prototypeHostGates(
         corruptPayload,
         first,
         restarted,
+        forward,
+        forwardInvariant,
         sidecar: { first: firstSidecar, restarted: restartedSidecar, stopped },
     };
 }
