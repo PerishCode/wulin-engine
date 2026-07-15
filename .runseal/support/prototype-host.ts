@@ -167,7 +167,7 @@ function actorInvariant(launch: Json, center: Coord): Json {
 function simulationDriverInvariant(launch: Json): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "simulation_driver");
-    if (driver.revision !== "live-prototype-actor-driver-v1") {
+    if (driver.revision !== "live-prototype-gravity-driver-v1") {
         fail("prototype simulation driver revision diverged");
     }
     const sample = object(driver, "sample");
@@ -184,10 +184,11 @@ function simulationDriverInvariant(launch: Json): Json {
                 number(clock, "stallCount") + number(clock, "suspendedSampleCount")
     ) fail("prototype simulation driver clock status diverged");
     const command = object(driver, "command");
-    for (
-        const field of ["deltaXQ9", "deltaZQ9", "stepUpLimitQ16", "stepAccelerationQ16"]
-    ) {
+    for (const field of ["deltaXQ9", "deltaZQ9", "stepUpLimitQ16"]) {
         if (number(command, field) !== 0) fail(`prototype simulation command ${field} diverged`);
+    }
+    if (number(command, "stepAccelerationQ16") !== -179) {
+        fail("prototype gravity command diverged");
     }
     const advance = object(driver, "advance");
     const simulation = object(advance, "simulation");
@@ -219,7 +220,7 @@ function simulationDriverInvariant(launch: Json): Json {
         clockActive: true,
         boundedStepCount: true,
         tickStartsAtZero: true,
-        actorStable: true,
+        groundedActorStable: true,
         queryPerStep: true,
         readinessAfterFrame: true,
     };

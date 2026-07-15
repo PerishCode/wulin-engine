@@ -61,7 +61,7 @@ unsafe fn run() -> Result<()> {
                     0,
                     0,
                     0,
-                    0,
+                    actor::GRAVITY_STEP_ACCELERATION_Q16,
                 )
             })
             .transpose()?;
@@ -129,14 +129,14 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "state": evidence.runtime_actor,
             },
             "simulation_driver": {
-                "revision": "live-prototype-actor-driver-v1",
+                "revision": "live-prototype-gravity-driver-v1",
                 "sample": evidence.sample,
                 "clock": evidence.clock,
                 "command": {
                     "deltaXQ9": 0,
                     "deltaZQ9": 0,
                     "stepUpLimitQ16": 0,
-                    "stepAccelerationQ16": 0,
+                    "stepAccelerationQ16": actor::GRAVITY_STEP_ACCELERATION_Q16,
                 },
                 "advance": evidence.advance,
                 "bootstrapFrameCount": evidence.bootstrap_frame_count,

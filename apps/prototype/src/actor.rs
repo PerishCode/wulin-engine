@@ -6,6 +6,9 @@ use engine_runtime::{
 
 const HALF_HEIGHT_Q16: i32 = 65_536;
 
+// Nearest integer Q16-per-step acceleration to -9.81 m/s² at the fixed 60 Hz schedule.
+pub(crate) const GRAVITY_STEP_ACCELERATION_Q16: i32 = -179;
+
 pub(crate) fn initial_motion(
     position: TerrainPosition,
     terrain: TerrainHeight,
