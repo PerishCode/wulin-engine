@@ -156,6 +156,7 @@ function actorInvariant(launch: Json, center: Coord): Json {
     const presentation = presentationInvariant(
         object(initial, "presentation"),
         0,
+        0,
         "prototype initial actor",
     );
     const motion = object(initial, "motion");
@@ -185,6 +186,7 @@ type ExpectedCommand = {
     deltaZQ9: number;
     stepUpLimitQ16: number;
     animationClip: number;
+    yawQ16: number;
 };
 
 const STATIONARY_COMMAND: ExpectedCommand = {
@@ -192,12 +194,14 @@ const STATIONARY_COMMAND: ExpectedCommand = {
     deltaZQ9: 0,
     stepUpLimitQ16: 32_768,
     animationClip: 0,
+    yawQ16: 0,
 };
 const FORWARD_COMMAND: ExpectedCommand = {
     deltaXQ9: 0,
     deltaZQ9: -32,
     stepUpLimitQ16: 32_768,
     animationClip: 1,
+    yawQ16: 49_152,
 };
 
 function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Json {
@@ -234,6 +238,7 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
     const commandPresentation = presentationInvariant(
         object(command, "presentation"),
         expected.animationClip,
+        expected.yawQ16,
         "prototype simulation command",
     );
     const advance = object(driver, "advance");
@@ -255,11 +260,13 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
     const inputPresentation = presentationInvariant(
         object(initial, "presentation"),
         0,
+        0,
         "prototype simulation input",
     );
     const outputPresentation = presentationInvariant(
         object(output, "presentation"),
         expected.animationClip,
+        expected.yawQ16,
         "prototype simulation output",
     );
     if (expected.deltaXQ9 === 0 && expected.deltaZQ9 === 0) {
@@ -406,7 +413,6 @@ export async function prototypeHostGates(
     console.log("==> thin non-diagnostic prototype host gates");
     useSidecar(SIDECAR);
     await lifecycle("stop");
-
     const invalid = document(terrain, objects, base);
     invalid.fallback = true;
     await writeDocument(invalid);

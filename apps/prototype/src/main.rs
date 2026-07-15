@@ -49,6 +49,7 @@ unsafe fn run() -> Result<()> {
     let mut live_frame_count = 0_u64;
     let mut camera_anchor_count = 0_u64;
     let mut render_block_count = 0_u64;
+    let mut presentation_policy = presentation::Policy::new();
     unsafe { window::show(hwnd) };
 
     'running: loop {
@@ -66,7 +67,7 @@ unsafe fn run() -> Result<()> {
             delta_z_q9: locomotion.delta_z_q9,
             step_up_limit_q16: locomotion.step_up_limit_q16,
             step_acceleration_q16: actor::GRAVITY_STEP_ACCELERATION_Q16,
-            presentation: presentation::for_locomotion(locomotion),
+            presentation: presentation_policy.command(locomotion),
         };
         let sample = clock.sample(&window::drain_activation())?;
         let outcome = time::admitted_elapsed(sample)
@@ -78,6 +79,12 @@ unsafe fn run() -> Result<()> {
             .map(|outcome| time::consume_actor_outcome(outcome, &mut render_block_count))
             .transpose()?
             .flatten();
+        if let Some(advance) = &advance {
+            presentation_policy.observe_advance(
+                advance.simulation.step_count,
+                advance.actor.output.presentation,
+            );
+        }
         let completed = advance
             .filter(|advance| advance.simulation.step_count != 0)
             .map(|advance| (sample, clock.status(), advance, command));
