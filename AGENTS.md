@@ -97,7 +97,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0070 and the current ADR set through 0073 define one live content runtime
+Experiments 0031-0072 and the current ADR set through 0075 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -139,9 +139,10 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one private 0..=8 terrain-body motion batch that executes only local motion and preserves exact
   single-tick/rollback tests without an independent live mutation route;
 - one sole caller-supplied elapsed simulation/actor transaction that prepares a schedule copy and
-  local motion batch, then commits both together while preserving presentation; Runtime owns no
-  wall clock while prototype is
-  its first live bounded-elapsed caller;
+  local motion batch, preflights the complete candidate against the published and non-prefetch
+  pending render windows when canonical composition is enabled, then commits actor and schedule
+  together while preserving handle/presentation; Runtime owns no wall clock while prototype is its
+  first live bounded-elapsed caller;
 - one signed-region/half-open-local-Q9 `TerrainPosition` shared by query/contact/motion, with exact
   checked positive, negative, and multi-region planar translation and no compatibility alias;
 - one bounded 225-body contact transition witness in the generic canonical probe; the historical
@@ -232,6 +233,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0072-prototype-gravity-admission.md` | Accepted prototype-owned fixed gravity, Ready-only admission, and grounded stability contract. |
 | `docs/adr/0073-retired-standalone-actor-projection.md` | Accepted removal of the standalone projection API/verb/gate and retention of one internal frame path. |
 | `docs/adr/0074-actor-relative-camera-mutation.md` | Accepted generation-qualified actor-relative camera mutation, exact internal anchor derivation, and prototype rig ownership. |
+| `docs/adr/0075-transactional-actor-render-admission.md` | Accepted pre-commit canonical actor preflight, dual rollback, and sole private projection authority. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -274,11 +276,12 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0069-prototype-gravity-admission/README.md` | Accepted fixed prototype gravity, grounded actor stability, focused process restart, and lifecycle evidence. |
 | `experiments/0070-mandatory-actor-projection-cleanup/README.md` | Accepted standalone projection surface removal, live old-verb rejection, and exact actor-frame preservation. |
 | `experiments/0071-actor-relative-camera-anchor/README.md` | Accepted private-projection camera anchor, transactional scene mutation, and exact prototype frame-order evidence. |
+| `experiments/0072-transactional-actor-render-admission/README.md` | Accepted shared-window candidate commit, pending-window dual rollback, retained frame, and unchanged GPU evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
 | `crates/engine-runtime/src/lib.rs` | Public runtime, capture, semantic, and signed-address surface. |
-| `crates/engine-runtime/src/runtime/mod.rs` | Sole renderer/scene facade, frame coordinator, schedule/actor owner, dual simulation/actor advance, and actor-relative camera mutation. |
+| `crates/engine-runtime/src/runtime/mod.rs` | Sole renderer/scene facade, frame coordinator, schedule/actor owner, canonical render-admitted dual advance, and actor-relative camera mutation. |
 | `crates/engine-runtime/src/scene/mod.rs` | Canonical camera state plus validated atomic absolute and actor-anchored candidate publication. |
 | `crates/engine-runtime/src/runtime/actor.rs` | Capacity-one actor slot, nonzero generation, exact motion/presentation lifetime, and checked replacement. |
 | `crates/engine-runtime/src/runtime/motion_batch.rs` | Private bounded local multi-tick motion execution, query accumulation, and failing-step context. |
@@ -340,7 +343,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
 | `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype gravity/camera, restart, failure, and lifecycle entry point. |
-| `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source actor GPU admission and rollback entry point. |
+| `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source simulation-candidate admission, actor GPU, and rollback entry point. |
 | `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source canonical GPU frame and immediate replay entry point. |
 | `.runseal/wrappers/canonical-resources.ts` | Focused active/quiescent same-process GPU resource plateau entry point. |
 | `.runseal/wrappers/canonical-runtime.ts` | Direct canonical acceptance entry point over the converged runtime. |
@@ -354,6 +357,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls, retained-body history, and pre-owner actor support paths. |
 | `.runseal/support/guard/canonical-operator.ts` | Exact neutral canonical revision/collection and current evidence-path guard. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
+| `.runseal/support/actor/admission.ts` | Prepublication, shared-window commit, pending-window dual rollback, and retained-frame acceptance support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |
 | `.runseal/support/actor/simulation.ts` | Retired-route rejection plus fractional, partition, rollback, and sole actor dual-commit support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
@@ -384,10 +388,12 @@ runseal :canonical-prototype
 runseal :canonical-resources
 ```
 
-The actor workflow cooks fresh signed sources and proves the capacity-one actor's exact generation
-identity, alternating frame-slot writes, existing-pipeline participation, despawn/respawn clearing,
-frustum rejection, outside-window rollback, and semantic capture. Its ignored evidence belongs
-under `out/captures/canonical-actor/`.
+The actor workflow cooks fresh signed sources and proves prepublication simulation behavior,
+shared-window candidate commit, pending-window actor/schedule rollback with a retained successful
+frame, the capacity-one actor's exact generation identity, alternating frame-slot writes,
+existing-pipeline participation, despawn/respawn clearing, frustum rejection, outside-window
+rollback, and semantic capture. Its ignored evidence belongs under
+`out/captures/canonical-actor/`.
 
 The prototype workflow runs focused runtime/host/application tests, cooks only two required signed
 centers, and proves exact grounded gravity admission, actor-relative camera/frame ordering,

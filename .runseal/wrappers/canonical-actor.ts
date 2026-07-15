@@ -1,3 +1,4 @@
+import { actorRenderAdmissionGates } from "../support/actor/admission.ts";
 import { actorGpuGates } from "../support/actor/gpu.ts";
 import { prepareCanonicalFrameSetup } from "../support/canonical-setup.ts";
 import {
@@ -32,6 +33,12 @@ try {
         [BASE[0] + 2, BASE[1] + 2],
     ]);
     report = setup.paths.report;
+    const admission = await actorRenderAdmissionGates(
+        setup.paths.terrain,
+        setup.paths.objects,
+        BASE,
+        [BASE[0] + 2, BASE[1] + 2],
+    );
     await startClean();
     await openSources(setup.paths.terrain, setup.paths.objects);
     const publication = await publish(target(BASE));
@@ -41,6 +48,7 @@ try {
         outcome: "pass",
         storage: setup.storage,
         publication,
+        admission,
         actor,
         elapsedMilliseconds: performance.now() - started,
     };
