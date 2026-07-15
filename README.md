@@ -141,6 +141,11 @@ canonical frame 后显示并 ready，持续运行同一 `engine-runtime`，Escap
 直接验收中，三类失败均无 readiness，首次/重启在隐藏 frame 8/9 达到同一配置与签名目标；六个
 GPU 哈希、32+32 traversal、零增长资源平台和 16 次生命周期仍通过。相机、模拟、terrain contact、
 actor 与 gameplay interaction 仍留在后续独立门。
+Experiment 0044 在当前已提交 terrain snapshot 上加入精确只读 CPU 高度查询：输入是 signed
+global region 与半开 `[-4096,4096)` 的局部 Q9，输出是分母固定为 65,536 的高度分子和三角
+分类。616 秒直接验收对 5x5 窗口执行 76,800 点并与既有 grounding oracle 零差异；reorder、
+alias、四类 hold、损坏回滚、32+32 traversal、资源平台、restart 与 16 次生命周期均保持精确。
+查询不分配、不读源、不触碰 GPU，也尚未定义 normal、slope、material、body 或 locomotion。
 
 ## Project model
 
@@ -195,7 +200,7 @@ signed terrain and schema-3 object sources directly, validates explicit presenta
 deterministic presentation time, fixed camera-visible directional object shadows, canonical
 runtime and timeline ownership, successful-frame transactions, deterministic host input/replay,
 strict configured canonical readiness, shared reference-host ownership, plain prototype
-startup/restart/cleanup,
+startup/restart/cleanup, exact published-snapshot CPU terrain queries,
 composition, fault rollback,
 traversal/prefetch/rollover, the 64-publication
 resource plateau, and 16 complete lifecycle cycles without invoking an older experiment workflow.

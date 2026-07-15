@@ -47,9 +47,10 @@ import {
 import { hostInputGates } from "../support/host-input-replay.ts";
 import { bootstrapGates } from "../support/runtime-bootstrap.ts";
 import { prototypeHostGates } from "../support/prototype-host.ts";
+import { terrainQueryGates, unavailableTerrainQueryGate } from "../support/terrain-query.ts";
 
-const REVISION = "thin-prototype-host-v1";
-const COLLECTION = "0043-thin-prototype-host";
+const REVISION = "exact-canonical-terrain-query-v1";
+const COLLECTION = "0044-exact-canonical-terrain-query";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -116,6 +117,8 @@ await run(
         "reference-host",
         "-p",
         "prototype",
+        "-p",
+        "engine-runtime",
     ],
     "canonical codec and cooker tests",
 );
@@ -175,10 +178,12 @@ try {
     if (object(idle, "workload").mode !== "idle-shell") {
         fail("workbench did not start in the idle shell");
     }
+    const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
     await openSources(TERRAIN, OBJECTS_A);
     const basePublication = await publish(target(BASE));
     assertObjectCopies(basePublication, 25, "cold publication");
     const orderA = await frame("order-a", COLLECTION);
+    const terrainQuery = await terrainQueryGates(BASE, orderA, unavailableTerrainQuery);
     const orderStable = object(orderA, "stable");
     const orderShadow = object(object(orderStable, "surface"), "shadow");
     if (
@@ -439,6 +444,7 @@ try {
             bootstrap,
             prototype,
             hostInput,
+            terrainQuery,
             idle,
             basePublication,
             orderA,

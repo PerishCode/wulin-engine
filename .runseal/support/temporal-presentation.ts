@@ -26,6 +26,7 @@ export function presentationInvariant(stable: Json): Json {
         grounding: stable.grounding,
         contact: stable.contact,
         terrain: stable.terrain,
+        terrainQuery: stable.terrainQuery,
     };
 }
 

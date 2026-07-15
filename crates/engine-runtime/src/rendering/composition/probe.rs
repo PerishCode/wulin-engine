@@ -13,6 +13,7 @@ use super::authority::{self, TriangleClass};
 use super::contact::{self, ContactProbe};
 
 mod objects;
+mod terrain_query;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,6 +22,7 @@ pub struct CompositionProbe {
     pair: Value,
     canonical_objects: objects::CanonicalObjectEvidence,
     grounding: GroundingProbe,
+    terrain_query: terrain_query::Probe,
     contact: ContactProbe,
     terrain: TerrainProbe,
     surface: SurfaceProbe,
@@ -140,6 +142,7 @@ impl Renderer {
             .as_ref()
             .context("composition probe has no published pair")?;
         let projection = self.terrain_renderer.projection()?;
+        let terrain_query = terrain_query::probe(self, assignments, tiles, projection)?;
         ensure!(
             snapshot.object_stable_seed_namespace == authority::object_source_namespace(),
             "composition object stable-seed namespace does not match its authority"
@@ -345,6 +348,7 @@ impl Renderer {
                 triangles,
                 boundaries,
             },
+            terrain_query,
             contact,
             terrain,
             surface,

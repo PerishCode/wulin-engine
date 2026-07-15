@@ -1,6 +1,6 @@
 use std::sync::mpsc::Receiver;
 
-use engine_runtime::{GlobalRegionConfig, Runtime};
+use engine_runtime::{GlobalRegionConfig, RegionCoord, Runtime, TerrainQueryPosition};
 use reference_host::{
     bootstrap::{PackKind, validate_pack_path},
     window,
@@ -128,6 +128,32 @@ pub(crate) fn handle_commands(
                     })
                 }
             }
+            ControlKind::CanonicalTerrainHeight {
+                region_x,
+                region_z,
+                local_x_q9,
+                local_z_q9,
+            } => TerrainQueryPosition::new(
+                RegionCoord::new(region_x, region_z),
+                local_x_q9,
+                local_z_q9,
+            )
+            .and_then(|position| {
+                runtime.query_terrain_height(position).map(|height| {
+                    json!({
+                        "revision": "exact-canonical-terrain-query-v1",
+                        "position": position,
+                        "height": height,
+                        "perQueryAllocationBytes": 0,
+                        "sourceReadCount": 0,
+                        "gpuCopyCount": 0,
+                        "gpuReadbackCount": 0,
+                        "fenceWaitCount": 0,
+                        "synchronizationCount": 0,
+                    })
+                })
+            })
+            .map_err(|error| protocol_error("terrain_query_failed", error)),
             ControlKind::ObjectIoGateArm => gate(runtime.arm_object_io_gate()),
             ControlKind::ObjectIoGateRelease => gate(runtime.release_object_io_gate()),
             ControlKind::ObjectCopyGateArm => gate(runtime.arm_object_copy_gate()),

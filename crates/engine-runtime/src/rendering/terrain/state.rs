@@ -3,6 +3,7 @@ use windows::Win32::Graphics::Direct3D12::ID3D12DescriptorHeap;
 
 use crate::load::LoadConfig;
 use crate::terrain::{GlobalTerrainConfig, TerrainAssignment, TerrainSourceNamespace};
+use crate::terrain_query::{TerrainHeight, TerrainQueryPosition, query_published_height};
 
 use super::{TerrainProjection, TerrainRenderer};
 
@@ -47,6 +48,26 @@ impl TerrainRenderer {
 
     pub(in crate::rendering) fn published_tiles(&self) -> Option<&[terrain_format::TerrainTile]> {
         self.published.as_ref().map(|value| value.tiles.as_slice())
+    }
+
+    pub(in crate::rendering) fn published_generation(&self) -> Option<u64> {
+        self.published.as_ref().map(|value| value.generation)
+    }
+
+    pub(in crate::rendering) fn query_height(
+        &self,
+        position: TerrainQueryPosition,
+    ) -> Result<TerrainHeight> {
+        let published = self
+            .published
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("terrain query requires a published snapshot"))?;
+        query_published_height(
+            published.global_config,
+            &published.active,
+            &published.tiles,
+            position,
+        )
     }
 
     pub fn arm_copy_gate(&mut self) -> Result<u64> {
