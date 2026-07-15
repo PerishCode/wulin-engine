@@ -2,11 +2,11 @@
 
 ## State
 
-Experiments through 0059 and ADR 0062 define the accepted canonical content runtime, reference
+Experiments through 0060 and ADR 0063 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
 motion/planar terrain transaction contracts, deterministic simulation schedule, one retained body
-lifecycle plus transactional stored single/batch and explicit-time dual advance, disconnected
-bounded host elapsed/activation policies, and retired compatibility/history surfaces. The
+lifecycle plus a sole explicit-time dual advance, disconnected bounded host elapsed/activation
+policies, and retired compatibility/history surfaces. The
 runtime remains in
 `crates/engine-runtime`. It owns camera state, signed
 terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
@@ -25,8 +25,8 @@ pause, set,
 step, or advance time. Simulation advances only from explicit bounded elapsed nanoseconds and is
 independent from presentation. Private pure terrain transactions establish the one-tick spatial
 contract; they have no copied-value inspect command or public `Runtime` mutation method. The retained
-slot establishes process-local ownership and spawn/read/despawn lifetime. One explicit handle-
-addressed operation runs the planar-first tick and commits only after success.
+slot establishes process-local ownership and spawn/read/despawn lifetime. One explicit elapsed,
+handle-addressed operation prepares schedule/body copies and commits both only after success.
 `reference-host` owns exact monotonic elapsed admission: first/resumed samples reset, bounded deltas
 are preserved, stalls are explicit and advance their baseline, suspension accumulates nothing, and
 regression rolls back. Neither application samples this clock or drives returned batches.
@@ -36,11 +36,10 @@ The concrete window separately reduces `WM_KILLFOCUS` / `WM_SETFOCUS` bursts int
 order-equivalent typed transitions. It stores no activation event queue and has no application
 consumer yet. Input focus-loss cleanup remains an independent normalized-input responsibility.
 
-The retained batch accepts an explicit 0..=8 count, repeats one controlled spatial command in local
-motion, and replaces the slot only after every tick succeeds. It does not mutate the schedule.
-Runtime also owns one explicit caller-supplied elapsed schedule/body dual transaction. No host samples
-time or invokes it from a frame; sequencing the two older independently committed operations remains
-unaccepted.
+The private retained batch accepts an explicit 0..=8 count and repeats one controlled spatial
+command in local motion. Runtime's sole public mutation composes it with caller-supplied elapsed and
+commits schedule/body together. No independent schedule-only or body-only mutation remains. No host
+samples time or invokes the dual transaction from a frame.
 
 `TerrainPosition` is the sole horizontal identity shared by terrain query, contact, and fixed
 motion. Its pure Q9 translation canonicalizes positive, negative, and multi-region displacement

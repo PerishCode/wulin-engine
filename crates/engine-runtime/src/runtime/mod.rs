@@ -9,20 +9,17 @@ use crate::scene::SceneState;
 use crate::streaming::address::GlobalRegionConfig;
 use crate::terrain_query::{
     TerrainBody, TerrainBodyContact, TerrainBodyMotion, TerrainHeight, TerrainPosition,
-    advance_terrain_body, resolve_body_contact,
+    resolve_body_contact,
 };
-use crate::timeline::{
-    PresentationTimeline, SimulationAdvance, SimulationSchedule, simulation_probe,
-};
+use crate::timeline::{PresentationTimeline, SimulationSchedule};
 
 mod retained_batch;
 mod retained_body;
 mod simulation_body;
 
 pub use retained_batch::RetainedTerrainBodyBatch;
-use retained_batch::advance_motion_batch;
 use retained_body::TerrainBodySlot;
-pub use retained_body::{RetainedTerrainBody, RetainedTerrainBodyAdvance, TerrainBodyHandle};
+pub use retained_body::{RetainedTerrainBody, TerrainBodyHandle};
 pub use simulation_body::RetainedSimulationAdvance;
 use simulation_body::{SimulationBodyCommand, prepare_simulation_body};
 
@@ -209,59 +206,6 @@ impl Runtime {
         self.terrain_body.despawn(handle)
     }
 
-    pub fn advance_retained_terrain_body(
-        &mut self,
-        handle: TerrainBodyHandle,
-        delta_x_q9: i32,
-        delta_z_q9: i32,
-        step_up_limit_q16: i32,
-        step_acceleration_q16: i32,
-    ) -> Result<RetainedTerrainBodyAdvance> {
-        let input = self.terrain_body.read(handle)?;
-        let advance = advance_terrain_body(
-            input.motion,
-            delta_x_q9,
-            delta_z_q9,
-            step_up_limit_q16,
-            step_acceleration_q16,
-            |position| self.query_terrain_height(position),
-        )?;
-        let output = self.terrain_body.replace(handle, advance.output)?;
-        Ok(RetainedTerrainBodyAdvance {
-            input,
-            advance,
-            output,
-        })
-    }
-
-    pub fn advance_retained_body_batch(
-        &mut self,
-        handle: TerrainBodyHandle,
-        step_count: u32,
-        delta_x_q9: i32,
-        delta_z_q9: i32,
-        step_up_limit_q16: i32,
-        step_acceleration_q16: i32,
-    ) -> Result<RetainedTerrainBodyBatch> {
-        let input = self.terrain_body.read(handle)?;
-        let batch = advance_motion_batch(
-            input.motion,
-            step_count,
-            delta_x_q9,
-            delta_z_q9,
-            step_up_limit_q16,
-            step_acceleration_q16,
-            |position| self.query_terrain_height(position),
-        )?;
-        let output = self.terrain_body.replace(handle, batch.output)?;
-        Ok(RetainedTerrainBodyBatch {
-            input,
-            output,
-            step_count,
-            terrain_query_count: batch.terrain_query_count,
-        })
-    }
-
     pub fn advance_simulation_body(
         &mut self,
         handle: TerrainBodyHandle,
@@ -299,14 +243,6 @@ impl Runtime {
 
     pub fn simulation_status(&self) -> Value {
         self.simulation_schedule.status_json()
-    }
-
-    pub fn advance_simulation(&mut self, elapsed_nanoseconds: u64) -> Result<SimulationAdvance> {
-        self.simulation_schedule.advance(elapsed_nanoseconds)
-    }
-
-    pub fn simulation_schedule_probe(&self) -> Result<Value> {
-        simulation_probe()
     }
 
     pub fn presentation_time_status(&self) -> Value {
