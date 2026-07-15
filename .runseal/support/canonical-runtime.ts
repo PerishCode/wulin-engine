@@ -422,6 +422,16 @@ export function validateProbe(value: Json, allowPending = false): void {
         terrainContactWitness.fenceWaitCount !== 0 ||
         terrainContactWitness.synchronizationCount !== 0
     ) fail("canonical terrain body-contact witness diverged");
+    const simulation = object(value, "simulationSchedule");
+    if (
+        simulation.revision !== "deterministic-fixed-simulation-schedule-v1" ||
+        simulation.tick !== 0 || simulation.remainderNumerator !== 0 ||
+        simulation.remainderDenominator !== 1_000_000_000 ||
+        simulation.stepsPerSecond !== 60 ||
+        simulation.maximumElapsedNanoseconds !== 125_000_000 ||
+        simulation.maximumStepsPerAdvance !== 8 ||
+        simulation.successfulAdvanceCount !== 0 || simulation.emittedStepCount !== 0
+    ) fail("canonical frame mutated the explicit simulation schedule");
     const terrain = object(value, "terrain");
     const global = object(terrain, "globalAddressing");
     const cpuEdges = object(terrain, "cpuEdges");
@@ -477,6 +487,7 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
     const terrain = object(probeValue, "terrain");
     const terrainQuery = object(probeValue, "terrainQuery");
     const terrainContactWitness = object(terrainQuery, "bodyContactWitness");
+    const simulation = object(probeValue, "simulationSchedule");
     const surfaceSamples = array(surface, "samples").map((value) => {
         const sample = value as Json;
         return {
@@ -539,6 +550,7 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
             classifications: terrainContactWitness.classifications,
             correctedCount: terrainContactWitness.correctedCount,
         },
+        simulationSchedule: simulation,
         skeletal: {
             settings: skeletal.settings,
             gpu: skeletal.gpu,
@@ -712,6 +724,7 @@ function stableProbeSummary(value: Json): Json {
     const grounding = object(value, "grounding");
     const terrainQuery = object(value, "terrainQuery");
     const terrainContactWitness = object(terrainQuery, "bodyContactWitness");
+    const simulation = object(value, "simulationSchedule");
     const pair = object(object(value, "pair"), "published");
     return {
         token: pair.token,
@@ -724,6 +737,9 @@ function stableProbeSummary(value: Json): Json {
         terrainContactWitnessResultSha256: terrainContactWitness.resultSha256,
         terrainContactWitnessIdentitySha256: terrainContactWitness.identityKeyedSha256,
         terrainContactWitnessMismatchCount: terrainContactWitness.oracleMismatchCount,
+        simulationTick: simulation.tick,
+        simulationRemainderNumerator: simulation.remainderNumerator,
+        simulationAdvanceCount: simulation.successfulAdvanceCount,
         mismatchCount: grounding.mismatchCount,
         combinedGpuMs: object(value, "timing").combinedGpuMs,
     };

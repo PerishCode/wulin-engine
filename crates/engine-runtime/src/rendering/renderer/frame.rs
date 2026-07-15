@@ -20,6 +20,7 @@ impl Renderer {
             probe,
             presentation_tick,
             presentation_status,
+            simulation_status,
             scene,
         } = frame;
         debug_assert!(!capture_object_ids || capture);
@@ -178,6 +179,8 @@ impl Renderer {
                         color,
                         presentation_tick,
                         presentation_status,
+                        simulation_status
+                            .context("composition probe requires a simulation status snapshot")?,
                     )
                 }?)
             } else {

@@ -12,8 +12,9 @@
 GPU residency、terrain-first composition、Sidecar 生命周期和项目自有 inspect 协议已经形成
 唯一、可重复的内容运行闭环。Experiment 0033 已在该闭环内接受 schema-3 authored object
 presentation：空间、local-ID、archetype、material、yaw 与 animation 作为三平面 cooked
-authority 原子发布，并由唯一的 64 tick renderer clock 连续推进；时间变化不会触发内容
-I/O、GPU page copy 或 pair 重发布。
+authority 原子发布，并由唯一的 runtime-owned source-duration presentation timeline 连续推进；
+时间变化不会触发内容 I/O、GPU page copy 或 pair 重发布。独立的显式 60 Hz simulation
+schedule 已建立，但尚无 live wall-clock driver 或 simulation consumer。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
 两档 Compute benchmark。Experiment 0002 已通过同进程重复捕获、可见状态变化和 Sidecar
@@ -156,6 +157,12 @@ separation 保持悬空、零值严格 touching、负值只施加最小向上修
 模拟时钟、重力或移动。显式验收一次解析 230,400 个 body，三类各 76,800、零 oracle mismatch；
 通用 probe 仅保留 225 个确定性见证。701.5 秒最终流程中，四类 hold、失败回滚、32+32 traversal、
 531-handle 零增长平台和 16 次生命周期全部通过，既有 GPU/capture hash 不变。
+Experiment 0047 在 `Runtime` 中接受了与 presentation 独立的有理数 60 Hz simulation
+schedule：调用方只可显式提交不超过 125 ms 的 elapsed nanoseconds，每次产生 0..=8 个 step，
+所有 tick、余数和计数器以 checked transaction 原子提交，不做 clamp、drop 或 backlog。
+一小时探针以 28,800 次调用得到 216,000 tick、零余数，7/8-step 各 14,400 批，重放哈希完全
+一致。692.8 秒最终流程保持 32+32 traversal、531-handle 零增长平台、16 次生命周期和既有
+GPU/capture/query/contact 哈希；prototype 尚未采样 wall clock，也没有 gravity 或 locomotion。
 
 ## Project model
 
@@ -211,7 +218,8 @@ deterministic presentation time, fixed camera-visible directional object shadows
 runtime and timeline ownership, successful-frame transactions, deterministic host input/replay,
 strict configured canonical readiness, shared reference-host ownership, plain prototype
 startup/restart/cleanup, exact published-snapshot CPU terrain queries,
-exact caller-owned vertical terrain contact and bounded transition witnesses,
+exact caller-owned vertical terrain contact and bounded transition witnesses, the explicit bounded
+60 Hz simulation schedule and its frame/presentation independence,
 clear-only idle behavior and retired-control rejection, composition, fault rollback,
 traversal/prefetch/rollover, the 64-publication
 resource plateau, and 16 complete lifecycle cycles without invoking an older experiment workflow.

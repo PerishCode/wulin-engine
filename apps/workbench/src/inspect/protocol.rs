@@ -14,6 +14,11 @@ pub enum ControlKind {
     InputRecordStart,
     InputRecordStop,
     InputReplay,
+    SimulationStatus,
+    SimulationProbe,
+    SimulationAdvance {
+        elapsed_nanoseconds: u64,
+    },
     InputPost {
         messages: Vec<PostedMessage>,
     },
@@ -177,6 +182,12 @@ struct CanonicalTerrainContactPayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct SimulationAdvancePayload {
+    elapsed_nanoseconds: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct InputPostPayload {
     messages: Vec<InputPostMessage>,
 }
@@ -202,6 +213,9 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "input.record.start" => Ok(ControlKind::InputRecordStart),
         "input.record.stop" => Ok(ControlKind::InputRecordStop),
         "input.replay" => Ok(ControlKind::InputReplay),
+        "simulation.status" => Ok(ControlKind::SimulationStatus),
+        "simulation.probe" => Ok(ControlKind::SimulationProbe),
+        "simulation.advance" => parse_simulation_advance(payload),
         "input.native.post" => parse_input_post(payload),
         "workbench.capture" => parse_capture(payload),
         "workbench.set_clear_color" => parse_color(payload),
@@ -269,6 +283,13 @@ fn parse_input_post(value: Value) -> ParsedControl {
         });
     }
     Ok(ControlKind::InputPost { messages })
+}
+
+fn parse_simulation_advance(value: Value) -> ParsedControl {
+    let payload: SimulationAdvancePayload = decode(value)?;
+    Ok(ControlKind::SimulationAdvance {
+        elapsed_nanoseconds: payload.elapsed_nanoseconds,
+    })
 }
 
 fn parse_pack(value: Value, terrain: bool) -> ParsedControl {

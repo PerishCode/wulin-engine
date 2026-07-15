@@ -76,6 +76,7 @@ pub(crate) struct RenderFrame<'a> {
     pub probe: bool,
     pub presentation_tick: u32,
     pub presentation_status: Option<&'a Value>,
+    pub simulation_status: Option<&'a Value>,
     pub scene: &'a mut crate::scene::SceneState,
 }
 

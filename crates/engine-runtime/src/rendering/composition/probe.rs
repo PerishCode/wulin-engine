@@ -23,6 +23,7 @@ pub struct CompositionProbe {
     canonical_objects: objects::CanonicalObjectEvidence,
     grounding: GroundingProbe,
     terrain_query: terrain_query::Probe,
+    simulation_schedule: Value,
     contact: ContactProbe,
     terrain: TerrainProbe,
     surface: SurfaceProbe,
@@ -120,6 +121,7 @@ impl Renderer {
         background_color: [f32; 4],
         presentation_tick: u32,
         presentation_status: &serde_json::Value,
+        simulation_status: &serde_json::Value,
     ) -> Result<CompositionProbe> {
         let snapshot = self
             .async_resident_renderer
@@ -355,6 +357,7 @@ impl Renderer {
                 boundaries,
             },
             terrain_query,
+            simulation_schedule: simulation_status.clone(),
             contact,
             terrain,
             surface,

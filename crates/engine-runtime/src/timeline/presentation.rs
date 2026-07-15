@@ -91,5 +91,5 @@ impl PresentationTimeline {
 }
 
 #[cfg(test)]
-#[path = "../tests/private/timeline.rs"]
+#[path = "../../tests/private/timeline.rs"]
 mod tests;

@@ -71,13 +71,22 @@ enabled = false
 reason = "Source-addressed cache reuse tests require private cache state."
 
 [[overrides]]
-match = "crates/engine-runtime/src/timeline.rs"
+match = "crates/engine-runtime/src/timeline/presentation.rs"
 kind = "file"
 priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
-reason = "Frame-transaction tests exercise the private runtime timeline without exporting temporal authority."
+reason = "Frame and simulation schedule tests exercise private runtime timelines without exporting mutation authority."
+
+[[overrides]]
+match = "crates/engine-runtime/src/timeline/simulation.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Frame and simulation schedule tests exercise private runtime timelines without exporting mutation authority."
 
 [[overrides]]
 match = "crates/engine-runtime/src/terrain_query.rs"
