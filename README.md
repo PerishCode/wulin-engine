@@ -378,6 +378,12 @@ yaw/clip `0/0`，native-W 进程在同一 transaction 将 yaw/clip 变为 `49152
 `0 -> -32`、step/query `1/1`；camera/frame、traversal、restart、failure 与 cleanup 证据不变。
 没有 Runtime/inspect API、actor readback、第二条 presentation mutation、renderer/GPU/resource、
 synchronization、format、traversal 或 camera 变化。
+Experiment 0079 将手动 prototype 从“先依赖 acceptance 遗留 bootstrap，再直接调用 Sidecar”收敛为
+唯一 `runseal :prototype` wrapper。`start` 在 stopped 状态确定性 cook 零原点 `[-8,8]²` 的 289 个
+center/441 个 source region，写 strict bootstrap 后等待既有 Sidecar readiness；running-start 在任何
+写入前拒绝，restart/stop/status 不 cook。两次 source-free cold start 分别 11.8/11.1 秒，terrain/
+objects/config hashes 完全一致，restart 更换 PID，最终均为零残留进程。没有 inspect/test mode、
+Runtime/application/renderer/GPU/synchronization/format/traversal 或 canonical acceptance 变化。
 
 ## Project model
 
@@ -395,6 +401,10 @@ runseal :init
 runseal :guard
 runseal :gpu-lab correctness
 runseal :gpu-lab benchmark
+runseal :prototype start
+runseal :prototype status
+runseal :prototype restart
+runseal :prototype stop
 runseal :canonical-prototype
 runseal :canonical-actor
 runseal :canonical-frame
@@ -417,8 +427,6 @@ runseal :workbench stop
 # With out/cooked/bootstrap/runtime.json prepared:
 sidecar start --config sidecar.bootstrap.toml
 sidecar stop --config sidecar.bootstrap.toml
-sidecar start --config sidecar.prototype.toml
-sidecar stop --config sidecar.prototype.toml
 ```
 
 `sidecar.toml` owns the debug-layer correctness workbench and `sidecar.benchmark.toml`
@@ -426,10 +434,11 @@ owns the release measurement workbench. Sidecar starts each process tree,
 waits for renderer and inspect readiness, discovers stamped processes, and closes the
 entire local runtime through one manifest.
 
-`sidecar.prototype.toml` launches the plain configured prototype without an inspect endpoint.
-It becomes visible and ready only after canonical content has rendered; close the window, press
-Escape, or use `sidecar stop` to end it. The bootstrap file is generated during canonical
-acceptance or may be prepared with the documented cooker formats.
+`runseal :prototype start` is the self-contained manual prototype entry. It deterministically cooks
+the zero-origin `[-8,8]²` finite sandbox, writes strict bootstrap, and then uses
+`sidecar.prototype.toml` to launch the application without an inspect endpoint. It becomes visible
+and ready only after canonical content has rendered; close the window, press Escape, or use
+`runseal :prototype stop` to end it. No prior canonical acceptance output is required.
 
 `runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
 runtime/prototype/reference-host tests, cooks the three required signed centers, and proves
