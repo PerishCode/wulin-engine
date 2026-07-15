@@ -95,10 +95,11 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0048 and the current ADR set through 0051 define one live content runtime
+Experiments 0031-0049 and the current ADR set through 0052 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, one caller-owned fixed terrain-motion consumer,
-one offline-cooked external geometry/material/rig source, and one deterministic object-shadow path:
+one canonical translatable terrain position, one offline-cooked external geometry/material/rig
+source, and one deterministic object-shadow path:
 
 - signed `i64` terrain packs (`.wlt`);
 - signed schema-3 object packs (`.wlr`) with explicit authored local IDs and presentation;
@@ -121,6 +122,8 @@ one offline-cooked external geometry/material/rig source, and one deterministic 
 - one caller-owned exact vertical terrain-body motion transaction that consumes exactly one fixed
   tick through checked semi-implicit integration and committed-snapshot contact, without a body
   store, horizontal motion, or gameplay tuning;
+- one signed-region/half-open-local-Q9 `TerrainPosition` shared by query/contact/motion, with exact
+  checked positive, negative, and multi-region planar translation and no compatibility alias;
 - one host-owned Win32 keyboard/focus adapter and bounded process-local normalized input journal
   with isolated deterministic replay;
 - one optional strict schema-1 bootstrap document that selects both sources and one signed global
@@ -176,6 +179,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0049-exact-terrain-body-contact.md` | Accepted caller-owned exact terrain contact, minimum correction, bounded witness, and deferred simulation policy. |
 | `docs/adr/0050-runtime-fixed-simulation-schedule.md` | Accepted explicit rational fixed schedule, transactional bounds, and presentation-independent time contract. |
 | `docs/adr/0051-caller-owned-fixed-terrain-motion.md` | Accepted caller-owned one-tick vertical motion, exact contact composition, and deferred live-driving contract. |
+| `docs/adr/0052-canonical-terrain-position-translation.md` | Accepted query-neutral terrain position, Euclidean seam normalization, and checked translation contract. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -195,6 +199,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0046-exact-terrain-body-contact/README.md` | Accepted exact terrain body contact, explicit dense proof, compact transition witness, and lifecycle evidence. |
 | `experiments/0047-deterministic-simulation-schedule/README.md` | Accepted exact 60 Hz rational schedule, partition/replay, rollback, independence, and lifecycle evidence. |
 | `experiments/0048-fixed-terrain-body-motion/README.md` | Accepted one-tick terrain-body motion, schedule-partition replay, rollback, and zero-non-CPU-work evidence. |
+| `experiments/0049-exact-terrain-position-translation/README.md` | Accepted canonical terrain position, exact signed seam translation, overflow rollback, and oracle-sweep evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -204,8 +209,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/timeline/mod.rs` | Presentation and simulation timeline ownership boundary. |
 | `crates/engine-runtime/src/timeline/presentation.rs` | Deterministic presentation state, controls, counters, and successful-frame commit. |
 | `crates/engine-runtime/src/timeline/simulation.rs` | Exact rational simulation accumulator, checked transaction, typed batch, and isolated long-duration probe. |
-| `crates/engine-runtime/src/terrain_query/mod.rs` | Signed half-open Q9 position, exact height query, caller-owned body, and minimum-correction contact transaction. |
+| `crates/engine-runtime/src/terrain_query/mod.rs` | Exact height query, caller-owned body, and minimum-correction contact transaction. |
 | `crates/engine-runtime/src/terrain_query/motion.rs` | Caller-owned fixed vertical motion, checked one-tick integration, and grounded composition. |
+| `crates/engine-runtime/src/terrain_query/position.rs` | Canonical signed-region/local-Q9 terrain position and checked Euclidean translation. |
 | `crates/reference-host/src/window.rs` | Concrete single-window Win32 lifecycle, message pump, native input capture, and close signaling. |
 | `crates/reference-host/src/input.rs` | Normalized key state, bounded record lifecycle, canonical hashing, isolated replay, and held-state query. |
 | `crates/reference-host/src/bootstrap.rs` | Strict arguments/config/pack paths and hidden canonical-ready bootstrap driver. |

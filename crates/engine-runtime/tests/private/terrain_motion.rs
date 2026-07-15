@@ -1,15 +1,13 @@
 use super::*;
 use crate::RegionCoord;
-use crate::terrain_query::{
-    TERRAIN_BODY_HEIGHT_DENOMINATOR, TerrainQueryPosition, TerrainTriangle,
-};
+use crate::terrain_query::{TERRAIN_BODY_HEIGHT_DENOMINATOR, TerrainPosition, TerrainTriangle};
 use crate::timeline::SimulationSchedule;
 
 const HALF_HEIGHT: i32 = 65_536;
 
 fn body(center_height_numerator: i32) -> TerrainBody {
     TerrainBody::new(
-        TerrainQueryPosition::new(RegionCoord::ZERO, 0, 0).unwrap(),
+        TerrainPosition::new(RegionCoord::ZERO, 0, 0).unwrap(),
         center_height_numerator,
         HALF_HEIGHT,
     )

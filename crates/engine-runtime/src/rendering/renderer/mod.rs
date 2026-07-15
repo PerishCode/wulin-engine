@@ -12,7 +12,7 @@ use windows::core::Interface;
 
 use crate::objects::CookedObjectStreamer;
 use crate::terrain::TerrainStreamer;
-use crate::terrain_query::{TerrainHeight, TerrainQueryPosition};
+use crate::terrain_query::{TerrainHeight, TerrainPosition};
 
 use super::async_resident::AsyncResidentRenderer;
 use super::composition::{CompositionCoordinator, CompositionProbe};
@@ -257,7 +257,7 @@ impl Renderer {
         self.capabilities.color_uav_format
     }
 
-    pub fn query_terrain_height(&self, position: TerrainQueryPosition) -> Result<TerrainHeight> {
+    pub fn query_terrain_height(&self, position: TerrainPosition) -> Result<TerrainHeight> {
         self.terrain_renderer.query_height(position)
     }
 

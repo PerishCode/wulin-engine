@@ -9,7 +9,7 @@ use crate::scene::SceneState;
 use crate::streaming::address::GlobalRegionConfig;
 use crate::terrain_query::{
     TerrainBody, TerrainBodyContact, TerrainBodyMotion, TerrainBodyStep, TerrainHeight,
-    TerrainQueryPosition, integrate_terrain_body_step, resolve_body_contact,
+    TerrainPosition, integrate_terrain_body_step, resolve_body_contact,
 };
 use crate::timeline::{
     PresentationTimeline, SimulationAdvance, SimulationSchedule, simulation_probe,
@@ -172,7 +172,7 @@ impl Runtime {
         self.renderer.composition_enabled()
     }
 
-    pub fn query_terrain_height(&self, position: TerrainQueryPosition) -> Result<TerrainHeight> {
+    pub fn query_terrain_height(&self, position: TerrainPosition) -> Result<TerrainHeight> {
         self.renderer.query_terrain_height(position)
     }
 
