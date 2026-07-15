@@ -1,7 +1,6 @@
 import {
     assertObjectCopies,
     assertStopped,
-    capture,
     type Coord,
     event,
     fail,
@@ -24,12 +23,13 @@ import {
     sleep,
     startClean,
     status,
+    stopCanonicalProcesses,
     target,
     targetMatches,
     traversalSweep,
-    useSidecar,
     waitStatus,
 } from "../support/canonical-runtime.ts";
+import { assertCanonicalFrame } from "../support/canonical-frame.ts";
 import { prepareCanonicalSetup } from "../support/canonical-setup.ts";
 import {
     presentationInvariant,
@@ -89,6 +89,7 @@ try {
     const actor = await actorGates();
     const simulationActor = await simulationActorGates(TERRAIN, OBJECTS_A, BASE);
     const actorProjection = await actorProjectionGates(TERRAIN, OBJECTS_A, BASE);
+    await startClean();
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
@@ -99,29 +100,7 @@ try {
     const orderA = await frame("order-a", COLLECTION);
     const terrainQuery = await terrainQueryGates(BASE, orderA, unavailableTerrainQuery);
     const terrainContact = await contactGates(BASE, orderA, unavailableTerrainContact);
-    const orderStable = object(orderA, "stable");
-    const orderShadow = object(object(orderStable, "surface"), "shadow");
-    if (
-        number(orderShadow, "sampleShadowedCount") <= 0 ||
-        number(orderShadow, "sampleLitCount") <= 0
-    ) fail("controlled directional shadow samples do not cover lit and shadowed receivers");
-    const shadowCapture = object(orderStable, "capture");
-    if (
-        shadowCapture.color !==
-            "8b13d2146cd838cab9fee14049e4b2331b93127ee78ec07d5b50e12c99aa4135" ||
-        shadowCapture.png !==
-            "e96e44cc6c7cf05338433a05568e2a41e81f95f2f5ba8c52ce7baa26114450c6" ||
-        shadowCapture.objectId !==
-            "01951615d1b4645bdfba68991c75b8ea333482d312f31f39ed3b907ca479da5b" ||
-        shadowCapture.diagnostic !==
-            "5f6f2f195d9deadfc4db905692d22e805b4e7000f102537ad36a2e01bd319855"
-    ) fail("runtime host separation changed the accepted controlled attachments");
-    if (
-        orderShadow.lightViewProjectionSha256 !==
-            "480ef3365b258ea2a93b21942a800bfdc21d8d1f6241c45ef36fd2d5fa41fd65" ||
-        orderShadow.depthSha256 !==
-            "2415cfdd82a769056d4e91e4a6575de1a5f8628a7fedc5b630af00569d1233d5"
-    ) fail("runtime host separation changed the accepted shadow evidence");
+    assertCanonicalFrame(orderA, "canonical order A");
 
     console.log("==> deterministic presentation time gates");
     const temporal = await temporalGates(orderA, COLLECTION);
@@ -390,14 +369,7 @@ try {
         lifecycle: lifecycleEvidence,
     };
 } finally {
-    useSidecar("sidecar.toml");
-    await lifecycle("stop");
-    useSidecar("sidecar.benchmark.toml");
-    await lifecycle("stop");
-    useSidecar("sidecar.bootstrap.toml");
-    await lifecycle("stop");
-    useSidecar("sidecar.prototype.toml");
-    await lifecycle("stop");
+    await stopCanonicalProcesses();
 }
 
 if (!acceptance) fail("canonical runtime workflow did not produce acceptance evidence");

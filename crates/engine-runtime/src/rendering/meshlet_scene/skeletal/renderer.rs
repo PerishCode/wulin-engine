@@ -16,7 +16,7 @@ use crate::rendering::meshlet_scene::CatalogBuffers;
 use crate::rendering::resident::{transition, uav_barrier};
 use crate::rendering::terrain::TerrainProjection;
 
-pub const SKELETAL_REVISION: &str = "gpu-skeletal-crowds-v3-source-duration";
+pub const SKELETAL_REVISION: &str = "gpu-skeletal-crowds-v4-self-contained-visible";
 
 #[derive(Clone, Copy)]
 pub struct SkeletalSettings {

@@ -1,8 +1,8 @@
 mod oracle;
 mod probe;
 
-pub(super) use oracle::{BoundProof, OcclusionOracle, validate_fixture_bound};
-pub(super) use probe::read as read_probe;
+pub(super) use oracle::{BoundProof, validate_fixture_bound};
+pub(super) use probe::{OcclusionProbe, read as read_probe};
 
 use std::mem::ManuallyDrop;
 use std::ptr;

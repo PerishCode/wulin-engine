@@ -1,5 +1,3 @@
-static const uint REGION_SLOT_CAPACITY = 50;
-static const uint INSTANCES_PER_REGION = 1024;
 static const uint REGION_OBJECT_ID_BASE = 65536;
 static const uint MAX_BONES = 128;
 static const uint MATERIAL_TEXTURE_SIDE = 64;
@@ -7,16 +5,11 @@ static const uint SAMPLE_COUNT = 6;
 static const uint SHADOW_MAP_SIDE = 1024;
 static const float SHADOW_RECEIVER_BIAS = 0.0015;
 
-struct InstanceRecord
+struct VisibleObject
 {
     float3 position;
     float height;
-    uint region_id;
-};
-
-struct VisibleObject
-{
-    uint physical_index;
+    uint semantic_region;
     uint archetype;
     uint lod;
     uint stable_key;
@@ -88,7 +81,6 @@ cbuffer SurfaceResolveConstants : register(b0)
     column_major float4x4 light_view_projection;
 };
 
-StructuredBuffer<InstanceRecord> region_instances[REGION_SLOT_CAPACITY] : register(t0);
 StructuredBuffer<VisibleObject> draw_objects : register(t50);
 StructuredBuffer<float4> catalog_vertices : register(t51);
 StructuredBuffer<MeshletDescriptor> catalog_meshlets : register(t52);
@@ -105,7 +97,6 @@ Texture2DArray<float4> material_texture : register(t67);
 StructuredBuffer<uint> candidate_to_visible_in : register(t68);
 StructuredBuffer<VisibleObject> source_visible : register(t60);
 Texture2D<float> shadow_depth : register(t71);
-StructuredBuffer<int> ground_numerators : register(t113);
 
 RWStructuredBuffer<uint> candidate_to_visible_out : register(u7);
 RWTexture2D<float4> resolved_color : register(u8);
@@ -120,34 +111,6 @@ struct MeshPayload
 };
 
 groupshared MeshPayload amplification_payload;
-
-uint active_side()
-{
-    return uint(round(sqrt(float(surface_animation.y))));
-}
-
-int2 active_offset(uint candidate_index)
-{
-    uint side = active_side();
-    uint active_index = candidate_index / INSTANCES_PER_REGION;
-    return int2(
-        int(active_index % side) - int(side / 2u),
-        int(active_index / side) - int(side / 2u)
-    );
-}
-
-float3 canonical_position(InstanceRecord instance, uint candidate_index)
-{
-    int2 offset = active_offset(candidate_index);
-    float ground = float(ground_numerators[candidate_index]) / float(surface_animation.z);
-    return instance.position + float3(float(offset.x * 16), ground, float(offset.y * 16));
-}
-
-uint semantic_region(uint candidate_index)
-{
-    int2 offset = active_offset(candidate_index);
-    return uint(64 + offset.y) * 128u + uint(64 + offset.x);
-}
 
 [numthreads(1, 1, 1)]
 void as_main(uint3 group_id : SV_GroupID)
@@ -185,7 +148,6 @@ float3 transform_point(AffineTransform transform, float3 local_position)
 float3 resolve_world_position(
     uint vertex_index,
     VisibleObject visible,
-    InstanceRecord instance,
     float sine,
     float cosine)
 {
@@ -193,7 +155,7 @@ float3 resolve_world_position(
     bool imported = visible.archetype == 7u;
     if (!imported)
     {
-        local.y *= instance.height;
+        local.y *= visible.height;
     }
     if (visible.pose_slot != 0xffffffffu)
     {
@@ -214,14 +176,14 @@ float3 resolve_world_position(
     }
     if (imported)
     {
-        local.y *= instance.height;
+        local.y *= visible.height;
     }
     float3 rotated = float3(
         local.x * cosine - local.z * sine,
         local.y,
         local.x * sine + local.z * cosine
     );
-    return canonical_position(instance, visible.candidate_index) + rotated;
+    return visible.position + rotated;
 }
 
 [outputtopology("triangle")]
@@ -238,10 +200,6 @@ void ms_main(
     MeshletDescriptor meshlet = catalog_meshlets[payload.meshlet_offset + group_id.x];
     SetMeshOutputCounts(meshlet.vertex_count, meshlet.primitive_count);
 
-    uint slot = visible.physical_index / INSTANCES_PER_REGION;
-    uint local_index = visible.physical_index % INSTANCES_PER_REGION;
-    InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
-    float3 position = canonical_position(instance, visible.candidate_index);
     float angle = float(visible.yaw_q16) * 6.28318530718 / 65536.0;
     float sine;
     float cosine;
@@ -253,7 +211,7 @@ void ms_main(
         bool imported = visible.archetype == 7u;
         if (!imported)
         {
-            local.y *= instance.height;
+            local.y *= visible.height;
         }
         if (visible.pose_slot != 0xffffffffu)
         {
@@ -274,7 +232,7 @@ void ms_main(
         }
         if (imported)
         {
-            local.y *= instance.height;
+            local.y *= visible.height;
         }
         float3 rotated = float3(
             local.x * cosine - local.z * sine,
@@ -282,9 +240,9 @@ void ms_main(
             local.x * sine + local.z * cosine
         );
         MeshVertexOutput output;
-        output.position = mul(view_projection, float4(position + rotated, 1.0));
+        output.position = mul(view_projection, float4(visible.position + rotated, 1.0));
         output.candidate_index = visible.candidate_index;
-        output.object_id = REGION_OBJECT_ID_BASE + semantic_region(visible.candidate_index) + 1;
+        output.object_id = REGION_OBJECT_ID_BASE + visible.semantic_region + 1;
         output_vertices[group_thread] = output;
     }
     for (
@@ -331,9 +289,6 @@ void shadow_ms_main(
     VisibleObject visible = source_visible[payload.visible_index];
     MeshletDescriptor meshlet = catalog_meshlets[payload.meshlet_offset + group_id.x];
     SetMeshOutputCounts(meshlet.vertex_count, meshlet.primitive_count);
-    uint slot = visible.physical_index / INSTANCES_PER_REGION;
-    uint local_index = visible.physical_index % INSTANCES_PER_REGION;
-    InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
     float angle = float(visible.yaw_q16) * 6.28318530718 / 65536.0;
     float sine;
     float cosine;
@@ -344,7 +299,7 @@ void shadow_ms_main(
         ShadowVertexOutput output;
         output.position = mul(
             light_view_projection,
-            float4(resolve_world_position(vertex_index, visible, instance, sine, cosine), 1.0)
+            float4(resolve_world_position(vertex_index, visible, sine, cosine), 1.0)
         );
         output_vertices[group_thread] = output;
     }
@@ -419,7 +374,6 @@ float3 transform_vector(AffineTransform transform, float3 vector)
 void resolve_vertex(
     uint vertex_index,
     VisibleObject visible,
-    InstanceRecord instance,
     float sine,
     float cosine,
     out float3 world_position,
@@ -429,7 +383,6 @@ void resolve_vertex(
     world_position = resolve_world_position(
         vertex_index,
         visible,
-        instance,
         sine,
         cosine
     );
@@ -438,7 +391,7 @@ void resolve_vertex(
     bool imported = visible.archetype == 7u;
     if (!imported)
     {
-        normal.y /= max(instance.height, 0.001);
+        normal.y /= max(visible.height, 0.001);
     }
     if (visible.pose_slot != 0xffffffffu)
     {
@@ -459,7 +412,7 @@ void resolve_vertex(
     }
     if (imported)
     {
-        normal.y /= max(instance.height, 0.001);
+        normal.y /= max(visible.height, 0.001);
     }
     normal = normalize(float3(
         normal.x * cosine - normal.z * sine,
@@ -532,9 +485,6 @@ void shade_main(
         uint primitive_index = (payload.x >> 15u) & 0xffffu;
         visible_index = candidate_to_visible_in[candidate];
         VisibleObject visible = draw_objects[visible_index];
-        uint slot = visible.physical_index / INSTANCES_PER_REGION;
-        uint local_index = visible.physical_index % INSTANCES_PER_REGION;
-        InstanceRecord instance = region_instances[NonUniformResourceIndex(slot)][local_index];
         SurfacePrimitive primitive = surface_primitives[primitive_index];
         float2 decoded = float2(payload.y & 0xffffu, payload.y >> 16u) / 65535.0;
         float3 bary = float3(decoded, max(0.0, 1.0 - decoded.x - decoded.y));
@@ -552,7 +502,6 @@ void shade_main(
             resolve_vertex(
                 primitive.vertex_indices[vertex],
                 visible,
-                instance,
                 sine,
                 cosine,
                 world_positions[vertex],

@@ -14,7 +14,7 @@ use crate::scene::SceneState;
 
 use super::oracle::{self, WorkloadCounts};
 use super::renderer::{SKELETAL_REVISION, SkeletalSettings};
-use super::resources::ExecutionResources;
+use super::resources::{ExecutionResources, MAX_SKELETAL_VISIBLE, VISIBLE_OBJECT_BYTES};
 
 const PALETTE_TOLERANCE: f32 = 0.00002;
 
@@ -89,6 +89,8 @@ pub struct SkeletalProbe {
     pub config: LoadConfig,
     pub logical_instance_count: u64,
     pub candidate_instance_count: u32,
+    pub visible_record_bytes: u32,
+    pub visible_storage_bytes: u64,
     pub settings: Value,
     pub gpu: WorkloadCounts,
     pub cpu_oracle: WorkloadCounts,
@@ -202,6 +204,8 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
         config: input.snapshot.config,
         logical_instance_count: input.snapshot.config.logical_instance_count(),
         candidate_instance_count: input.snapshot.config.candidate_instance_count(),
+        visible_record_bytes: VISIBLE_OBJECT_BYTES,
+        visible_storage_bytes: u64::from(MAX_SKELETAL_VISIBLE) * u64::from(VISIBLE_OBJECT_BYTES),
         settings: input.settings_json,
         gpu,
         cpu_oracle,

@@ -23,6 +23,8 @@
   not leak into the engine core.
 - Do not commit generated output, caches, captures, build artifacts, proprietary game
   assets, or credentials.
+- Keep temporary verification scripts dependency-free and self-contained. They must not import
+  `.runseal/support`; reusable Runseal capability belongs behind an explicit maintained wrapper.
 - Repository paths, code identifiers, and code comments use English. Project-facing
   documentation may use Chinese when that communicates the intent more precisely.
 - Add comments only when they explain a non-obvious invariant, constraint, or tradeoff.
@@ -95,7 +97,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0066 and the current ADR set through 0069 define one live content runtime
+Experiments 0031-0067 and the current ADR set through 0070 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -128,6 +130,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one renderer-owned immutable actor render projection that maps the exact live generation through
   the enabled published composition into bounded window-relative Q9/Q16 evidence without float
   global coordinates, GPU resources, frame mutation, or a second scene path;
+- one 52-byte self-contained GPU visible record carrying grounded window position, authored height,
+  semantic region, presentation, pose, and candidate identity; streamed instances and ground values
+  are skeletal-cull inputs only and are not rebound by surface, shadow, or occlusion execution;
 - one private 0..=8 terrain-body motion batch that executes only local motion and preserves exact
   single-tick/rollback tests without an independent live mutation route;
 - one sole caller-supplied elapsed simulation/actor transaction that prepares a schedule copy and
@@ -160,7 +165,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
   no calibration scene, and no split-world control surface;
 - one compact `input.*` / `actor.*` / `simulation.*` / `camera.*` / `source.*` / `canonical.*` inspect
   vocabulary;
-- one non-recursive `runseal :canonical-runtime` acceptance workflow.
+- one non-recursive `runseal :canonical-frame` focused GPU regression workflow, one focused
+  `runseal :canonical-resources` same-process plateau workflow, and one non-recursive
+  `runseal :canonical-runtime` end-to-end acceptance workflow.
 
 Historical experiment READMEs and ADRs remain decision history. Their runtime modes,
 formats, controls, and wrappers are not live compatibility surfaces.
@@ -216,6 +223,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0067-retained-runtime-actor-authority.md` | Accepted direct actor motion/presentation ownership, generation lifecycle, and retained-body API retirement. |
 | `docs/adr/0068-neutral-canonical-operator-identity.md` | Accepted neutral canonical report/collection ownership and stable history-label rejection. |
 | `docs/adr/0069-bounded-actor-render-projection.md` | Accepted exact integer actor-to-window projection and deferred GPU binding boundary. |
+| `docs/adr/0070-self-contained-visible-record.md` | Accepted self-contained grounded GPU visible record and downstream source-page isolation. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -253,6 +261,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0064-retained-runtime-actor-authority/README.md` | Accepted capacity-one actor identity/motion/presentation authority, direct promotion, and process evidence. |
 | `experiments/0065-mandatory-canonical-operator-cleanup/README.md` | Accepted removal of historical canonical operator naming, neutral evidence ownership, and stable guard. |
 | `experiments/0066-bounded-actor-render-projection/README.md` | Accepted far-coordinate, seam, alias/rollover, edge, rejection, and replay evidence for one live actor projection. |
+| `experiments/0067-self-contained-visible-record/README.md` | Accepted grounded visible-record ownership, exact frame replay, bounded resources, and lifecycle evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -304,6 +313,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/rendering/terrain/transfer.rs` | Terrain GPU copy and slot lifecycle. |
 | `crates/engine-runtime/src/rendering/composition/mod.rs` | Atomic pair publication and fixed composition. |
 | `crates/engine-runtime/src/rendering/renderer/actor_projection.rs` | Immutable live-actor projection through the enabled published pair into exact bounded render-window evidence. |
+| `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources.rs` | Fixed visible-record layout, capacity, stride, and skeletal GPU resource ownership. |
 | `crates/engine-runtime/src/rendering/composition/traversal.rs` | Latest-wins traversal, prefetch, and rollover policy. |
 | `crates/engine-runtime/src/rendering/composition/probe.rs` | Canonical attachment and oracle evidence. |
 | `crates/engine-runtime/src/rendering/composition/probe/terrain_query.rs` | Dense query/contact oracle evidence and compact body-contact transition witness. |
@@ -314,7 +324,10 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
+| `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source canonical GPU frame and immediate replay entry point. |
+| `.runseal/wrappers/canonical-resources.ts` | Focused active/quiescent same-process GPU resource plateau entry point. |
 | `.runseal/wrappers/canonical-runtime.ts` | Direct canonical acceptance entry point over the converged runtime. |
+| `.runseal/support/canonical-frame.ts` | Shared exact canonical frame, shadow, occlusion, and capture baseline. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/canonical-setup.ts` | Typed deterministic test/build, source-cooking, identity, and corruption setup owner. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
@@ -345,7 +358,23 @@ runseal :guard
 `init` validates the canonical repository surface and installs `.runseal/hooks` as the
 Git hooks path. `guard` is the authoritative non-GPU repository gate.
 
-### 6.2 Canonical runtime acceptance
+### 6.2 Focused canonical validation
+
+```powershell
+runseal :canonical-frame
+runseal :canonical-resources
+```
+
+This workflow cooks one fresh minimal signed pair, publishes it through the sole runtime, and
+checks the exact accepted GPU frame plus an immediate deterministic replay. Use it for focused
+renderer iteration; it is not an end-to-end acceptance substitute. Generated evidence belongs
+under `out/captures/canonical-frame/` and remains ignored.
+
+The resource workflow cooks only the three centers required by the established 32-warm/64-sampled
+publication workload. It separately proves a bounded active plateau and recovery to the quiescent
+process baseline. Its ignored evidence belongs under `out/captures/canonical-resources/`.
+
+### 6.3 Canonical runtime acceptance
 
 ```powershell
 runseal :canonical-runtime
@@ -367,7 +396,7 @@ and 16 complete lifecycle cycles. It must not invoke an older experiment wrapper
 Generated evidence belongs under
 `out/captures/canonical-runtime/` and remains ignored.
 
-### 6.3 Manual workbench
+### 6.4 Manual workbench
 
 ```powershell
 runseal :workbench start
@@ -386,7 +415,7 @@ The only frame outcomes are clear-only `idle-shell` before a pair is published a
 `canonical-runtime` afterward. The idle shell has no scene or semantic object. Manual controls do
 not select renderer modes, fixture variants, pass order, or local schedules.
 
-### 6.4 Plain prototype
+### 6.5 Plain prototype
 
 ```powershell
 # With out/cooked/bootstrap/runtime.json prepared:
@@ -399,7 +428,7 @@ after configured content is ready; window close, Escape, and Sidecar stop are it
 controls. Camera actions, live simulation/motion driving, and runtime actors are not part of this
 workflow.
 
-### 6.5 Experiment lifecycle
+### 6.6 Experiment lifecycle
 
 1. State the hypothesis, workload, controlled variables, metrics, pass criteria, and
    evidence path before implementation.
@@ -408,15 +437,17 @@ workflow.
 4. Promote only proven reusable ownership into `crates/` or `benchmarks/`.
 5. Update this file when core ownership or stable workflows change.
 
-### 6.6 Core implementation change
+### 6.7 Core implementation change
 
 1. Inspect the working tree and relevant owner files.
 2. Change the narrowest responsible boundary without compatibility scaffolding.
-3. Run focused checks while iterating.
+3. Run focused checks while iterating; use `runseal :canonical-frame` when the accepted GPU frame
+   boundary may have changed and `runseal :canonical-resources` when GPU resource lifetime may
+   have changed.
 4. Run `runseal :guard` before accepting the change.
 5. Run the active GPU experiment workflow when GPU behavior or lifecycle changes.
 
-### 6.7 Mod content workflow
+### 6.8 Mod content workflow
 
 - Add Wulin-specific content only after its engine dependency has passed its experiment.
 - Keep Wulin code and data under `mods/wulin/`.

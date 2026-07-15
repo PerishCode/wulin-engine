@@ -12,7 +12,7 @@ use crate::rendering::terrain::TerrainProjection;
 use crate::scene::SceneState;
 
 use super::super::renderer::SkeletalSettings;
-use super::occlusion::{self, BoundProof, OcclusionOracle};
+use super::occlusion::{self, BoundProof, OcclusionProbe};
 use super::oracle::{self, OracleInput};
 use super::renderer::{SURFACE_REVISION, SurfaceSettings};
 use super::resources::{CANDIDATE_CAPACITY, SAMPLE_COUNT, SAMPLE_STRIDE, SurfaceResources};
@@ -106,50 +106,6 @@ pub struct SurfaceProbe {
     pub gpu_resolve_ms: f64,
     pub gpu_hierarchy_ms: f64,
     pub gpu_total_ms: f64,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OcclusionProbe {
-    pub enabled: bool,
-    pub history_queried: bool,
-    pub history_reset_count: u64,
-    pub bypass_reason: &'static str,
-    pub source_visible: u32,
-    pub survivors: u32,
-    pub occluded: u32,
-    pub tested: u32,
-    pub bypassed: u32,
-    pub invalid_queries: u32,
-    pub overflow: u32,
-    pub source_meshlets: u32,
-    pub submitted_meshlets: u32,
-    pub source_vertices: u32,
-    pub submitted_vertices: u32,
-    pub source_triangles: u32,
-    pub submitted_triangles: u32,
-    pub source_skin_influences: u32,
-    pub submitted_skin_influences: u32,
-    pub candidate_mask_sha256: String,
-    pub source_order_sha256: String,
-    pub filtered_order_sha256: String,
-    pub stable_compaction_mismatch_count: u32,
-    pub hierarchy_sha256: String,
-    pub hierarchy_format: &'static str,
-    pub hierarchy_mip_dimensions: Vec<[u32; 2]>,
-    pub hierarchy_bytes: u64,
-    pub hierarchy_mismatch_count: u32,
-    pub query_dispatch_count: u32,
-    pub query_groups: u32,
-    pub prefix_dispatch_count: u32,
-    pub prefix_groups: u32,
-    pub scatter_dispatch_count: u32,
-    pub scatter_groups: u32,
-    pub compaction_dispatch_count: u32,
-    pub hierarchy_dispatch_count: u32,
-    pub gpu_query_ms: f64,
-    pub cpu_oracle: OcclusionOracle,
-    pub bound_proof: BoundProof,
 }
 
 pub struct ProbeInput<'a> {

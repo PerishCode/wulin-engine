@@ -28,7 +28,9 @@ struct PresentationRecord
 
 struct VisibleObject
 {
-    uint physical_index;
+    float3 position;
+    float height;
+    uint semantic_region;
     uint archetype;
     uint lod;
     uint stable_key;
@@ -232,7 +234,8 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         }
         ground_numerators_out[logical_index] = ground_value;
     }
-    float3 center = position + float3(0.0, ground + instance.height * 0.5, 0.0);
+    position.y += ground;
+    float3 center = position + float3(0.0, instance.height * 0.5, 0.0);
     float4 clip = mul(view_projection, float4(center, 1.0));
     bool in_frustum = clip.w > 0.0
         && abs(clip.x) <= clip.w
@@ -298,7 +301,9 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         return;
     }
     VisibleObject visible;
-    visible.physical_index = slot * INSTANCES_PER_REGION + local_index;
+    visible.position = position;
+    visible.height = instance.height;
+    visible.semantic_region = semantic_region;
     visible.archetype = archetype;
     visible.lod = lod;
     visible.stable_key = stable_key;

@@ -108,6 +108,21 @@ export function useSidecar(config: string): void {
     sidecarConfig = config;
 }
 
+export async function stopCanonicalProcesses(): Promise<void> {
+    for (
+        const config of [
+            "sidecar.toml",
+            "sidecar.benchmark.toml",
+            "sidecar.bootstrap.toml",
+            "sidecar.prototype.toml",
+        ]
+    ) {
+        useSidecar(config);
+        await lifecycle("stop");
+    }
+    useSidecar("sidecar.toml");
+}
+
 export async function run(command: string, args: string[], label: string): Promise<void> {
     console.log(`==> ${label}`);
     const status = await new Deno.Command(command, {
@@ -776,6 +791,24 @@ export async function sampleProcess(processId: number): Promise<ProcessSample> {
     };
 }
 
+async function settleProcess(
+    processId: number,
+    label: string,
+): Promise<{ sample: ProcessSample; samples: Json[] }> {
+    const samples: Json[] = [];
+    let previous = await sampleProcess(processId);
+    let stableSamples = 0;
+    for (let elapsedSeconds = 10; elapsedSeconds <= 180; elapsedSeconds += 10) {
+        await sleep(10_000);
+        const sample = await sampleProcess(processId);
+        samples.push({ elapsedSeconds, ...sample });
+        stableSamples = sample.handleCount === previous.handleCount ? stableSamples + 1 : 0;
+        previous = sample;
+        if (stableSamples >= 6) return { sample, samples };
+    }
+    fail(`${label} handle count did not settle: ${JSON.stringify(samples)}`);
+}
+
 export async function resourcePlateau(base: Coord): Promise<Json> {
     const workbench = await status();
     const processId = number(workbench, "processId");
@@ -786,20 +819,7 @@ export async function resourcePlateau(base: Coord): Promise<Json> {
         await probe();
     }
     await warmProbe();
-    const settleSamples: Json[] = [];
-    let baseline = await sampleProcess(processId);
-    let stableSamples = 0;
-    for (let elapsedSeconds = 10; elapsedSeconds <= 180; elapsedSeconds += 10) {
-        await sleep(10_000);
-        const sample = await sampleProcess(processId);
-        settleSamples.push({ elapsedSeconds, ...sample });
-        stableSamples = sample.handleCount === baseline.handleCount ? stableSamples + 1 : 0;
-        baseline = sample;
-        if (stableSamples >= 6) break;
-    }
-    if (stableSamples < 6) {
-        fail(`handle count did not settle during warm-up: ${JSON.stringify(settleSamples)}`);
-    }
+    const quiescentBefore = await settleProcess(processId, "warm-up");
     const samples: Json[] = [];
     for (let index = 1; index <= 64; index += 1) {
         const center: Coord = [base[0] + 40 + (index % 2), base[1]];
@@ -810,34 +830,47 @@ export async function resourcePlateau(base: Coord): Promise<Json> {
             samples.push({ publication: index, ...sample });
         }
     }
-    const peakHandleCount = Math.max(
-        ...samples.map((value) => number(value, "handleCount")),
-    );
-    const handleGrowth = samples.filter((value) =>
-        number(value, "handleCount") > baseline.handleCount
-    );
+    const handleCounts = samples.map((value) => number(value, "handleCount"));
+    const minimumActiveHandleCount = Math.min(...handleCounts);
+    const peakHandleCount = Math.max(...handleCounts);
+    const activeBaseline = samples[0];
     const final = samples.at(-1) as Json;
-    if (
-        peakHandleCount > baseline.handleCount + 1 ||
-        number(final, "handleCount") > baseline.handleCount
-    ) {
+    const activeHandleLimit = number(activeBaseline, "handleCount") + 1;
+    const activeHandleOverflow = peakHandleCount > activeHandleLimit;
+    if (number(final, "privateBytes") > number(activeBaseline, "privateBytes") + 16 * 1024 * 1024) {
+        fail("active private bytes exceeded the 16 MiB plateau allowance");
+    }
+    const quiescentAfter = await settleProcess(processId, "post-workload");
+    if (activeHandleOverflow) {
         fail(
-            `handle count did not return to baseline ${baseline.handleCount}: ${
-                JSON.stringify({ handleGrowth, samples })
+            `active handles exceeded the initial checkpoint allowance: ${
+                JSON.stringify({ activeBaseline, activeHandleLimit, peakHandleCount, samples })
             }`,
         );
     }
-    if (number(final, "privateBytes") > baseline.privateBytes + 16 * 1024 * 1024) {
-        fail("final private bytes exceeded the 16 MiB plateau allowance");
+    if (quiescentAfter.sample.handleCount > quiescentBefore.sample.handleCount) {
+        fail(
+            `post-workload handles exceeded the quiescent baseline: ${
+                JSON.stringify({ quiescentBefore, quiescentAfter })
+            }`,
+        );
+    }
+    if (
+        quiescentAfter.sample.privateBytes >
+            quiescentBefore.sample.privateBytes + 16 * 1024 * 1024
+    ) {
+        fail("post-workload private bytes exceeded the 16 MiB recovery allowance");
     }
     return {
         processId,
         warmPublications,
-        settleSamples,
-        baseline,
+        quiescentBefore,
+        activeBaseline,
+        activeHandleLimit,
+        minimumActiveHandleCount,
         peakHandleCount,
-        transientHandleGrowthCount: handleGrowth.length,
         samples,
+        quiescentAfter,
     };
 }
 
