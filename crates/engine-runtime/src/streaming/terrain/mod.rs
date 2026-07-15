@@ -36,13 +36,13 @@ impl Serialize for TerrainSourceNamespace {
 pub struct TerrainAssignment {
     pub slot: u32,
     pub region_id: u32,
-    pub global_region: crate::world::RegionCoord,
+    pub global_region: crate::region::RegionCoord,
 }
 
 pub struct TerrainUpload {
     pub slot: u32,
     pub region_id: u32,
-    pub global_region: crate::world::RegionCoord,
+    pub global_region: crate::region::RegionCoord,
     pub payload: [u8; terrain_format::PAYLOAD_BYTES as usize],
     pub tile: TerrainTile,
     pub sha256: String,
@@ -91,7 +91,7 @@ pub struct TerrainScheduleReport {
     pub global_config: GlobalTerrainConfig,
     pub source_namespace: TerrainSourceNamespace,
     pub requested_region_ids: Vec<u32>,
-    pub requested_global_regions: Vec<crate::world::RegionCoord>,
+    pub requested_global_regions: Vec<crate::region::RegionCoord>,
     pub gate_fence: Option<u64>,
 }
 
@@ -131,20 +131,20 @@ pub enum TerrainCompletion {
 
 #[derive(Clone)]
 struct PackState {
-    regions: BTreeSet<crate::world::RegionCoord>,
+    regions: BTreeSet<crate::region::RegionCoord>,
     source_namespace: TerrainSourceNamespace,
 }
 
 pub(super) struct PackDescriptor {
     pub metadata: Value,
-    pub regions: BTreeSet<crate::world::RegionCoord>,
+    pub regions: BTreeSet<crate::region::RegionCoord>,
     pub source_namespace: TerrainSourceNamespace,
 }
 
 struct PendingTerrain {
     transaction_id: u64,
     requested_region_ids: Vec<u32>,
-    requested_global_regions: Vec<crate::world::RegionCoord>,
+    requested_global_regions: Vec<crate::region::RegionCoord>,
     source_namespace: TerrainSourceNamespace,
     stage: &'static str,
     io: Option<TerrainIoMetrics>,
@@ -325,7 +325,7 @@ impl PackState {
     fn preflight(
         &self,
         reservation: &TerrainReservationReport,
-    ) -> Result<Vec<crate::world::RegionCoord>> {
+    ) -> Result<Vec<crate::region::RegionCoord>> {
         ensure!(
             reservation.source_namespace == self.source_namespace,
             "signed terrain source namespace mismatch"

@@ -1,7 +1,7 @@
 use serde::{Serialize, Serializer};
 
 use crate::address::AddressedRegion;
-use crate::world::RegionCoord;
+use crate::region::RegionCoord;
 
 use super::{CacheKey, DesiredRegion, RegionAssignment};
 

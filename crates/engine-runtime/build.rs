@@ -9,7 +9,6 @@ const DEFAULT_DXC: &str = r"C:\Program Files (x86)\Windows Kits\10\bin\10.0.2610
 fn main() {
     println!("cargo:rerun-if-changed=src/agility_exports.c");
     for source in [
-        "calibration.hlsl",
         "skeletal_scene.hlsl",
         "surface_resolve.hlsl",
         "occlusion.hlsl",
@@ -28,19 +27,6 @@ fn main() {
         .file(manifest_dir.join("src/agility_exports.c"))
         .warnings_into_errors(true)
         .compile("runtime_agility_exports");
-    for (entry, profile, output) in [
-        ("vs_main", "vs_6_6", "calibration.vs.dxil"),
-        ("ps_main", "ps_6_6", "calibration.ps.dxil"),
-    ] {
-        compile_shader(
-            &manifest_dir,
-            &out_dir,
-            "calibration.hlsl",
-            entry,
-            profile,
-            output,
-        );
-    }
     for (entry, output) in [
         ("reset_main", "skeletal_scene.reset.dxil"),
         ("cull_main", "skeletal_scene.cull.dxil"),

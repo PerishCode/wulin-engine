@@ -9,7 +9,6 @@ use crate::scene::SceneState;
 use crate::streaming::address::GlobalRegionConfig;
 use crate::terrain_query::{TerrainHeight, TerrainQueryPosition};
 use crate::timeline::PresentationTimeline;
-use crate::world::RegionCoord;
 
 #[derive(Clone, Copy)]
 pub struct FrameRequest {
@@ -119,10 +118,6 @@ impl Runtime {
         unsafe { self.renderer.device_removed_reason() }
     }
 
-    pub fn calibration_mode_active(&self) -> bool {
-        self.renderer.calibration_mode_active()
-    }
-
     pub fn camera_json(&self) -> Value {
         self.scene.camera_json()
     }
@@ -138,44 +133,13 @@ impl Runtime {
         target: [f32; 3],
         vertical_fov_degrees: f32,
     ) -> Result<Value> {
-        self.scene.set_camera(
-            position,
-            target,
-            vertical_fov_degrees,
-            self.renderer.calibration_mode_active(),
-        )?;
+        self.scene
+            .set_camera(position, target, vertical_fov_degrees)?;
         Ok(self.scene.camera_json())
-    }
-
-    pub fn objects_json(&self) -> Value {
-        self.scene.objects_json()
     }
 
     pub fn spatial_json(&self) -> Value {
         self.scene.spatial_json()
-    }
-
-    pub fn world_json(&self) -> Result<Value> {
-        self.scene.world_json()
-    }
-
-    pub fn relocate_world(&mut self, region: RegionCoord) -> Result<Value> {
-        self.scene.relocate_world(region)?;
-        self.scene.world_json()
-    }
-
-    pub fn rebase_world(&mut self, region: RegionCoord) -> Result<Value> {
-        self.scene.rebase_world(region)?;
-        self.scene.world_json()
-    }
-
-    pub fn reset_world(&mut self) -> Result<Value> {
-        self.scene.reset_world()?;
-        self.scene.world_json()
-    }
-
-    pub fn world_probe_json(&self) -> Result<Value> {
-        self.scene.world_probe_json()
     }
 
     pub fn open_terrain_pack(&mut self, path: PathBuf) -> Result<Value> {

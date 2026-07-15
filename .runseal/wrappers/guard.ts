@@ -298,6 +298,70 @@ async function requireRuntimeBoundary(): Promise<void> {
     }
 }
 
+async function requireCalibrationSurfaceRemoved(): Promise<void> {
+    console.log("==> removed calibration compatibility surface");
+    for (
+        const path of [
+            "apps/workbench/src/inspect/world_control.rs",
+            "crates/engine-runtime/shaders/calibration.hlsl",
+            "crates/engine-runtime/src/rendering/calibration",
+            "crates/engine-runtime/src/rendering/renderer/modes.rs",
+            "crates/engine-runtime/src/world.rs",
+            "crates/engine-runtime/tests/private/scene.rs",
+        ]
+    ) {
+        try {
+            await Deno.stat(`${root}/${path}`);
+            fail(`guard: removed calibration path returned: ${path}`);
+        } catch (error) {
+            if (!(error instanceof Deno.errors.NotFound)) throw error;
+        }
+    }
+
+    const pattern = [
+        "calibration-v1",
+        "calibration_mode_active",
+        "(^|[^A-Za-z0-9_])SplitPosition([^A-Za-z0-9_]|$)",
+        "(^|[^A-Za-z0-9_])WorldSpace([^A-Za-z0-9_]|$)",
+        "(^|[^A-Za-z0-9_])SceneRenderer([^A-Za-z0-9_]|$)",
+        "(^|[^A-Za-z0-9_])ObjectIdTarget([^A-Za-z0-9_]|$)",
+        "scene\\.list_objects",
+        "world\\.(status|relocate|rebase|reset|probe)",
+    ].join("|");
+    const output = await new Deno.Command("git", {
+        args: [
+            "grep",
+            "--no-index",
+            "-n",
+            "-E",
+            pattern,
+            "--",
+            "apps",
+            "crates",
+            "tools",
+            ".runseal/wrappers/canonical-runtime.ts",
+            ".runseal/wrappers/gpu-lab.ts",
+            ".runseal/wrappers/init.ts",
+            ".runseal/wrappers/workbench.ts",
+            "flavor.toml",
+            "runseal.toml",
+        ],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    if (output.code === 0) {
+        fail(
+            `guard: removed calibration compatibility symbol found\n${
+                new TextDecoder().decode(output.stdout)
+            }`,
+        );
+    }
+    if (output.code !== 1) {
+        fail(`guard: removed calibration scan failed with exit code ${output.code}`);
+    }
+}
+
 async function forbiddenScan(): Promise<void> {
     console.log("==> forbidden compatibility scan");
     const pattern = [
@@ -365,6 +429,7 @@ const root = profilePath.replace(/[\\/][^\\/]+$/, "");
 
 await requireWrapperSet();
 await requireRuntimeBoundary();
+await requireCalibrationSurfaceRemoved();
 await run("git diff check", "git", ["diff", "--check"]);
 await run("cargo fmt", "cargo", ["fmt", "--all", "--check"]);
 await run("cargo clippy", "cargo", [

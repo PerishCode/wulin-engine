@@ -5,8 +5,8 @@ use serde::Serialize;
 
 use crate::address::GlobalRegionConfig;
 use crate::load::LoadConfig;
+use crate::region::RegionCoord;
 use crate::resident::{REGION_INSTANCE_BYTES, RegionUpload, hash_uploads};
-use crate::world::RegionCoord;
 
 pub const ASYNC_RESIDENT_REVISION: &str = "async-resident-v1";
 pub const ASYNC_CACHE_CAPACITY: usize = 50;

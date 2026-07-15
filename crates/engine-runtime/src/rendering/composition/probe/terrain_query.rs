@@ -48,7 +48,7 @@ struct TriangleCoverage {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Mismatch {
-    region: crate::world::RegionCoord,
+    region: crate::region::RegionCoord,
     local_x_q9: i32,
     local_z_q9: i32,
     query_height_numerator: i32,

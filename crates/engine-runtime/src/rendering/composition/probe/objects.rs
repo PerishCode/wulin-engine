@@ -5,11 +5,11 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::async_resident::{ObjectSourceNamespace, canonical_stable_seed};
+use crate::region::RegionCoord;
 use crate::rendering::async_resident::ActivePayloadReadback;
 use crate::rendering::terrain::TerrainProjection;
 use crate::resident::InstanceRecord;
 use crate::terrain::TerrainAssignment;
-use crate::world::RegionCoord;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

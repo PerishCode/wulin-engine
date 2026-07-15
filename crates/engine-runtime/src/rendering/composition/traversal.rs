@@ -11,8 +11,8 @@ use serde_json::{Value, json};
 
 use crate::address::GlobalRegionConfig;
 use crate::load::{LoadConfig, MAX_REGION_SIDE};
+use crate::region::RegionCoord;
 use crate::scene::Camera;
-use crate::world::RegionCoord;
 
 use prefetch::PrefetchState;
 use rollover::{RolloverPolicy, RolloverState};

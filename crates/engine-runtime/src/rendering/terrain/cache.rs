@@ -18,7 +18,7 @@ pub(super) struct TerrainCache {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct CacheKey {
     source_namespace: TerrainSourceNamespace,
-    global_region: crate::world::RegionCoord,
+    global_region: crate::region::RegionCoord,
 }
 
 #[derive(Clone, Copy)]

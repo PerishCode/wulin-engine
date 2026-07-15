@@ -146,6 +146,11 @@ global region 与半开 `[-4096,4096)` 的局部 Q9，输出是分母固定为 6
 分类。616 秒直接验收对 5x5 窗口执行 76,800 点并与既有 grounding oracle 零差异；reorder、
 alias、四类 hold、损坏回滚、32+32 traversal、资源平台、restart 与 16 次生命周期均保持精确。
 查询不分配、不读源、不触碰 GPU，也尚未定义 normal、slope、material、body 或 locomotion。
+Experiment 0045 删除了 canonical 收敛前遗留的 calibration scene、split-world 状态、六个
+`scene/world` inspect verb 和专属 shader/draw pipeline，并将现行 depth/semantic attachment
+迁到中性 frame-target owner。645.2 秒验收中，idle shell 的 921,600 个 semantic 值全部为 0，
+六个旧 verb 均返回 `unknown_event`；全部 canonical/shadow/query hash 保持精确，527-handle 平台
+零增长，32+32 traversal 和 16 次生命周期通过。idle shell 现在明确只做清屏，不再伪装场景。
 
 ## Project model
 
@@ -201,7 +206,7 @@ deterministic presentation time, fixed camera-visible directional object shadows
 runtime and timeline ownership, successful-frame transactions, deterministic host input/replay,
 strict configured canonical readiness, shared reference-host ownership, plain prototype
 startup/restart/cleanup, exact published-snapshot CPU terrain queries,
-composition, fault rollback,
+clear-only idle behavior and retired-control rejection, composition, fault rollback,
 traversal/prefetch/rollover, the 64-publication
 resource plateau, and 16 complete lifecycle cycles without invoking an older experiment workflow.
 

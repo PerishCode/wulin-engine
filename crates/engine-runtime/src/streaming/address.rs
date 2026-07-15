@@ -2,8 +2,8 @@ use anyhow::{Result, ensure};
 use serde::Serialize;
 
 use crate::load::{LoadConfig, MAX_REGION_SIDE};
+use crate::region::RegionCoord;
 use crate::resident::active_region_ids;
-use crate::world::RegionCoord;
 
 const LOCAL_ORIGIN: u32 = MAX_REGION_SIDE / 2;
 

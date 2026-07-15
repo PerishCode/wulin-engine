@@ -1,7 +1,7 @@
 use crate::load::LoadConfig;
+use crate::region::RegionCoord;
 use crate::scene::{Camera, SceneState};
 use crate::terrain::{GlobalTerrainConfig, TerrainAssignment, TerrainSourceNamespace};
-use crate::world::RegionCoord;
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -367,7 +367,9 @@ fn canonical_projection_evidence(
     let view_projection =
         crate::scene::view_projection(camera, width as f32 / height as f32).to_cols_array();
     let mut view_hash = Sha256::new();
-    crate::world::hash_f32_array(&mut view_hash, view_projection);
+    for value in view_projection {
+        view_hash.update(value.to_bits().to_le_bytes());
+    }
     let mut projection_hash = Sha256::new();
     let mut semantic_ids = std::collections::BTreeSet::new();
     let mut mismatch_count = active.len().abs_diff(projection.active_count());

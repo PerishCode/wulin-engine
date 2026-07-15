@@ -15,17 +15,16 @@ use crate::terrain::TerrainStreamer;
 use crate::terrain_query::{TerrainHeight, TerrainQueryPosition};
 
 use super::async_resident::AsyncResidentRenderer;
-use super::calibration::SceneRenderer;
 use super::composition::{CompositionCoordinator, CompositionProbe};
 use super::device::{
     DeviceCapabilities, enable_debug_layer, query_required_capabilities, select_reference_adapter,
 };
+use super::frame_targets::FrameTargets;
 use super::gpu_capture::{CapturedPixels, Readback};
 use super::meshlet_scene::SkeletalSceneRenderer;
 use super::terrain::TerrainRenderer;
 
 mod frame;
-mod modes;
 
 const BUFFER_COUNT: usize = 2;
 
@@ -48,7 +47,7 @@ pub struct Renderer {
     pub(super) next_fence_value: u64,
     capture: Readback,
     object_id_capture: Readback,
-    scene_renderer: SceneRenderer,
+    frame_targets: FrameTargets,
     pub(super) cooked_object_streamer: CookedObjectStreamer,
     pub(super) async_resident_renderer: AsyncResidentRenderer,
     pub(super) skeletal_scene_renderer: SkeletalSceneRenderer,
@@ -161,9 +160,9 @@ impl Renderer {
             back_buffers.push(buffer);
         }
         let capture = unsafe { Readback::new(&device, &back_buffers[0]) }?;
-        let scene_renderer = unsafe { SceneRenderer::new(&device, width, height) }?;
+        let frame_targets = unsafe { FrameTargets::new(&device, width, height) }?;
         let object_id_capture =
-            unsafe { Readback::new(&device, scene_renderer.object_id_resource()) }?;
+            unsafe { Readback::new(&device, frame_targets.semantic_resource()) }?;
         let async_resident_renderer = unsafe { AsyncResidentRenderer::new(&device) }?;
         let terrain_renderer =
             unsafe { TerrainRenderer::new(&device, timestamp_frequency, width, height) }?;
@@ -212,7 +211,7 @@ impl Renderer {
             next_fence_value: 1,
             capture,
             object_id_capture,
-            scene_renderer,
+            frame_targets,
             cooked_object_streamer: CookedObjectStreamer::default(),
             async_resident_renderer,
             skeletal_scene_renderer,
@@ -259,6 +258,14 @@ impl Renderer {
 
     pub fn query_terrain_height(&self, position: TerrainQueryPosition) -> Result<TerrainHeight> {
         self.terrain_renderer.query_height(position)
+    }
+
+    pub fn arm_async_copy_gate(&mut self) -> Result<u64> {
+        self.async_resident_renderer.arm_gate()
+    }
+
+    pub unsafe fn release_async_copy_gate(&mut self) -> Result<u64> {
+        unsafe { self.async_resident_renderer.release_gate() }
     }
 
     pub unsafe fn wait_idle(&mut self) -> Result<()> {

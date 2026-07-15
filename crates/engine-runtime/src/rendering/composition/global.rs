@@ -2,7 +2,7 @@ use anyhow::Result;
 use sha2::{Digest, Sha256};
 
 use crate::address::{AddressedRegion, GlobalRegionConfig};
-use crate::world::RegionCoord;
+use crate::region::RegionCoord;
 
 use super::{PairPurpose, Renderer};
 

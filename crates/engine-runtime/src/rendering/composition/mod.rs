@@ -9,8 +9,8 @@ use windows::Win32::Graphics::Direct3D12::ID3D12GraphicsCommandList;
 use crate::address::GlobalRegionConfig;
 use crate::async_resident::ObjectSourceNamespace;
 use crate::load::LoadConfig;
+use crate::region::RegionCoord;
 use crate::terrain::TerrainSourceNamespace;
-use crate::world::RegionCoord;
 
 use super::renderer::Renderer;
 use super::terrain::control::TerrainPollOutcome;
