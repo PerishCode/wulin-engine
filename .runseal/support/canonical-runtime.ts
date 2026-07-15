@@ -392,6 +392,19 @@ export function validateProbe(value: Json, allowPending = false): void {
         boundaries.positionMismatchCount !== 0 || boundaries.groundMismatchCount !== 0 ||
         boundaries.firstMismatch !== null
     ) fail("canonical grounding diverged");
+    const terrainQuery = object(value, "terrainQuery");
+    const queryTriangles = object(terrainQuery, "triangles");
+    if (
+        terrainQuery.revision !== "exact-canonical-terrain-query-v1" ||
+        terrainQuery.regionCount !== 25 || terrainQuery.sampleCount !== 76_800 ||
+        terrainQuery.positionDenominator !== 512 || terrainQuery.heightDenominator !== 65_536 ||
+        queryTriangles.first !== 25_600 || queryTriangles.diagonal !== 25_600 ||
+        queryTriangles.second !== 25_600 || terrainQuery.oracleMismatchCount !== 0 ||
+        terrainQuery.firstOracleMismatch !== null || terrainQuery.perQueryAllocationBytes !== 0 ||
+        terrainQuery.sourceReadCount !== 0 || terrainQuery.gpuCopyCount !== 0 ||
+        terrainQuery.gpuReadbackCount !== 0 || terrainQuery.fenceWaitCount !== 0 ||
+        terrainQuery.synchronizationCount !== 0
+    ) fail("canonical terrain query diverged");
     const terrain = object(value, "terrain");
     const global = object(terrain, "globalAddressing");
     const cpuEdges = object(terrain, "cpuEdges");
@@ -445,6 +458,7 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
     const shadow = object(surface, "shadow");
     const skeletal = object(surface, "skeletal");
     const terrain = object(probeValue, "terrain");
+    const terrainQuery = object(probeValue, "terrainQuery");
     const surfaceSamples = array(surface, "samples").map((value) => {
         const sample = value as Json;
         return {
@@ -493,6 +507,13 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
             content: object(terrain, "globalContent").contentSha256,
             projection: object(terrain, "canonicalProjection").projectionSha256,
             lod: terrain.lod,
+        },
+        terrainQuery: {
+            resultSha256: terrainQuery.resultSha256,
+            identityKeyedSha256: terrainQuery.identityKeyedSha256,
+            minimumHeightNumerator: terrainQuery.minimumHeightNumerator,
+            maximumHeightNumerator: terrainQuery.maximumHeightNumerator,
+            triangles: terrainQuery.triangles,
         },
         skeletal: {
             settings: skeletal.settings,
@@ -665,12 +686,16 @@ export async function traversalSweep(base: Coord, prepared: boolean): Promise<Js
 function stableProbeSummary(value: Json): Json {
     const canonical = object(value, "canonicalObjects");
     const grounding = object(value, "grounding");
+    const terrainQuery = object(value, "terrainQuery");
     const pair = object(object(value, "pair"), "published");
     return {
         token: pair.token,
         globalConfig: pair.globalConfig,
         identityKeyedSha256: canonical.identityKeyedSha256,
         groundSha256: grounding.identityKeyedGroundSha256,
+        terrainQueryResultSha256: terrainQuery.resultSha256,
+        terrainQueryIdentitySha256: terrainQuery.identityKeyedSha256,
+        terrainQueryMismatchCount: terrainQuery.oracleMismatchCount,
         mismatchCount: grounding.mismatchCount,
         combinedGpuMs: object(value, "timing").combinedGpuMs,
     };

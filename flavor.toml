@@ -98,6 +98,15 @@ enabled = false
 reason = "Frame-transaction tests exercise the private runtime timeline without exporting temporal authority."
 
 [[overrides]]
+match = "crates/engine-runtime/src/terrain_query.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Fixed-point query tests exercise private published-snapshot identity and interpolation without exporting cache ownership."
+
+[[overrides]]
 match = "crates/reference-host/src/input.rs"
 kind = "file"
 priority = 10

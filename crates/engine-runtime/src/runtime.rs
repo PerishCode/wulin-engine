@@ -7,6 +7,7 @@ use windows::Win32::Foundation::HWND;
 use crate::rendering::{RenderFrame, RenderOutcome, Renderer};
 use crate::scene::SceneState;
 use crate::streaming::address::GlobalRegionConfig;
+use crate::terrain_query::{TerrainHeight, TerrainQueryPosition};
 use crate::timeline::PresentationTimeline;
 use crate::world::RegionCoord;
 
@@ -193,6 +194,10 @@ impl Runtime {
 
     pub fn composition_enabled(&self) -> bool {
         self.renderer.composition_enabled()
+    }
+
+    pub fn query_terrain_height(&self, position: TerrainQueryPosition) -> Result<TerrainHeight> {
+        self.renderer.query_terrain_height(position)
     }
 
     pub fn presentation_time_status(&self) -> Value {

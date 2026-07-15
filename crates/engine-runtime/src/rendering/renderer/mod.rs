@@ -12,6 +12,7 @@ use windows::core::Interface;
 
 use crate::objects::CookedObjectStreamer;
 use crate::terrain::TerrainStreamer;
+use crate::terrain_query::{TerrainHeight, TerrainQueryPosition};
 
 use super::async_resident::AsyncResidentRenderer;
 use super::calibration::SceneRenderer;
@@ -254,6 +255,10 @@ impl Renderer {
 
     pub fn color_uav_format_supported(&self) -> bool {
         self.capabilities.color_uav_format
+    }
+
+    pub fn query_terrain_height(&self, position: TerrainQueryPosition) -> Result<TerrainHeight> {
+        self.terrain_renderer.query_height(position)
     }
 
     pub unsafe fn wait_idle(&mut self) -> Result<()> {

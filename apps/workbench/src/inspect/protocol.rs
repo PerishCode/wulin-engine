@@ -74,6 +74,12 @@ pub enum ControlKind {
     CanonicalPrefetchEnable,
     CanonicalPrefetchDisable,
     CanonicalProbe,
+    CanonicalTerrainHeight {
+        region_x: i64,
+        region_z: i64,
+        local_x_q9: i32,
+        local_z_q9: i32,
+    },
     ObjectIoGateArm,
     ObjectIoGateRelease,
     ObjectCopyGateArm,
@@ -154,6 +160,15 @@ struct CanonicalTimeStepPayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CanonicalTerrainHeightPayload {
+    region_x: i64,
+    region_z: i64,
+    local_x_q9: i32,
+    local_z_q9: i32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct InputPostPayload {
     messages: Vec<InputPostMessage>,
 }
@@ -206,6 +221,7 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "canonical.prefetch.enable" => Ok(ControlKind::CanonicalPrefetchEnable),
         "canonical.prefetch.disable" => Ok(ControlKind::CanonicalPrefetchDisable),
         "canonical.probe" => Ok(ControlKind::CanonicalProbe),
+        "canonical.terrain.height" => parse_canonical_terrain_height(payload),
         "canonical.objects.io_gate.arm" => Ok(ControlKind::ObjectIoGateArm),
         "canonical.objects.io_gate.release" => Ok(ControlKind::ObjectIoGateRelease),
         "canonical.objects.copy_gate.arm" => Ok(ControlKind::ObjectCopyGateArm),
@@ -280,6 +296,16 @@ fn parse_canonical_time_step(value: Value) -> ParsedControl {
     let payload: CanonicalTimeStepPayload = decode(value)?;
     Ok(ControlKind::CanonicalTimeStep {
         ticks: payload.ticks,
+    })
+}
+
+fn parse_canonical_terrain_height(value: Value) -> ParsedControl {
+    let payload: CanonicalTerrainHeightPayload = decode(value)?;
+    Ok(ControlKind::CanonicalTerrainHeight {
+        region_x: payload.region_x,
+        region_z: payload.region_z,
+        local_x_q9: payload.local_x_q9,
+        local_z_q9: payload.local_z_q9,
     })
 }
 

@@ -95,7 +95,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0043 and the current ADR set through 0046 define one live content runtime
+Experiments 0031-0044 and the current ADR set through 0047 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one offline-cooked external geometry/material/rig source, and one deterministic object-shadow
 path:
@@ -124,6 +124,8 @@ path:
   input journal, bootstrap parser, and canonical-ready driver;
 - one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
   Escape limited to host exit;
+- one exact read-only CPU terrain-height query over the committed snapshot, addressed by signed
+  region plus half-open local Q9 and independent from camera, render LOD, source I/O, and GPU work;
 - one compact `source.*` / `canonical.*` inspect vocabulary;
 - one non-recursive `runseal :canonical-runtime` acceptance workflow.
 
@@ -158,6 +160,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0044-normalized-host-input-journal.md` | Accepted host-native keyboard normalization, bounded journal, focus cleanup, and isolated replay contract. |
 | `docs/adr/0045-canonical-bootstrap-readiness.md` | Accepted strict bootstrap schema, terminal failure, hidden progress, and canonical-ready contract. |
 | `docs/adr/0046-reference-platform-host.md` | Accepted concrete Windows host ownership, workbench/prototype separation, and non-diagnostic composition contract. |
+| `docs/adr/0047-canonical-terrain-query.md` | Accepted signed fixed-point CPU terrain-height query and published-snapshot failure contract. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -172,12 +175,14 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0041-deterministic-host-input/README.md` | Accepted native keyboard/focus normalization, process-local replay, restart, and host-order evidence. |
 | `experiments/0042-declarative-runtime-bootstrap/README.md` | Accepted configured source/target startup, no-ready failure, canonical readiness, and restart evidence. |
 | `experiments/0043-thin-prototype-host/README.md` | Accepted shared reference host, plain prototype startup, terminal failure, and lifecycle evidence. |
+| `experiments/0044-exact-canonical-terrain-query/README.md` | Accepted exact CPU height query, independent oracle, atomic publication, and lifecycle evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
 | `crates/engine-runtime/src/lib.rs` | Public runtime, capture, semantic, and signed-address surface. |
 | `crates/engine-runtime/src/runtime.rs` | Sole renderer/scene facade and frame-transaction coordinator. |
 | `crates/engine-runtime/src/timeline.rs` | Deterministic presentation timeline state, controls, counters, and successful-frame commit. |
+| `crates/engine-runtime/src/terrain_query.rs` | Signed half-open Q9 position, exact height/triangle result, and published-snapshot integer query. |
 | `crates/reference-host/src/window.rs` | Concrete single-window Win32 lifecycle, message pump, native input capture, and close signaling. |
 | `crates/reference-host/src/input.rs` | Normalized key state, bounded record lifecycle, canonical hashing, isolated replay, and held-state query. |
 | `crates/reference-host/src/bootstrap.rs` | Strict arguments/config/pack paths and hidden canonical-ready bootstrap driver. |
@@ -206,17 +211,19 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/rendering/composition/mod.rs` | Atomic pair publication and fixed composition. |
 | `crates/engine-runtime/src/rendering/composition/traversal.rs` | Latest-wins traversal, prefetch, and rollover policy. |
 | `crates/engine-runtime/src/rendering/composition/probe.rs` | Canonical attachment and oracle evidence. |
+| `crates/engine-runtime/src/rendering/composition/probe/terrain_query.rs` | Dense public-query and independent grounding-oracle evidence. |
 | `crates/engine-runtime/src/rendering/renderer/frame.rs` | Idle-shell/canonical frame dispatch. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/surface/shadow.rs` | Fixed directional-light projection and shadow probe oracle. |
 | `.runseal/wrappers/init.ts` | Toolchain and repository initialization. |
 | `.runseal/wrappers/guard.ts` | Repository, runtime/timeline ownership, dependency, and forbidden-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0043 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0044 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
 | `.runseal/support/prototype-host.ts` | Prototype no-ready failure, exact readiness, restart, and no-inspect lifecycle support. |
+| `.runseal/support/terrain-query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
 | `.runseal/support/temporal-presentation.ts` | Fixed-quantum duration time, common-period, and held-pair acceptance support. |
 
@@ -243,11 +250,12 @@ source reordering, movement, aliasing, failure rollback, all four fault gates, r
 and prepared traversal, rollover, the runtime-owned frame transaction and deterministic
 presentation time, deterministic host input and process-restart replay, configured canonical
 readiness, shared reference-host ownership, prototype startup/restart/cleanup, fixed camera-visible
-directional object shadows, a same-process 64-publication resource plateau, and 16 complete
-lifecycle cycles. It must not invoke an older experiment wrapper.
+directional object shadows, exact CPU terrain-height query and oracle evidence, a same-process
+64-publication resource plateau, and 16 complete lifecycle cycles. It must not invoke an older
+experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0043-thin-prototype-host/` and remains ignored.
+`out/captures/0044-exact-canonical-terrain-query/` and remains ignored.
 
 ### 6.3 Manual workbench
 

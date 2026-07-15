@@ -70,6 +70,28 @@ impl GlobalRegionConfig {
         );
         Ok(regions)
     }
+
+    pub(crate) fn addressed_region(
+        self,
+        global_region: RegionCoord,
+    ) -> Result<Option<AddressedRegion>> {
+        let offset_x = i128::from(global_region.x) - i128::from(self.global_center.x);
+        let offset_z = i128::from(global_region.z) - i128::from(self.global_center.z);
+        let radius = i128::from(self.active_radius);
+        if !(-radius..=radius).contains(&offset_x) || !(-radius..=radius).contains(&offset_z) {
+            return Ok(None);
+        }
+
+        let local = self.local_config()?;
+        let local_x = i128::from(local.active_center_x) + offset_x;
+        let local_z = i128::from(local.active_center_z) + offset_z;
+        let local_region_id = u32::try_from(local_z * i128::from(MAX_REGION_SIDE) + local_x)
+            .map_err(|_| anyhow::anyhow!("addressed local region ID overflowed"))?;
+        Ok(Some(AddressedRegion {
+            global_region,
+            local_region_id,
+        }))
+    }
 }
 
 fn checked_delta(value: i64, origin: i64, axis: &str) -> Result<i64> {
@@ -111,5 +133,23 @@ mod tests {
     #[test]
     fn overflow_is_rejected() {
         assert!(GlobalRegionConfig::new(i64::MIN, 0, i64::MAX, 0, 2).is_err());
+    }
+
+    #[test]
+    fn address_avoids_signed_overflow() {
+        let config =
+            GlobalRegionConfig::new(i64::MAX - 4, i64::MIN + 4, i64::MAX - 3, i64::MIN + 5, 2)
+                .unwrap();
+        let addressed = config
+            .addressed_region(RegionCoord::new(i64::MAX - 1, i64::MIN + 3))
+            .unwrap()
+            .unwrap();
+        assert_eq!(addressed.local_region_id, 63 * MAX_REGION_SIDE + 67);
+        assert_eq!(
+            config
+                .addressed_region(RegionCoord::new(i64::MIN, i64::MAX))
+                .unwrap(),
+            None
+        );
     }
 }
