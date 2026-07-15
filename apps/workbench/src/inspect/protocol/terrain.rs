@@ -85,6 +85,16 @@ struct BodyHandlePayload {
     generation: u64,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RetainedAdvancePayload {
+    generation: u64,
+    delta_x_q9: i32,
+    delta_z_q9: i32,
+    step_up_limit_q16: i32,
+    step_acceleration_q16: i32,
+}
+
 pub(super) fn height(value: Value) -> ParsedControl {
     let payload: HeightPayload = decode(value)?;
     Ok(ControlKind::CanonicalTerrainHeight {
@@ -178,5 +188,16 @@ pub(super) fn body_despawn(value: Value) -> ParsedControl {
     let payload: BodyHandlePayload = decode(value)?;
     Ok(ControlKind::CanonicalTerrainBodyDespawn {
         generation: payload.generation,
+    })
+}
+
+pub(super) fn body_retained_advance(value: Value) -> ParsedControl {
+    let payload: RetainedAdvancePayload = decode(value)?;
+    Ok(ControlKind::CanonicalTerrainBodyRetainedAdvance {
+        generation: payload.generation,
+        delta_x_q9: payload.delta_x_q9,
+        delta_z_q9: payload.delta_z_q9,
+        step_up_limit_q16: payload.step_up_limit_q16,
+        step_acceleration_q16: payload.step_acceleration_q16,
     })
 }

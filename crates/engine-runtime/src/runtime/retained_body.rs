@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 
-use crate::terrain_query::TerrainBodyMotion;
+use crate::terrain_query::{TerrainBodyAdvance, TerrainBodyMotion};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,6 +25,14 @@ impl TerrainBodyHandle {
 pub struct RetainedTerrainBody {
     pub handle: TerrainBodyHandle,
     pub motion: TerrainBodyMotion,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RetainedTerrainBodyAdvance {
+    pub input: RetainedTerrainBody,
+    pub advance: TerrainBodyAdvance,
+    pub output: RetainedTerrainBody,
 }
 
 pub(crate) struct TerrainBodySlot {
@@ -68,6 +76,20 @@ impl TerrainBodySlot {
         let retained = self.read(handle)?;
         self.retained = None;
         Ok(retained)
+    }
+
+    pub fn replace(
+        &mut self,
+        handle: TerrainBodyHandle,
+        motion: TerrainBodyMotion,
+    ) -> Result<RetainedTerrainBody> {
+        let input = self.read(handle)?;
+        let output = RetainedTerrainBody {
+            handle: input.handle,
+            motion,
+        };
+        self.retained = Some(output);
+        Ok(output)
     }
 }
 

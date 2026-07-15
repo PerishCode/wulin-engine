@@ -19,7 +19,7 @@ use crate::timeline::{
 mod retained_body;
 
 use retained_body::TerrainBodySlot;
-pub use retained_body::{RetainedTerrainBody, TerrainBodyHandle};
+pub use retained_body::{RetainedTerrainBody, RetainedTerrainBodyAdvance, TerrainBodyHandle};
 
 #[derive(Clone, Copy)]
 pub struct FrameRequest {
@@ -245,6 +245,31 @@ impl Runtime {
         handle: TerrainBodyHandle,
     ) -> Result<RetainedTerrainBody> {
         self.terrain_body.despawn(handle)
+    }
+
+    pub fn advance_retained_terrain_body(
+        &mut self,
+        handle: TerrainBodyHandle,
+        delta_x_q9: i32,
+        delta_z_q9: i32,
+        step_up_limit_q16: i32,
+        step_acceleration_q16: i32,
+    ) -> Result<RetainedTerrainBodyAdvance> {
+        let input = self.terrain_body.read(handle)?;
+        let advance = advance_terrain_body(
+            input.motion,
+            delta_x_q9,
+            delta_z_q9,
+            step_up_limit_q16,
+            step_acceleration_q16,
+            |position| self.query_terrain_height(position),
+        )?;
+        let output = self.terrain_body.replace(handle, advance.output)?;
+        Ok(RetainedTerrainBodyAdvance {
+            input,
+            advance,
+            output,
+        })
     }
 
     pub fn simulation_status(&self) -> Value {
