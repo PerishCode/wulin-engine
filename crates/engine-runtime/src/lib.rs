@@ -18,8 +18,9 @@ pub(crate) use streaming::{address, async_resident, objects, terrain};
 pub use terrain_query::{
     TERRAIN_BODY_HEIGHT_DENOMINATOR, TERRAIN_QUERY_HEIGHT_DENOMINATOR,
     TERRAIN_QUERY_LOCAL_MAX_Q9_EXCLUSIVE, TERRAIN_QUERY_LOCAL_MIN_Q9,
-    TERRAIN_QUERY_POSITION_DENOMINATOR, TerrainBody, TerrainBodyContact,
-    TerrainContactClassification, TerrainHeight, TerrainQueryPosition, TerrainTriangle,
+    TERRAIN_QUERY_POSITION_DENOMINATOR, TerrainBody, TerrainBodyContact, TerrainBodyMotion,
+    TerrainBodyStep, TerrainContactClassification, TerrainHeight, TerrainQueryPosition,
+    TerrainTriangle,
 };
 pub use timeline::{
     SIMULATION_MAX_ELAPSED_NANOSECONDS, SIMULATION_MAX_STEPS_PER_ADVANCE,

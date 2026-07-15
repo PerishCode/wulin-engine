@@ -89,13 +89,22 @@ enabled = false
 reason = "Frame and simulation schedule tests exercise private runtime timelines without exporting mutation authority."
 
 [[overrides]]
-match = "crates/engine-runtime/src/terrain_query.rs"
+match = "crates/engine-runtime/src/terrain_query/mod.rs"
 kind = "file"
 priority = 10
 
 [overrides.rules."rust/tests/in-source"]
 enabled = false
 reason = "Fixed-point query tests exercise private published-snapshot identity and interpolation without exporting cache ownership."
+
+[[overrides]]
+match = "crates/engine-runtime/src/terrain_query/motion.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Fixed-step motion tests exercise the private pure integrator without exporting terrain ownership."
 
 [[overrides]]
 match = "crates/reference-host/src/input.rs"

@@ -5,6 +5,11 @@ use crate::region::RegionCoord;
 use crate::streaming::address::GlobalRegionConfig;
 use crate::terrain::TerrainAssignment;
 
+mod motion;
+
+pub(crate) use motion::integrate_terrain_body_step;
+pub use motion::{TerrainBodyMotion, TerrainBodyStep};
+
 pub const TERRAIN_QUERY_POSITION_DENOMINATOR: i32 = 512;
 pub const TERRAIN_QUERY_HEIGHT_DENOMINATOR: u32 = 65_536;
 pub const TERRAIN_BODY_HEIGHT_DENOMINATOR: u32 = TERRAIN_QUERY_HEIGHT_DENOMINATOR;

@@ -1,4 +1,5 @@
 import {
+    assertObjectCopies,
     assertStopped,
     capture,
     cookObjects,
@@ -47,16 +48,17 @@ import {
 import { hostInputGates } from "../support/host-input-replay.ts";
 import { bootstrapGates as bootstrapGate } from "../support/runtime-bootstrap.ts";
 import { prototypeHostGates } from "../support/prototype-host.ts";
-import { terrainQueryGates, unavailableTerrainQueryGate } from "../support/terrain-query.ts";
+import { terrainQueryGates, unavailableTerrainQueryGate } from "../support/terrain/query.ts";
 import {
     terrainContactGates as contactGates,
     unavailableTerrainContactGate as unavailableContact,
-} from "../support/terrain-contact.ts";
+} from "../support/terrain/contact.ts";
 import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 import { simulationScheduleGates } from "../support/simulation-schedule.ts";
+import { terrainMotionGates } from "../support/terrain/motion.ts";
 
-const REVISION = "deterministic-fixed-simulation-schedule-v1";
-const COLLECTION = "0047-deterministic-simulation-schedule";
+const REVISION = "exact-fixed-terrain-body-motion-v1";
+const COLLECTION = "0048-fixed-terrain-body-motion";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -78,13 +80,6 @@ if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     Deno.exit(0);
 }
 if (Deno.args.length !== 0) fail(`canonical-runtime: unexpected argument ${Deno.args[0]}`);
-
-function assertObjectCopies(publication: Json, expected: number, label: string): void {
-    const objects = object(object(publication, "published"), "objects");
-    for (const key of ["uploadedRegionCount", "identityCopyCount", "presentationCopyCount"]) {
-        if (number(objects, key) !== expected) fail(`${label} object triple copy count diverged`);
-    }
-}
 
 await Deno.mkdir(`${root}/${DIRECTORY}`, { recursive: true });
 await Deno.mkdir(`${root}/out/captures/${COLLECTION}`, { recursive: true });
@@ -173,6 +168,7 @@ try {
     const prototype = await prototypeHostGates(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE);
     const hostInput = await hostInputGates();
     const simulationSchedule = await simulationScheduleGates();
+    const terrainMotion = await terrainMotionGates(TERRAIN, OBJECTS_A, BASE);
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
@@ -444,6 +440,7 @@ try {
             prototype,
             hostInput,
             simulationSchedule,
+            terrainMotion,
             compatibilityRemoval,
             terrainQuery,
             terrainContact,
