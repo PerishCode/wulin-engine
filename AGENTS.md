@@ -157,8 +157,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one concrete Windows reference-host owner for the single window/message lifecycle, normalized
   input journal, bootstrap parser, canonical-ready driver, and composed time policy;
 - one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
-  one grounded imported-Fox actor, Ready-only fixed gravity before each frame, readiness after a
-  nonzero commit/frame, and Escape limited to host exit;
+  one grounded imported-Fox actor, Ready-only fixed gravity and one fixed actor-relative camera
+  anchor before each frame, readiness after a nonzero commit/frame, and Escape limited to host exit;
 - one exact read-only CPU terrain-height query over the committed snapshot, addressed by signed
   region plus half-open local Q9 and independent from camera, render LOD, source I/O, and GPU work;
 - one caller-owned exact vertical terrain-body contact transaction with strict
@@ -231,6 +231,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0071-frame-safe-actor-gpu-admission.md` | Accepted fixed actor candidate, exact generation identity, frame-slotted upload, and single GPU path. |
 | `docs/adr/0072-prototype-gravity-admission.md` | Accepted prototype-owned fixed gravity, Ready-only admission, and grounded stability contract. |
 | `docs/adr/0073-retired-standalone-actor-projection.md` | Accepted removal of the standalone projection API/verb/gate and retention of one internal frame path. |
+| `docs/adr/0074-actor-relative-camera-mutation.md` | Accepted generation-qualified actor-relative camera mutation, exact internal anchor derivation, and prototype rig ownership. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -272,11 +273,13 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0068-frame-safe-actor-gpu-admission/README.md` | Accepted frame-safe actor admission, exact compaction identity, rollback, resource, and lifecycle evidence. |
 | `experiments/0069-prototype-gravity-admission/README.md` | Accepted fixed prototype gravity, grounded actor stability, focused process restart, and lifecycle evidence. |
 | `experiments/0070-mandatory-actor-projection-cleanup/README.md` | Accepted standalone projection surface removal, live old-verb rejection, and exact actor-frame preservation. |
+| `experiments/0071-actor-relative-camera-anchor/README.md` | Accepted private-projection camera anchor, transactional scene mutation, and exact prototype frame-order evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
 | `crates/engine-runtime/src/lib.rs` | Public runtime, capture, semantic, and signed-address surface. |
-| `crates/engine-runtime/src/runtime/mod.rs` | Sole renderer/scene facade, frame coordinator, schedule/actor owner, and dual simulation/actor mutation entry point. |
+| `crates/engine-runtime/src/runtime/mod.rs` | Sole renderer/scene facade, frame coordinator, schedule/actor owner, dual simulation/actor advance, and actor-relative camera mutation. |
+| `crates/engine-runtime/src/scene/mod.rs` | Canonical camera state plus validated atomic absolute and actor-anchored candidate publication. |
 | `crates/engine-runtime/src/runtime/actor.rs` | Capacity-one actor slot, nonzero generation, exact motion/presentation lifetime, and checked replacement. |
 | `crates/engine-runtime/src/runtime/motion_batch.rs` | Private bounded local multi-tick motion execution, query accumulation, and failing-step context. |
 | `crates/engine-runtime/src/runtime/simulation_actor.rs` | Prepared schedule/motion composition, explicit actor result, and private dual-rollback tests. |
@@ -310,6 +313,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
 | `apps/prototype/src/main.rs` | Non-diagnostic composition root, Ready-only simulation/frame ordering, post-commit readiness, and host-exit input consumer. |
 | `apps/prototype/src/actor.rs` | Prototype-owned grounded spawn, fixed gravity, and exact imported-Fox actor presentation policy. |
+| `apps/prototype/src/camera.rs` | Prototype-owned fixed actor-relative camera rig policy. |
 | `apps/prototype/src/time.rs` | Prototype-only typed HostClock outcome admission policy. |
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
@@ -322,7 +326,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/rendering/async_resident/transfer.rs` | Object GPU copy and slot lifecycle. |
 | `crates/engine-runtime/src/rendering/terrain/transfer.rs` | Terrain GPU copy and slot lifecycle. |
 | `crates/engine-runtime/src/rendering/composition/mod.rs` | Atomic pair publication and fixed composition. |
-| `crates/engine-runtime/src/rendering/renderer/actor_projection.rs` | Private frame actor projection/preflight through enabled and pending pairs into exact bounded render-window input. |
+| `crates/engine-runtime/src/rendering/renderer/actor_projection.rs` | Private frame actor projection/preflight plus bounded origin-relative scene-center derivation. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/mod.rs` | Fixed visible-record layout, capacity, descriptors, and skeletal GPU resource ownership. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/actor.rs` | Exact actor GPU record encoding and two-frame upload-resource ownership. |
 | `crates/engine-runtime/src/rendering/composition/traversal.rs` | Latest-wins traversal, prefetch, and rollover policy. |
@@ -335,7 +339,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype gravity, restart, failure, and lifecycle entry point. |
+| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype gravity/camera, restart, failure, and lifecycle entry point. |
 | `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source actor GPU admission and rollback entry point. |
 | `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source canonical GPU frame and immediate replay entry point. |
 | `.runseal/wrappers/canonical-resources.ts` | Focused active/quiescent same-process GPU resource plateau entry point. |
@@ -354,7 +358,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/actor/simulation.ts` | Retired-route rejection plus fractional, partition, rollback, and sole actor dual-commit support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
-| `.runseal/support/prototype-host.ts` | Prototype no-ready failure, exact readiness, restart, and no-inspect lifecycle support. |
+| `.runseal/support/prototype-host.ts` | Prototype no-ready failure, exact gravity/camera readiness, restart, and no-inspect lifecycle support. |
 | `.runseal/support/terrain/query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
 | `.runseal/support/temporal-presentation.ts` | Fixed-quantum duration time, common-period, and held-pair acceptance support. |
@@ -385,10 +389,10 @@ identity, alternating frame-slot writes, existing-pipeline participation, despaw
 frustum rejection, outside-window rollback, and semantic capture. Its ignored evidence belongs
 under `out/captures/canonical-actor/`.
 
-The prototype workflow runs focused host/application tests, cooks only two required signed centers,
-and proves exact grounded gravity admission, no-readiness bootstrap failures, direct restart
-equality, and complete Sidecar cleanup. Its ignored evidence belongs under
-`out/captures/canonical-prototype/`.
+The prototype workflow runs focused runtime/host/application tests, cooks only two required signed
+centers, and proves exact grounded gravity admission, actor-relative camera/frame ordering,
+no-readiness bootstrap failures, direct restart equality, and complete Sidecar cleanup. Its ignored
+evidence belongs under `out/captures/canonical-prototype/`.
 
 The frame workflow cooks one fresh minimal signed pair, publishes it through the sole runtime, and
 checks the exact accepted GPU frame plus an immediate deterministic replay. Use it for focused
@@ -450,9 +454,10 @@ sidecar stop --config sidecar.prototype.toml
 ```
 
 The prototype has no inspect endpoint or idle-shell mode. It shows the same canonical runtime only
-after configured content is ready and advances one grounded runtime actor with fixed gravity on
-Ready samples. Window close, Escape, and Sidecar stop are its current controls; horizontal input,
-camera actions, and multiple actors are not part of this workflow.
+after configured content is ready, advances one grounded runtime actor with fixed gravity on Ready
+samples, and anchors one fixed camera rig before every live frame. Window close, Escape, and
+Sidecar stop are its current controls; horizontal input, camera actions, traversal enablement, and
+multiple actors are not part of this workflow.
 
 ### 6.6 Experiment lifecycle
 

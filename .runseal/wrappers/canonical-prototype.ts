@@ -26,8 +26,17 @@ try {
     await stopCanonicalProcesses();
     await run(
         "cargo",
-        ["test", "--locked", "-p", "prototype", "-p", "reference-host"],
-        "focused prototype and reference-host tests",
+        [
+            "test",
+            "--locked",
+            "-p",
+            "engine-runtime",
+            "-p",
+            "prototype",
+            "-p",
+            "reference-host",
+        ],
+        "focused runtime, prototype, and reference-host tests",
     );
     await run(
         "cargo",

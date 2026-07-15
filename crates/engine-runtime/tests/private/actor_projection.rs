@@ -3,6 +3,7 @@ use super::*;
 use crate::load::{LoadConfig, MAX_REGION_SIDE};
 use crate::region::RegionCoord;
 use crate::runtime::{ActorHandle, ActorPresentation};
+use crate::scene::{Camera, SceneState};
 use crate::terrain_query::{TerrainBody, TerrainBodyMotion, TerrainPosition};
 
 const FAR: i64 = 1_i64 << 40;
@@ -101,6 +102,54 @@ fn origin_alias_and_rollover_do_not_change_spatial_projection() {
     assert_eq!(before.semantic_region, after.semantic_region);
     assert_eq!(before.window_position_q9, after.window_position_q9);
     assert_eq!(before.actor, after.actor);
+    assert_eq!(
+        scene_center(before).unwrap().map(f32::to_bits),
+        [
+            ((33 * 8192 + 73) as f32 / 512.0).to_bits(),
+            (200_003_f32 / 65_536.0).to_bits(),
+            ((-33 * 8192 - 91) as f32 / 512.0).to_bits(),
+        ]
+    );
+    assert_eq!(
+        scene_center(after).unwrap().map(f32::to_bits),
+        [
+            ((8192 + 73) as f32 / 512.0).to_bits(),
+            (200_003_f32 / 65_536.0).to_bits(),
+            ((-8192 - 91) as f32 / 512.0).to_bits(),
+        ]
+    );
+}
+
+#[test]
+fn scene_center_preserves_q9_seams_and_q16_height() {
+    let center = RegionCoord::new(FAR, -FAR);
+    let global = config(center, center);
+    let start = actor(center, [4095, -4096]);
+    let crossed_position = start.motion.body().position().translated_q9(1, -1).unwrap();
+    let crossed = actor(
+        crossed_position.region(),
+        [crossed_position.local_x_q9(), crossed_position.local_z_q9()],
+    );
+    assert_eq!(
+        scene_center(project_config(global, start))
+            .unwrap()
+            .map(f32::to_bits),
+        [
+            (4095_f32 / 512.0).to_bits(),
+            (200_003_f32 / 65_536.0).to_bits(),
+            (-4096_f32 / 512.0).to_bits(),
+        ]
+    );
+    assert_eq!(
+        scene_center(project_config(global, crossed))
+            .unwrap()
+            .map(f32::to_bits),
+        [
+            (4096_f32 / 512.0).to_bits(),
+            (200_003_f32 / 65_536.0).to_bits(),
+            (-4097_f32 / 512.0).to_bits(),
+        ]
+    );
 }
 
 #[test]
@@ -121,4 +170,60 @@ fn outside_window_and_config_divergence_fail_without_projection() {
             .to_string()
             .contains("local/global configs diverged")
     );
+}
+
+fn camera_bits(camera: Camera) -> ([u32; 3], [u32; 3], u32, u32) {
+    (
+        camera.position.map(f32::to_bits),
+        camera.target.map(f32::to_bits),
+        camera.vertical_fov_degrees.to_bits(),
+        camera.near_plane_meters.to_bits(),
+    )
+}
+
+#[test]
+fn anchor_commits_candidate() {
+    let mut scene = SceneState::new();
+    scene
+        .set_camera_from_anchor(
+            [16.25, 2.164_062_5, -8.5],
+            [9.0, 4.0, 12.0],
+            [0.0, -1.0, -3.0],
+            60.0,
+        )
+        .unwrap();
+    assert_eq!(
+        camera_bits(scene.camera()),
+        (
+            [25.25, 6.164_062_5, 3.5].map(f32::to_bits),
+            [16.25, 1.164_062_5, -11.5].map(f32::to_bits),
+            60.0_f32.to_bits(),
+            0.1_f32.to_bits(),
+        )
+    );
+}
+
+#[test]
+fn rejection_preserves_camera() {
+    let rejected = [
+        ([0.0, 0.0, 0.0], [f32::NAN, 0.0, 0.0], [0.0, 0.0, 0.0], 60.0),
+        ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 60.0),
+        ([0.0, 0.0, 0.0], [9.0, 6.0, 12.0], [0.0, 1.0, -3.0], 19.0),
+        (
+            [f32::MAX, 0.0, 0.0],
+            [f32::MAX, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            60.0,
+        ),
+    ];
+    for (anchor, position_offset, target_offset, fov) in rejected {
+        let mut scene = SceneState::new();
+        let before = camera_bits(scene.camera());
+        assert!(
+            scene
+                .set_camera_from_anchor(anchor, position_offset, target_offset, fov)
+                .is_err()
+        );
+        assert_eq!(camera_bits(scene.camera()), before);
+    }
 }

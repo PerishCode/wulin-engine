@@ -1,4 +1,5 @@
 mod actor;
+mod camera;
 mod time;
 
 use anyhow::{Context, Result};
@@ -41,6 +42,7 @@ unsafe fn run() -> Result<()> {
     let mut startup = Some(ready.status);
     let bootstrap_frame_count = ready.frame_count;
     let mut live_frame_count = 0_u64;
+    let mut camera_anchor_count = 0_u64;
     unsafe { window::show(hwnd) };
 
     'running: loop {
@@ -68,6 +70,16 @@ unsafe fn run() -> Result<()> {
         let completed = advance
             .filter(|advance| advance.simulation.step_count != 0)
             .map(|advance| (sample, clock.status(), advance));
+        runtime.set_actor_relative_camera(
+            runtime_actor.handle,
+            camera::POSITION_OFFSET,
+            camera::TARGET_OFFSET,
+            camera::VERTICAL_FOV_DEGREES,
+        )?;
+        let anchored_camera = runtime.camera_json();
+        camera_anchor_count = camera_anchor_count
+            .checked_add(1)
+            .context("prototype camera anchor count overflowed")?;
         unsafe {
             let _ = runtime.frame(FrameRequest {
                 clear_color: CLEAR_COLOR,
@@ -91,6 +103,8 @@ unsafe fn run() -> Result<()> {
                 advance,
                 bootstrap_frame_count,
                 live_frame_count,
+                anchored_camera,
+                camera_anchor_count,
             })?;
         }
     }
@@ -109,6 +123,8 @@ struct ReadinessEvidence {
     advance: ActorSimulationAdvance,
     bootstrap_frame_count: u64,
     live_frame_count: u64,
+    anchored_camera: Value,
+    camera_anchor_count: u64,
 }
 
 fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
@@ -142,6 +158,18 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "bootstrapFrameCount": evidence.bootstrap_frame_count,
                 "liveFrameCount": evidence.live_frame_count,
                 "totalFrameCount": total_frame_count,
+            },
+            "camera_driver": {
+                "revision": "live-prototype-actor-camera-v1",
+                "actor": evidence.runtime_actor.handle,
+                "rig": {
+                    "positionOffset": camera::POSITION_OFFSET,
+                    "targetOffset": camera::TARGET_OFFSET,
+                    "verticalFovDegrees": camera::VERTICAL_FOV_DEGREES,
+                },
+                "camera": evidence.anchored_camera,
+                "anchorCount": evidence.camera_anchor_count,
+                "liveFrameCount": evidence.live_frame_count,
             },
         })
     );

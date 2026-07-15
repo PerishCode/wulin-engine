@@ -20,7 +20,8 @@ motion 与 schema-3 presentation 的 capacity-one actor，prototype 已在 canon
 创建一个精确 grounded imported-Fox actor；
 reference host 已将 bounded monotonic elapsed policy 与至多两个等价
 transition 的 Win32 activation batch 组成唯一的 activation-before-sample 操作；prototype 现以
-Ready-only fixed gravity command 驱动 live schedule/actor transaction，capacity-one actor 也通过唯一
+Ready-only fixed gravity command 驱动 live schedule/actor transaction，并在每个 live frame 前通过
+唯一内部投影应用固定 actor-relative camera rig；capacity-one actor 也通过唯一
 skeletal/surface/shadow/occlusion 路径进入 GPU；仍无多 actor store、水平速度或
 locomotion controller。live simulation/actor mutation 只保留双提交，
 不再暴露独立 schedule、body lifecycle 或 retained single/batch bypass。
@@ -318,6 +319,12 @@ projection/preflight 及私有测试保留为唯一生产路径。自闭环旧 v
 `unknown_event` 并清空进程，21.763 秒 `canonical-actor` 保持两代 record、四类 capture hash 和
 3,866 actor pixels 精确不变。清理前 live diff 净删 282 行，不新增 alias、fallback、frame/resource
 或同步路径。
+Experiment 0071 接受一条只写的 actor-relative camera mutation：runtime 读取代际 actor，通过
+renderer-private projection 在 checked Q9 中恢复 origin-relative scene center，再让 SceneState
+一次性校验并提交 caller offset camera；不重新公开 projection 数据。prototype 固定使用
+`[9,4,12]` / `[0,-1,-3]` / `60°` rig，每个 live frame 前恰好 anchor 一次。35.608 秒 focused gate
+中两次独立进程都得到 `[9,6.1640625,12] → [0,1.1640625,-3]`，anchor/frame 为 3/3，三类失败仍
+无 readiness 且 Sidecar 最终清空。该阶段未启用水平输入、traversal 或跨窗口移动事务。
 
 ## Project model
 
@@ -372,8 +379,9 @@ Escape, or use `sidecar stop` to end it. The bootstrap file is generated during 
 acceptance or may be prepared with the documented cooker formats.
 
 `runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
-prototype/reference-host tests, cooks only the two required signed centers, and proves strict
-bootstrap failure, grounded gravity admission, direct restart equality, and Sidecar cleanup.
+runtime/prototype/reference-host tests, cooks only the two required signed centers, and proves
+strict bootstrap failure, grounded gravity admission, actor-relative camera/frame ordering,
+direct restart equality, and Sidecar cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
 minimal signed pair, checks the exact accepted canonical frame, immediately replays it, and owns
