@@ -52,8 +52,8 @@ import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 import { actorGates } from "../support/actor.ts";
 import { simulationActorGates } from "../support/simulation-actor.ts";
 
-const REVISION = "mandatory-simulation-control-cleanup-v1";
-const COLLECTION = "0060-mandatory-simulation-control-cleanup";
+const REVISION = "canonical-runtime-v1";
+const COLLECTION = "canonical-runtime";
 const FAR = 2 ** 40;
 const BASE: Coord = [FAR, -FAR];
 

@@ -2,7 +2,7 @@
 
 ## State
 
-Experiments through 0064 and ADR 0067 define the accepted canonical content runtime, reference
+Experiments through 0065 and ADR 0068 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
 motion/planar terrain transaction contracts, deterministic simulation schedule, one retained actor
 lifecycle plus a sole explicit-time dual advance, one live prototype host-time driver,
@@ -74,6 +74,11 @@ drives Ready-only zero-command schedule/actor transactions before frames, and pu
 after the first nonzero commit/frame. Escape only requests host exit. Nonzero motion, GPU actor
 binding, camera actions, and
 gameplay interaction remain unpromoted. Directories are created only when they own real files.
+
+The one direct acceptance operator has neutral revision `canonical-runtime-v1`, cooks under
+`out/cooked/canonical-runtime/`, and writes its ignored report under
+`out/captures/canonical-runtime/`. Historical experiment collections are evidence records, not live
+operator namespaces or fallback output paths.
 
 ## Dependency direction
 
