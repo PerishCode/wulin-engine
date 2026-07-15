@@ -8,8 +8,9 @@ use crate::rendering::{RenderFrame, RenderOutcome, Renderer};
 use crate::scene::SceneState;
 use crate::streaming::address::GlobalRegionConfig;
 use crate::terrain_query::{
-    TerrainBody, TerrainBodyContact, TerrainBodyMotion, TerrainBodyStep, TerrainHeight,
-    TerrainPosition, integrate_terrain_body_step, resolve_body_contact,
+    TerrainBody, TerrainBodyContact, TerrainBodyMotion, TerrainBodyStep, TerrainBodyTranslation,
+    TerrainHeight, TerrainPosition, integrate_terrain_body_step, resolve_body_contact,
+    translate_terrain_body,
 };
 use crate::timeline::{
     PresentationTimeline, SimulationAdvance, SimulationSchedule, simulation_probe,
@@ -188,6 +189,22 @@ impl Runtime {
     ) -> Result<TerrainBodyStep> {
         let terrain = self.query_terrain_height(motion.body().position())?;
         integrate_terrain_body_step(motion, step_acceleration_q16, terrain)
+    }
+
+    pub fn translate_terrain_body(
+        &self,
+        motion: TerrainBodyMotion,
+        delta_x_q9: i32,
+        delta_z_q9: i32,
+        step_up_limit_q16: i32,
+    ) -> Result<TerrainBodyTranslation> {
+        translate_terrain_body(
+            motion,
+            delta_x_q9,
+            delta_z_q9,
+            step_up_limit_q16,
+            |position| self.query_terrain_height(position),
+        )
     }
 
     pub fn simulation_status(&self) -> Value {
