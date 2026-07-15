@@ -27,7 +27,7 @@ use super::terrain::TerrainRenderer;
 mod actor_projection;
 mod frame;
 
-pub use actor_projection::ActorRenderProjection;
+pub(crate) use actor_projection::ActorRenderProjection;
 
 const BUFFER_COUNT: usize = 2;
 

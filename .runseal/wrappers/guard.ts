@@ -456,7 +456,6 @@ await run("deno check", "deno", [
     ".runseal/support/prototype-host.ts",
     ".runseal/support/actor/lifecycle.ts",
     ".runseal/support/actor/gpu.ts",
-    ".runseal/support/actor/projection.ts",
     ".runseal/support/actor/simulation.ts",
     ".runseal/support/terrain/query.ts",
     ".runseal/support/cooked-gltf-presentation.ts",
