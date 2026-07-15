@@ -2,12 +2,13 @@
 
 ## State
 
-Experiments through 0043 and ADR 0046 define the accepted canonical content runtime, reference
-host, and first prototype composition root. The runtime remains in
-`crates/engine-runtime`. It owns scene/world state, signed terrain/object streaming, atomic
-composition, traversal/prefetch/rollover, rendering, presentation time, shaders, probes, and GPU
-device/resource lifecycle. The format/catalog crates and offline cookers remain independent
-reusable owners below it.
+Experiments through 0045 and ADR 0048 define the accepted canonical content runtime, reference
+host, first prototype composition root, exact CPU terrain query, and retired compatibility
+surface. The runtime remains in `crates/engine-runtime`. It owns camera state, signed
+terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
+time, exact committed-snapshot terrain queries, neutral frame targets, shaders, probes, and GPU
+device/resource lifecycle. It has no calibration scene or split-world control state. The
+format/catalog crates and offline cookers remain independent reusable owners below it.
 
 The runtime also owns the sole mutable presentation timeline and successful-frame commit. The
 renderer consumes an immutable pre-commit tick for GPU work and evidence; it cannot pause, set,
