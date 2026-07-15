@@ -21,3 +21,7 @@ pub use terrain_query::{
     TERRAIN_QUERY_POSITION_DENOMINATOR, TerrainBody, TerrainBodyContact,
     TerrainContactClassification, TerrainHeight, TerrainQueryPosition, TerrainTriangle,
 };
+pub use timeline::{
+    SIMULATION_MAX_ELAPSED_NANOSECONDS, SIMULATION_MAX_STEPS_PER_ADVANCE,
+    SIMULATION_STEPS_PER_SECOND, SIMULATION_TIME_DENOMINATOR, SimulationAdvance,
+};

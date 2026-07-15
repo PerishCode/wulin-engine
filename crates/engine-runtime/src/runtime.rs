@@ -10,7 +10,9 @@ use crate::streaming::address::GlobalRegionConfig;
 use crate::terrain_query::{
     TerrainBody, TerrainBodyContact, TerrainHeight, TerrainQueryPosition, resolve_body_contact,
 };
-use crate::timeline::PresentationTimeline;
+use crate::timeline::{
+    PresentationTimeline, SimulationAdvance, SimulationSchedule, simulation_probe,
+};
 
 #[derive(Clone, Copy)]
 pub struct FrameRequest {
@@ -24,6 +26,7 @@ pub struct Runtime {
     renderer: Renderer,
     scene: SceneState,
     presentation_timeline: PresentationTimeline,
+    simulation_schedule: SimulationSchedule,
 }
 
 impl Runtime {
@@ -38,6 +41,7 @@ impl Runtime {
             renderer: unsafe { Renderer::new(hwnd, width, height)? },
             scene: SceneState::new(),
             presentation_timeline: PresentationTimeline::new(),
+            simulation_schedule: SimulationSchedule::new(),
         })
     }
 
@@ -52,6 +56,9 @@ impl Runtime {
         let presentation_status = request
             .probe
             .then(|| self.presentation_timeline.status_json());
+        let simulation_status = request
+            .probe
+            .then(|| self.simulation_schedule.status_json());
         let outcome = unsafe {
             self.renderer.render(RenderFrame {
                 color: request.clear_color,
@@ -60,6 +67,7 @@ impl Runtime {
                 probe: request.probe,
                 presentation_tick,
                 presentation_status: presentation_status.as_ref(),
+                simulation_status: simulation_status.as_ref(),
                 scene: &mut self.scene,
             })
         }?;
@@ -155,6 +163,7 @@ impl Runtime {
     pub fn composition_status(&self) -> Value {
         let mut status = self.renderer.composition_status();
         status["presentationClock"] = self.presentation_timeline.status_json();
+        status["simulationSchedule"] = self.simulation_schedule.status_json();
         status
     }
 
@@ -173,6 +182,18 @@ impl Runtime {
 
     pub fn terrain_body_contact_probe(&self) -> Result<Value> {
         self.renderer.terrain_body_contact_probe()
+    }
+
+    pub fn simulation_status(&self) -> Value {
+        self.simulation_schedule.status_json()
+    }
+
+    pub fn advance_simulation(&mut self, elapsed_nanoseconds: u64) -> Result<SimulationAdvance> {
+        self.simulation_schedule.advance(elapsed_nanoseconds)
+    }
+
+    pub fn simulation_schedule_probe(&self) -> Result<Value> {
+        simulation_probe()
     }
 
     pub fn presentation_time_status(&self) -> Value {

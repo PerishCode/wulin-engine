@@ -2,18 +2,23 @@
 
 ## State
 
-Experiments through 0046 and ADR 0049 define the accepted canonical content runtime, reference
-host, first prototype composition root, exact CPU terrain query/body contact, and retired
-compatibility surface. The runtime remains in `crates/engine-runtime`. It owns camera state, signed
+Experiments through 0047 and ADR 0050 define the accepted canonical content runtime, reference
+host, first prototype composition root, exact CPU terrain query/body contact, deterministic fixed
+simulation schedule, and retired compatibility surface. The runtime remains in
+`crates/engine-runtime`. It owns camera state, signed
 terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
-time, exact committed-snapshot terrain queries and caller-owned vertical contact resolution,
-neutral frame targets, shaders, probes, and GPU device/resource lifecycle. It has no calibration
-scene, split-world control state, body store, or simulation clock. The
+time, the explicit rational 60 Hz simulation schedule, exact committed-snapshot terrain queries
+and caller-owned vertical contact resolution, neutral frame targets, shaders, probes, and GPU
+device/resource lifecycle. It has no calibration
+scene, split-world control state, body store, live wall-clock driver, or simulation consumer. The
 format/catalog crates and offline cookers remain independent reusable owners below it.
 
-The runtime also owns the sole mutable presentation timeline and successful-frame commit. The
-renderer consumes an immutable pre-commit tick for GPU work and evidence; it cannot pause, set,
-step, or advance time. Elapsed time and simulation-step policy remain unpromoted.
+The runtime owns the sole mutable presentation timeline, successful-frame commit, and simulation
+schedule. The renderer consumes an immutable pre-commit tick for GPU work and evidence; it cannot
+pause, set,
+step, or advance time. Simulation advances only from explicit bounded elapsed nanoseconds and is
+independent from presentation. Monotonic sampling, stall splitting, focus policy, and step
+consumers remain unpromoted.
 
 `crates/reference-host` owns the concrete Windows single-window/message lifecycle, normalized
 keyboard/focus state and bounded journal, strict bootstrap config/path validation, and hidden
@@ -23,7 +28,7 @@ canonical-ready driver. It is not a cross-platform abstraction.
 operator capture persistence, perception response shaping, diagnostic readiness, pause/failure
 shaping, and fault gates. `apps/prototype` is the plain non-diagnostic composition root: configured
 canonical startup is mandatory, it continuously frames the same runtime, and Escape only requests
-host exit. Simulation stepping, terrain contact consumers, runtime actors, camera actions, and
+host exit. Live schedule driving, terrain contact consumers, runtime actors, camera actions, and
 gameplay interaction remain unpromoted. Directories are created only when they own real files.
 
 ## Dependency direction

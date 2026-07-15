@@ -15,6 +15,25 @@ async function run(label: string, command: string, args: string[]): Promise<void
     if (!status.success) fail(`guard: ${label} failed with exit code ${status.code}`);
 }
 
+async function requireSingleOwner(
+    label: string,
+    symbol: string,
+    paths: string[],
+    expectedPrefix: string,
+): Promise<void> {
+    const output = await new Deno.Command("git", {
+        args: ["grep", "--no-index", "-n", "--fixed-strings", symbol, "--", ...paths],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    const lines = new TextDecoder().decode(output.stdout).trim().split(/\r?\n/)
+        .filter((line) => line.length > 0);
+    if (output.code !== 0 || lines.length !== 1 || !lines[0].startsWith(expectedPrefix)) {
+        fail(`guard: ${label} ownership diverged: ${JSON.stringify(lines)}`);
+    }
+}
+
 async function requireWrapperSet(): Promise<void> {
     const names: string[] = [];
     for await (const entry of Deno.readDir(`${root}/.runseal/wrappers`)) {
@@ -88,27 +107,12 @@ async function requireRuntimeBoundary(): Promise<void> {
         fail(`guard: runtime ownership scan failed with exit code ${forbidden.code}`);
     }
 
-    const renderers = await new Deno.Command("git", {
-        args: [
-            "grep",
-            "--no-index",
-            "-n",
-            "--fixed-strings",
-            "pub struct Renderer",
-            "--",
-            "apps",
-            "crates",
-        ],
-        cwd: root,
-        stdout: "piped",
-        stderr: "inherit",
-    }).output();
-    const rendererLines = new TextDecoder().decode(renderers.stdout).trim().split(/\r?\n/)
-        .filter((line) => line.length > 0);
-    if (
-        renderers.code !== 0 || rendererLines.length !== 1 ||
-        !rendererLines[0].startsWith("crates/engine-runtime/src/rendering/renderer/mod.rs:")
-    ) fail(`guard: canonical renderer ownership diverged: ${JSON.stringify(rendererLines)}`);
+    await requireSingleOwner(
+        "canonical renderer",
+        "pub struct Renderer",
+        ["apps", "crates"],
+        "crates/engine-runtime/src/rendering/renderer/mod.rs:",
+    );
 
     const tree = await new Deno.Command("cargo", {
         args: ["tree", "-p", "engine-runtime", "--edges", "normal", "--prefix", "none"],
@@ -157,48 +161,24 @@ async function requireRuntimeBoundary(): Promise<void> {
         fail(`guard: renderer time-authority scan failed with ${rendererTimeAuthority.code}`);
     }
 
-    const timelineOwner = await new Deno.Command("git", {
-        args: [
-            "grep",
-            "--no-index",
-            "-n",
-            "--fixed-strings",
-            "pub(crate) struct PresentationTimeline",
-            "--",
-            "crates/engine-runtime/src",
-        ],
-        cwd: root,
-        stdout: "piped",
-        stderr: "inherit",
-    }).output();
-    const timelineLines = new TextDecoder().decode(timelineOwner.stdout).trim().split(/\r?\n/)
-        .filter((line) => line.length > 0);
-    if (
-        timelineOwner.code !== 0 || timelineLines.length !== 1 ||
-        !timelineLines[0].startsWith("crates/engine-runtime/src/timeline.rs:")
-    ) fail(`guard: presentation timeline ownership diverged: ${JSON.stringify(timelineLines)}`);
-
-    const inputOwner = await new Deno.Command("git", {
-        args: [
-            "grep",
-            "--no-index",
-            "-n",
-            "--fixed-strings",
-            "pub struct HostInput",
-            "--",
-            "apps",
-            "crates",
-        ],
-        cwd: root,
-        stdout: "piped",
-        stderr: "inherit",
-    }).output();
-    const inputOwnerLines = new TextDecoder().decode(inputOwner.stdout).trim().split(/\r?\n/)
-        .filter((line) => line.length > 0);
-    if (
-        inputOwner.code !== 0 || inputOwnerLines.length !== 1 ||
-        !inputOwnerLines[0].startsWith("crates/reference-host/src/input.rs:")
-    ) fail(`guard: host input ownership diverged: ${JSON.stringify(inputOwnerLines)}`);
+    await requireSingleOwner(
+        "presentation timeline",
+        "pub(crate) struct PresentationTimeline",
+        ["crates/engine-runtime/src"],
+        "crates/engine-runtime/src/timeline/presentation.rs:",
+    );
+    await requireSingleOwner(
+        "simulation schedule",
+        "pub(crate) struct SimulationSchedule",
+        ["crates/engine-runtime/src"],
+        "crates/engine-runtime/src/timeline/simulation.rs:",
+    );
+    await requireSingleOwner(
+        "host input",
+        "pub struct HostInput",
+        ["apps", "crates"],
+        "crates/reference-host/src/input.rs:",
+    );
 
     const hostTreeChecks = [
         ["workbench", false],

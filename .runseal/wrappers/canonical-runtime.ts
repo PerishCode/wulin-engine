@@ -53,9 +53,10 @@ import {
     unavailableTerrainContactGate as unavailableContact,
 } from "../support/terrain-contact.ts";
 import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
+import { simulationScheduleGates } from "../support/simulation-schedule.ts";
 
-const REVISION = "exact-terrain-body-contact-v1";
-const COLLECTION = "0046-exact-terrain-body-contact";
+const REVISION = "deterministic-fixed-simulation-schedule-v1";
+const COLLECTION = "0047-deterministic-simulation-schedule";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -80,11 +81,9 @@ if (Deno.args.length !== 0) fail(`canonical-runtime: unexpected argument ${Deno.
 
 function assertObjectCopies(publication: Json, expected: number, label: string): void {
     const objects = object(object(publication, "published"), "objects");
-    if (
-        number(objects, "uploadedRegionCount") !== expected ||
-        number(objects, "identityCopyCount") !== expected ||
-        number(objects, "presentationCopyCount") !== expected
-    ) fail(`${label} object triple copy count diverged`);
+    for (const key of ["uploadedRegionCount", "identityCopyCount", "presentationCopyCount"]) {
+        if (number(objects, key) !== expected) fail(`${label} object triple copy count diverged`);
+    }
 }
 
 await Deno.mkdir(`${root}/${DIRECTORY}`, { recursive: true });
@@ -173,6 +172,7 @@ try {
     const bootstrap = await bootstrapGate(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE, COLLECTION);
     const prototype = await prototypeHostGates(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE);
     const hostInput = await hostInputGates();
+    const simulationSchedule = await simulationScheduleGates();
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
@@ -443,6 +443,7 @@ try {
             bootstrap,
             prototype,
             hostInput,
+            simulationSchedule,
             compatibilityRemoval,
             terrainQuery,
             terrainContact,
