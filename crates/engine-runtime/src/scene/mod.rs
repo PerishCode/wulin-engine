@@ -31,6 +31,29 @@ impl SceneState {
         Ok(())
     }
 
+    pub(crate) fn set_camera_from_anchor(
+        &mut self,
+        anchor: [f32; 3],
+        position_offset: [f32; 3],
+        target_offset: [f32; 3],
+        vertical_fov_degrees: f32,
+    ) -> Result<()> {
+        let add = |offset: [f32; 3]| {
+            [
+                anchor[0] + offset[0],
+                anchor[1] + offset[1],
+                anchor[2] + offset[2],
+            ]
+        };
+        let candidate = Camera::new(
+            add(position_offset),
+            add(target_offset),
+            vertical_fov_degrees,
+        )?;
+        self.camera = candidate;
+        Ok(())
+    }
+
     pub(crate) fn translate_camera_regions(&mut self, delta: [i32; 2]) -> Result<()> {
         self.camera = self.camera.translated_regions(delta)?;
         Ok(())

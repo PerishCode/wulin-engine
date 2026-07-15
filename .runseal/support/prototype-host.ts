@@ -226,6 +226,63 @@ function simulationDriverInvariant(launch: Json): Json {
     };
 }
 
+function numericArray(value: Json, key: string): number[] {
+    return array(value, key).map((entry) => {
+        if (typeof entry !== "number" || !Number.isFinite(entry)) {
+            fail(`prototype camera ${key} must contain finite numbers`);
+        }
+        return entry;
+    });
+}
+
+function cameraDriverInvariant(launch: Json): Json {
+    const readiness = object(launch, "readiness");
+    const driver = object(readiness, "camera_driver");
+    if (driver.revision !== "live-prototype-actor-camera-v1") {
+        fail("prototype camera driver revision diverged");
+    }
+    const actor = object(object(readiness, "actor"), "state");
+    same(object(driver, "actor"), object(actor, "handle"), "prototype camera actor handle");
+    const rig = object(driver, "rig");
+    same(numericArray(rig, "positionOffset"), [9, 4, 12], "prototype camera position rig");
+    same(numericArray(rig, "targetOffset"), [0, -1, -3], "prototype camera target rig");
+    if (number(rig, "verticalFovDegrees") !== 60) {
+        fail("prototype camera field of view diverged");
+    }
+    const centerHeightQ16 = number(
+        object(object(actor, "motion"), "body"),
+        "centerHeightNumerator",
+    );
+    const camera = object(driver, "camera");
+    const anchorY = centerHeightQ16 / 65_536;
+    same(
+        numericArray(camera, "position"),
+        [9, anchorY + 4, 12],
+        "prototype anchored camera position",
+    );
+    same(
+        numericArray(camera, "target"),
+        [0, anchorY - 1, -3],
+        "prototype anchored camera target",
+    );
+    if (
+        number(camera, "verticalFovDegrees") !== 60 ||
+        number(camera, "nearPlaneMeters") !== Math.fround(0.1)
+    ) fail("prototype anchored camera lens diverged");
+    const liveFrames = number(driver, "liveFrameCount");
+    if (
+        liveFrames !== number(object(readiness, "simulation_driver"), "liveFrameCount") ||
+        number(driver, "anchorCount") !== liveFrames || liveFrames < 1
+    ) fail("prototype camera/frame ordering diverged");
+    return {
+        revision: driver.revision,
+        actor: driver.actor,
+        rig,
+        camera,
+        anchorPerLiveFrame: true,
+    };
+}
+
 async function sidecarStatus(): Promise<Json> {
     const output = await new Deno.Command("sidecar", {
         args: ["status", "--config", SIDECAR, "--format", "json"],
@@ -286,6 +343,11 @@ export async function prototypeHostGates(
         simulationDriverInvariant(restarted),
         simulationDriverInvariant(first),
         "prototype restart simulation driver",
+    );
+    same(
+        cameraDriverInvariant(restarted),
+        cameraDriverInvariant(first),
+        "prototype restart camera driver",
     );
 
     await lifecycle("start");

@@ -161,6 +161,24 @@ impl Runtime {
         Ok(self.scene.camera_json())
     }
 
+    pub fn set_actor_relative_camera(
+        &mut self,
+        handle: ActorHandle,
+        position_offset: [f32; 3],
+        target_offset: [f32; 3],
+        vertical_fov_degrees: f32,
+    ) -> Result<()> {
+        let actor = self.actor.read(handle)?;
+        let anchor = self.renderer.actor_scene_center(actor)?;
+        self.scene.set_camera_from_anchor(
+            anchor,
+            position_offset,
+            target_offset,
+            vertical_fov_degrees,
+        )?;
+        Ok(())
+    }
+
     pub fn spatial_json(&self) -> Value {
         self.scene.spatial_json()
     }

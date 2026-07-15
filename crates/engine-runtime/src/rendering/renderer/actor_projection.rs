@@ -3,6 +3,7 @@ use serde::Serialize;
 
 use crate::address::GlobalRegionConfig;
 use crate::runtime::RuntimeActor;
+use crate::terrain_query::TERRAIN_POSITION_REGION_SIDE_Q9;
 use crate::terrain_query::{TERRAIN_BODY_HEIGHT_DENOMINATOR, TERRAIN_POSITION_DENOMINATOR};
 
 use super::super::terrain::TerrainProjection;
@@ -36,6 +37,30 @@ impl Renderer {
         }
         Ok(())
     }
+
+    pub(crate) fn actor_scene_center(&self, actor: RuntimeActor) -> Result<[f32; 3]> {
+        scene_center(self.project_actor(actor)?)
+    }
+}
+
+fn scene_center(projection: ActorRenderProjection) -> Result<[f32; 3]> {
+    let terrain = TerrainProjection::for_objects(projection.global_config.local_config()?)?;
+    let alias = terrain.alias_offset_regions();
+    let scene_position_q9 = [
+        alias[0]
+            .checked_mul(TERRAIN_POSITION_REGION_SIDE_Q9)
+            .and_then(|value| value.checked_add(projection.window_position_q9[0]))
+            .context("actor scene-center X overflowed")?,
+        alias[1]
+            .checked_mul(TERRAIN_POSITION_REGION_SIDE_Q9)
+            .and_then(|value| value.checked_add(projection.window_position_q9[1]))
+            .context("actor scene-center Z overflowed")?,
+    ];
+    Ok([
+        scene_position_q9[0] as f32 / TERRAIN_POSITION_DENOMINATOR as f32,
+        projection.center_height_q16 as f32 / TERRAIN_BODY_HEIGHT_DENOMINATOR as f32,
+        scene_position_q9[1] as f32 / TERRAIN_POSITION_DENOMINATOR as f32,
+    ])
 }
 
 fn project(

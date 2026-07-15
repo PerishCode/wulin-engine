@@ -1,5 +1,7 @@
 #[path = "../src/actor.rs"]
 mod actor;
+#[path = "../src/camera.rs"]
+mod camera;
 
 use engine_runtime::{
     RegionCoord, SIMULATION_STEPS_PER_SECOND, TERRAIN_BODY_HEIGHT_DENOMINATOR, TerrainHeight,
@@ -22,6 +24,19 @@ fn gravity_is_nearest_fixed_step_encoding_of_earth_gravity() {
         (actual_centimeters_q16 - earth_centimeters_q16).abs()
             <= half_encoding_step_centimeters_q16
     );
+}
+
+#[test]
+fn camera_rig_is_fixed_actor_relative_policy() {
+    assert_eq!(
+        camera::POSITION_OFFSET.map(f32::to_bits),
+        [9.0, 4.0, 12.0].map(f32::to_bits)
+    );
+    assert_eq!(
+        camera::TARGET_OFFSET.map(f32::to_bits),
+        [0.0, -1.0, -3.0].map(f32::to_bits)
+    );
+    assert_eq!(camera::VERTICAL_FOV_DEGREES.to_bits(), 60.0_f32.to_bits());
 }
 
 #[test]
