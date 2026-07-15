@@ -9,6 +9,7 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{BOOL, HSTRING, PCWSTR};
 
+use crate::activation::{ActivationState, HostActivation};
 use crate::input::{NativeMessage, PostedMessage};
 
 static WINDOW_HANDLE: AtomicIsize = AtomicIsize::new(0);
@@ -22,10 +23,13 @@ pub struct Config {
 }
 
 thread_local! {
+    static ACTIVATION_STATE: RefCell<ActivationState> =
+        const { RefCell::new(ActivationState::new()) };
     static INPUT_MESSAGES: RefCell<Vec<NativeMessage>> = const { RefCell::new(Vec::new()) };
 }
 
 pub fn create(config: Config) -> Result<HWND> {
+    ACTIVATION_STATE.with(|state| state.borrow_mut().reset());
     let module = unsafe { GetModuleHandleW(None) }.context("GetModuleHandleW failed")?;
     let instance = HINSTANCE(module.0);
     let class_name = HSTRING::from(config.class_name);
@@ -105,8 +109,13 @@ pub fn request_close(hwnd: HWND) -> Result<()> {
 
 pub fn teardown() -> Result<()> {
     WINDOW_HANDLE.store(0, Ordering::Release);
+    ACTIVATION_STATE.with(|state| state.borrow_mut().reset());
     unsafe { SetConsoleCtrlHandler(Some(console_ctrl_handler), false) }
         .context("removing console control handler failed")
+}
+
+pub fn drain_activation() -> Vec<HostActivation> {
+    ACTIVATION_STATE.with(|state| state.borrow_mut().drain())
 }
 
 pub fn drain_input() -> Vec<NativeMessage> {
@@ -157,6 +166,11 @@ unsafe extern "system" fn window_proc(
         }
         WM_KILLFOCUS => {
             INPUT_MESSAGES.with(|messages| messages.borrow_mut().push(NativeMessage::FocusLost));
+            capture_activation(false);
+            unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
+        }
+        WM_SETFOCUS => {
+            capture_activation(true);
             unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
         }
         WM_CLOSE => {
@@ -178,6 +192,10 @@ fn capture_key(wparam: WPARAM, down: bool) {
             down,
         });
     });
+}
+
+fn capture_activation(focused: bool) {
+    ACTIVATION_STATE.with(|state| state.borrow_mut().record(focused));
 }
 
 unsafe extern "system" fn console_ctrl_handler(control: u32) -> BOOL {

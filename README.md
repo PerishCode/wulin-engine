@@ -16,7 +16,8 @@ authority 原子发布，并由唯一的 runtime-owned source-duration presentat
 时间变化不会触发内容 I/O、GPU page copy 或 pair 重发布。独立的显式 60 Hz simulation
 schedule、调用方持有的垂直 fixed-step motion 和有上修正上限的平面 terrain-body transaction
 已经建立，并已固定 planar-first 的单 tick 组合顺序。`Runtime` 现持有一个带代际句柄的中性
-terrain-body 槽；reference host 另有尚未接线的 bounded monotonic elapsed policy，但仍无 live
+terrain-body 槽；reference host 另有尚未接线的 bounded monotonic elapsed policy，以及把任意
+Win32 focus burst 规约为至多两个等价 transition 的 activation transport；但仍无 live
 wall-clock driver、多 actor store、水平速度或 locomotion controller。
 
 Experiment 0001 已通过 D3D12 Debug Layer、GPU-based Validation、全量确定性输出校验和
@@ -233,6 +234,12 @@ Experiment 0058 在 `reference-host` 中独立接受 bounded monotonic elapsed p
 重复 transition 幂等，monotonic regression 完整回滚。14 个聚焦测试与 guard 通过，确定性 replay
 SHA-256 为 `3a873571ca7a754272eeaecb0dc7fe9d5183703e88a100a1907cc9ae8bacea7d`；该 clock 尚未连接
 Win32 focus、composition root 或 Runtime，因此没有运行进程/GPU/全量验收。
+Experiment 0059 补齐独立 Win32 activation transport：`WM_KILLFOCUS` / `WM_SETFOCUS` 只更新
+constant-state reducer，不建立事件队列；首次 drain 发布当前状态，单次变化产生一个 transition，
+同轮 loss+resume 或 resume+loss 产生保留中断顺序的两个 transition。长度 1–8、两种初态的全部
+focus sequence 均严格规约为 0–2 项，19 个测试与 guard 通过；replay SHA-256 为
+`eed23eab9230c591d895eaede20bbe19284a0bf309302b8d692ed8c1029738f1`。该 transport 尚未驱动
+HostClock、application loop 或 Runtime。
 
 ## Project model
 
