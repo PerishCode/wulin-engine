@@ -1,14 +1,66 @@
 use anyhow::{Result, ensure};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::rendering::meshlet_scene::skeletal::SkeletalProbe;
 use crate::rendering::resident::read_values;
 
-use super::super::probe::{OcclusionProbe, ProbeInput};
+use super::super::super::resources::{
+    VISIBLE_CANDIDATE_WORD, VISIBLE_OBJECT_BYTES, VISIBLE_OBJECT_WORDS,
+};
+use super::super::probe::ProbeInput;
 use super::oracle::{self, OcclusionOracle};
 use super::{
-    FILTERED_VISIBLE_BYTES, OCCLUSION_COUNTER_BYTES, OCCLUSION_GROUPS, OCCLUSION_MASK_BYTES,
+    BoundProof, FILTERED_VISIBLE_BYTES, OCCLUSION_COUNTER_BYTES, OCCLUSION_GROUPS,
+    OCCLUSION_MASK_BYTES,
 };
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OcclusionProbe {
+    pub enabled: bool,
+    pub history_queried: bool,
+    pub history_reset_count: u64,
+    pub bypass_reason: &'static str,
+    pub source_visible: u32,
+    pub survivors: u32,
+    pub occluded: u32,
+    pub tested: u32,
+    pub bypassed: u32,
+    pub invalid_queries: u32,
+    pub overflow: u32,
+    pub source_meshlets: u32,
+    pub submitted_meshlets: u32,
+    pub source_vertices: u32,
+    pub submitted_vertices: u32,
+    pub source_triangles: u32,
+    pub submitted_triangles: u32,
+    pub source_skin_influences: u32,
+    pub submitted_skin_influences: u32,
+    pub visible_record_bytes: u32,
+    pub filtered_visible_bytes: u64,
+    pub order_readback_bytes: u64,
+    pub candidate_mask_sha256: String,
+    pub source_order_sha256: String,
+    pub filtered_order_sha256: String,
+    pub stable_compaction_mismatch_count: u32,
+    pub hierarchy_sha256: String,
+    pub hierarchy_format: &'static str,
+    pub hierarchy_mip_dimensions: Vec<[u32; 2]>,
+    pub hierarchy_bytes: u64,
+    pub hierarchy_mismatch_count: u32,
+    pub query_dispatch_count: u32,
+    pub query_groups: u32,
+    pub prefix_dispatch_count: u32,
+    pub prefix_groups: u32,
+    pub scatter_dispatch_count: u32,
+    pub scatter_groups: u32,
+    pub compaction_dispatch_count: u32,
+    pub hierarchy_dispatch_count: u32,
+    pub gpu_query_ms: f64,
+    pub cpu_oracle: OcclusionOracle,
+    pub bound_proof: BoundProof,
+}
 
 pub(in crate::rendering::meshlet_scene::skeletal::surface) unsafe fn read(
     input: &ProbeInput<'_>,
@@ -111,14 +163,14 @@ pub(in crate::rendering::meshlet_scene::skeletal::surface) unsafe fn read(
         cpu_mask == mask,
         "GPU occlusion candidate mask differs from the CPU oracle"
     );
-    let words_per_record = 9usize;
+    let words_per_record = VISIBLE_OBJECT_WORDS;
     let capacity_words = (FILTERED_VISIBLE_BYTES / 4) as usize;
     let source_words = &order_words[..counters[3] as usize * words_per_record];
     let filtered_words =
         &order_words[capacity_words..capacity_words + counters[4] as usize * words_per_record];
     let mut expected_filtered = Vec::with_capacity(filtered_words.len());
     for record in source_words.chunks_exact(words_per_record) {
-        let candidate_index = record[5] as usize;
+        let candidate_index = record[VISIBLE_CANDIDATE_WORD] as usize;
         ensure!(
             candidate_index < mask.len(),
             "source visible record has an invalid candidate index"
@@ -168,6 +220,9 @@ pub(in crate::rendering::meshlet_scene::skeletal::surface) unsafe fn read(
         submitted_triangles: counters[15],
         source_skin_influences: counters[16],
         submitted_skin_influences: counters[17],
+        visible_record_bytes: VISIBLE_OBJECT_BYTES,
+        filtered_visible_bytes: FILTERED_VISIBLE_BYTES,
+        order_readback_bytes: FILTERED_VISIBLE_BYTES * 2,
         candidate_mask_sha256: format!("{:x}", Sha256::digest(&mask_bytes)),
         source_order_sha256: hash_words(source_words),
         filtered_order_sha256: hash_words(filtered_words),

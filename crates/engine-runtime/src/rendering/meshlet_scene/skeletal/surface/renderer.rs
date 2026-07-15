@@ -16,7 +16,7 @@ use super::pipeline::{SURFACE_CONSTANT_COUNT, SurfacePipeline};
 use super::probe::{self, ProbeInput, SurfaceProbe};
 use super::resources::{SAMPLE_BYTES, STATS_BYTES, SurfaceResourceInput, SurfaceResources};
 
-pub const SURFACE_REVISION: &str = "gpu-surface-resolve-v2-directional-shadow";
+pub const SURFACE_REVISION: &str = "gpu-surface-resolve-v3-self-contained-visible";
 
 #[derive(Clone, Copy)]
 pub struct SurfaceSettings {

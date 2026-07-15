@@ -46,6 +46,8 @@ async function requireWrapperSet(): Promise<void> {
     }
     names.sort();
     const expected = [
+        "canonical-frame.ts",
+        "canonical-resources.ts",
         "canonical-runtime.ts",
         "gpu-lab.ts",
         "guard.ts",

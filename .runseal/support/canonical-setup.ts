@@ -6,13 +6,23 @@ import {
     corruptTerrain,
     fail,
     type Json,
-    lifecycle,
     object,
     root,
     run,
+    stopCanonicalProcesses,
     string,
-    useSidecar,
 } from "./canonical-runtime.ts";
+
+export type CanonicalFramePaths = {
+    terrain: string;
+    objects: string;
+    report: string;
+};
+
+export type CanonicalFrameSetup = {
+    paths: CanonicalFramePaths;
+    storage: Json;
+};
 
 export type CanonicalPaths = {
     terrain: string;
@@ -33,6 +43,23 @@ export type CanonicalSetup = {
     paths: CanonicalPaths;
     storage: Json;
 };
+
+export async function prepareCanonicalFrameSetup(
+    collection: string,
+    centers: Coord[],
+): Promise<CanonicalFrameSetup> {
+    const directory = `out/cooked/${collection}`;
+    const paths: CanonicalFramePaths = {
+        terrain: `${directory}/terrain.wlt`,
+        objects: `${directory}/objects.wlr`,
+        report: `out/captures/${collection}/acceptance.json`,
+    };
+    await Deno.mkdir(`${root}/${directory}`, { recursive: true });
+    await Deno.mkdir(`${root}/out/captures/${collection}`, { recursive: true });
+    const terrain = await cookTerrain(paths.terrain, centers);
+    const objects = await cookObjects(paths.objects, centers, "a");
+    return { paths, storage: { terrain, objects } };
+}
 
 export async function prepareCanonicalSetup(
     collection: string,
@@ -55,18 +82,7 @@ export async function prepareCanonicalSetup(
     };
     await Deno.mkdir(`${root}/${directory}`, { recursive: true });
     await Deno.mkdir(`${root}/out/captures/${collection}`, { recursive: true });
-    for (
-        const config of [
-            "sidecar.toml",
-            "sidecar.benchmark.toml",
-            "sidecar.bootstrap.toml",
-            "sidecar.prototype.toml",
-        ]
-    ) {
-        useSidecar(config);
-        await lifecycle("stop");
-    }
-    useSidecar("sidecar.toml");
+    await stopCanonicalProcesses();
 
     await run(
         "cargo",

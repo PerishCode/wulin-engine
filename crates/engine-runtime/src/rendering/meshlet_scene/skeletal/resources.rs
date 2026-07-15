@@ -26,7 +26,9 @@ pub const MAX_SHARED_POSES: u32 = animation_catalog::MAX_POSE_KEYS;
 pub const MAX_SKELETAL_VISIBLE: u32 = ACTIVE_REGION_CAPACITY as u32 * INSTANCES_PER_REGION;
 pub const PALETTE_BYTES: u64 = MAX_SKELETAL_VISIBLE as u64 * BONE_COUNT as u64 * 48;
 const DESCRIPTOR_COUNT: u32 = 220;
-pub const VISIBLE_OBJECT_BYTES: u32 = 36;
+pub const VISIBLE_OBJECT_BYTES: u32 = 52;
+pub const VISIBLE_OBJECT_WORDS: usize = VISIBLE_OBJECT_BYTES as usize / 4;
+pub const VISIBLE_CANDIDATE_WORD: usize = 9;
 
 pub struct AnimationBuffers {
     pub bones: ID3D12Resource,
@@ -284,7 +286,7 @@ unsafe fn create_heap(
             device,
             uavs[0],
             MAX_SKELETAL_VISIBLE,
-            24,
+            VISIBLE_OBJECT_BYTES,
             cpu_handle(start, increment, 61),
         );
         raw_uav(

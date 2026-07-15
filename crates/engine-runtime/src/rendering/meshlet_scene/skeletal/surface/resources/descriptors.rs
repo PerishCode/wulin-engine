@@ -14,7 +14,7 @@ use super::upload::UploadedSurface;
 use super::{CANDIDATE_CAPACITY, SAMPLE_BYTES, STATS_BYTES};
 
 const DESCRIPTOR_COUNT: u32 = 98;
-const COPIED_DESCRIPTOR_COUNT: u32 = 61;
+const COPIED_CATALOG_DESCRIPTOR_COUNT: u32 = 10;
 
 pub struct HeapInputs<'a> {
     pub source_heap: &'a ID3D12DescriptorHeap,
@@ -51,18 +51,12 @@ pub unsafe fn create_heap(
     let start = unsafe { heap.GetCPUDescriptorHandleForHeapStart() };
     unsafe {
         device.CopyDescriptorsSimple(
-            COPIED_DESCRIPTOR_COUNT,
-            start,
-            inputs.source_heap.GetCPUDescriptorHandleForHeapStart(),
-            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-        );
-        device.CopyDescriptorsSimple(
-            1,
-            cpu_handle(start, increment, 96),
+            COPIED_CATALOG_DESCRIPTOR_COUNT,
+            cpu_handle(start, increment, 51),
             cpu_handle(
                 inputs.source_heap.GetCPUDescriptorHandleForHeapStart(),
                 increment,
-                118,
+                51,
             ),
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
         );
@@ -170,7 +164,7 @@ pub unsafe fn create_heap(
             device,
             &inputs.occlusion.filtered_visible,
             CANDIDATE_CAPACITY,
-            24,
+            VISIBLE_OBJECT_BYTES,
             cpu_handle(start, increment, 80),
         );
         raw_uav(

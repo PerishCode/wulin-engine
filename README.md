@@ -289,6 +289,14 @@ presentation；全局坐标不转 float，越界 actor 明确失败。69 个 run
 affected clippy 与 6.61 秒真实进程 gate 通过；`2^40`、seam、alias/rollover、window edge/outside、
 stale handle、rollback 和 replay 均有证据。该路径不进入 frame/GPU resource/shader/sync，因此未
 运行无关的约 10 分钟 canonical 全量流程。
+Experiment 0067 先清除 actor GPU 接入前的错误依赖：52-byte visible record 在 skeletal cull 一次
+写入 grounded window position、height、semantic region 与既有 presentation/pose/candidate，
+surface、shadow、occlusion 不再通过 `physical_index` 回读 streamed instance/ground page。两个
+25,600-record buffer 与双平面 order readback 固定增加 1,638,400 bytes，surface descriptor copy
+从 62 降为 10，未新增 resource/sync/lifetime。21.1 秒 fresh frame/replay 保持 color/PNG/semantic/
+diagnostic 四个外部哈希和全部 shadow/occlusion 语义，只接受确定重放的新 raw shadow hash；
+276.9 秒聚焦资源门与 762.4 秒完整流程通过 32+32 traversal、active/quiescent 资源平台和 16 次
+生命周期。日常 GPU 与资源回归分别由 `runseal :canonical-frame` / `:canonical-resources` 承担。
 
 ## Project model
 
@@ -306,6 +314,8 @@ runseal :init
 runseal :guard
 runseal :gpu-lab correctness
 runseal :gpu-lab benchmark
+runseal :canonical-frame
+runseal :canonical-resources
 runseal :canonical-runtime
 runseal :workbench start
 runseal :workbench inspect
@@ -337,6 +347,13 @@ entire local runtime through one manifest.
 It becomes visible and ready only after canonical content has rendered; close the window, press
 Escape, or use `sidecar stop` to end it. The bootstrap file is generated during canonical
 acceptance or may be prepared with the documented cooker formats.
+
+`runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
+minimal signed pair, checks the exact accepted canonical frame, immediately replays it, and owns
+complete process cleanup. It does not replace end-to-end acceptance.
+
+`runseal :canonical-resources` is the focused same-process resource workflow. It separates the
+bounded active publication plateau from post-workload recovery to the quiescent process baseline.
 
 `runseal :canonical-runtime` is the only end-to-end engine acceptance workflow. It cooks
 signed terrain and schema-3 object sources directly, validates explicit presentation,
