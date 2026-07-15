@@ -10,7 +10,7 @@ import {
     same,
     startClean,
     status,
-} from "./canonical-runtime.ts";
+} from "../canonical-runtime.ts";
 
 const REVISION = "retained-runtime-actor-v1";
 const FIRST_MOTION = {

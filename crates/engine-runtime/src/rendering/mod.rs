@@ -9,4 +9,4 @@ mod resident;
 mod terrain;
 
 pub(crate) use renderer::RenderFrame;
-pub use renderer::{CapturedFrame, RenderOutcome, Renderer};
+pub use renderer::{ActorRenderProjection, CapturedFrame, RenderOutcome, Renderer};

@@ -4,7 +4,7 @@ use anyhow::Result;
 use serde_json::Value;
 use windows::Win32::Foundation::HWND;
 
-use crate::rendering::{RenderFrame, RenderOutcome, Renderer};
+use crate::rendering::{ActorRenderProjection, RenderFrame, RenderOutcome, Renderer};
 use crate::scene::SceneState;
 use crate::streaming::address::GlobalRegionConfig;
 use crate::terrain_query::{
@@ -201,6 +201,11 @@ impl Runtime {
 
     pub fn read_actor(&self, handle: ActorHandle) -> Result<RuntimeActor> {
         self.actor.read(handle)
+    }
+
+    pub fn project_actor(&self, handle: ActorHandle) -> Result<ActorRenderProjection> {
+        let actor = self.actor.read(handle)?;
+        self.renderer.project_actor(actor)
     }
 
     pub fn despawn_actor(&mut self, handle: ActorHandle) -> Result<RuntimeActor> {

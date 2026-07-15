@@ -1,7 +1,11 @@
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 
 use crate::load::{LoadConfig, MAX_REGION_SIDE};
 use crate::scene::Camera;
+use crate::terrain_query::{
+    TERRAIN_POSITION_LOCAL_MAX_Q9_EXCLUSIVE, TERRAIN_POSITION_LOCAL_MIN_Q9,
+    TERRAIN_POSITION_REGION_SIDE_Q9,
+};
 
 const PROJECTION_CENTER: i32 = (MAX_REGION_SIDE / 2) as i32;
 const REGION_SIDE_METERS: f32 = terrain_format::CELL_SIDE as f32 * 0.5;
@@ -77,6 +81,27 @@ impl TerrainProjection {
         Ok(local)
     }
 
+    pub fn position_q9(self, active_index: usize, local: [i32; 2]) -> Result<[i32; 2]> {
+        ensure!(
+            local.into_iter().all(|value| {
+                (TERRAIN_POSITION_LOCAL_MIN_Q9..TERRAIN_POSITION_LOCAL_MAX_Q9_EXCLUSIVE)
+                    .contains(&value)
+            }),
+            "terrain Q9 projection input is outside the canonical local range"
+        );
+        let offset = self.render_offset(active_index)?;
+        Ok([
+            offset[0]
+                .checked_mul(TERRAIN_POSITION_REGION_SIDE_Q9)
+                .and_then(|value| value.checked_add(local[0]))
+                .context("terrain Q9 projection X overflowed")?,
+            offset[1]
+                .checked_mul(TERRAIN_POSITION_REGION_SIDE_Q9)
+                .and_then(|value| value.checked_add(local[1]))
+                .context("terrain Q9 projection Z overflowed")?,
+        ])
+    }
+
     pub fn alias_center(self) -> [u32; 2] {
         [self.config.active_center_x, self.config.active_center_z]
     }
@@ -143,5 +168,21 @@ mod tests {
                 base_ids
             );
         }
+    }
+
+    #[test]
+    fn q9_projection_corners() {
+        let projection =
+            TerrainProjection::for_terrain(LoadConfig::new(MAX_REGION_SIDE, 64, 64, 2).unwrap())
+                .unwrap();
+        assert_eq!(
+            projection.position_q9(0, [-4096, -4096]).unwrap(),
+            [-20_480, -20_480]
+        );
+        assert_eq!(
+            projection.position_q9(24, [4095, 4095]).unwrap(),
+            [20_479, 20_479]
+        );
+        assert!(projection.position_q9(12, [4096, 0]).is_err());
     }
 }

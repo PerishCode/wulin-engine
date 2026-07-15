@@ -224,6 +224,15 @@ enabled = false
 reason = "Centered projection invariants remain private to the terrain renderer."
 
 [[overrides]]
+match = "crates/engine-runtime/src/rendering/renderer/actor_projection.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Actor projection tests exercise the private published-pair join without exporting composition state."
+
+[[overrides]]
 match = "crates/engine-runtime/src/rendering/terrain/transfer.rs"
 kind = "file"
 priority = 10

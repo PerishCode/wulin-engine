@@ -282,6 +282,13 @@ revision 直接改为 `canonical-runtime-v1`，cook/capture collection 直接改
 0060/ADR 0063 文档保留为决策记录，但没有旧路径 fallback、复制器或 wrapper alias。2.1 秒静态/
 operator gate、0.34 秒 init 与 14.33 秒 guard 通过；清理未启动进程或 GPU 工作，因此没有运行
 canonical 全量流程。
+Experiment 0066 接受第一个 actor/render 空间接缝，但仍不冒进到 GPU：renderer 只读当前 exact
+generation 与 enabled published pair，把 signed `i64` region + local Q9 映射为 active ordinal、
+centered semantic region 和 window-relative Q9，并原样保留 Q16 center/half-height 与 schema-3
+presentation；全局坐标不转 float，越界 actor 明确失败。69 个 runtime test、workbench check、
+affected clippy 与 6.61 秒真实进程 gate 通过；`2^40`、seam、alias/rollover、window edge/outside、
+stale handle、rollback 和 replay 均有证据。该路径不进入 frame/GPU resource/shader/sync，因此未
+运行无关的约 10 分钟 canonical 全量流程。
 
 ## Project model
 

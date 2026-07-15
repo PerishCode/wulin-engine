@@ -13,7 +13,7 @@ import {
     startClean,
     status,
     target,
-} from "./canonical-runtime.ts";
+} from "../canonical-runtime.ts";
 
 const REVISION = "runtime-actor-simulation-v1";
 const HALF_HEIGHT = 65_536;

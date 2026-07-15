@@ -102,6 +102,13 @@ pub(super) fn actor_read(value: Value) -> ParsedControl {
     })
 }
 
+pub(super) fn actor_project(value: Value) -> ParsedControl {
+    let payload: ActorHandlePayload = decode(value)?;
+    Ok(ControlKind::ActorProject {
+        generation: payload.generation,
+    })
+}
+
 pub(super) fn actor_despawn(value: Value) -> ParsedControl {
     let payload: ActorHandlePayload = decode(value)?;
     Ok(ControlKind::ActorDespawn {

@@ -381,3 +381,17 @@ impl Renderer {
         Ok(())
     }
 }
+
+impl CompositionCoordinator {
+    pub(super) fn actor_projection_config(&self) -> Result<(GlobalRegionConfig, LoadConfig)> {
+        ensure!(
+            self.enabled,
+            "actor render projection requires enabled canonical composition"
+        );
+        let published = self
+            .published
+            .as_ref()
+            .context("actor render projection requires a published composition")?;
+        Ok((published.global_config, published.config))
+    }
+}

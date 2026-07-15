@@ -43,6 +43,32 @@ pub(super) fn read(runtime: &Runtime, generation: u64) -> ControlResult {
         .map_err(|error| protocol_error("actor_lifecycle_failed", error))
 }
 
+pub(super) fn project(runtime: &Runtime, generation: u64) -> ControlResult {
+    ActorHandle::new(generation)
+        .and_then(|handle| runtime.project_actor(handle))
+        .map(|projection| {
+            json!({
+                "revision": "bounded-actor-render-projection-v1",
+                "projection": projection,
+                "perOperationAllocationBytes": 0,
+                "actorReadCount": 1,
+                "compositionSnapshotReadCount": 1,
+                "terrainQueryCount": 0,
+                "sourceReadCount": 0,
+                "gpuCopyCount": 0,
+                "gpuReadbackCount": 0,
+                "fenceWaitCount": 0,
+                "synchronizationCount": 0,
+                "scheduleMutationCount": 0,
+                "actorMutationCount": 0,
+                "presentationMutationCount": 0,
+                "frameCount": 0,
+                "rendererWorkCount": 0,
+            })
+        })
+        .map_err(|error| protocol_error("actor_projection_failed", error))
+}
+
 pub(super) fn despawn(runtime: &mut Runtime, generation: u64) -> ControlResult {
     ActorHandle::new(generation)
         .and_then(|handle| runtime.despawn_actor(handle))

@@ -75,22 +75,37 @@ impl GlobalRegionConfig {
         self,
         global_region: RegionCoord,
     ) -> Result<Option<AddressedRegion>> {
-        let offset_x = i128::from(global_region.x) - i128::from(self.global_center.x);
-        let offset_z = i128::from(global_region.z) - i128::from(self.global_center.z);
-        let radius = i128::from(self.active_radius);
-        if !(-radius..=radius).contains(&offset_x) || !(-radius..=radius).contains(&offset_z) {
+        let Some([active_x, active_z]) = self.active_offset(global_region) else {
             return Ok(None);
-        }
+        };
 
         let local = self.local_config()?;
-        let local_x = i128::from(local.active_center_x) + offset_x;
-        let local_z = i128::from(local.active_center_z) + offset_z;
-        let local_region_id = u32::try_from(local_z * i128::from(MAX_REGION_SIDE) + local_x)
-            .map_err(|_| anyhow::anyhow!("addressed local region ID overflowed"))?;
+        let local_x = local.active_center_x - self.active_radius + active_x;
+        let local_z = local.active_center_z - self.active_radius + active_z;
+        let local_region_id = local_z * MAX_REGION_SIDE + local_x;
         Ok(Some(AddressedRegion {
             global_region,
             local_region_id,
         }))
+    }
+
+    pub(crate) fn active_index(self, global_region: RegionCoord) -> Option<usize> {
+        let [active_x, active_z] = self.active_offset(global_region)?;
+        let diameter = self.active_radius * 2 + 1;
+        Some((active_z * diameter + active_x) as usize)
+    }
+
+    fn active_offset(self, global_region: RegionCoord) -> Option<[u32; 2]> {
+        let offset_x = i128::from(global_region.x) - i128::from(self.global_center.x);
+        let offset_z = i128::from(global_region.z) - i128::from(self.global_center.z);
+        let radius = i128::from(self.active_radius);
+        if !(-radius..=radius).contains(&offset_x) || !(-radius..=radius).contains(&offset_z) {
+            return None;
+        }
+        Some([
+            u32::try_from(offset_x + radius).expect("bounded active X offset must fit u32"),
+            u32::try_from(offset_z + radius).expect("bounded active Z offset must fit u32"),
+        ])
     }
 }
 
@@ -149,6 +164,32 @@ mod tests {
             config
                 .addressed_region(RegionCoord::new(i64::MIN, i64::MAX))
                 .unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn active_index_bounds() {
+        let far = 1_i64 << 40;
+        let config = GlobalRegionConfig::new(far, -far, far + 1, -far - 1, 2).unwrap();
+        assert_eq!(
+            config.active_index(RegionCoord::new(far - 1, -far - 3)),
+            Some(0)
+        );
+        assert_eq!(
+            config.active_index(RegionCoord::new(far + 1, -far - 1)),
+            Some(12)
+        );
+        assert_eq!(
+            config.active_index(RegionCoord::new(far + 3, -far + 1)),
+            Some(24)
+        );
+        assert_eq!(
+            config.active_index(RegionCoord::new(far + 4, -far - 1)),
+            None
+        );
+        assert_eq!(
+            config.active_index(RegionCoord::new(i64::MIN, i64::MAX)),
             None
         );
     }

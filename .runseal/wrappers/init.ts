@@ -58,6 +58,7 @@ for (
         "crates/engine-runtime/src/runtime/motion_batch.rs",
         "crates/engine-runtime/src/runtime/simulation_actor.rs",
         "crates/engine-runtime/src/timeline/mod.rs",
+        "crates/engine-runtime/src/rendering/renderer/actor_projection.rs",
         "crates/engine-runtime/src/rendering/composition/mod.rs",
         "crates/engine-runtime/src/streaming/objects/mod.rs",
         "crates/engine-runtime/src/streaming/terrain/mod.rs",
@@ -98,6 +99,7 @@ for (
         "experiments/0063-live-prototype-time-driver/README.md",
         "experiments/0064-retained-runtime-actor-authority/README.md",
         "experiments/0065-mandatory-canonical-operator-cleanup/README.md",
+        "experiments/0066-bounded-actor-render-projection/README.md",
         "assets/third-party/khronos-fox/README.md",
         "docs/adr/0035-authored-object-presentation.md",
         "docs/adr/0036-deterministic-temporal-presentation.md",
@@ -125,6 +127,7 @@ for (
         "docs/adr/0066-live-prototype-time-driver.md",
         "docs/adr/0067-retained-runtime-actor-authority.md",
         "docs/adr/0068-neutral-canonical-operator-identity.md",
+        "docs/adr/0069-bounded-actor-render-projection.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",
@@ -150,8 +153,9 @@ for (
         ".runseal/support/cooked-gltf-presentation.ts",
         ".runseal/support/temporal-presentation.ts",
         ".runseal/support/terrain/query.ts",
-        ".runseal/support/actor.ts",
-        ".runseal/support/simulation-actor.ts",
+        ".runseal/support/actor/lifecycle.ts",
+        ".runseal/support/actor/projection.ts",
+        ".runseal/support/actor/simulation.ts",
     ]
 ) await requireFile(file);
 
