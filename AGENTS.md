@@ -95,10 +95,11 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0052 and the current ADR set through 0055 define one live content runtime
+Experiments 0031-0053 and the current ADR set through 0056 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, one caller-owned fixed terrain-motion consumer,
-one caller-owned bounded planar translation and planar-first combined tick, one canonical
+one caller-owned bounded planar translation and planar-first combined tick, one retained terrain
+body lifecycle, one canonical
 translatable terrain position, one offline-cooked external geometry/material/rig source, and one
 deterministic object-shadow path:
 
@@ -121,14 +122,16 @@ deterministic object-shadow path:
 - one runtime-owned rational 60 Hz simulation schedule driven only by explicit bounded elapsed
   nanoseconds, independent from frames and presentation, with no live clock or internal step loop;
 - one caller-owned exact vertical terrain-body motion transaction that consumes exactly one fixed
-  tick through checked semi-implicit integration and committed-snapshot contact, without a body
-  store, horizontal velocity, locomotion controller, or gameplay tuning;
+  tick through checked semi-implicit integration and committed-snapshot contact, without mutating
+  retained state, horizontal velocity, locomotion controller, or gameplay tuning;
 - one caller-owned bounded planar terrain-body translation that composes exact canonical position
   and committed-snapshot contact, preserves vertical velocity, returns unchanged input when upward
   correction exceeds the explicit limit, and never snaps downhill;
 - one caller-owned planar-first terrain-body advance that reuses accepted destination terrain,
   queries retained origin only after a distinct blocked candidate, and then executes exactly one
   fixed vertical step so downhill and blocked intent both progress in the same tick;
+- one runtime-owned optional retained `TerrainBodyMotion` with capacity one, checked nonzero
+  generation handles, exact spawn/read/despawn semantics, and no stored advance or actor policy;
 - one signed-region/half-open-local-Q9 `TerrainPosition` shared by query/contact/motion, with exact
   checked positive, negative, and multi-region planar translation and no compatibility alias;
 - one bounded 225-body contact transition witness in the generic canonical probe; the historical
@@ -145,7 +148,7 @@ deterministic object-shadow path:
   region plus half-open local Q9 and independent from camera, render LOD, source I/O, and GPU work;
 - one caller-owned exact vertical terrain-body contact transaction with strict
   separated/touching/penetrating classification, minimum upward correction, and no runtime body
-  store, gravity, or locomotion policy;
+  mutation, gravity, or locomotion policy;
 - one clear-only diagnostic idle shell with neutral reverse-Z depth and semantic frame targets,
   no calibration scene, and no split-world control surface;
 - one compact `input.*` / `simulation.*` / `camera.*` / `source.*` / `canonical.*` inspect
@@ -192,6 +195,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0053-retired-dense-contact-acceptance.md` | Accepted removal of the historical dense contact command/mode and retention of one bounded witness. |
 | `docs/adr/0054-bounded-terrain-body-translation.md` | Accepted caller-owned exact planar terrain-body translation, explicit step-up bound, and atomic blocked-output contract. |
 | `docs/adr/0055-planar-first-terrain-body-advance.md` | Accepted planar-first one-tick terrain-body composition, destination reuse, and blocked-origin vertical progress. |
+| `docs/adr/0056-retained-terrain-body-lifecycle.md` | Accepted single-slot runtime body ownership, generation lifetime, stale-handle rejection, and deferred actor storage. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -215,11 +219,13 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0050-retired-dense-contact-surface/README.md` | Accepted dense contact history removal, retired-verb rejection, and bounded-witness preservation evidence. |
 | `experiments/0051-bounded-terrain-body-translation/README.md` | Accepted exact planar body translation, bounded upward correction, blocked identity, downhill separation, and replay evidence. |
 | `experiments/0052-planar-first-terrain-body-advance/README.md` | Accepted planar-first combined tick, one/two-query ordering, same-tick downhill, blocked-origin progress, and replay evidence. |
+| `experiments/0053-retained-terrain-body-lifecycle/README.md` | Accepted single retained body, exact lifecycle rollback, generation invalidation, process reset, and replay evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
 | `crates/engine-runtime/src/lib.rs` | Public runtime, capture, semantic, and signed-address surface. |
-| `crates/engine-runtime/src/runtime.rs` | Sole renderer/scene facade, frame-transaction coordinator, explicit simulation schedule owner, and committed-terrain motion/translation/advance entry point. |
+| `crates/engine-runtime/src/runtime/mod.rs` | Sole renderer/scene facade, frame-transaction coordinator, simulation schedule/retained-body owner, and committed-terrain transaction entry point. |
+| `crates/engine-runtime/src/runtime/retained_body.rs` | Single retained terrain-body slot, nonzero generation handle, and exact spawn/read/despawn lifecycle. |
 | `crates/engine-runtime/src/region.rs` | Signed global region value and checked offset owner. |
 | `crates/engine-runtime/src/timeline/mod.rs` | Presentation and simulation timeline ownership boundary. |
 | `crates/engine-runtime/src/timeline/presentation.rs` | Deterministic presentation state, controls, counters, and successful-frame commit. |
@@ -248,8 +254,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `apps/prototype/src/main.rs` | Mandatory-bootstrap non-diagnostic composition root, continuous frame loop, and host-exit input consumer. |
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
-| `apps/workbench/src/inspect/protocol/terrain.rs` | Strict terrain query, contact, motion, translation, and combined-advance payload decoding. |
+| `apps/workbench/src/inspect/protocol/terrain.rs` | Strict terrain query, motion, advance, and retained-body lifecycle payload decoding. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch. |
+| `apps/workbench/src/inspect/app/retained_body.rs` | Strict retained-body lifecycle construction, dispatch, and zero-work evidence response. |
 | `crates/engine-runtime/src/streaming/address.rs` | Signed global window and bounded projection. |
 | `crates/engine-runtime/src/streaming/objects/mod.rs` | Bounded schema-3 object I/O transactions. |
 | `crates/engine-runtime/src/streaming/terrain/mod.rs` | Bounded signed terrain I/O transactions. |
@@ -266,7 +273,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0052 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0053 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
 | `.runseal/support/terrain/contact.ts` | Exact contact rejection, direct classification, and bounded-witness acceptance support. |
@@ -274,6 +281,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/terrain/motion.ts` | Fixed-step trajectory, schedule-partition replay, rollback, restart, and independence acceptance support. |
 | `.runseal/support/terrain/translation.ts` | Real-snapshot bounded translation, blocked identity, downhill, seam, replay, rollback, and independence acceptance support. |
 | `.runseal/support/terrain/advance.ts` | Real-snapshot planar-first ordering, query reuse/order, same-tick downhill, grouped replay, rollback, and independence support. |
+| `.runseal/support/terrain/retained-body.ts` | Retained-body lifecycle, stale-handle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/simulation-schedule.ts` | Partition, replay, rollback, process reset, and temporal-independence acceptance support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
@@ -314,7 +322,7 @@ clear-only idle attachment capture, retired-control rejection, 64-publication re
 and 16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0052-planar-first-terrain-body-advance/` and remains ignored.
+`out/captures/0053-retained-terrain-body-lifecycle/` and remains ignored.
 
 ### 6.3 Manual workbench
 

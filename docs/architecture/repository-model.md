@@ -2,17 +2,18 @@
 
 ## State
 
-Experiments through 0050 and ADR 0053 define the accepted canonical content runtime, reference
+Experiments through 0053 and ADR 0056 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
-motion, exact canonical terrain-position translation, deterministic simulation schedule, and
-retired compatibility/history surfaces. The runtime remains in
+motion, exact planar-first terrain advance, deterministic simulation schedule, one retained body
+lifecycle, and retired compatibility/history surfaces. The runtime remains in
 `crates/engine-runtime`. It owns camera state, signed
 terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
 time, the explicit rational 60 Hz simulation schedule, one signed-region/half-open-local-Q9 terrain
 position with exact checked translation, exact committed-snapshot terrain queries, caller-owned
 vertical contact/motion transactions, neutral frame targets, shaders, probes, and GPU
-device/resource lifecycle. It has no calibration
-scene, split-world control state, body store, live wall-clock driver, or runtime-owned step loop. The
+device/resource lifecycle. It also owns one optional neutral `TerrainBodyMotion` behind a checked
+nonzero generation handle. It has no calibration scene, split-world control state, multi-body
+store, live wall-clock driver, or runtime-owned step loop. The
 format/catalog crates and offline cookers remain independent reusable owners below it.
 
 The runtime owns the sole mutable presentation timeline, successful-frame commit, and simulation
@@ -20,13 +21,16 @@ schedule. The renderer consumes an immutable pre-commit tick for GPU work and ev
 pause, set,
 step, or advance time. Simulation advances only from explicit bounded elapsed nanoseconds and is
 independent from presentation. Caller-owned terrain motion is the first explicit one-tick consumer;
-no host samples monotonic time or drives returned batches. Stall splitting, focus policy, and live
+the retained slot establishes only process-local ownership and spawn/read/despawn lifetime, not
+stored advancement. No host samples monotonic time or drives returned batches. Stall splitting,
+focus policy, and live
 step driving remain unpromoted.
 
 `TerrainPosition` is the sole horizontal identity shared by terrain query, contact, and fixed
 motion. Its pure Q9 translation canonicalizes positive, negative, and multi-region displacement
-without sampling terrain. Planar contact composition, slope/step policy, input mapping, and actor
-storage remain unpromoted.
+without sampling terrain. Bounded planar contact composition and planar-first vertical ordering are
+accepted. Slope policy, input mapping, multi-actor storage, and presentation binding remain
+unpromoted.
 
 Exact contact retains one public direct transaction and one 225-body witness embedded in the
 generic canonical probe. The accepted one-time 230,400-body dense checkpoint is documentation-only;

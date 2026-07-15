@@ -67,6 +67,24 @@ struct BodyAdvancePayload {
     step_acceleration_q16: i32,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BodySpawnPayload {
+    region_x: i64,
+    region_z: i64,
+    local_x_q9: i32,
+    local_z_q9: i32,
+    center_height_numerator: i32,
+    half_height_numerator: i32,
+    step_velocity_q16: i32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BodyHandlePayload {
+    generation: u64,
+}
+
 pub(super) fn height(value: Value) -> ParsedControl {
     let payload: HeightPayload = decode(value)?;
     Ok(ControlKind::CanonicalTerrainHeight {
@@ -133,5 +151,32 @@ pub(super) fn body_advance(value: Value) -> ParsedControl {
         delta_z_q9: payload.delta_z_q9,
         step_up_limit_q16: payload.step_up_limit_q16,
         step_acceleration_q16: payload.step_acceleration_q16,
+    })
+}
+
+pub(super) fn body_spawn(value: Value) -> ParsedControl {
+    let payload: BodySpawnPayload = decode(value)?;
+    Ok(ControlKind::CanonicalTerrainBodySpawn {
+        region_x: payload.region_x,
+        region_z: payload.region_z,
+        local_x_q9: payload.local_x_q9,
+        local_z_q9: payload.local_z_q9,
+        center_height_numerator: payload.center_height_numerator,
+        half_height_numerator: payload.half_height_numerator,
+        step_velocity_q16: payload.step_velocity_q16,
+    })
+}
+
+pub(super) fn body_read(value: Value) -> ParsedControl {
+    let payload: BodyHandlePayload = decode(value)?;
+    Ok(ControlKind::CanonicalTerrainBodyRead {
+        generation: payload.generation,
+    })
+}
+
+pub(super) fn body_despawn(value: Value) -> ParsedControl {
+    let payload: BodyHandlePayload = decode(value)?;
+    Ok(ControlKind::CanonicalTerrainBodyDespawn {
+        generation: payload.generation,
     })
 }

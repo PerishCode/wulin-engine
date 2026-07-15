@@ -16,6 +16,11 @@ use crate::timeline::{
     PresentationTimeline, SimulationAdvance, SimulationSchedule, simulation_probe,
 };
 
+mod retained_body;
+
+use retained_body::TerrainBodySlot;
+pub use retained_body::{RetainedTerrainBody, TerrainBodyHandle};
+
 #[derive(Clone, Copy)]
 pub struct FrameRequest {
     pub clear_color: [f32; 4],
@@ -29,6 +34,7 @@ pub struct Runtime {
     scene: SceneState,
     presentation_timeline: PresentationTimeline,
     simulation_schedule: SimulationSchedule,
+    terrain_body: TerrainBodySlot,
 }
 
 impl Runtime {
@@ -44,6 +50,7 @@ impl Runtime {
             scene: SceneState::new(),
             presentation_timeline: PresentationTimeline::new(),
             simulation_schedule: SimulationSchedule::new(),
+            terrain_body: TerrainBodySlot::new(),
         })
     }
 
@@ -223,6 +230,21 @@ impl Runtime {
             step_acceleration_q16,
             |position| self.query_terrain_height(position),
         )
+    }
+
+    pub fn spawn_terrain_body(&mut self, motion: TerrainBodyMotion) -> Result<RetainedTerrainBody> {
+        self.terrain_body.spawn(motion)
+    }
+
+    pub fn read_terrain_body(&self, handle: TerrainBodyHandle) -> Result<RetainedTerrainBody> {
+        self.terrain_body.read(handle)
+    }
+
+    pub fn despawn_terrain_body(
+        &mut self,
+        handle: TerrainBodyHandle,
+    ) -> Result<RetainedTerrainBody> {
+        self.terrain_body.despawn(handle)
     }
 
     pub fn simulation_status(&self) -> Value {
