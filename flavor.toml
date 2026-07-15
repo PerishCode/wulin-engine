@@ -53,6 +53,15 @@ payload = { max_lines = 700 }
 reason = "The direct acceptance owner keeps lifecycle, fault, traversal, and resource gates in one non-recursive workflow boundary."
 
 [[overrides]]
+match = ".runseal/wrappers/canonical-runtime.ts"
+kind = "file"
+priority = 10
+
+[overrides.rules."core/source/too-long"]
+payload = { max_lines = 520 }
+reason = "The direct non-recursive workflow keeps accepted gate ordering visible until the next mandatory cleanup milestone."
+
+[[overrides]]
 match = "crates/engine-runtime/src/streaming/address.rs"
 kind = "file"
 priority = 10
@@ -123,6 +132,15 @@ priority = 10
 [overrides.rules."rust/tests/in-source"]
 enabled = false
 reason = "Bounded terrain-body translation tests exercise private query sequencing without exporting a test surface."
+
+[[overrides]]
+match = "crates/engine-runtime/src/terrain_query/advance.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Planar-first terrain-body advance tests exercise private composition and query reuse without exporting a test surface."
 
 [[overrides]]
 match = "crates/reference-host/src/input.rs"
