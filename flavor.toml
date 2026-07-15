@@ -53,24 +53,6 @@ payload = { max_lines = 700 }
 reason = "The direct acceptance owner keeps lifecycle, fault, traversal, and resource gates in one non-recursive workflow boundary."
 
 [[overrides]]
-match = "crates/engine-runtime/src/scene/mod.rs"
-kind = "file"
-priority = 10
-
-[overrides.rules."rust/tests/in-source"]
-enabled = false
-reason = "Private scene constants are exercised beside their owner."
-
-[[overrides]]
-match = "crates/engine-runtime/src/world.rs"
-kind = "file"
-priority = 10
-
-[overrides.rules."rust/tests/in-source"]
-enabled = false
-reason = "Split-coordinate invariants remain private to the world owner."
-
-[[overrides]]
 match = "crates/engine-runtime/src/streaming/address.rs"
 kind = "file"
 priority = 10

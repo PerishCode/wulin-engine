@@ -10,8 +10,8 @@ use serde_json::Value;
 use crate::async_resident::{
     AsyncPlanCounts, AsyncReservationReport, AsyncTransactionReport, ObjectSourceNamespace,
 };
+use crate::region::RegionCoord;
 use crate::resident::RegionUpload;
-use crate::world::RegionCoord;
 
 use self::worker::{IoGate, PackWorker, ReadCompletion, ReadRequest};
 

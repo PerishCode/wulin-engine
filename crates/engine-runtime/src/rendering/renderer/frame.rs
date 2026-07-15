@@ -73,8 +73,8 @@ impl Renderer {
                     &self.command_list,
                     TerrainFrame {
                         scene,
-                        render_targets: [handle, self.scene_renderer.object_id_handle()],
-                        depth_target: self.scene_renderer.depth_handle(),
+                        render_targets: [handle, self.frame_targets.semantic_handle()],
+                        depth_target: self.frame_targets.depth_handle(),
                         probe,
                         clear_depth_semantic: true,
                     },
@@ -85,8 +85,8 @@ impl Renderer {
                         snapshot,
                         scene,
                         back_buffer: &self.back_buffers[index],
-                        render_targets: [handle, self.scene_renderer.object_id_handle()],
-                        depth_target: self.scene_renderer.depth_handle(),
+                        render_targets: [handle, self.frame_targets.semantic_handle()],
+                        depth_target: self.frame_targets.depth_handle(),
                         background_color: color,
                         probe,
                         terrain_slots: Some(&terrain_slots),
@@ -96,8 +96,7 @@ impl Renderer {
                     },
                 )?;
             } else {
-                self.scene_renderer
-                    .record(&self.command_list, scene, handle)?;
+                self.frame_targets.clear_idle(&self.command_list);
             }
             if probe {
                 self.async_resident_renderer
@@ -106,15 +105,15 @@ impl Renderer {
             if capture_object_ids {
                 transition(
                     &self.command_list,
-                    self.scene_renderer.object_id_resource(),
+                    self.frame_targets.semantic_resource(),
                     D3D12_RESOURCE_STATE_RENDER_TARGET,
                     D3D12_RESOURCE_STATE_COPY_SOURCE,
                 );
                 self.object_id_capture
-                    .record(&self.command_list, self.scene_renderer.object_id_resource());
+                    .record(&self.command_list, self.frame_targets.semantic_resource());
                 transition(
                     &self.command_list,
-                    self.scene_renderer.object_id_resource(),
+                    self.frame_targets.semantic_resource(),
                     D3D12_RESOURCE_STATE_COPY_SOURCE,
                     D3D12_RESOURCE_STATE_RENDER_TARGET,
                 );

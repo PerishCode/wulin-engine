@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 use crate::address::GlobalRegionConfig;
 use crate::load::{LoadConfig, MAX_REGION_SIDE};
-use crate::world::RegionCoord;
+use crate::region::RegionCoord;
 
 use super::{TraversalBasis, TraversalTarget};
 

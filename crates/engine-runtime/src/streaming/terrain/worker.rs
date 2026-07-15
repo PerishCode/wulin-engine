@@ -99,7 +99,7 @@ impl PackFile {
             metadata: serde_json::to_value(pack.metadata())?,
             regions: pack
                 .regions()
-                .map(|region| crate::world::RegionCoord::new(region.x, region.z))
+                .map(|region| crate::region::RegionCoord::new(region.x, region.z))
                 .collect(),
             source_namespace: TerrainSourceNamespace(pack.source_namespace()),
         };

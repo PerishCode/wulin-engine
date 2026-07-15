@@ -1,9 +1,9 @@
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 
+use crate::region::RegionCoord;
 use crate::streaming::address::GlobalRegionConfig;
 use crate::terrain::TerrainAssignment;
-use crate::world::RegionCoord;
 
 pub const TERRAIN_QUERY_POSITION_DENOMINATOR: i32 = 512;
 pub const TERRAIN_QUERY_HEIGHT_DENOMINATOR: u32 = 65_536;

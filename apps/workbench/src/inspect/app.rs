@@ -63,12 +63,6 @@ pub(crate) fn handle_commands(
             } => runtime
                 .set_camera(position, target, vertical_fov_degrees)
                 .map_err(|error| protocol_error("invalid_camera", error)),
-            ControlKind::SceneListObjects => Ok(runtime.objects_json()),
-            world @ (ControlKind::WorldStatus
-            | ControlKind::WorldRelocate { .. }
-            | ControlKind::WorldRebase { .. }
-            | ControlKind::WorldReset
-            | ControlKind::WorldProbe) => super::world_control::dispatch(runtime, world),
             ControlKind::TerrainSourceOpen { path } => validate_pack_path(&path, PackKind::Terrain)
                 .and_then(|path| runtime.open_terrain_pack(path))
                 .map_err(|error| protocol_error("pack_open_failed", error)),

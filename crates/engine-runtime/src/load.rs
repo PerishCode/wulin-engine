@@ -17,7 +17,7 @@ pub struct LoadConfig {
     pub active_radius: u32,
 }
 
-pub struct RegionSemantic {
+pub struct SemanticObject {
     pub name: String,
     pub kind: String,
     pub color: [f32; 4],
@@ -76,28 +76,32 @@ impl LoadConfig {
     }
 }
 
-pub fn region_semantic(id: u32) -> Option<RegionSemantic> {
+pub fn semantic_object(id: u32) -> Option<SemanticObject> {
+    terrain_semantic(id).or_else(|| region_semantic(id))
+}
+
+fn region_semantic(id: u32) -> Option<SemanticObject> {
     let index = id.checked_sub(REGION_OBJECT_ID_BASE + 1)?;
     if index >= MAX_REGION_SIDE * MAX_REGION_SIDE {
         return None;
     }
     let x = index % MAX_REGION_SIDE;
     let z = index / MAX_REGION_SIDE;
-    Some(RegionSemantic {
+    Some(SemanticObject {
         name: format!("load.region.{x:03}.{z:03}"),
         kind: "region-proxy".into(),
         color: region_color(x, z),
     })
 }
 
-pub fn terrain_semantic(id: u32) -> Option<RegionSemantic> {
+fn terrain_semantic(id: u32) -> Option<SemanticObject> {
     let index = id.checked_sub(TERRAIN_OBJECT_ID_BASE + 1)?;
     if index >= MAX_REGION_SIDE * MAX_REGION_SIDE {
         return None;
     }
     let x = index % MAX_REGION_SIDE;
     let z = index / MAX_REGION_SIDE;
-    Some(RegionSemantic {
+    Some(SemanticObject {
         name: format!("terrain.region.{x:03}.{z:03}"),
         kind: "terrain-region".into(),
         color: region_color(x, z),
