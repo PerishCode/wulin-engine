@@ -2,11 +2,7 @@ import {
     assertObjectCopies,
     assertStopped,
     capture,
-    cookObjects,
-    cookTerrain,
     type Coord,
-    corruptObjects,
-    corruptTerrain,
     event,
     fail,
     failedPair,
@@ -22,20 +18,19 @@ import {
     publish,
     resourcePlateau,
     root,
-    run,
     same,
     setAliasCamera,
     setPosition,
     sleep,
     startClean,
     status,
-    string,
     target,
     targetMatches,
     traversalSweep,
     useSidecar,
     waitStatus,
 } from "../support/canonical-runtime.ts";
+import { prepareCanonicalSetup } from "../support/canonical-setup.ts";
 import {
     presentationInvariant,
     temporalGates,
@@ -55,27 +50,11 @@ import {
 } from "../support/terrain/contact.ts";
 import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 import { simulationScheduleGates } from "../support/simulation-schedule.ts";
-import { terrainMotionGates } from "../support/terrain/motion.ts";
-import { terrainTranslationGates } from "../support/terrain/translation.ts";
-import { terrainAdvanceGates } from "../support/terrain/advance.ts";
 import { retainedBodyGates } from "../support/terrain/retained-body.ts";
 import { retainedAdvanceGates } from "../support/terrain/retained-advance.ts";
 
-const REVISION = "transactional-retained-terrain-body-advance-v1";
-const COLLECTION = "0054-transactional-retained-body-advance";
-const DIRECTORY = `out/cooked/${COLLECTION}`;
-const TERRAIN = `${DIRECTORY}/terrain.wlt`;
-const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
-const OBJECTS_B = `${DIRECTORY}/objects-b.wlr`;
-const OBJECTS_ARCHETYPE = `${DIRECTORY}/objects-archetype.wlr`;
-const OBJECTS_MATERIAL = `${DIRECTORY}/objects-material.wlr`;
-const OBJECTS_YAW = `${DIRECTORY}/objects-yaw.wlr`;
-const OBJECTS_ANIMATION = `${DIRECTORY}/objects-animation.wlr`;
-const OBJECTS_IMPORTED = `${DIRECTORY}/objects-imported.wlr`;
-const OBJECTS_IMPORTED_DURATION = `${DIRECTORY}/objects-imported-duration.wlr`;
-const OBJECTS_CORRUPT = `${DIRECTORY}/objects-corrupt.wlr`;
-const TERRAIN_CORRUPT = `${DIRECTORY}/terrain-corrupt.wlt`;
-const REPORT = `out/captures/${COLLECTION}/acceptance.json`;
+const REVISION = "mandatory-terrain-transaction-cleanup-v1";
+const COLLECTION = "0055-mandatory-terrain-transaction-cleanup";
 const FAR = 2 ** 40;
 const BASE: Coord = [FAR, -FAR];
 
@@ -85,85 +64,21 @@ if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
 }
 if (Deno.args.length !== 0) fail(`canonical-runtime: unexpected argument ${Deno.args[0]}`);
 
-await Deno.mkdir(`${root}/${DIRECTORY}`, { recursive: true });
-await Deno.mkdir(`${root}/out/captures/${COLLECTION}`, { recursive: true });
-useSidecar("sidecar.toml");
-await lifecycle("stop");
-useSidecar("sidecar.benchmark.toml");
-await lifecycle("stop");
-useSidecar("sidecar.bootstrap.toml");
-await lifecycle("stop");
-useSidecar("sidecar.prototype.toml");
-await lifecycle("stop");
-useSidecar("sidecar.toml");
-
-await run(
-    "cargo",
-    [
-        "test",
-        "--locked",
-        "-p",
-        "terrain-format",
-        "-p",
-        "region-format",
-        "-p",
-        "terrain-cooker",
-        "-p",
-        "region-cooker",
-        "-p",
-        "meshlet-catalog",
-        "-p",
-        "surface-catalog",
-        "-p",
-        "animation-catalog",
-        "-p",
-        "reference-host",
-        "-p",
-        "prototype",
-        "-p",
-        "engine-runtime",
-    ],
-    "canonical codec and cooker tests",
-);
-await run(
-    "cargo",
-    ["build", "--locked", "-p", "prototype"],
-    "thin prototype host build",
-);
-
-const centers: Coord[] = [];
-for (let offset = -1; offset <= 80; offset += 1) {
-    centers.push([BASE[0] + offset, BASE[1]]);
-}
-centers.push([BASE[0] + 1, BASE[1] + 1]);
-centers.push([BASE[0] + 41, BASE[1] + 1]);
-const terrainCook = await cookTerrain(TERRAIN, centers);
-const objectCookA = await cookObjects(OBJECTS_A, centers, "a");
-const objectCookB = await cookObjects(OBJECTS_B, centers, "b");
-const objectCookArchetype = await cookObjects(OBJECTS_ARCHETYPE, centers, "a", "archetype");
-const objectCookMaterial = await cookObjects(OBJECTS_MATERIAL, centers, "a", "material");
-const objectCookYaw = await cookObjects(OBJECTS_YAW, centers, "a", "yaw");
-const objectCookAnimation = await cookObjects(OBJECTS_ANIMATION, centers, "a", "animation");
-const objectCookImported = await cookObjects(OBJECTS_IMPORTED, centers, "a", "imported");
-const objectCookImportedDuration = await cookObjects(
-    OBJECTS_IMPORTED_DURATION,
-    centers,
-    "a",
-    "imported-duration",
-);
-const metadataA = object(objectCookA, "metadata");
-const metadataB = object(objectCookB, "metadata");
-if (
-    metadataA.payloadSchema !== 3 || metadataB.payloadSchema !== 3 ||
-    metadataA.stableSeedNamespaceSha256 !== metadataB.stableSeedNamespaceSha256 ||
-    metadataA.sourceNamespaceSha256 === metadataB.sourceNamespaceSha256 ||
-    string(objectCookA, "fileSha256") === string(objectCookB, "fileSha256")
-) fail("canonical object order/source identity gate failed");
-
-await Deno.copyFile(`${root}/${OBJECTS_A}`, `${root}/${OBJECTS_CORRUPT}`);
-await Deno.copyFile(`${root}/${TERRAIN}`, `${root}/${TERRAIN_CORRUPT}`);
-const objectCorruption = await corruptObjects(OBJECTS_CORRUPT, [BASE[0] + 70, BASE[1]]);
-const terrainCorruption = await corruptTerrain(TERRAIN_CORRUPT, [BASE[0] + 75, BASE[1]]);
+const setup = await prepareCanonicalSetup(COLLECTION, BASE);
+const {
+    terrain: TERRAIN,
+    objectsA: OBJECTS_A,
+    objectsB: OBJECTS_B,
+    objectsArchetype: OBJECTS_ARCHETYPE,
+    objectsMaterial: OBJECTS_MATERIAL,
+    objectsYaw: OBJECTS_YAW,
+    objectsAnimation: OBJECTS_ANIMATION,
+    objectsImported: OBJECTS_IMPORTED,
+    objectsImportedDuration: OBJECTS_IMPORTED_DURATION,
+    objectsCorrupt: OBJECTS_CORRUPT,
+    terrainCorrupt: TERRAIN_CORRUPT,
+    report: REPORT,
+} = setup.paths;
 
 let acceptance: Json | undefined;
 try {
@@ -172,9 +87,6 @@ try {
     const prototype = await prototypeHostGates(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE);
     const hostInput = await hostInputGates();
     const simulationSchedule = await simulationScheduleGates();
-    const terrainMotion = await terrainMotionGates(TERRAIN, OBJECTS_A, BASE);
-    const terrainTranslation = await terrainTranslationGates(TERRAIN, OBJECTS_A, BASE);
-    const terrainAdvance = await terrainAdvanceGates(TERRAIN, OBJECTS_A, BASE);
     const retainedBody = await retainedBodyGates();
     const retainedAdvance = await retainedAdvanceGates(TERRAIN, OBJECTS_A, BASE);
     const idle = await status();
@@ -430,27 +342,12 @@ try {
     acceptance = {
         revision: REVISION,
         outcome: "pass",
-        storage: {
-            terrain: terrainCook,
-            objectsA: objectCookA,
-            objectsB: objectCookB,
-            objectsArchetype: objectCookArchetype,
-            objectsMaterial: objectCookMaterial,
-            objectsYaw: objectCookYaw,
-            objectsAnimation: objectCookAnimation,
-            objectsImported: objectCookImported,
-            objectsImportedDuration: objectCookImportedDuration,
-            objectCorruption,
-            terrainCorruption,
-        },
+        storage: setup.storage,
         correctness: {
             bootstrap,
             prototype,
             hostInput,
             simulationSchedule,
-            terrainMotion,
-            terrainTranslation,
-            terrainAdvance,
             retainedBody,
             retainedAdvance,
             compatibilityRemoval,

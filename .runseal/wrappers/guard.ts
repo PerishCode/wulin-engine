@@ -1,4 +1,5 @@
 import { requireContactHistoryRemoved } from "../support/guard/contact-removal.ts";
+import { requireTerrainHistoryRemoved } from "../support/guard/terrain-transaction-removal.ts";
 
 function fail(message: string): never {
     console.error(message);
@@ -413,6 +414,7 @@ await requireWrapperSet();
 await requireRuntimeBoundary();
 await requireCalibrationSurfaceRemoved();
 await requireContactHistoryRemoved(root, fail);
+await requireTerrainHistoryRemoved(root, fail);
 await run("git diff check", "git", ["diff", "--check"]);
 await run("cargo fmt", "cargo", ["fmt", "--all", "--check"]);
 await run("cargo clippy", "cargo", [

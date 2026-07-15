@@ -53,15 +53,6 @@ payload = { max_lines = 700 }
 reason = "The direct acceptance owner keeps lifecycle, fault, traversal, and resource gates in one non-recursive workflow boundary."
 
 [[overrides]]
-match = ".runseal/wrappers/canonical-runtime.ts"
-kind = "file"
-priority = 10
-
-[overrides.rules."core/source/too-long"]
-payload = { max_lines = 520 }
-reason = "The direct non-recursive workflow keeps accepted gate ordering visible until the next mandatory cleanup milestone."
-
-[[overrides]]
 match = "crates/engine-runtime/src/streaming/address.rs"
 kind = "file"
 priority = 10

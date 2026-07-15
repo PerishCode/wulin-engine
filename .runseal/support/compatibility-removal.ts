@@ -39,6 +39,9 @@ export async function compatibilityRemovalGates(
             "world.reset",
             "world.probe",
             "canonical.terrain.contact.probe",
+            "canonical.terrain.body.step",
+            "canonical.terrain.body.translate",
+            "canonical.terrain.body.advance",
         ]
     ) {
         const rejected = await rejectedEvent(verb);
