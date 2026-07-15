@@ -207,6 +207,13 @@ generation 提交 output。accepted/downhill 各一次 query，blocked 两次；
 后读回值完全不变。56 个聚焦测试和 23.36 秒双进程门通过，result/replay SHA-256 均为
 `54dacac84b69c1ef1e98d127de23e646b0d18e6c9934e50d3e832abefa56f529`。操作仍不读取
 simulation schedule，不采样 wall clock/input，也不绑定 actor presentation。
+Experiment 0055 完成逢五强制清理：删除 `canonical.terrain.body.step/translate/advance` 的完整
+inspect、protocol、workbench、`Runtime` forwarding 与 recurring support 链，不留 alias；三个纯
+transaction 模块和 56 个测试仍作为 retained advance 的内部权威。三个 support 文件共删除 1,018
+行，direct wrapper 从 508 降至 405 物理行并移除临时 520-line Flavor 例外。提取后的 typed setup
+生成并校验全部 11 个确定性 pack/corruption artifact；10.74 秒单进程门确认十个历史 verb 均为
+`unknown_event`，现有 retained 路由的失败回滚保持精确。该 control/setup-only 变更没有重复约
+十分钟全量流程，稳定 guard 会阻止旧链回流。
 
 ## Project model
 
@@ -263,10 +270,8 @@ runtime and timeline ownership, successful-frame transactions, deterministic hos
 strict configured canonical readiness, shared reference-host ownership, plain prototype
 startup/restart/cleanup, exact published-snapshot CPU terrain queries,
 exact caller-owned vertical terrain contact and bounded transition witnesses, the explicit bounded
-60 Hz simulation schedule and its frame/presentation independence, exact caller-owned fixed
-terrain-body motion and schedule-partition independence, bounded planar terrain-body translation
-with atomic blocked output and no downhill snap, planar-first single-tick composition with
-destination-query reuse and blocked-origin progress,
+60 Hz simulation schedule and its frame/presentation independence, private fixed terrain-body
+motion/translation/planar-first transaction contracts through the retained mutation path,
 one retained terrain-body generation lifecycle with exact failure rollback and process reset,
 transactional retained planar-first advance with commit-after-success rollback semantics,
 clear-only idle behavior and retired-control rejection, composition, fault rollback,

@@ -2,16 +2,17 @@
 
 ## State
 
-Experiments through 0054 and ADR 0057 define the accepted canonical content runtime, reference
+Experiments through 0055 and ADR 0058 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
-motion, exact planar-first terrain advance, deterministic simulation schedule, one retained body
+motion/planar terrain transaction contracts, deterministic simulation schedule, one retained body
 lifecycle plus transactional stored advance, and retired compatibility/history surfaces. The
 runtime remains in
 `crates/engine-runtime`. It owns camera state, signed
 terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
 time, the explicit rational 60 Hz simulation schedule, one signed-region/half-open-local-Q9 terrain
 position with exact checked translation, exact committed-snapshot terrain queries, caller-owned
-vertical contact/motion transactions, neutral frame targets, shaders, probes, and GPU
+vertical contact, private terrain motion/translation/advance composition, neutral frame targets,
+shaders, probes, and GPU
 device/resource lifecycle. It also owns one optional neutral `TerrainBodyMotion` behind a checked
 nonzero generation handle. It has no calibration scene, split-world control state, multi-body
 store, live wall-clock driver, or runtime-owned step loop. The
@@ -21,9 +22,10 @@ The runtime owns the sole mutable presentation timeline, successful-frame commit
 schedule. The renderer consumes an immutable pre-commit tick for GPU work and evidence; it cannot
 pause, set,
 step, or advance time. Simulation advances only from explicit bounded elapsed nanoseconds and is
-independent from presentation. Caller-owned terrain motion is the first explicit one-tick consumer;
-the retained slot establishes process-local ownership and spawn/read/despawn lifetime. One explicit
-handle-addressed operation now runs the same planar-first tick and commits only after success. No
+independent from presentation. Private pure terrain transactions establish the one-tick spatial
+contract; they have no copied-value inspect command or public `Runtime` mutation method. The retained
+slot establishes process-local ownership and spawn/read/despawn lifetime. One explicit handle-
+addressed operation runs the planar-first tick and commits only after success. No
 host samples monotonic time or drives returned batches. Stall splitting,
 focus policy, and live
 step driving remain unpromoted.
