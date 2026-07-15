@@ -1,5 +1,6 @@
 mod actor;
 mod camera;
+mod locomotion;
 mod time;
 
 use anyhow::{Context, Result};
@@ -55,15 +56,16 @@ unsafe fn run() -> Result<()> {
             window::request_close(hwnd)?;
             continue;
         }
+        let command = locomotion::command(&input);
         let sample = clock.sample(&window::drain_activation())?;
         let outcome = time::admitted_elapsed(sample)
             .map(|elapsed_nanoseconds| {
                 runtime.advance_simulation_actor(
                     runtime_actor.handle,
                     elapsed_nanoseconds,
-                    0,
-                    0,
-                    0,
+                    command.delta_x_q9,
+                    command.delta_z_q9,
+                    command.step_up_limit_q16,
                     actor::GRAVITY_STEP_ACCELERATION_Q16,
                 )
             })
@@ -74,7 +76,7 @@ unsafe fn run() -> Result<()> {
             .flatten();
         let completed = advance
             .filter(|advance| advance.simulation.step_count != 0)
-            .map(|advance| (sample, clock.status(), advance));
+            .map(|advance| (sample, clock.status(), advance, command));
         runtime.set_actor_relative_camera(
             runtime_actor.handle,
             camera::POSITION_OFFSET,
@@ -96,7 +98,7 @@ unsafe fn run() -> Result<()> {
         live_frame_count = live_frame_count
             .checked_add(1)
             .context("prototype live frame count overflowed")?;
-        if let Some((sample, clock, advance)) = completed
+        if let Some((sample, clock, advance, command)) = completed
             && let Some(startup) = startup.take()
         {
             publish_readiness(ReadinessEvidence {
@@ -106,6 +108,7 @@ unsafe fn run() -> Result<()> {
                 sample,
                 clock,
                 advance,
+                command,
                 bootstrap_frame_count,
                 live_frame_count,
                 anchored_camera,
@@ -127,6 +130,7 @@ struct ReadinessEvidence {
     sample: HostElapsedSample,
     clock: HostClockStatus,
     advance: ActorSimulationAdvance,
+    command: locomotion::Command,
     bootstrap_frame_count: u64,
     live_frame_count: u64,
     anchored_camera: Value,
@@ -152,13 +156,13 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "state": evidence.runtime_actor,
             },
             "simulation_driver": {
-                "revision": "live-prototype-gravity-driver-v2",
+                "revision": "live-prototype-locomotion-driver-v1",
                 "sample": evidence.sample,
                 "clock": evidence.clock,
                 "command": {
-                    "deltaXQ9": 0,
-                    "deltaZQ9": 0,
-                    "stepUpLimitQ16": 0,
+                    "deltaXQ9": evidence.command.delta_x_q9,
+                    "deltaZQ9": evidence.command.delta_z_q9,
+                    "stepUpLimitQ16": evidence.command.step_up_limit_q16,
                     "stepAccelerationQ16": actor::GRAVITY_STEP_ACCELERATION_Q16,
                 },
                 "advance": evidence.advance,
