@@ -2,10 +2,10 @@
 
 ## State
 
-Experiments through 0055 and ADR 0058 define the accepted canonical content runtime, reference
+Experiments through 0056 and ADR 0059 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
 motion/planar terrain transaction contracts, deterministic simulation schedule, one retained body
-lifecycle plus transactional stored advance, and retired compatibility/history surfaces. The
+lifecycle plus transactional stored single/batch advance, and retired compatibility/history surfaces. The
 runtime remains in
 `crates/engine-runtime`. It owns camera state, signed
 terrain/object streaming, atomic composition, traversal/prefetch/rollover, rendering, presentation
@@ -29,6 +29,11 @@ addressed operation runs the planar-first tick and commits only after success. N
 host samples monotonic time or drives returned batches. Stall splitting,
 focus policy, and live
 step driving remain unpromoted.
+
+The retained batch accepts an explicit 0..=8 count, repeats one controlled spatial command in local
+motion, and replaces the slot only after every tick succeeds. It does not mutate the schedule. A
+future live driver therefore still needs an atomic schedule preview/body batch/final commit boundary;
+sequencing the two existing committed operations is not accepted.
 
 `TerrainPosition` is the sole horizontal identity shared by terrain query, contact, and fixed
 motion. Its pure Q9 translation canonicalizes positive, negative, and multi-region displacement

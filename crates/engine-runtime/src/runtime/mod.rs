@@ -15,8 +15,11 @@ use crate::timeline::{
     PresentationTimeline, SimulationAdvance, SimulationSchedule, simulation_probe,
 };
 
+mod retained_batch;
 mod retained_body;
 
+pub use retained_batch::RetainedTerrainBodyBatch;
+use retained_batch::advance_motion_batch;
 use retained_body::TerrainBodySlot;
 pub use retained_body::{RetainedTerrainBody, RetainedTerrainBodyAdvance, TerrainBodyHandle};
 
@@ -225,6 +228,34 @@ impl Runtime {
             input,
             advance,
             output,
+        })
+    }
+
+    pub fn advance_retained_body_batch(
+        &mut self,
+        handle: TerrainBodyHandle,
+        step_count: u32,
+        delta_x_q9: i32,
+        delta_z_q9: i32,
+        step_up_limit_q16: i32,
+        step_acceleration_q16: i32,
+    ) -> Result<RetainedTerrainBodyBatch> {
+        let input = self.terrain_body.read(handle)?;
+        let batch = advance_motion_batch(
+            input.motion,
+            step_count,
+            delta_x_q9,
+            delta_z_q9,
+            step_up_limit_q16,
+            step_acceleration_q16,
+            |position| self.query_terrain_height(position),
+        )?;
+        let output = self.terrain_body.replace(handle, batch.output)?;
+        Ok(RetainedTerrainBodyBatch {
+            input,
+            output,
+            step_count,
+            terrain_query_count: batch.terrain_query_count,
         })
     }
 
