@@ -57,9 +57,10 @@ import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 import { simulationScheduleGates } from "../support/simulation-schedule.ts";
 import { terrainMotionGates } from "../support/terrain/motion.ts";
 import { terrainTranslationGates } from "../support/terrain/translation.ts";
+import { terrainAdvanceGates } from "../support/terrain/advance.ts";
 
-const REVISION = "bounded-terrain-body-translation-v1";
-const COLLECTION = "0051-bounded-terrain-body-translation";
+const REVISION = "planar-first-terrain-body-advance-v1";
+const COLLECTION = "0052-planar-first-terrain-body-advance";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;
@@ -171,6 +172,7 @@ try {
     const simulationSchedule = await simulationScheduleGates();
     const terrainMotion = await terrainMotionGates(TERRAIN, OBJECTS_A, BASE);
     const terrainTranslation = await terrainTranslationGates(TERRAIN, OBJECTS_A, BASE);
+    const terrainAdvance = await terrainAdvanceGates(TERRAIN, OBJECTS_A, BASE);
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
@@ -444,6 +446,7 @@ try {
             simulationSchedule,
             terrainMotion,
             terrainTranslation,
+            terrainAdvance,
             compatibilityRemoval,
             terrainQuery,
             terrainContact,

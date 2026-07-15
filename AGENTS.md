@@ -95,11 +95,12 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0051 and the current ADR set through 0054 define one live content runtime
+Experiments 0031-0052 and the current ADR set through 0055 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, one caller-owned fixed terrain-motion consumer,
-one caller-owned bounded planar translation, one canonical translatable terrain position, one
-offline-cooked external geometry/material/rig source, and one deterministic object-shadow path:
+one caller-owned bounded planar translation and planar-first combined tick, one canonical
+translatable terrain position, one offline-cooked external geometry/material/rig source, and one
+deterministic object-shadow path:
 
 - signed `i64` terrain packs (`.wlt`);
 - signed schema-3 object packs (`.wlr`) with explicit authored local IDs and presentation;
@@ -125,6 +126,9 @@ offline-cooked external geometry/material/rig source, and one deterministic obje
 - one caller-owned bounded planar terrain-body translation that composes exact canonical position
   and committed-snapshot contact, preserves vertical velocity, returns unchanged input when upward
   correction exceeds the explicit limit, and never snaps downhill;
+- one caller-owned planar-first terrain-body advance that reuses accepted destination terrain,
+  queries retained origin only after a distinct blocked candidate, and then executes exactly one
+  fixed vertical step so downhill and blocked intent both progress in the same tick;
 - one signed-region/half-open-local-Q9 `TerrainPosition` shared by query/contact/motion, with exact
   checked positive, negative, and multi-region planar translation and no compatibility alias;
 - one bounded 225-body contact transition witness in the generic canonical probe; the historical
@@ -187,6 +191,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0052-canonical-terrain-position-translation.md` | Accepted query-neutral terrain position, Euclidean seam normalization, and checked translation contract. |
 | `docs/adr/0053-retired-dense-contact-acceptance.md` | Accepted removal of the historical dense contact command/mode and retention of one bounded witness. |
 | `docs/adr/0054-bounded-terrain-body-translation.md` | Accepted caller-owned exact planar terrain-body translation, explicit step-up bound, and atomic blocked-output contract. |
+| `docs/adr/0055-planar-first-terrain-body-advance.md` | Accepted planar-first one-tick terrain-body composition, destination reuse, and blocked-origin vertical progress. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -209,16 +214,18 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0049-exact-terrain-position-translation/README.md` | Accepted canonical terrain position, exact signed seam translation, overflow rollback, and oracle-sweep evidence. |
 | `experiments/0050-retired-dense-contact-surface/README.md` | Accepted dense contact history removal, retired-verb rejection, and bounded-witness preservation evidence. |
 | `experiments/0051-bounded-terrain-body-translation/README.md` | Accepted exact planar body translation, bounded upward correction, blocked identity, downhill separation, and replay evidence. |
+| `experiments/0052-planar-first-terrain-body-advance/README.md` | Accepted planar-first combined tick, one/two-query ordering, same-tick downhill, blocked-origin progress, and replay evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
 | `crates/engine-runtime/src/lib.rs` | Public runtime, capture, semantic, and signed-address surface. |
-| `crates/engine-runtime/src/runtime.rs` | Sole renderer/scene facade, frame-transaction coordinator, explicit simulation schedule owner, and committed-terrain motion/translation entry point. |
+| `crates/engine-runtime/src/runtime.rs` | Sole renderer/scene facade, frame-transaction coordinator, explicit simulation schedule owner, and committed-terrain motion/translation/advance entry point. |
 | `crates/engine-runtime/src/region.rs` | Signed global region value and checked offset owner. |
 | `crates/engine-runtime/src/timeline/mod.rs` | Presentation and simulation timeline ownership boundary. |
 | `crates/engine-runtime/src/timeline/presentation.rs` | Deterministic presentation state, controls, counters, and successful-frame commit. |
 | `crates/engine-runtime/src/timeline/simulation.rs` | Exact rational simulation accumulator, checked transaction, typed batch, and isolated long-duration probe. |
 | `crates/engine-runtime/src/terrain_query/mod.rs` | Exact height query, caller-owned body, and minimum-correction contact transaction. |
+| `crates/engine-runtime/src/terrain_query/advance.rs` | Planar-first translation/vertical composition, destination-height reuse, ordered blocked-origin query, and final tick output. |
 | `crates/engine-runtime/src/terrain_query/motion.rs` | Caller-owned fixed vertical motion, checked one-tick integration, and grounded composition. |
 | `crates/engine-runtime/src/terrain_query/position.rs` | Canonical signed-region/local-Q9 terrain position and checked Euclidean translation. |
 | `crates/engine-runtime/src/terrain_query/translation.rs` | Caller-owned exact planar body candidate, one-query contact composition, step-up bound, and atomic output decision. |
@@ -241,6 +248,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `apps/prototype/src/main.rs` | Mandatory-bootstrap non-diagnostic composition root, continuous frame loop, and host-exit input consumer. |
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
+| `apps/workbench/src/inspect/protocol/terrain.rs` | Strict terrain query, contact, motion, translation, and combined-advance payload decoding. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch. |
 | `crates/engine-runtime/src/streaming/address.rs` | Signed global window and bounded projection. |
 | `crates/engine-runtime/src/streaming/objects/mod.rs` | Bounded schema-3 object I/O transactions. |
@@ -258,13 +266,14 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0051 acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-runtime.ts` | Direct Experiment 0052 acceptance entry point over the converged runtime. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
 | `.runseal/support/terrain/contact.ts` | Exact contact rejection, direct classification, and bounded-witness acceptance support. |
 | `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for the retired dense contact command and runtime coverage mode. |
 | `.runseal/support/terrain/motion.ts` | Fixed-step trajectory, schedule-partition replay, rollback, restart, and independence acceptance support. |
 | `.runseal/support/terrain/translation.ts` | Real-snapshot bounded translation, blocked identity, downhill, seam, replay, rollback, and independence acceptance support. |
+| `.runseal/support/terrain/advance.ts` | Real-snapshot planar-first ordering, query reuse/order, same-tick downhill, grouped replay, rollback, and independence support. |
 | `.runseal/support/simulation-schedule.ts` | Partition, replay, rollback, process reset, and temporal-independence acceptance support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
@@ -299,12 +308,13 @@ readiness, shared reference-host ownership, prototype startup/restart/cleanup, f
 directional object shadows, exact CPU terrain-height query/body contact and oracle evidence, a
 bounded contact transition witness, the explicit simulation schedule and its partition/replay,
 rollback, restart, frame, and presentation-independence gates, exact fixed terrain-body motion and
-schedule-partition replay, bounded planar terrain-body translation and replay, a same-process
+schedule-partition replay, bounded planar terrain-body translation and replay, planar-first combined
+advance, query reuse/order, and grouped replay, a same-process
 clear-only idle attachment capture, retired-control rejection, 64-publication resource plateau,
 and 16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0051-bounded-terrain-body-translation/` and remains ignored.
+`out/captures/0052-planar-first-terrain-body-advance/` and remains ignored.
 
 ### 6.3 Manual workbench
 

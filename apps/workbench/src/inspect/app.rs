@@ -265,6 +265,50 @@ pub(crate) fn handle_commands(
                         })
                 })
                 .map_err(|error| protocol_error("terrain_translation_failed", error)),
+            ControlKind::CanonicalTerrainBodyAdvance {
+                region_x,
+                region_z,
+                local_x_q9,
+                local_z_q9,
+                center_height_numerator,
+                half_height_numerator,
+                step_velocity_q16,
+                delta_x_q9,
+                delta_z_q9,
+                step_up_limit_q16,
+                step_acceleration_q16,
+            } => TerrainPosition::new(RegionCoord::new(region_x, region_z), local_x_q9, local_z_q9)
+                .and_then(|position| {
+                    TerrainBody::new(position, center_height_numerator, half_height_numerator)
+                })
+                .map(|body| TerrainBodyMotion::new(body, step_velocity_q16))
+                .and_then(|motion| {
+                    runtime
+                        .advance_terrain_body(
+                            motion,
+                            delta_x_q9,
+                            delta_z_q9,
+                            step_up_limit_q16,
+                            step_acceleration_q16,
+                        )
+                        .map(|advance| {
+                            json!({
+                                "revision": "planar-first-terrain-body-advance-v1",
+                                "advance": advance,
+                                "perAdvanceAllocationBytes": 0,
+                                "sourceReadCount": 0,
+                                "gpuCopyCount": 0,
+                                "gpuReadbackCount": 0,
+                                "fenceWaitCount": 0,
+                                "synchronizationCount": 0,
+                                "scheduleMutationCount": 0,
+                                "presentationMutationCount": 0,
+                                "frameCount": 0,
+                                "rendererWorkCount": 0,
+                            })
+                        })
+                })
+                .map_err(|error| protocol_error("terrain_advance_failed", error)),
             ControlKind::ObjectIoGateArm => gate(runtime.arm_object_io_gate()),
             ControlKind::ObjectIoGateRelease => gate(runtime.release_object_io_gate()),
             ControlKind::ObjectCopyGateArm => gate(runtime.arm_object_copy_gate()),

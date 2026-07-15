@@ -4,10 +4,13 @@ use serde::Serialize;
 use crate::streaming::address::GlobalRegionConfig;
 use crate::terrain::TerrainAssignment;
 
+mod advance;
 mod motion;
 mod position;
 mod translation;
 
+pub use advance::TerrainBodyAdvance;
+pub(crate) use advance::advance_terrain_body;
 pub(crate) use motion::integrate_terrain_body_step;
 pub use motion::{TerrainBodyMotion, TerrainBodyStep};
 pub use position::{
