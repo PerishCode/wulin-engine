@@ -74,7 +74,7 @@ export async function requireSimulationHistoryRemoved(
             ".runseal/wrappers",
             ".runseal/support/actor/lifecycle.ts",
             ".runseal/support/actor/simulation.ts",
-            ".runseal/support/prototype-host.ts",
+            ".runseal/support/prototype/host.ts",
         ],
         "independent simulation gate",
     );

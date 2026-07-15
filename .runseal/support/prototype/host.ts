@@ -10,8 +10,9 @@ import {
     same,
     string,
     useSidecar,
-} from "./canonical-runtime.ts";
-import { holdPrototypeForwardKey } from "./prototype-input.ts";
+} from "../canonical-runtime.ts";
+import { holdPrototypeForwardKey } from "./input.ts";
+import { traversalInvariant } from "./traversal.ts";
 
 const CONFIG = "out/cooked/bootstrap/runtime.json";
 const SIDECAR = "sidecar.prototype.toml";
@@ -422,15 +423,24 @@ export async function prototypeHostGates(
         cameraDriverInvariant(first),
         "prototype restart camera driver",
     );
+    const firstTraversal = traversalInvariant(first, base);
+    same(
+        traversalInvariant(restarted, base),
+        firstTraversal,
+        "prototype restart traversal activation",
+    );
     same(startupInvariant(forward), startupInvariant(first), "prototype locomotion configuration");
     same(
         actorInvariant(forward, base),
         actorInvariant(first, base),
         "prototype locomotion initial actor authority",
     );
+    const forwardTraversal = traversalInvariant(forward, base);
+    same(forwardTraversal, firstTraversal, "prototype locomotion traversal activation");
     const forwardInvariant = {
         simulation: simulationDriverInvariant(forward, FORWARD_COMMAND),
         camera: cameraDriverInvariant(forward),
+        traversal: forwardTraversal,
     };
 
     await lifecycle("start");

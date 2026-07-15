@@ -6,9 +6,9 @@ import {
     run,
     stopCanonicalProcesses,
 } from "../support/canonical-runtime.ts";
-import { prototypeHostGates } from "../support/prototype-host.ts";
+import { prototypeHostGates } from "../support/prototype/host.ts";
 
-const REVISION = "canonical-prototype-v4";
+const REVISION = "canonical-prototype-v5";
 const COLLECTION = "canonical-prototype";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];

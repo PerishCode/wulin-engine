@@ -39,6 +39,9 @@ unsafe fn run() -> Result<()> {
     let mut input = HostInput::new();
     let ready = unsafe { bootstrap::drive(&mut runtime, &mut input, &plan, CLEAR_COLOR)? };
     let runtime_actor = spawn_initial_actor(&mut runtime, plan.global_config())?;
+    runtime
+        .enable_composition_traversal()
+        .context("prototype composition traversal activation failed")?;
     let mut clock = HostClock::new();
     let mut startup = Some(ready.status);
     let bootstrap_frame_count = ready.frame_count;
@@ -103,6 +106,7 @@ unsafe fn run() -> Result<()> {
         {
             publish_readiness(ReadinessEvidence {
                 startup,
+                traversal: runtime.composition_status()["traversal"].clone(),
                 sample,
                 clock,
                 advance,
@@ -123,6 +127,7 @@ unsafe fn run() -> Result<()> {
 
 struct ReadinessEvidence {
     startup: Value,
+    traversal: Value,
     sample: HostElapsedSample,
     clock: HostClockStatus,
     advance: ActorSimulationAdvance,
@@ -145,6 +150,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
             "role": "prototype",
             "instance_id": std::process::id().to_string(),
             "startup": evidence.startup,
+            "traversal": evidence.traversal,
             "actor": {
                 "capacity": 1,
                 "liveCount": 1,

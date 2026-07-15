@@ -1,4 +1,4 @@
-import { fail, type Json, root } from "./canonical-runtime.ts";
+import { fail, type Json, root } from "../canonical-runtime.ts";
 
 const decoder = new TextDecoder();
 
