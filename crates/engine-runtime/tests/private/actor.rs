@@ -1,4 +1,4 @@
-use super::{ActorHandle, ActorPresentation, ActorSlot, RuntimeActor};
+use super::{ActorHandle, ActorPresentation, ActorSlot, RuntimeActor, transition_animation_epoch};
 use crate::RegionCoord;
 use crate::terrain_query::{TerrainBody, TerrainBodyMotion, TerrainPosition};
 
@@ -29,10 +29,11 @@ fn slot_spawns_reads_and_despawns_exact_actor() {
     let mut slot = ActorSlot::new();
     let input = motion(200_000, -17);
 
-    let first = slot.spawn(input, presentation()).unwrap();
+    let first = slot.spawn(input, presentation(), 17).unwrap();
     assert_eq!(first.handle.generation(), 1);
     assert_eq!(first.motion, input);
     assert_eq!(first.presentation, presentation());
+    assert_eq!(first.animation_epoch_tick, 17);
     assert_eq!(slot.read(first.handle).unwrap(), first);
     assert_eq!(slot.despawn(first.handle).unwrap(), first);
     assert!(slot.read(first.handle).is_err());
@@ -49,22 +50,33 @@ fn invalid_presentations_do_not_consume_generation_or_occupy_slot() {
     ];
     let mut slot = ActorSlot::new();
     for presentation in invalid {
-        assert!(slot.spawn(motion(1, 2), presentation).is_err());
+        assert!(slot.spawn(motion(1, 2), presentation, 0).is_err());
         assert_eq!(slot.generation, 0);
         assert!(slot.actor.is_none());
     }
 
-    let actor = slot.spawn(motion(3, 4), presentation()).unwrap();
+    assert!(
+        slot.spawn(
+            motion(1, 2),
+            presentation(),
+            animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD,
+        )
+        .is_err()
+    );
+    let actor = slot.spawn(motion(3, 4), presentation(), 0).unwrap();
     assert_eq!(actor.handle.generation(), 1);
 }
 
 #[test]
 fn occupied_spawn_and_wrong_handle_preserve_live_actor() {
     let mut slot = ActorSlot::new();
-    let first = slot.spawn(motion(300_000, 23), presentation()).unwrap();
+    let first = slot.spawn(motion(300_000, 23), presentation(), 0).unwrap();
     let wrong = ActorHandle::new(first.handle.generation() + 1).unwrap();
 
-    assert!(slot.spawn(motion(-100_000, -99), presentation()).is_err());
+    assert!(
+        slot.spawn(motion(-100_000, -99), presentation(), 1)
+            .is_err()
+    );
     assert!(slot.read(wrong).is_err());
     assert!(slot.despawn(wrong).is_err());
     assert_eq!(slot.read(first.handle).unwrap(), first);
@@ -73,10 +85,10 @@ fn occupied_spawn_and_wrong_handle_preserve_live_actor() {
 #[test]
 fn respawn_changes_generation_and_rejects_stale_handle() {
     let mut slot = ActorSlot::new();
-    let first = slot.spawn(motion(1, 2), presentation()).unwrap();
+    let first = slot.spawn(motion(1, 2), presentation(), 5).unwrap();
     slot.despawn(first.handle).unwrap();
 
-    let second = slot.spawn(motion(3, 4), presentation()).unwrap();
+    let second = slot.spawn(motion(3, 4), presentation(), 9).unwrap();
     assert_eq!(second.handle.generation(), 2);
     assert_ne!(second.handle, first.handle);
     assert!(slot.read(first.handle).is_err());
@@ -91,7 +103,7 @@ fn generation_exhaustion_leaves_empty_slot_unchanged() {
         actor: None,
     };
 
-    assert!(slot.spawn(motion(5, 6), presentation()).is_err());
+    assert!(slot.spawn(motion(5, 6), presentation(), 0).is_err());
     assert_eq!(slot.generation, u64::MAX);
     assert!(slot.actor.is_none());
 }
@@ -99,7 +111,7 @@ fn generation_exhaustion_leaves_empty_slot_unchanged() {
 #[test]
 fn state_replace_preserves_generation_and_changes_complete_state() {
     let mut slot = ActorSlot::new();
-    let actor = slot.spawn(motion(100, -3), presentation()).unwrap();
+    let actor = slot.spawn(motion(100, -3), presentation(), 11).unwrap();
     let replacement = RuntimeActor {
         motion: motion(-200, 7),
         presentation: ActorPresentation::animated(7, 63, 17, 0, 0, 0),
@@ -120,15 +132,17 @@ fn empty_and_wrong_handle_replace_preserve_slot() {
         handle: absent,
         motion: motion(1, 2),
         presentation: presentation(),
+        animation_epoch_tick: 0,
     };
     assert!(slot.replace_state(absent, absent_replacement).is_err());
 
-    let actor = slot.spawn(motion(3, 4), presentation()).unwrap();
+    let actor = slot.spawn(motion(3, 4), presentation(), 0).unwrap();
     let wrong = ActorHandle::new(2).unwrap();
     let wrong_replacement = RuntimeActor {
         handle: wrong,
         motion: motion(5, 6),
         presentation: presentation(),
+        animation_epoch_tick: 0,
     };
     assert!(slot.replace_state(wrong, wrong_replacement).is_err());
     let invalid_replacement = RuntimeActor {
@@ -140,4 +154,32 @@ fn empty_and_wrong_handle_replace_preserve_slot() {
             .is_err()
     );
     assert_eq!(slot.read(actor.handle).unwrap(), actor);
+}
+
+#[test]
+fn animation_epoch_resets_only_when_the_animation_stream_changes() {
+    let mut slot = ActorSlot::new();
+    let actor = slot.spawn(motion(1, 2), presentation(), 37).unwrap();
+    let same_clip = ActorPresentation::animated(7, 62, 9, 1, 17, 5);
+    assert_eq!(
+        transition_animation_epoch(actor, same_clip, 41).unwrap(),
+        37
+    );
+    let new_clip = ActorPresentation::animated(7, 63, 0, 0, 0, 0);
+    assert_eq!(transition_animation_epoch(actor, new_clip, 41).unwrap(), 41);
+    let new_rig = ActorPresentation::animated(6, 63, 0, 1, 0, 0);
+    assert_eq!(transition_animation_epoch(actor, new_rig, 41).unwrap(), 41);
+    let static_output = ActorPresentation::static_object(7, 63, 0);
+    assert_eq!(
+        transition_animation_epoch(actor, static_output, 41).unwrap(),
+        41
+    );
+    assert!(
+        transition_animation_epoch(
+            actor,
+            new_clip,
+            animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD,
+        )
+        .is_err()
+    );
 }

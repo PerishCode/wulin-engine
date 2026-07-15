@@ -21,7 +21,7 @@ const HALF_HEIGHT_Q16 = 65_536;
 const SHORT_STEP_NANOSECONDS = 16_666_666;
 const LONG_STEP_NANOSECONDS = 16_666_667;
 const I32_MAX = 2_147_483_647;
-const REVISION = "runtime-actor-simulation-v3";
+const REVISION = "runtime-actor-simulation-v4";
 const SURVEY = { archetype: 7, material: 63, yaw_q16: 0, animation: 0 };
 const WALK = { ...SURVEY, animation: 1 };
 
@@ -176,7 +176,11 @@ async function heldPending(
     });
     await event("workbench.pause");
 
+    const presentationTick = number(await event("canonical.time.status"), "tick");
     const actor = object(await event("actor.spawn", await groundedActor(base)), "actor");
+    if (number(actor, "animationEpochTick") !== presentationTick) {
+        fail("shared-window actor spawn animation epoch diverged");
+    }
     const admitted = requireAdvance(
         await event(
             "simulation.actor.advance",
@@ -205,6 +209,9 @@ async function heldPending(
         number(committedPresentation, "yawQ16") !== 0 ||
         number(committedPresentation, "animation") !== 1
     ) fail("shared-window actor presentation commit diverged");
+    if (number(committed, "animationEpochTick") !== presentationTick) {
+        fail("shared-window clip transition epoch diverged");
+    }
 
     const actorBeforeBlock = object(await event("actor.read", { generation: 2 }), "actor");
     const simulationBeforeBlock = await event("simulation.status");
@@ -258,6 +265,7 @@ async function heldPending(
         processId: await stopProcess(),
         publication,
         scheduled,
+        presentationTick,
         held,
         actor,
         admitted,

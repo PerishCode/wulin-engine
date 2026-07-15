@@ -141,9 +141,11 @@ impl SkeletalSceneRenderer {
     ) -> Result<()> {
         let settings = SkeletalSettings::for_tick(frame.presentation_tick);
         let (actor_gpu, _) = unsafe {
-            self.resources
-                .actor_upload
-                .write(frame.frame_slot, frame.actor)
+            self.resources.actor_upload.write(
+                frame.frame_slot,
+                frame.actor,
+                frame.presentation_tick,
+            )
         }?;
         let constants = self.constants(
             settings,

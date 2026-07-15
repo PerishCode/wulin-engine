@@ -15,7 +15,7 @@ import {
     target,
 } from "../canonical-runtime.ts";
 
-const REVISION = "runtime-actor-simulation-v3";
+const REVISION = "runtime-actor-simulation-v4";
 const HALF_HEIGHT = 65_536;
 const MAX_ELAPSED = 125_000_000;
 const I32_MAX = 2_147_483_647;

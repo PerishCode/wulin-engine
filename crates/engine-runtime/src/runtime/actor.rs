@@ -27,6 +27,7 @@ pub struct RuntimeActor {
     pub handle: ActorHandle,
     pub motion: TerrainBodyMotion,
     pub presentation: ActorPresentation,
+    pub animation_epoch_tick: u32,
 }
 
 pub(crate) struct ActorSlot {
@@ -46,8 +47,10 @@ impl ActorSlot {
         &mut self,
         motion: TerrainBodyMotion,
         presentation: ActorPresentation,
+        animation_epoch_tick: u32,
     ) -> Result<RuntimeActor> {
         presentation.validate()?;
+        validate_animation_epoch(animation_epoch_tick)?;
         ensure!(self.actor.is_none(), "runtime actor slot is occupied");
         let generation = self
             .generation
@@ -57,6 +60,7 @@ impl ActorSlot {
             handle: ActorHandle { generation },
             motion,
             presentation,
+            animation_epoch_tick,
         };
         self.generation = generation;
         self.actor = Some(actor);
@@ -85,6 +89,7 @@ impl ActorSlot {
         replacement: RuntimeActor,
     ) -> Result<RuntimeActor> {
         replacement.presentation.validate()?;
+        validate_animation_epoch(replacement.animation_epoch_tick)?;
         let input = self.read(handle)?;
         ensure!(
             replacement.handle == input.handle,
@@ -93,6 +98,37 @@ impl ActorSlot {
         self.actor = Some(replacement);
         Ok(replacement)
     }
+}
+
+pub(crate) fn transition_animation_epoch(
+    input: RuntimeActor,
+    output: ActorPresentation,
+    current_tick: u32,
+) -> Result<u32> {
+    validate_animation_epoch(current_tick)?;
+    Ok(if animation_stream_changed(input.presentation, output) {
+        current_tick
+    } else {
+        input.animation_epoch_tick
+    })
+}
+
+fn animation_stream_changed(input: ActorPresentation, output: ActorPresentation) -> bool {
+    match (input.animation_clip(), output.animation_clip()) {
+        (Some(input_clip), Some(output_clip)) => {
+            input.archetype != output.archetype || input_clip != output_clip
+        }
+        (None, None) => false,
+        _ => true,
+    }
+}
+
+fn validate_animation_epoch(tick: u32) -> Result<()> {
+    ensure!(
+        tick < animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD,
+        "actor animation epoch must be below the presentation clock period"
+    );
+    Ok(())
 }
 
 #[cfg(test)]

@@ -180,6 +180,7 @@ pub(in crate::rendering::meshlet_scene::skeletal::surface) unsafe fn read(
         hierarchy: &hierarchy,
         history_queried: input.history_queried,
         actor: input.actor,
+        presentation_tick: input.skeletal_settings.time_tick,
     })?;
     let first_mask_mismatch = mask
         .iter()
@@ -307,7 +308,8 @@ fn actor_candidate_probe(
         );
         return Ok(None);
     };
-    let expected = ActorVisibleCandidate::from_projection(projection)?;
+    let expected =
+        ActorVisibleCandidate::from_projection(projection, input.skeletal_settings.time_tick)?;
     let expected_words = expected.words();
     let source = source_matches.first().copied();
     let source_record = source.map(|(_, record)| record);

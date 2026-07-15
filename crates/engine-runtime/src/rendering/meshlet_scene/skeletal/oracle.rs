@@ -109,14 +109,14 @@ pub fn evaluate(
         }
     }
     if let Some(actor) = actor {
-        let candidate = ActorVisibleCandidate::from_projection(actor)?;
+        let candidate = ActorVisibleCandidate::from_projection(actor, settings.time_tick)?;
         classify_candidate(
             catalog,
             settings,
             matrix,
             candidate.position,
             candidate.height,
-            actor.actor.presentation,
+            candidate.presentation(),
             &mut counts,
             &mut shared_poses,
         );

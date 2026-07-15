@@ -9,6 +9,7 @@ use windows::Win32::Graphics::Direct3D12::{
 
 use crate::rendering::ActorRenderProjection;
 use crate::rendering::resident::create_buffer;
+use crate::runtime::ActorPresentation;
 use crate::terrain_query::{TERRAIN_BODY_HEIGHT_DENOMINATOR, TERRAIN_POSITION_DENOMINATOR};
 
 use super::ACTOR_CANDIDATE_INDEX;
@@ -48,7 +49,10 @@ impl ActorVisibleCandidate {
         animation: u32::MAX,
     };
 
-    pub fn from_projection(projection: ActorRenderProjection) -> Result<Self> {
+    pub fn from_projection(
+        projection: ActorRenderProjection,
+        presentation_tick: u32,
+    ) -> Result<Self> {
         ensure!(
             projection.position_denominator == TERRAIN_POSITION_DENOMINATOR
                 && projection.height_denominator == TERRAIN_BODY_HEIGHT_DENOMINATOR,
@@ -59,7 +63,7 @@ impl ActorVisibleCandidate {
             generation != 0,
             "actor GPU candidate generation must be nonzero"
         );
-        let presentation = projection.actor.presentation;
+        let presentation = resolved_actor_presentation(projection.actor, presentation_tick)?;
         let position_scale = projection.position_denominator as f32;
         let height_scale = projection.height_denominator as f32;
         Ok(Self {
@@ -101,6 +105,48 @@ impl ActorVisibleCandidate {
             self.animation,
         ]
     }
+
+    pub const fn presentation(self) -> ActorPresentation {
+        ActorPresentation {
+            archetype: self.archetype,
+            material: self.material,
+            yaw_q16: self.yaw_q16,
+            animation: self.animation,
+        }
+    }
+}
+
+fn resolved_actor_presentation(
+    actor: crate::runtime::RuntimeActor,
+    presentation_tick: u32,
+) -> Result<ActorPresentation> {
+    let period = animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD;
+    ensure!(
+        presentation_tick < period && actor.animation_epoch_tick < period,
+        "actor animation time exceeds the presentation clock period"
+    );
+    let presentation = actor.presentation;
+    let Some(clip) = presentation.animation_clip() else {
+        return Ok(presentation);
+    };
+    let elapsed_tick = ((u64::from(presentation_tick) + u64::from(period)
+        - u64::from(actor.animation_epoch_tick))
+        % u64::from(period)) as u32;
+    let rig = animation_catalog::rig_for_archetype(presentation.archetype);
+    let global_phase = animation_catalog::phase_at_frame(rig, clip, presentation_tick);
+    let local_phase = animation_catalog::phase_at_frame(rig, clip, elapsed_tick);
+    let authored_offset = presentation.animation_phase_offset().unwrap();
+    let effective_offset = (authored_offset + local_phase + animation_catalog::SAMPLE_COUNT
+        - global_phase)
+        % animation_catalog::SAMPLE_COUNT;
+    Ok(ActorPresentation::animated(
+        presentation.archetype,
+        presentation.material,
+        presentation.yaw_q16,
+        clip,
+        effective_offset,
+        presentation.animation_variant().unwrap(),
+    ))
 }
 
 pub struct ActorFrameUpload {
@@ -132,6 +178,7 @@ impl ActorFrameUpload {
         &mut self,
         frame_slot: u32,
         projection: Option<ActorRenderProjection>,
+        presentation_tick: u32,
     ) -> Result<(u64, ActorVisibleCandidate)> {
         ensure!(
             frame_slot < self.frame_slots,
@@ -142,7 +189,7 @@ impl ActorFrameUpload {
             .checked_add(1)
             .context("actor GPU upload write count exhausted")?;
         let candidate = projection
-            .map(ActorVisibleCandidate::from_projection)
+            .map(|projection| ActorVisibleCandidate::from_projection(projection, presentation_tick))
             .transpose()?
             .unwrap_or(ActorVisibleCandidate::EMPTY);
         let offset = usize::try_from(frame_slot)
