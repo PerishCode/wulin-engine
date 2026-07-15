@@ -143,6 +143,15 @@ enabled = false
 reason = "Planar-first terrain-body advance tests exercise private composition and query reuse without exporting a test surface."
 
 [[overrides]]
+match = "crates/engine-runtime/src/runtime/retained_body.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Retained-body lifecycle tests exercise private slot exhaustion and rollback without exporting storage internals."
+
+[[overrides]]
 match = "crates/reference-host/src/input.rs"
 kind = "file"
 priority = 10

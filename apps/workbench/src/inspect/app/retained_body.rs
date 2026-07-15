@@ -1,0 +1,71 @@
+use engine_runtime::{
+    RegionCoord, RetainedTerrainBody, Runtime, TerrainBody, TerrainBodyHandle, TerrainBodyMotion,
+    TerrainPosition,
+};
+use serde_json::{Value, json};
+
+use super::{ControlResult, protocol_error};
+
+pub(super) struct MotionPayload {
+    pub region_x: i64,
+    pub region_z: i64,
+    pub local_x_q9: i32,
+    pub local_z_q9: i32,
+    pub center_height_numerator: i32,
+    pub half_height_numerator: i32,
+    pub step_velocity_q16: i32,
+}
+
+pub(super) fn spawn(runtime: &mut Runtime, payload: MotionPayload) -> ControlResult {
+    TerrainPosition::new(
+        RegionCoord::new(payload.region_x, payload.region_z),
+        payload.local_x_q9,
+        payload.local_z_q9,
+    )
+    .and_then(|position| {
+        TerrainBody::new(
+            position,
+            payload.center_height_numerator,
+            payload.half_height_numerator,
+        )
+    })
+    .map(|body| TerrainBodyMotion::new(body, payload.step_velocity_q16))
+    .and_then(|motion| runtime.spawn_terrain_body(motion))
+    .map(|retained| lifecycle_response("spawn", retained, 1))
+    .map_err(|error| protocol_error("terrain_body_lifecycle_failed", error))
+}
+
+pub(super) fn read(runtime: &Runtime, generation: u64) -> ControlResult {
+    TerrainBodyHandle::new(generation)
+        .and_then(|handle| runtime.read_terrain_body(handle))
+        .map(|retained| lifecycle_response("read", retained, 1))
+        .map_err(|error| protocol_error("terrain_body_lifecycle_failed", error))
+}
+
+pub(super) fn despawn(runtime: &mut Runtime, generation: u64) -> ControlResult {
+    TerrainBodyHandle::new(generation)
+        .and_then(|handle| runtime.despawn_terrain_body(handle))
+        .map(|retained| lifecycle_response("despawn", retained, 0))
+        .map_err(|error| protocol_error("terrain_body_lifecycle_failed", error))
+}
+
+fn lifecycle_response(operation: &str, retained: RetainedTerrainBody, live_count: u32) -> Value {
+    json!({
+        "revision": "retained-terrain-body-lifecycle-v1",
+        "operation": operation,
+        "capacity": 1,
+        "liveCount": live_count,
+        "retained": retained,
+        "perOperationAllocationBytes": 0,
+        "terrainQueryCount": 0,
+        "sourceReadCount": 0,
+        "gpuCopyCount": 0,
+        "gpuReadbackCount": 0,
+        "fenceWaitCount": 0,
+        "synchronizationCount": 0,
+        "scheduleMutationCount": 0,
+        "presentationMutationCount": 0,
+        "frameCount": 0,
+        "rendererWorkCount": 0,
+    })
+}

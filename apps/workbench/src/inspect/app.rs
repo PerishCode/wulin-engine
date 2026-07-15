@@ -17,6 +17,8 @@ use crate::{
 use super::protocol::{ControlKind, ControlResult, ProtocolError};
 use super::server::ControlCommand;
 
+mod retained_body;
+
 pub(crate) fn handle_commands(
     hwnd: HWND,
     runtime: &mut Runtime,
@@ -309,6 +311,32 @@ pub(crate) fn handle_commands(
                         })
                 })
                 .map_err(|error| protocol_error("terrain_advance_failed", error)),
+            ControlKind::CanonicalTerrainBodySpawn {
+                region_x,
+                region_z,
+                local_x_q9,
+                local_z_q9,
+                center_height_numerator,
+                half_height_numerator,
+                step_velocity_q16,
+            } => retained_body::spawn(
+                runtime,
+                retained_body::MotionPayload {
+                    region_x,
+                    region_z,
+                    local_x_q9,
+                    local_z_q9,
+                    center_height_numerator,
+                    half_height_numerator,
+                    step_velocity_q16,
+                },
+            ),
+            ControlKind::CanonicalTerrainBodyRead { generation } => {
+                retained_body::read(runtime, generation)
+            }
+            ControlKind::CanonicalTerrainBodyDespawn { generation } => {
+                retained_body::despawn(runtime, generation)
+            }
             ControlKind::ObjectIoGateArm => gate(runtime.arm_object_io_gate()),
             ControlKind::ObjectIoGateRelease => gate(runtime.release_object_io_gate()),
             ControlKind::ObjectCopyGateArm => gate(runtime.arm_object_copy_gate()),

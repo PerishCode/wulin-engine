@@ -50,8 +50,9 @@ for (
         "apps/workbench/src/inspect/protocol.rs",
         "crates/engine-runtime/Cargo.toml",
         "crates/engine-runtime/src/lib.rs",
-        "crates/engine-runtime/src/runtime.rs",
-        "crates/engine-runtime/src/timeline.rs",
+        "crates/engine-runtime/src/runtime/mod.rs",
+        "crates/engine-runtime/src/runtime/retained_body.rs",
+        "crates/engine-runtime/src/timeline/mod.rs",
         "crates/engine-runtime/src/rendering/composition/mod.rs",
         "crates/engine-runtime/src/streaming/objects/mod.rs",
         "crates/engine-runtime/src/streaming/terrain/mod.rs",
@@ -77,6 +78,7 @@ for (
         "experiments/0042-declarative-runtime-bootstrap/README.md",
         "experiments/0043-thin-prototype-host/README.md",
         "experiments/0044-exact-canonical-terrain-query/README.md",
+        "experiments/0053-retained-terrain-body-lifecycle/README.md",
         "assets/third-party/khronos-fox/README.md",
         "docs/adr/0035-authored-object-presentation.md",
         "docs/adr/0036-deterministic-temporal-presentation.md",
@@ -91,6 +93,7 @@ for (
         "docs/adr/0045-canonical-bootstrap-readiness.md",
         "docs/adr/0046-reference-platform-host.md",
         "docs/adr/0047-canonical-terrain-query.md",
+        "docs/adr/0056-retained-terrain-body-lifecycle.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",
@@ -112,6 +115,7 @@ for (
         ".runseal/support/cooked-gltf-presentation.ts",
         ".runseal/support/temporal-presentation.ts",
         ".runseal/support/terrain/query.ts",
+        ".runseal/support/terrain/retained-body.ts",
     ]
 ) await requireFile(file);
 
