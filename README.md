@@ -20,8 +20,8 @@ motion 与 schema-3 presentation 的 capacity-one actor，prototype 已在 canon
 创建一个精确 grounded imported-Fox actor；
 reference host 已将 bounded monotonic elapsed policy 与至多两个等价
 transition 的 Win32 activation batch 组成唯一的 activation-before-sample 操作；prototype 现以
-Ready-only zero command 驱动 live schedule/actor transaction，capacity-one actor 也通过唯一
-skeletal/surface/shadow/occlusion 路径进入 GPU；仍无 gravity、多 actor store、水平速度或
+Ready-only fixed gravity command 驱动 live schedule/actor transaction，capacity-one actor 也通过唯一
+skeletal/surface/shadow/occlusion 路径进入 GPU；仍无多 actor store、水平速度或
 locomotion controller。live simulation/actor mutation 只保留双提交，
 不再暴露独立 schedule、body lifecycle 或 retained single/batch bypass。
 
@@ -306,6 +306,12 @@ SRV，复用已完成 frame-slot fence；无 GPU copy、新 pass/barrier/fence/w
 ID 98,305 覆盖 3,866 pixels；失败帧不推进 frame index 或 upload write count。固定资源声明宽度
 共增加 416,148 bytes 和一个 resource object。260.779 秒资源门与 739.3 秒完整流程通过 64 次
 publication 平台、prototype actor 启动/重启及 16 次生命周期，Flavor 为 0 deny。
+Experiment 0069 在不扩张引擎接口的前提下接纳第一个 prototype-owned simulation policy：每个
+Ready due step 固定提交 `-179` Q16 重力增量，即 60 Hz 下 `-9.832763671875 m/s²`；初始 touching
+actor 每步经既有 exact contact 回到原 body 与零垂直速度。新的 `runseal :canonical-prototype`
+只 cook 两个所需中心，并在 32.032 秒内通过 4 个 prototype tests、21 个 reference-host tests、
+三类 no-readiness 启动失败、两次直接进程及 Sidecar restart/stop。该阶段没有输入映射、水平移动、
+相机策略、引擎 API、GPU resource 或同步变化，因此未运行无关的 frame/resource/全量门。
 
 ## Project model
 
@@ -323,6 +329,7 @@ runseal :init
 runseal :guard
 runseal :gpu-lab correctness
 runseal :gpu-lab benchmark
+runseal :canonical-prototype
 runseal :canonical-actor
 runseal :canonical-frame
 runseal :canonical-resources
@@ -357,6 +364,10 @@ entire local runtime through one manifest.
 It becomes visible and ready only after canonical content has rendered; close the window, press
 Escape, or use `sidecar stop` to end it. The bootstrap file is generated during canonical
 acceptance or may be prepared with the documented cooker formats.
+
+`runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
+prototype/reference-host tests, cooks only the two required signed centers, and proves strict
+bootstrap failure, grounded gravity admission, direct restart equality, and Sidecar cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
 minimal signed pair, checks the exact accepted canonical frame, immediately replays it, and owns

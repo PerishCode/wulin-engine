@@ -24,6 +24,18 @@ export type CanonicalFrameSetup = {
     storage: Json;
 };
 
+export type PrototypePaths = {
+    terrain: string;
+    objects: string;
+    objectsCorrupt: string;
+    report: string;
+};
+
+export type PrototypeSetup = {
+    paths: PrototypePaths;
+    storage: Json;
+};
+
 export type CanonicalPaths = {
     terrain: string;
     objectsA: string;
@@ -59,6 +71,28 @@ export async function prepareCanonicalFrameSetup(
     const terrain = await cookTerrain(paths.terrain, centers);
     const objects = await cookObjects(paths.objects, centers, "a");
     return { paths, storage: { terrain, objects } };
+}
+
+export async function preparePrototypeSetup(
+    collection: string,
+    base: Coord,
+): Promise<PrototypeSetup> {
+    const directory = `out/cooked/${collection}`;
+    const paths: PrototypePaths = {
+        terrain: `${directory}/terrain.wlt`,
+        objects: `${directory}/objects.wlr`,
+        objectsCorrupt: `${directory}/objects-corrupt.wlr`,
+        report: `out/captures/${collection}/acceptance.json`,
+    };
+    await Deno.mkdir(`${root}/${directory}`, { recursive: true });
+    await Deno.mkdir(`${root}/out/captures/${collection}`, { recursive: true });
+    const corruptCenter: Coord = [base[0] + 70, base[1]];
+    const centers = [base, corruptCenter];
+    const terrain = await cookTerrain(paths.terrain, centers);
+    const objects = await cookObjects(paths.objects, centers, "a");
+    await Deno.copyFile(`${root}/${paths.objects}`, `${root}/${paths.objectsCorrupt}`);
+    const objectCorruption = await corruptObjects(paths.objectsCorrupt, corruptCenter);
+    return { paths, storage: { terrain, objects, objectCorruption } };
 }
 
 export async function prepareCanonicalSetup(

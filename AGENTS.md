@@ -97,7 +97,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0068 and the current ADR set through 0071 define one live content runtime
+Experiments 0031-0069 and the current ADR set through 0072 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -157,8 +157,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one concrete Windows reference-host owner for the single window/message lifecycle, normalized
   input journal, bootstrap parser, canonical-ready driver, and composed time policy;
 - one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
-  one grounded imported-Fox actor, Ready-only zero-command live simulation before each frame,
-  readiness after a nonzero commit/frame, and Escape limited to host exit;
+  one grounded imported-Fox actor, Ready-only fixed gravity before each frame, readiness after a
+  nonzero commit/frame, and Escape limited to host exit;
 - one exact read-only CPU terrain-height query over the committed snapshot, addressed by signed
   region plus half-open local Q9 and independent from camera, render LOD, source I/O, and GPU work;
 - one caller-owned exact vertical terrain-body contact transaction with strict
@@ -168,7 +168,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
   no calibration scene, and no split-world control surface;
 - one compact `input.*` / `actor.*` / `simulation.*` / `camera.*` / `source.*` / `canonical.*` inspect
   vocabulary;
-- one non-recursive `runseal :canonical-actor` actor GPU workflow, one `runseal :canonical-frame`
+- one non-recursive `runseal :canonical-prototype` host/application workflow, one non-recursive
+  `runseal :canonical-actor` actor GPU workflow, one `runseal :canonical-frame`
   focused GPU regression workflow, one `runseal :canonical-resources` same-process plateau
   workflow, and one non-recursive `runseal :canonical-runtime` end-to-end acceptance workflow.
 
@@ -228,6 +229,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0069-bounded-actor-render-projection.md` | Accepted exact integer actor-to-window projection and deferred GPU binding boundary. |
 | `docs/adr/0070-self-contained-visible-record.md` | Accepted self-contained grounded GPU visible record and downstream source-page isolation. |
 | `docs/adr/0071-frame-safe-actor-gpu-admission.md` | Accepted fixed actor candidate, exact generation identity, frame-slotted upload, and single GPU path. |
+| `docs/adr/0072-prototype-gravity-admission.md` | Accepted prototype-owned fixed gravity, Ready-only admission, and grounded stability contract. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -267,6 +269,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0066-bounded-actor-render-projection/README.md` | Accepted far-coordinate, seam, alias/rollover, edge, rejection, and replay evidence for one live actor projection. |
 | `experiments/0067-self-contained-visible-record/README.md` | Accepted grounded visible-record ownership, exact frame replay, bounded resources, and lifecycle evidence. |
 | `experiments/0068-frame-safe-actor-gpu-admission/README.md` | Accepted frame-safe actor admission, exact compaction identity, rollback, resource, and lifecycle evidence. |
+| `experiments/0069-prototype-gravity-admission/README.md` | Accepted fixed prototype gravity, grounded actor stability, focused process restart, and lifecycle evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -304,7 +307,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
 | `apps/prototype/src/main.rs` | Non-diagnostic composition root, Ready-only simulation/frame ordering, post-commit readiness, and host-exit input consumer. |
-| `apps/prototype/src/actor.rs` | Prototype-owned grounded motion and exact imported-Fox actor presentation policy. |
+| `apps/prototype/src/actor.rs` | Prototype-owned grounded spawn, fixed gravity, and exact imported-Fox actor presentation policy. |
 | `apps/prototype/src/time.rs` | Prototype-only typed HostClock outcome admission policy. |
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
@@ -330,6 +333,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
+| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype gravity, restart, failure, and lifecycle entry point. |
 | `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source actor GPU admission and rollback entry point. |
 | `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source canonical GPU frame and immediate replay entry point. |
 | `.runseal/wrappers/canonical-resources.ts` | Focused active/quiescent same-process GPU resource plateau entry point. |
@@ -371,6 +375,7 @@ Git hooks path. `guard` is the authoritative non-GPU repository gate.
 ```powershell
 runseal :canonical-actor
 runseal :canonical-frame
+runseal :canonical-prototype
 runseal :canonical-resources
 ```
 
@@ -378,6 +383,11 @@ The actor workflow cooks fresh signed sources and proves the capacity-one actor'
 identity, alternating frame-slot writes, existing-pipeline participation, despawn/respawn clearing,
 frustum rejection, outside-window rollback, and semantic capture. Its ignored evidence belongs
 under `out/captures/canonical-actor/`.
+
+The prototype workflow runs focused host/application tests, cooks only two required signed centers,
+and proves exact grounded gravity admission, no-readiness bootstrap failures, direct restart
+equality, and complete Sidecar cleanup. Its ignored evidence belongs under
+`out/captures/canonical-prototype/`.
 
 The frame workflow cooks one fresh minimal signed pair, publishes it through the sole runtime, and
 checks the exact accepted GPU frame plus an immediate deterministic replay. Use it for focused
@@ -439,9 +449,9 @@ sidecar stop --config sidecar.prototype.toml
 ```
 
 The prototype has no inspect endpoint or idle-shell mode. It shows the same canonical runtime only
-after configured content is ready; window close, Escape, and Sidecar stop are its current lifecycle
-controls. Camera actions, live simulation/motion driving, and runtime actors are not part of this
-workflow.
+after configured content is ready and advances one grounded runtime actor with fixed gravity on
+Ready samples. Window close, Escape, and Sidecar stop are its current controls; horizontal input,
+camera actions, and multiple actors are not part of this workflow.
 
 ### 6.6 Experiment lifecycle
 
