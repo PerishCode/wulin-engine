@@ -57,8 +57,8 @@ import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 import { simulationScheduleGates } from "../support/simulation-schedule.ts";
 import { terrainMotionGates } from "../support/terrain/motion.ts";
 
-const REVISION = "exact-fixed-terrain-body-motion-v1";
-const COLLECTION = "0048-fixed-terrain-body-motion";
+const REVISION = "retired-dense-contact-surface-v1";
+const COLLECTION = "0050-retired-dense-contact-surface";
 const DIRECTORY = `out/cooked/${COLLECTION}`;
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS_A = `${DIRECTORY}/objects-a.wlr`;

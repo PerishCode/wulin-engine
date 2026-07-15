@@ -175,6 +175,12 @@ half-open local-Q9 的精确平移：正负、对角和多 region 跨越都以 E
 signed region 和全宽 `i32` 位移，独立 `i128` oracle 零 mismatch，重放哈希为
 `8bf1a9181426aadf6970009165f1269e9358463c58e2cca734435a5bc02ff683`。37 个聚焦测试和 11.1 秒
 `guard` 通过；纯值语义未新增进程 probe 或全量 GPU 验收，也未提前接受坡度、台阶或 actor 策略。
+Experiment 0050 完成强制历史清理：一次性通过的 230,400-body dense contact checkpoint 只保留在
+0046 报告/ADR 中，live inspect verb、workbench/runtime/renderer 调用链、双 coverage mode 和 recurring
+assertion 全部删除，不留 alias 或 hidden flag。9.33 秒 fresh-process 门确认旧 verb 在发布前后均为
+`unknown_event`，225-body witness 仍三类各 75、哈希完全不变，direct contact 三类保持精确；37 个
+测试和 4.6 秒 `guard` 通过。每次 canonical run 因此少做 76,800 次重复 query 和 230,400 次
+contact resolution；该 CPU 诊断删除未触碰 frame/GPU/lifecycle，仍没有机械重复全量流程。
 
 ## Project model
 

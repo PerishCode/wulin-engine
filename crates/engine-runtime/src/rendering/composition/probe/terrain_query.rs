@@ -61,7 +61,7 @@ struct Mismatch {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct BodyContactProbe {
+struct BodyContactProbe {
     revision: &'static str,
     body_count: u32,
     half_height_numerator: i32,
@@ -103,44 +103,11 @@ struct BodyContactMismatch {
     observed_resolved_center_numerator: i32,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub(super) enum BodyContactCoverage {
-    Witness,
-    Dense,
-}
-
-impl BodyContactCoverage {
-    fn includes(self, cell_x: i32, cell_z: i32) -> bool {
-        self == Self::Dense || (cell_x == 0 && cell_z == 0)
-    }
-
-    fn revision(self) -> &'static str {
-        match self {
-            Self::Witness => "exact-terrain-body-contact-witness-v1",
-            Self::Dense => "exact-terrain-body-contact-v1",
-        }
-    }
-
-    fn expected_body_count(self) -> u32 {
-        match self {
-            Self::Witness => 225,
-            Self::Dense => 230_400,
-        }
-    }
-}
-
-impl Probe {
-    pub(super) fn into_body_contact(self) -> BodyContactProbe {
-        self.body_contact_witness
-    }
-}
-
 pub(super) fn probe(
     renderer: &Renderer,
     assignments: &[crate::terrain::TerrainAssignment],
     tiles: &[terrain_format::TerrainTile],
     projection: TerrainProjection,
-    contact_coverage: BodyContactCoverage,
 ) -> Result<Probe> {
     let started = std::time::Instant::now();
     let global_config = renderer
@@ -223,8 +190,7 @@ pub(super) fn probe(
                         });
                     }
 
-                    for foot_offset_numerator in contact_coverage
-                        .includes(cell_x, cell_z)
+                    for foot_offset_numerator in (cell_x == 0 && cell_z == 0)
                         .then_some([-1_i32, 0, 1])
                         .into_iter()
                         .flatten()
@@ -354,7 +320,7 @@ pub(super) fn probe(
         "canonical terrain body contact differs from the independent grounding oracle"
     );
     ensure!(
-        body_contact_count == contact_coverage.expected_body_count(),
+        body_contact_count == 225,
         "terrain body contact probe produced the wrong coverage"
     );
     let elapsed_ns = started.elapsed().as_nanos();
@@ -373,7 +339,7 @@ pub(super) fn probe(
         maximum_height_numerator,
         triangles,
         body_contact_witness: BodyContactProbe {
-            revision: contact_coverage.revision(),
+            revision: "exact-terrain-body-contact-witness-v1",
             body_count: body_contact_count,
             half_height_numerator: 65_536,
             height_denominator: TERRAIN_BODY_HEIGHT_DENOMINATOR,

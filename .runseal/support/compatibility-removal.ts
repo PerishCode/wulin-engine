@@ -38,6 +38,7 @@ export async function compatibilityRemovalGates(
             "world.rebase",
             "world.reset",
             "world.probe",
+            "canonical.terrain.contact.probe",
         ]
     ) {
         const rejected = await rejectedEvent(verb);

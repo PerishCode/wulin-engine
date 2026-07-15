@@ -1,3 +1,5 @@
+import { requireContactHistoryRemoved } from "../support/guard/contact-removal.ts";
+
 function fail(message: string): never {
     console.error(message);
     Deno.exit(1);
@@ -410,6 +412,7 @@ const root = profilePath.replace(/[\\/][^\\/]+$/, "");
 await requireWrapperSet();
 await requireRuntimeBoundary();
 await requireCalibrationSurfaceRemoved();
+await requireContactHistoryRemoved(root, fail);
 await run("git diff check", "git", ["diff", "--check"]);
 await run("cargo fmt", "cargo", ["fmt", "--all", "--check"]);
 await run("cargo clippy", "cargo", [
