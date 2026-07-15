@@ -1,4 +1,5 @@
 import { requireContactHistoryRemoved } from "../support/guard/contact-removal.ts";
+import { requireCanonicalOperatorIdentity } from "../support/guard/canonical-operator.ts";
 import { requireSimulationHistoryRemoved } from "../support/guard/simulation-control-removal.ts";
 import { requireTerrainHistoryRemoved } from "../support/guard/terrain-transaction-removal.ts";
 
@@ -412,6 +413,7 @@ if (!profilePath) fail("guard: RUNSEAL_PROFILE_PATH is not set");
 const root = profilePath.replace(/[\\/][^\\/]+$/, "");
 
 await requireWrapperSet();
+await requireCanonicalOperatorIdentity(root, fail);
 await requireRuntimeBoundary();
 await requireCalibrationSurfaceRemoved();
 await requireContactHistoryRemoved(root, fail);

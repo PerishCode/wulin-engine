@@ -95,7 +95,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0064 and the current ADR set through 0067 define one live content runtime
+Experiments 0031-0065 and the current ADR set through 0068 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -211,6 +211,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0065-prototype-body-bootstrap.md` | Accepted prototype-owned grounded retained-body bootstrap, readiness evidence, and terminal failure ordering. |
 | `docs/adr/0066-live-prototype-time-driver.md` | Accepted prototype activation/time/simulation/frame ordering, typed no-advance outcomes, and post-commit readiness. |
 | `docs/adr/0067-retained-runtime-actor-authority.md` | Accepted direct actor motion/presentation ownership, generation lifecycle, and retained-body API retirement. |
+| `docs/adr/0068-neutral-canonical-operator-identity.md` | Accepted neutral canonical report/collection ownership and stable history-label rejection. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -246,6 +247,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0062-prototype-body-bootstrap/README.md` | Accepted post-publication grounded prototype body, restart equality, failure ordering, and lifecycle evidence. |
 | `experiments/0063-live-prototype-time-driver/README.md` | Accepted Ready-only live schedule/body driving, zero-command stability, post-frame readiness, and lifecycle evidence. |
 | `experiments/0064-retained-runtime-actor-authority/README.md` | Accepted capacity-one actor identity/motion/presentation authority, direct promotion, and process evidence. |
+| `experiments/0065-mandatory-canonical-operator-cleanup/README.md` | Accepted removal of historical canonical operator naming, neutral evidence ownership, and stable guard. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -314,6 +316,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for the retired dense contact command and runtime coverage mode. |
 | `.runseal/support/guard/terrain-transaction-removal.ts` | Forbidden-file/symbol gate for retired copied-value terrain mutation controls and support. |
 | `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls and retained-body public history. |
+| `.runseal/support/guard/canonical-operator.ts` | Exact neutral canonical revision/collection and current evidence-path guard. |
 | `.runseal/support/actor.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/simulation-actor.ts` | Retired-route rejection plus fractional, partition, rollback, and sole actor dual-commit support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
@@ -348,14 +351,14 @@ presentation time, deterministic host input and process-restart replay, configur
 readiness, shared reference-host ownership, prototype startup/restart/cleanup, fixed camera-visible
 directional object shadows, exact CPU terrain-height query/body contact and oracle evidence, a
 bounded contact transition witness, private simulation-schedule partition/rollback/one-hour proofs,
-private fixed-step/translation/batch contracts, retained terrain-body lifecycle, and the sole
-explicit elapsed schedule/body dual gate with partition equality, mid-batch rollback, retired-route
+private fixed-step/translation/batch contracts, retained runtime-actor lifecycle, and the sole
+explicit elapsed schedule/actor dual gate with partition equality, mid-batch rollback, retired-route
 rejection, and frame/presentation independence, a same-process
 clear-only idle attachment capture, retired-control rejection, 64-publication resource plateau,
 and 16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
-`out/captures/0060-mandatory-simulation-control-cleanup/` and remains ignored.
+`out/captures/canonical-runtime/` and remains ignored.
 
 ### 6.3 Manual workbench
 

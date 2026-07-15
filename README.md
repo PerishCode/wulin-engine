@@ -276,6 +276,12 @@ Fox archetype 7 / material 63 / clip 1。非法 archetype/material/yaw/clip/phas
 prototype test、7 个 region-format test，以及 27.7 秒 actor lifecycle、41.8 秒 simulation-actor、
 32.21 秒 prototype 定向进程门通过；CPU-only actor 尚未接入 GPU presentation，因此未运行无关
 的 canonical GPU 全量流程。
+Experiment 0065 完成逢五清理：唯一 canonical operator 不再把当前报告伪装成 Experiment 0060，
+revision 直接改为 `canonical-runtime-v1`，cook/capture collection 直接改为
+`canonical-runtime`，当前 evidence 路径为 `out/captures/canonical-runtime/`。历史 Experiment
+0060/ADR 0063 文档保留为决策记录，但没有旧路径 fallback、复制器或 wrapper alias。2.1 秒静态/
+operator gate、0.34 秒 init 与 14.33 秒 guard 通过；清理未启动进程或 GPU 工作，因此没有运行
+canonical 全量流程。
 
 ## Project model
 
