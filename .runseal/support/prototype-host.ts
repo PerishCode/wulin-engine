@@ -159,6 +159,67 @@ function simulationBodyInvariant(launch: Json, center: Coord): Json {
     return simulationBody;
 }
 
+function simulationDriverInvariant(launch: Json): Json {
+    const readiness = object(launch, "readiness");
+    const driver = object(readiness, "simulation_driver");
+    if (driver.revision !== "live-prototype-time-driver-v1") {
+        fail("prototype simulation driver revision diverged");
+    }
+    const sample = object(driver, "sample");
+    const elapsed = number(sample, "elapsedNanoseconds");
+    if (sample.outcome !== "ready" || elapsed < 0 || elapsed > 125_000_000) {
+        fail("prototype simulation driver sample diverged");
+    }
+    const clock = object(driver, "clock");
+    const sampleCount = number(clock, "sampleCount");
+    if (
+        clock.suspended !== false || clock.hasBaseline !== true ||
+        number(clock, "resetCount") < 1 || number(clock, "readyCount") < 1 ||
+        sampleCount !== number(clock, "resetCount") + number(clock, "readyCount") +
+                number(clock, "stallCount") + number(clock, "suspendedSampleCount")
+    ) fail("prototype simulation driver clock status diverged");
+    const command = object(driver, "command");
+    for (
+        const field of ["deltaXQ9", "deltaZQ9", "stepUpLimitQ16", "stepAccelerationQ16"]
+    ) {
+        if (number(command, field) !== 0) fail(`prototype simulation command ${field} diverged`);
+    }
+    const advance = object(driver, "advance");
+    const simulation = object(advance, "simulation");
+    const stepCount = number(simulation, "stepCount");
+    if (
+        number(simulation, "elapsedNanoseconds") !== elapsed ||
+        number(simulation, "startTick") !== 0 || stepCount < 1 || stepCount > 8 ||
+        number(simulation, "endTick") !== stepCount ||
+        number(simulation, "remainderDenominator") !== 1_000_000_000
+    ) fail("prototype live simulation advance diverged");
+    const body = object(advance, "body");
+    if (
+        number(body, "stepCount") !== stepCount ||
+        number(body, "terrainQueryCount") !== stepCount
+    ) fail("prototype live body batch diverged");
+    const initial = object(object(readiness, "simulation_body"), "retained");
+    same(object(body, "input"), initial, "prototype live body input");
+    same(object(body, "output"), initial, "prototype live body output");
+    const bootstrapFrames = number(driver, "bootstrapFrameCount");
+    const liveFrames = number(driver, "liveFrameCount");
+    if (
+        bootstrapFrames !== number(object(readiness, "startup"), "readyFrameIndex") ||
+        liveFrames < 1 || number(driver, "totalFrameCount") !== bootstrapFrames + liveFrames
+    ) fail("prototype simulation readiness frame ordering diverged");
+    return {
+        revision: driver.revision,
+        outcome: sample.outcome,
+        command,
+        clockActive: true,
+        boundedStepCount: true,
+        tickStartsAtZero: true,
+        bodyStable: true,
+        queryPerStep: true,
+        readinessAfterFrame: true,
+    };
+}
+
 async function sidecarStatus(): Promise<Json> {
     const output = await new Deno.Command("sidecar", {
         args: ["status", "--config", SIDECAR, "--format", "json"],
@@ -214,6 +275,11 @@ export async function prototypeHostGates(
         simulationBodyInvariant(restarted, base),
         simulationBodyInvariant(first, base),
         "prototype restart simulation body",
+    );
+    same(
+        simulationDriverInvariant(restarted),
+        simulationDriverInvariant(first),
+        "prototype restart simulation driver",
     );
 
     await lifecycle("start");
