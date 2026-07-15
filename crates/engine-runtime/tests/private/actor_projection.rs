@@ -19,6 +19,7 @@ fn actor(region: RegionCoord, local: [i32; 2]) -> RuntimeActor {
         handle: ActorHandle::new(7).unwrap(),
         motion: TerrainBodyMotion::new(body, -19),
         presentation: ActorPresentation::animated(7, 63, 32_768, 1, 17, 2),
+        animation_epoch_tick: 29,
     }
 }
 

@@ -12,7 +12,7 @@ import {
     status,
 } from "../canonical-runtime.ts";
 
-const REVISION = "retained-runtime-actor-v1";
+const REVISION = "retained-runtime-actor-v2";
 const FIRST_MOTION = {
     region_x: -7,
     region_z: 11,
@@ -69,6 +69,9 @@ function requireOperation(
     const actor = object(response, "actor");
     if (number(object(actor, "handle"), "generation") !== generation) {
         fail(`${operation} returned the wrong generation`);
+    }
+    if (number(actor, "animationEpochTick") !== 0) {
+        fail(`${operation} changed the zero-frame actor animation epoch`);
     }
     requireMotion(object(actor, "motion"), expectedMotion, operation);
     const presentation = object(actor, "presentation");

@@ -89,7 +89,7 @@ fn advanced_response(advance: ActorSimulationAdvance) -> Value {
     let presentation_mutation_count =
         u32::from(advance.actor.input.presentation != advance.actor.output.presentation);
     json!({
-        "revision": "runtime-actor-simulation-v3",
+        "revision": "runtime-actor-simulation-v4",
         "outcome": "advanced",
         "preparedStepCount": advance.simulation.step_count,
         "terrainQueryCount": advance.actor.terrain_query_count,
@@ -110,7 +110,7 @@ fn advanced_response(advance: ActorSimulationAdvance) -> Value {
 
 fn blocked_response(blocked: ActorSimulationRenderBlock) -> Value {
     json!({
-        "revision": "runtime-actor-simulation-v3",
+        "revision": "runtime-actor-simulation-v4",
         "outcome": "render-blocked",
         "preparedStepCount": blocked.prepared_step_count,
         "terrainQueryCount": blocked.terrain_query_count,
@@ -135,7 +135,7 @@ fn lifecycle_response(
     actor_mutation_count: u32,
 ) -> Value {
     json!({
-        "revision": "retained-runtime-actor-v1",
+        "revision": "retained-runtime-actor-v2",
         "operation": operation,
         "capacity": 1,
         "liveCount": live_count,

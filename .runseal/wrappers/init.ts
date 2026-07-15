@@ -120,6 +120,7 @@ for (
         "experiments/0078-committed-locomotion-facing/README.md",
         "experiments/0079-self-contained-prototype-operator/README.md",
         "experiments/0080-mandatory-live-documentation-authority-cleanup/README.md",
+        "experiments/0081-actor-local-animation-epoch/README.md",
         "assets/third-party/khronos-fox/README.md",
         "docs/adr/0035-authored-object-presentation.md",
         "docs/adr/0036-deterministic-temporal-presentation.md",
@@ -162,6 +163,7 @@ for (
         "docs/adr/0081-committed-prototype-locomotion-facing.md",
         "docs/adr/0082-self-contained-prototype-operator.md",
         "docs/adr/0083-live-documentation-authority.md",
+        "docs/adr/0084-actor-local-animation-epoch.md",
         "flavor.toml",
         "runseal.toml",
         "sidecar.toml",
@@ -191,6 +193,7 @@ for (
         ".runseal/support/host-input-replay.ts",
         ".runseal/support/runtime-bootstrap.ts",
         ".runseal/support/prototype/host.ts",
+        ".runseal/support/prototype/actor.ts",
         ".runseal/support/prototype/input.ts",
         ".runseal/support/prototype/presentation.ts",
         ".runseal/support/prototype/traversal.ts",
@@ -200,6 +203,7 @@ for (
         ".runseal/support/actor/lifecycle.ts",
         ".runseal/support/actor/admission.ts",
         ".runseal/support/actor/gpu.ts",
+        ".runseal/support/actor/animation.ts",
         ".runseal/support/actor/simulation.ts",
     ]
 ) await requireFile(file);

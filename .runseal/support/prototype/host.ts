@@ -12,6 +12,7 @@ import {
     useSidecar,
 } from "../canonical-runtime.ts";
 import { holdPrototypeForwardKey } from "./input.ts";
+import { actorInvariant } from "./actor.ts";
 import { presentationInvariant } from "./presentation.ts";
 import { traversalInvariant } from "./traversal.ts";
 
@@ -137,50 +138,6 @@ function startupInvariant(launch: Json): Json {
     };
 }
 
-function actorInvariant(launch: Json, center: Coord): Json {
-    const readiness = object(launch, "readiness");
-    const actorAuthority = object(readiness, "actor");
-    if (number(actorAuthority, "capacity") !== 1 || number(actorAuthority, "liveCount") !== 1) {
-        fail("prototype readiness actor cardinality diverged");
-    }
-    const current = object(actorAuthority, "state");
-    const batch = object(
-        object(object(readiness, "simulation_driver"), "advance"),
-        "actor",
-    );
-    const initial = object(batch, "input");
-    same(current, object(batch, "output"), "prototype current actor authority");
-    if (number(object(initial, "handle"), "generation") !== 1) {
-        fail("prototype initial actor generation diverged");
-    }
-    const presentation = presentationInvariant(
-        object(initial, "presentation"),
-        0,
-        0,
-        "prototype initial actor",
-    );
-    const motion = object(initial, "motion");
-    const body = object(motion, "body");
-    const position = object(body, "position");
-    const region = object(position, "region");
-    if (
-        number(region, "x") !== center[0] || number(region, "z") !== center[1] ||
-        number(position, "localXQ9") !== 0 || number(position, "localZQ9") !== 0
-    ) fail("prototype initial actor position diverged");
-    if (
-        number(body, "halfHeightNumerator") !== 65_536 ||
-        number(motion, "stepVelocityQ16") !== 0
-    ) fail("prototype initial actor grounding diverged");
-    return {
-        capacity: 1,
-        liveCount: 1,
-        generation: 1,
-        presentation,
-        initialAtCenter: true,
-        currentMatchesAdvance: true,
-    };
-}
-
 type ExpectedCommand = {
     deltaXQ9: number;
     deltaZQ9: number;
@@ -207,7 +164,7 @@ const FORWARD_COMMAND: ExpectedCommand = {
 function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "simulation_driver");
-    if (driver.revision !== "live-prototype-locomotion-driver-v2") {
+    if (driver.revision !== "live-prototype-locomotion-driver-v3") {
         fail("prototype simulation driver revision diverged");
     }
     if (number(driver, "renderBlockCount") !== 0) {
@@ -269,6 +226,8 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
         expected.yawQ16,
         "prototype simulation output",
     );
+    const inputEpoch = number(initial, "animationEpochTick");
+    const outputEpoch = number(output, "animationEpochTick");
     if (expected.deltaXQ9 === 0 && expected.deltaZQ9 === 0) {
         same(output, initial, "prototype stationary actor output");
     } else {
@@ -302,6 +261,12 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
         bootstrapFrames !== number(object(readiness, "startup"), "readyFrameIndex") ||
         liveFrames < 1 || number(driver, "totalFrameCount") !== bootstrapFrames + liveFrames
     ) fail("prototype simulation readiness frame ordering diverged");
+    const expectedOutputEpoch = expected.animationClip === 0
+        ? inputEpoch
+        : (inputEpoch + liveFrames - 1) % 31_002_560;
+    if (outputEpoch !== expectedOutputEpoch) {
+        fail("prototype simulation output animation epoch diverged");
+    }
     return {
         revision: driver.revision,
         outcome: sample.outcome,
@@ -310,6 +275,9 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
             command: commandPresentation,
             input: inputPresentation,
             output: outputPresentation,
+            inputEpoch,
+            outputEpoch,
+            startsAtLocalPhaseZero: true,
         },
         clockActive: true,
         boundedStepCount: true,

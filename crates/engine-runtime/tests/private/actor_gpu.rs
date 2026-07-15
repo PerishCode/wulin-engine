@@ -16,6 +16,7 @@ fn projection(generation: u64) -> ActorRenderProjection {
             handle: ActorHandle::new(generation).unwrap(),
             motion: TerrainBodyMotion::new(body, -17),
             presentation: ActorPresentation::animated(7, 63, 32_768, 1, 5, 9),
+            animation_epoch_tick: 42,
         },
         global_config: GlobalRegionConfig::new(
             2_i64.pow(40),
@@ -38,7 +39,7 @@ fn projection(generation: u64) -> ActorRenderProjection {
 #[test]
 fn candidate_preserves_projection_and_full_generation() {
     let generation = 0xfedc_ba98_7654_3210;
-    let candidate = ActorVisibleCandidate::from_projection(projection(generation)).unwrap();
+    let candidate = ActorVisibleCandidate::from_projection(projection(generation), 57).unwrap();
     assert_eq!(ACTOR_VISIBLE_RECORD_BYTES, 56);
     assert_eq!(candidate.position, [-8.0, 2.0, 16.0]);
     assert_eq!(candidate.height, 2.0);
@@ -48,6 +49,32 @@ fn candidate_preserves_projection_and_full_generation() {
     assert_eq!(candidate.candidate_index, ACTOR_CANDIDATE_INDEX);
     assert_eq!(candidate.material, 63);
     assert_eq!(candidate.yaw_q16, 32_768);
+    assert_eq!(candidate.presentation().animation_clip(), Some(1));
+    assert_eq!(candidate.presentation().animation_phase_offset(), Some(6));
+    assert_eq!(candidate.presentation().animation_variant(), Some(9));
+}
+
+#[test]
+fn candidate_animation_resolves_epoch_elapsed_time_across_clock_wrap() {
+    let mut wrapped = projection(1);
+    wrapped.actor.animation_epoch_tick = animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD - 1;
+    let candidate = ActorVisibleCandidate::from_projection(wrapped, 0).unwrap();
+    let presentation = candidate.presentation();
+    assert_eq!(presentation.animation_clip(), Some(1));
+    assert_eq!(presentation.animation_phase_offset(), Some(6));
+    assert_eq!(
+        (presentation.animation_phase_offset().unwrap()
+            + animation_catalog::phase_at_frame(animation_catalog::IMPORTED_RIG, 1, 0,))
+            % animation_catalog::SAMPLE_COUNT,
+        6
+    );
+    assert!(
+        ActorVisibleCandidate::from_projection(
+            projection(2),
+            animation_catalog::PRESENTATION_CLOCK_FRAME_PERIOD,
+        )
+        .is_err()
+    );
 }
 
 #[test]

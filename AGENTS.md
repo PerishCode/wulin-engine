@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0079 and the current ADR set through 0082 define one live content runtime
+Experiments 0031-0081 and the current ADR set through 0084 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -129,13 +129,15 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - private pure terrain-body motion, bounded planar translation, and planar-first advance contracts
   with focused tests but no copied-value inspect command or public `Runtime` mutation method;
 - one runtime-owned optional `RuntimeActor` with capacity one, checked nonzero generation handles,
-  exact spawn/read/despawn semantics, exact schema-3 presentation, and one prototype consumer;
+  exact spawn/read/despawn semantics, exact schema-3 presentation, one bounded animation epoch in
+  the existing presentation-tick domain, and one prototype consumer;
 - one renderer-internal immutable actor render projection that maps the frame's copied actor through
   the enabled/pending published composition into bounded window-relative Q9/Q16 input without
   float global coordinates, a public projection transaction, or a second scene path;
 - one 56-byte self-contained GPU visible record carrying grounded window position, authored height,
-  semantic region, presentation, pose, and exact two-word source identity; streamed instances and
-  ground values are skeletal-cull inputs only and are not rebound downstream;
+  semantic region, frame-resolved actor-local animation phase, pose, and exact two-word source
+  identity; streamed instances and ground values are skeletal-cull inputs only and are not rebound
+  downstream;
 - one fixed actor candidate after the 25,600 streamed candidates, backed by one two-frame upload
   resource and consumed by the existing skeletal, surface, shadow, and occlusion path without a GPU
   copy or additional synchronization;
@@ -143,7 +145,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
   single-tick/rollback tests without an independent live mutation route;
 - one sole caller-supplied typed motion/presentation simulation command and actor transaction that
   validates presentation before work, prepares a schedule copy and local motion batch, preserves
-  the complete actor on zero emitted steps, preflights the complete nonzero-step candidate against
+  the complete actor on zero emitted steps, resets the animation epoch only for a committed
+  animated-state/rig/clip transition, preflights the complete nonzero-step candidate against
   the published and non-prefetch pending render windows when canonical composition is enabled,
   preserves published-window failure,
   and returns typed advanced or pending render-blocked outcomes; only advanced commits actor and
@@ -167,7 +170,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
   one grounded imported-Fox actor, Ready-only fixed gravity plus fixed W/A/S/D integer locomotion,
   transactional Survey-while-stationary/Walk-while-moving clip selection plus exact committed
-  eight-way locomotion facing that retains the last admitted yaw while stationary,
+  eight-way locomotion facing that retains the last admitted yaw while stationary, and local
+  phase-zero Survey spawn/Walk transition over the renderer's sole presentation clock,
   a 0.5-meter step-up bound, one fixed actor-relative camera anchor before each frame, explicit
   no-retry/no-backlog render-block consumption, readiness after a nonzero commit/frame, one-time
   post-spawn composition traversal with prefetch disabled and compact status evidence, one top-level
@@ -258,6 +262,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0081-committed-prototype-locomotion-facing.md` | Accepted exact eight-way Q16 facing and nonzero-advance committed policy state. |
 | `docs/adr/0082-self-contained-prototype-operator.md` | Accepted deterministic finite-sandbox preparation and sole manual prototype wrapper. |
 | `docs/adr/0083-live-documentation-authority.md` | Accepted single current-boundary authority and prototype-operator documentation decision. |
+| `docs/adr/0084-actor-local-animation-epoch.md` | Accepted transactional actor animation epoch and frame-resolved GPU phase decision. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -309,13 +314,14 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0078-committed-locomotion-facing/README.md` | Accepted exact eight-way locomotion yaw, stationary retention, and native-W transactional evidence. |
 | `experiments/0079-self-contained-prototype-operator/README.md` | Accepted source-free cold start, deterministic sandbox, and wrapper-owned Sidecar lifecycle evidence. |
 | `experiments/0080-mandatory-live-documentation-authority-cleanup/README.md` | Accepted duplicate state-ledger removal and maintained prototype-operator documentation evidence. |
+| `experiments/0081-actor-local-animation-epoch/README.md` | Accepted actor-local Survey/Walk phase origin, GPU resolution, rollback, and prototype evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
 | `crates/engine-runtime/src/lib.rs` | Public runtime, typed actor-simulation outcome, capture, semantic, and signed-address surface. |
 | `crates/engine-runtime/src/runtime/mod.rs` | Sole renderer/scene facade, frame coordinator, schedule/actor owner, typed canonical render-admitted advance, and actor-relative camera mutation. |
 | `crates/engine-runtime/src/scene/mod.rs` | Canonical camera state plus validated atomic absolute and actor-anchored candidate publication. |
-| `crates/engine-runtime/src/runtime/actor.rs` | Capacity-one actor slot, nonzero generation, exact motion/presentation lifetime, and checked complete-state replacement. |
+| `crates/engine-runtime/src/runtime/actor.rs` | Capacity-one actor slot, nonzero generation, exact motion/presentation/animation-epoch lifetime, transition identity, and checked complete-state replacement. |
 | `crates/engine-runtime/src/runtime/motion_batch.rs` | Private bounded local multi-tick motion execution, query accumulation, and failing-step context. |
 | `crates/engine-runtime/src/runtime/simulation_actor.rs` | Typed motion/presentation command, prepared schedule/motion composition, complete actor transition, blocked evidence, and rollback tests. |
 | `crates/engine-runtime/src/region.rs` | Signed global region value and checked offset owner. |
@@ -365,7 +371,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/rendering/composition/mod.rs` | Atomic pair publication and fixed composition. |
 | `crates/engine-runtime/src/rendering/renderer/actor_projection.rs` | Private actor projection, active/pending typed admission, required failure conversion, and bounded scene-center derivation. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/mod.rs` | Fixed visible-record layout, capacity, descriptors, and skeletal GPU resource ownership. |
-| `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/actor.rs` | Exact actor GPU record encoding and two-frame upload-resource ownership. |
+| `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/actor.rs` | Exact frame-resolved actor-local phase encoding and two-frame GPU upload-resource ownership. |
 | `crates/engine-runtime/src/rendering/composition/traversal.rs` | Latest-wins traversal, prefetch, and rollover policy. |
 | `crates/engine-runtime/src/rendering/composition/probe.rs` | Canonical attachment and oracle evidence. |
 | `crates/engine-runtime/src/rendering/composition/probe/terrain_query.rs` | Dense query/contact oracle evidence and compact body-contact transition witness. |
@@ -377,8 +383,8 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/prototype.ts` | Self-contained finite-sandbox cook, strict bootstrap, and manual prototype lifecycle entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype gravity/locomotion/facing/presentation/camera/traversal/backpressure, restart, failure, and lifecycle entry point. |
-| `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source typed motion/presentation candidate admission, actor GPU, and rollback entry point. |
+| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype gravity/locomotion/facing/presentation epoch/camera/traversal/backpressure, restart, failure, and lifecycle entry point. |
+| `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source typed motion/presentation/animation-epoch admission, actor GPU phase, and rollback entry point. |
 | `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source canonical GPU frame and immediate replay entry point. |
 | `.runseal/wrappers/canonical-resources.ts` | Focused active/quiescent same-process GPU resource plateau entry point. |
 | `.runseal/wrappers/canonical-runtime.ts` | Direct canonical acceptance entry point over the converged runtime. |
@@ -395,10 +401,12 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/actor/admission.ts` | Schema-2 prepublication/advanced evidence, typed pending block, zero-commit rollback, and retained-frame support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |
+| `.runseal/support/actor/animation.ts` | Fixed-tick spawn/transition actor epoch, GPU local-phase, same-clip retention, and fractional rollback support. |
 | `.runseal/support/actor/simulation.ts` | Retired-route rejection plus schema-2 fractional, partition, rollback, and sole actor advance support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
-| `.runseal/support/prototype/host.ts` | Prototype no-ready failure, initial/current actor authority, exact locomotion/gravity/camera/zero-block readiness, restart, and no-inspect lifecycle support. |
+| `.runseal/support/prototype/host.ts` | Prototype process startup/failure, exact simulation/camera/zero-block readiness, restart, and no-inspect lifecycle orchestration. |
+| `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
 | `.runseal/support/prototype/input.ts` | Process-qualified native prototype-window key injection for maintained locomotion acceptance. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk, locomotion yaw, and committed actor presentation invariant owner. |
 | `.runseal/support/prototype/traversal.ts` | Exact one-time prototype traversal target, bounded async publication, and no-prefetch/queue/failure invariant owner. |

@@ -165,7 +165,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "state": evidence.advance.actor.output,
             },
             "simulation_driver": {
-                "revision": "live-prototype-locomotion-driver-v2",
+                "revision": "live-prototype-locomotion-driver-v3",
                 "sample": evidence.sample,
                 "clock": evidence.clock,
                 "command": evidence.command,

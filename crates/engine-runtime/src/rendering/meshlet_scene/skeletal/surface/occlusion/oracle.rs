@@ -162,6 +162,7 @@ pub struct QueryInput<'a> {
     pub hierarchy: &'a [HierarchyMip],
     pub history_queried: bool,
     pub actor: Option<ActorRenderProjection>,
+    pub presentation_tick: u32,
 }
 
 pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
@@ -213,13 +214,13 @@ pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
         }
     }
     if let Some(actor) = input.actor {
-        let candidate = ActorVisibleCandidate::from_projection(actor)?;
+        let candidate = ActorVisibleCandidate::from_projection(actor, input.presentation_tick)?;
         evaluate_candidate(
             input.mesh,
             matrix,
             candidate.position,
             candidate.height,
-            actor.actor.presentation,
+            candidate.presentation(),
             ACTOR_CANDIDATE_INDEX,
             [width, height],
             input.hierarchy,

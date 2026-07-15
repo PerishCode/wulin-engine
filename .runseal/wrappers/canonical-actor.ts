@@ -1,4 +1,5 @@
 import { actorRenderAdmissionGates } from "../support/actor/admission.ts";
+import { actorAnimationEpochGates } from "../support/actor/animation.ts";
 import { actorGpuGates } from "../support/actor/gpu.ts";
 import { prepareCanonicalFrameSetup } from "../support/canonical-setup.ts";
 import {
@@ -12,7 +13,7 @@ import {
     target,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-actor-v3";
+const REVISION = "canonical-actor-v4";
 const COLLECTION = "canonical-actor";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];
@@ -43,6 +44,7 @@ try {
     await openSources(setup.paths.terrain, setup.paths.objects);
     const publication = await publish(target(BASE));
     const actor = await actorGpuGates(BASE, COLLECTION);
+    const animationEpoch = await actorAnimationEpochGates(BASE);
     acceptance = {
         revision: REVISION,
         outcome: "pass",
@@ -50,6 +52,7 @@ try {
         publication,
         admission,
         actor,
+        animationEpoch,
         elapsedMilliseconds: performance.now() - started,
     };
 } finally {

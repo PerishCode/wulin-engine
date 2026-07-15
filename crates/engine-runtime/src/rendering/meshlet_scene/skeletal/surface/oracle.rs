@@ -75,11 +75,12 @@ fn shade_visible(
             let actor = input
                 .actor
                 .context("surface sample actor candidate has no frame actor")?;
-            let visible = ActorVisibleCandidate::from_projection(actor)?;
+            let visible =
+                ActorVisibleCandidate::from_projection(actor, input.skeletal_settings.time_tick)?;
             (
                 visible.position,
                 visible.height,
-                actor.actor.presentation,
+                visible.presentation(),
                 [visible.stable_identity_low, visible.stable_identity_high],
             )
         } else {

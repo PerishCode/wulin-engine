@@ -219,7 +219,8 @@ impl Runtime {
         motion: TerrainBodyMotion,
         presentation: ActorPresentation,
     ) -> Result<RuntimeActor> {
-        self.actor.spawn(motion, presentation)
+        self.actor
+            .spawn(motion, presentation, self.presentation_timeline.tick())
     }
 
     pub fn read_actor(&self, handle: ActorHandle) -> Result<RuntimeActor> {
@@ -244,13 +245,24 @@ impl Runtime {
             command,
             |position| self.query_terrain_height(position),
         )?;
+        let presentation = if prepared.simulation.step_count == 0 {
+            input.presentation
+        } else {
+            command.presentation
+        };
+        let animation_epoch_tick = if prepared.simulation.step_count == 0 {
+            input.animation_epoch_tick
+        } else {
+            actor::transition_animation_epoch(
+                input,
+                presentation,
+                self.presentation_timeline.tick(),
+            )?
+        };
         let candidate = RuntimeActor {
             motion: prepared.motion.output,
-            presentation: if prepared.simulation.step_count == 0 {
-                input.presentation
-            } else {
-                command.presentation
-            },
+            presentation,
+            animation_epoch_tick,
             ..input
         };
         if self.renderer.composition_enabled() {
