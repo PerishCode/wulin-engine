@@ -2,7 +2,7 @@
 
 ## State
 
-Experiments through 0065 and ADR 0068 define the accepted canonical content runtime, reference
+Experiments through 0066 and ADR 0069 define the accepted canonical content runtime, reference
 host, first prototype composition root, exact CPU terrain query/body contact and fixed vertical
 motion/planar terrain transaction contracts, deterministic simulation schedule, one retained actor
 lifecycle plus a sole explicit-time dual advance, one live prototype host-time driver,
@@ -16,8 +16,11 @@ vertical contact, private terrain motion/translation/advance composition, neutra
 shaders, probes, and GPU
 device/resource lifecycle. It also owns one optional `RuntimeActor` behind a checked nonzero
 generation handle; that actor directly owns exact `TerrainBodyMotion` and the existing schema-3
-`PresentationRecord`. Prototype creates one grounded imported-Fox actor only after canonical
-publication from the configured center and exact committed terrain. Runtime has no calibration
+`PresentationRecord`. The renderer can read that exact generation through one immutable projection
+transaction that returns the enabled published pair, active ordinal, centered semantic region,
+window-relative Q9 position, and unchanged Q16 heights/presentation without creating float global
+coordinates or GPU actor storage. Prototype creates one grounded imported-Fox actor only after
+canonical publication from the configured center and exact committed terrain. Runtime has no calibration
 scene, split-world control state, multi-actor store, GPU actor plane, live wall-clock driver, or
 autonomous step loop. The
 format/catalog crates and offline cookers remain independent reusable owners below it.
@@ -53,8 +56,11 @@ Prototype is the sole live caller and orders a Ready-only zero command before it
 `TerrainPosition` is the sole horizontal identity shared by terrain query, contact, and fixed
 motion. Its pure Q9 translation canonicalizes positive, negative, and multi-region displacement
 without sampling terrain. Bounded planar contact composition and planar-first vertical ordering are
-accepted. Slope policy, input mapping, multi-actor storage, and GPU actor presentation binding remain
-unpromoted.
+accepted. The actor render projection is the only accepted simulation/render spatial join. It
+validates the generation before composition lookup, requires the enabled published pair, reuses
+signed active addressing and the canonical terrain projection, and rejects actors outside the
+active window without clipping. Slope policy, input mapping, multi-actor storage, semantic actor
+identity, and GPU actor presentation binding remain unpromoted.
 
 Exact contact retains one public direct transaction and one 225-body witness embedded in the
 generic canonical probe. The accepted one-time 230,400-body dense checkpoint is documentation-only;
@@ -72,7 +78,7 @@ shaping, and fault gates. `apps/prototype` is the plain non-diagnostic compositi
 canonical startup is mandatory, it creates one grounded imported-Fox actor before readiness,
 drives Ready-only zero-command schedule/actor transactions before frames, and publishes readiness
 after the first nonzero commit/frame. Escape only requests host exit. Nonzero motion, GPU actor
-binding, camera actions, and
+resource/candidate binding, camera actions, and
 gameplay interaction remain unpromoted. Directories are created only when they own real files.
 
 The one direct acceptance operator has neutral revision `canonical-runtime-v1`, cooks under

@@ -24,7 +24,10 @@ use super::gpu_capture::{CapturedPixels, Readback};
 use super::meshlet_scene::SkeletalSceneRenderer;
 use super::terrain::TerrainRenderer;
 
+mod actor_projection;
 mod frame;
+
+pub use actor_projection::ActorRenderProjection;
 
 const BUFFER_COUNT: usize = 2;
 

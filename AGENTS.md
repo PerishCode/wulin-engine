@@ -95,7 +95,7 @@ Additional conventions:
 
 ## 4. Current Runtime Boundary
 
-Experiments 0031-0065 and the current ADR set through 0068 define one live content runtime
+Experiments 0031-0066 and the current ADR set through 0069 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -125,6 +125,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
   with focused tests but no copied-value inspect command or public `Runtime` mutation method;
 - one runtime-owned optional `RuntimeActor` with capacity one, checked nonzero generation handles,
   exact spawn/read/despawn semantics, exact schema-3 presentation, and one prototype consumer;
+- one renderer-owned immutable actor render projection that maps the exact live generation through
+  the enabled published composition into bounded window-relative Q9/Q16 evidence without float
+  global coordinates, GPU resources, frame mutation, or a second scene path;
 - one private 0..=8 terrain-body motion batch that executes only local motion and preserves exact
   single-tick/rollback tests without an independent live mutation route;
 - one sole caller-supplied elapsed simulation/actor transaction that prepares a schedule copy and
@@ -212,6 +215,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0066-live-prototype-time-driver.md` | Accepted prototype activation/time/simulation/frame ordering, typed no-advance outcomes, and post-commit readiness. |
 | `docs/adr/0067-retained-runtime-actor-authority.md` | Accepted direct actor motion/presentation ownership, generation lifecycle, and retained-body API retirement. |
 | `docs/adr/0068-neutral-canonical-operator-identity.md` | Accepted neutral canonical report/collection ownership and stable history-label rejection. |
+| `docs/adr/0069-bounded-actor-render-projection.md` | Accepted exact integer actor-to-window projection and deferred GPU binding boundary. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -248,6 +252,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0063-live-prototype-time-driver/README.md` | Accepted Ready-only live schedule/body driving, zero-command stability, post-frame readiness, and lifecycle evidence. |
 | `experiments/0064-retained-runtime-actor-authority/README.md` | Accepted capacity-one actor identity/motion/presentation authority, direct promotion, and process evidence. |
 | `experiments/0065-mandatory-canonical-operator-cleanup/README.md` | Accepted removal of historical canonical operator naming, neutral evidence ownership, and stable guard. |
+| `experiments/0066-bounded-actor-render-projection/README.md` | Accepted far-coordinate, seam, alias/rollover, edge, rejection, and replay evidence for one live actor projection. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -298,6 +303,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/rendering/async_resident/transfer.rs` | Object GPU copy and slot lifecycle. |
 | `crates/engine-runtime/src/rendering/terrain/transfer.rs` | Terrain GPU copy and slot lifecycle. |
 | `crates/engine-runtime/src/rendering/composition/mod.rs` | Atomic pair publication and fixed composition. |
+| `crates/engine-runtime/src/rendering/renderer/actor_projection.rs` | Immutable live-actor projection through the enabled published pair into exact bounded render-window evidence. |
 | `crates/engine-runtime/src/rendering/composition/traversal.rs` | Latest-wins traversal, prefetch, and rollover policy. |
 | `crates/engine-runtime/src/rendering/composition/probe.rs` | Canonical attachment and oracle evidence. |
 | `crates/engine-runtime/src/rendering/composition/probe/terrain_query.rs` | Dense query/contact oracle evidence and compact body-contact transition witness. |
@@ -315,10 +321,11 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/terrain/contact.ts` | Exact contact rejection, direct classification, and bounded-witness acceptance support. |
 | `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for the retired dense contact command and runtime coverage mode. |
 | `.runseal/support/guard/terrain-transaction-removal.ts` | Forbidden-file/symbol gate for retired copied-value terrain mutation controls and support. |
-| `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls and retained-body public history. |
+| `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls, retained-body history, and pre-owner actor support paths. |
 | `.runseal/support/guard/canonical-operator.ts` | Exact neutral canonical revision/collection and current evidence-path guard. |
-| `.runseal/support/actor.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
-| `.runseal/support/simulation-actor.ts` | Retired-route rejection plus fractional, partition, rollback, and sole actor dual-commit support. |
+| `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
+| `.runseal/support/actor/projection.ts` | Actor projection availability, far-coordinate, alias, edge, rollback, and replay acceptance support. |
+| `.runseal/support/actor/simulation.ts` | Retired-route rejection plus fractional, partition, rollback, and sole actor dual-commit support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
 | `.runseal/support/prototype-host.ts` | Prototype no-ready failure, exact readiness, restart, and no-inspect lifecycle support. |
@@ -353,7 +360,7 @@ directional object shadows, exact CPU terrain-height query/body contact and orac
 bounded contact transition witness, private simulation-schedule partition/rollback/one-hour proofs,
 private fixed-step/translation/batch contracts, retained runtime-actor lifecycle, and the sole
 explicit elapsed schedule/actor dual gate with partition equality, mid-batch rollback, retired-route
-rejection, and frame/presentation independence, a same-process
+rejection, frame/presentation independence, and bounded exact actor render projection, a same-process
 clear-only idle attachment capture, retired-control rejection, 64-publication resource plateau,
 and 16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
 

@@ -49,8 +49,9 @@ import {
     unavailableTerrainContactGate as unavailableContact,
 } from "../support/terrain/contact.ts";
 import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
-import { actorGates } from "../support/actor.ts";
-import { simulationActorGates } from "../support/simulation-actor.ts";
+import { actorGates } from "../support/actor/lifecycle.ts";
+import { actorProjectionGates } from "../support/actor/projection.ts";
+import { simulationActorGates } from "../support/actor/simulation.ts";
 
 const REVISION = "canonical-runtime-v1";
 const COLLECTION = "canonical-runtime";
@@ -87,6 +88,7 @@ try {
     const hostInput = await hostInputGates();
     const actor = await actorGates();
     const simulationActor = await simulationActorGates(TERRAIN, OBJECTS_A, BASE);
+    const actorProjection = await actorProjectionGates(TERRAIN, OBJECTS_A, BASE);
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
@@ -347,6 +349,7 @@ try {
             hostInput,
             actor,
             simulationActor,
+            actorProjection,
             compatibilityRemoval,
             terrainQuery,
             terrainContact,
