@@ -40,7 +40,6 @@ import {
     importedPresentationGates,
     sourceDurationGates,
 } from "../support/cooked-gltf-presentation.ts";
-import { hostInputGates } from "../support/host-input-replay.ts";
 import { bootstrapGates as bootstrapGate } from "../support/runtime-bootstrap.ts";
 import { prototypeHostGates } from "../support/prototype/host.ts";
 import { terrainQueryGates, unavailableTerrainQueryGate } from "../support/terrain/query.ts";
@@ -84,7 +83,6 @@ try {
     console.log("==> canonical correctness and failure gates");
     const bootstrap = await bootstrapGate(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE, COLLECTION);
     const prototype = await prototypeHostGates(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE);
-    const hostInput = await hostInputGates();
     const actor = await actorGates();
     const simulationActor = await simulationActorGates(TERRAIN, OBJECTS_A, BASE);
     await startClean();
@@ -323,7 +321,6 @@ try {
         correctness: {
             bootstrap,
             prototype,
-            hostInput,
             actor,
             simulationActor,
             compatibilityRemoval,

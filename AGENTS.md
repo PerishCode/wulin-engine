@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0084 and the current ADR set through 0087 define one live content runtime
+Experiments 0031-0085 and the current ADR set through 0088 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -157,9 +157,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
   checked positive, negative, and multi-region planar translation and no compatibility alias;
 - one bounded 225-body contact transition witness in the generic canonical probe; the historical
   230,400-body checkpoint has no live inspect verb, runtime branch, or coverage mode;
-- one host-owned Win32 keyboard/focus adapter and bounded process-local normalized input journal
-  with isolated deterministic replay, plus exact pressed/released sets derived from the most recent
-  ingest's accepted transitions and expired by every later ingest without changing journal bytes;
+- one host-owned Win32 keyboard/focus adapter and fixed normalized input state with exact held plus
+  most-recent-ingest pressed/released sets, repeat/unmatched/invalid suppression, focus cleanup,
+  and empty-ingest edge expiry without a journal or replay branch;
 - one reference-host monotonic admission state machine that applies each ordered activation batch
   before exact bounded sampling, with prototype consumption, stall recovery, reset, and rollback;
 - one concrete Win32 activation reducer that maps arbitrary focus-loss/resume bursts into at most
@@ -167,8 +167,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one optional strict schema-2 bootstrap document that selects both sources, one signed global
   target, and one inclusive signed playable-region rectangle containing that target, hides async
   progress, and emits readiness only after a canonical frame;
-- one concrete Windows reference-host owner for the single window/message lifecycle, normalized
-  held/edge input boundary and journal, bootstrap parser, canonical-ready driver, and composed time
+- one concrete Windows reference-host owner for the single window/message lifecycle, fixed
+  normalized held/edge input boundary, bootstrap parser, canonical-ready driver, and composed time
   policy;
 - one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
   one grounded imported-Fox actor, Ready-only fixed gravity plus fixed W/A/S/D integer locomotion,
@@ -188,9 +188,12 @@ geometry/material/rig source, and one deterministic object-shadow path:
   explicitly activated held locomotion, and which adds no engine boundary mode, source-index
   inference, compatibility decoder, product telemetry, or weakened runtime source/query failure;
 - one accepted post-v0 host input-edge boundary that exposes sample-scoped `was_pressed` and
-  `was_released` facts beside continuous `is_held`, expires them on empty ingest without an empty
-  journal transaction, leaves status/replay/hash revision v1 unchanged, and proves the first live
-  consumer through a real Escape press and clean prototype exit without an action queue;
+  `was_released` facts beside continuous `is_held`, expires them on empty ingest, and proves the
+  first live consumer through a real Escape press and clean prototype exit without an action queue;
+- one mandatory post-v0 cleanup that deletes the process-local input journal, status/hashes/replay,
+  diagnostic native-post adapter, five inspect verbs, four wrapper commands, and long-report field;
+  workbench retains no input state after bootstrap, while prototype preserves one fixed input owner
+  across bootstrap for pre-ready held input, with a guard rejecting every retired live surface;
 - one accepted plain Prototype v0 stage boundary over that exact self-contained finite single-actor
   loop; it does not claim sustained product traversal, a source service, finite-edge behavior,
   gameplay interaction, multiple actors, networking, or Wulin content;
@@ -201,8 +204,7 @@ geometry/material/rig source, and one deterministic object-shadow path:
   mutation, gravity, or locomotion policy;
 - one clear-only diagnostic idle shell with neutral reverse-Z depth and semantic frame targets,
   no calibration scene, and no split-world control surface;
-- one compact `input.*` / `actor.*` / `simulation.*` / `camera.*` / `source.*` / `canonical.*` inspect
-  vocabulary;
+- one compact `actor.*` / `simulation.*` / `camera.*` / `source.*` / `canonical.*` inspect vocabulary;
 - one non-recursive `runseal :canonical-prototype` host/application workflow, one non-recursive
   `runseal :canonical-actor` actor GPU workflow, one `runseal :canonical-frame`
   focused GPU regression workflow, one `runseal :canonical-resources` same-process plateau
@@ -239,7 +241,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0041-camera-visible-directional-shadows.md` | Accepted fixed camera-visible object shadow map, indirect depth reuse, and deterministic receiver contract. |
 | `docs/adr/0042-canonical-runtime-host-separation.md` | Accepted engine-runtime ownership, facade, host responsibilities, and dependency direction. |
 | `docs/adr/0043-runtime-frame-transaction.md` | Accepted runtime timeline ownership, immutable render input, and successful-frame commit contract. |
-| `docs/adr/0044-normalized-host-input-journal.md` | Accepted host-native keyboard normalization, bounded journal, focus cleanup, and isolated replay contract. |
+| `docs/adr/0044-normalized-host-input-journal.md` | Superseded original host normalization and diagnostic journal decision. |
 | `docs/adr/0045-canonical-bootstrap-readiness.md` | Accepted strict bootstrap schema, terminal failure, hidden progress, and canonical-ready contract. |
 | `docs/adr/0046-reference-platform-host.md` | Accepted concrete Windows host ownership, workbench/prototype separation, and non-diagnostic composition contract. |
 | `docs/adr/0047-canonical-terrain-query.md` | Accepted signed fixed-point CPU terrain-height query and published-snapshot failure contract. |
@@ -282,7 +284,8 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0084-actor-local-animation-epoch.md` | Accepted transactional actor animation epoch and frame-resolved GPU phase decision. |
 | `docs/adr/0085-plain-prototype-v0-stage-boundary.md` | Accepted finite single-actor plain Prototype v0 stage boundary. |
 | `docs/adr/0086-explicit-playable-region-boundary.md` | Accepted strict bootstrap rectangle and prototype-owned finite-edge policy. |
-| `docs/adr/0087-normalized-host-input-edges.md` | Accepted sample-scoped normalized press/release facts and first product action consumer. |
+| `docs/adr/0087-normalized-host-input-edges.md` | Superseded sample-scoped normalized edge and first product action decision. |
+| `docs/adr/0088-retired-diagnostic-host-input-journal.md` | Accepted fixed normalized input state and diagnostic journal retirement decision. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -338,6 +341,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0082-plain-prototype-v0-stage-seal/README.md` | Accepted source-free product, focused prototype, and long canonical Prototype v0 stage evidence. |
 | `experiments/0083-explicit-playable-region-boundary/README.md` | Accepted schema, per-axis maximum-batch policy, real held-input survival, and operator evidence. |
 | `experiments/0084-normalized-host-input-edges/README.md` | Accepted edge lifetime, journal isolation, native record preservation, and real Escape-exit evidence. |
+| `experiments/0085-mandatory-host-input-journal-cleanup/README.md` | Accepted diagnostic journal/native-post/operator deletion and product-input preservation proof. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -359,7 +363,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/reference-host/src/window.rs` | Concrete single-window Win32 lifecycle, message pump, native input/activation capture, and close signaling. |
 | `crates/reference-host/src/activation.rs` | Constant-state focus-burst reduction and typed bounded activation transitions. |
 | `crates/reference-host/src/clock.rs` | Activation-aware bounded monotonic admission, typed outcomes/status, candidate commit, stall recovery, and reset. |
-| `crates/reference-host/src/input.rs` | Normalized held and sample-edge key state, empty-ingest expiry, bounded record lifecycle, canonical hashing, and isolated replay. |
+| `crates/reference-host/src/input.rs` | Fixed normalized held and sample-edge key state, suppression, focus cleanup, and empty-ingest expiry. |
 | `crates/reference-host/src/bootstrap.rs` | Strict schema-2 arguments/config/pack paths, playable-region validation/evidence, and hidden canonical-ready driver. |
 | `crates/meshlet-catalog/build.rs` | Verified build-time glTF geometry/joint/weight cook, normalization, normals, LOD simplification, and canonical payload emission. |
 | `crates/meshlet-catalog/src/imported.rs` | Strict canonical imported-geometry/binding payload decoder and metadata owner. |
@@ -422,12 +426,12 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls, retained-body history, and pre-owner actor support paths. |
 | `.runseal/support/guard/canonical-operator.ts` | Exact neutral canonical revision/collection and current evidence-path guard. |
 | `.runseal/support/guard/live-operator-surface.ts` | Exact wrapper set, single current-boundary authority, and maintained prototype-operator documentation gate. |
+| `.runseal/support/guard/input-journal-removal.ts` | Forbidden-file/symbol/verb/command gate for the retired diagnostic input journal surface. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/actor/admission.ts` | Schema-2 prepublication/advanced evidence, typed pending block, zero-commit rollback, and retained-frame support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |
 | `.runseal/support/actor/animation.ts` | Fixed-tick spawn/transition actor epoch, GPU local-phase, same-clip retention, and fractional rollback support. |
 | `.runseal/support/actor/simulation.ts` | Retired-route rejection plus schema-2 fractional, partition, rollback, and sole actor advance support. |
-| `.runseal/support/host-input-replay.ts` | Native message, exact-hash paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
 | `.runseal/support/prototype/host.ts` | Prototype startup/failure, exact simulation/camera/zero-block readiness, held-input boundary survival, Escape clean exit, restart, and no-inspect lifecycle orchestration. |
 | `.runseal/support/prototype/boundary.ts` | Real activated held-input finite-edge process survival and cleanup evidence owner. |
@@ -515,10 +519,6 @@ Generated evidence belongs under
 
 ```powershell
 runseal :workbench start
-runseal :workbench input
-runseal :workbench input-record-start
-runseal :workbench input-record-stop
-runseal :workbench input-replay
 runseal :workbench terrain-open out/cooked/example/terrain.wlt
 runseal :workbench objects-open out/cooked/example/objects.wlr
 runseal :workbench schedule 0 0 0 0 2

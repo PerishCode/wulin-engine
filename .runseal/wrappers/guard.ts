@@ -1,6 +1,7 @@
 import { requireContactHistoryRemoved } from "../support/guard/contact-removal.ts";
 import { requireCanonicalOperatorIdentity } from "../support/guard/canonical-operator.ts";
 import { requireLiveOperatorSurface } from "../support/guard/live-operator-surface.ts";
+import { requireInputJournalRemoved } from "../support/guard/input-journal-removal.ts";
 import { requireSimulationHistoryRemoved } from "../support/guard/simulation-control-removal.ts";
 import { requireTerrainHistoryRemoved } from "../support/guard/terrain-transaction-removal.ts";
 
@@ -221,7 +222,7 @@ async function requireRuntimeBoundary(): Promise<void> {
             "--no-index",
             "-n",
             "-E",
-            "HostInput|NativeMessage|PostedMessage|WM_(SYS)?KEY|WM_KILLFOCUS",
+            "HostInput|NativeMessage|WM_(SYS)?KEY|WM_KILLFOCUS",
             "--",
             "crates/engine-runtime",
         ],
@@ -397,6 +398,7 @@ const root = profilePath.replace(/[\\/][^\\/]+$/, "");
 
 await requireCanonicalOperatorIdentity(root, fail);
 await requireLiveOperatorSurface(root, fail);
+await requireInputJournalRemoved(root, fail);
 await requireRuntimeBoundary();
 await requireCalibrationSurfaceRemoved();
 await requireContactHistoryRemoved(root, fail);
@@ -431,7 +433,6 @@ await run("deno check", "deno", [
     ".runseal/wrappers/canonical-prototype.ts",
     ".runseal/wrappers/canonical-runtime.ts",
     ".runseal/support/canonical-runtime.ts",
-    ".runseal/support/host-input-replay.ts",
     ".runseal/support/runtime-bootstrap.ts",
     ".runseal/support/prototype/host.ts",
     ".runseal/support/prototype/input.ts",

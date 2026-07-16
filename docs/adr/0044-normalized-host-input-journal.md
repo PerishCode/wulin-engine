@@ -1,9 +1,9 @@
 # ADR 0044: Normalized Host Input Journal
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-07-14
 - Supersedes: None
-- Superseded by: None
+- Superseded by: ADR 0088 Retired Diagnostic Host Input Journal
 
 ## Context
 

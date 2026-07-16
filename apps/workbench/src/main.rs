@@ -41,8 +41,9 @@ unsafe fn run() -> Result<()> {
     let mut state = WorkbenchState::new(arguments.launched_by_sidecar, startup);
 
     if let Some(plan) = arguments.bootstrap {
+        let mut input = HostInput::new();
         let ready =
-            unsafe { bootstrap::drive(&mut runtime, &mut state.input, &plan, state.clear_color)? };
+            unsafe { bootstrap::drive(&mut runtime, &mut input, &plan, state.clear_color)? };
         state.frame_index = ready.frame_count;
         state.last_frame_ms = ready.last_frame_duration.as_secs_f64() * 1_000.0;
         state.startup = ready.status;
@@ -76,7 +77,7 @@ unsafe fn run() -> Result<()> {
             break 'running;
         }
 
-        state.input.ingest(window::drain_input());
+        drop(window::drain_input());
         inspect::handle_commands(hwnd, &mut runtime, &mut state, &commands, &mut pending);
         let capture_requested = pending.capture.is_some();
         let probe_requested = pending.probe.is_some();
@@ -141,7 +142,6 @@ struct WorkbenchState {
     clear_color: [f32; 4],
     last_error: Option<String>,
     launched_by_sidecar: bool,
-    input: HostInput,
     startup: serde_json::Value,
 }
 
@@ -155,7 +155,6 @@ impl WorkbenchState {
             clear_color: DEFAULT_CLEAR_COLOR,
             last_error: None,
             launched_by_sidecar,
-            input: HostInput::new(),
             startup,
         }
     }

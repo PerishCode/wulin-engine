@@ -43,7 +43,7 @@ function finite(value: string | undefined, name: string): number {
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|restart|stop|status|inspect|pause|resume|input|input-record-start|input-record-stop|input-replay|terrain-open|objects-open|schedule|canonical-status|probe|traversal-enable|traversal-disable|prefetch-enable|prefetch-disable|camera|camera-set|camera-reset|capture|perception|objects-io-arm|objects-io-release|objects-copy-arm|objects-copy-release|terrain-io-arm|terrain-io-release|terrain-copy-arm|terrain-copy-release>",
+        "Usage: runseal :workbench <start|restart|stop|status|inspect|pause|resume|terrain-open|objects-open|schedule|canonical-status|probe|traversal-enable|traversal-disable|prefetch-enable|prefetch-disable|camera|camera-set|camera-reset|capture|perception|objects-io-arm|objects-io-release|objects-copy-arm|objects-copy-release|terrain-io-arm|terrain-io-release|terrain-copy-arm|terrain-copy-release>",
     );
     Deno.exit(0);
 }
@@ -68,19 +68,6 @@ switch (verb) {
     case "resume":
         if (args.length !== 0) fail(`workbench: ${verb} accepts no arguments`);
         await event(`workbench.${verb}`);
-        break;
-    case "input":
-        if (args.length !== 0) fail("workbench: input accepts no arguments");
-        await event("input.status");
-        break;
-    case "input-record-start":
-    case "input-record-stop":
-        if (args.length !== 0) fail(`workbench: ${verb} accepts no arguments`);
-        await event(`input.record.${verb.endsWith("start") ? "start" : "stop"}`);
-        break;
-    case "input-replay":
-        if (args.length !== 0) fail("workbench: input-replay accepts no arguments");
-        await event("input.replay");
         break;
     case "terrain-open":
     case "objects-open":
