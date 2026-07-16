@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0085 and the current ADR set through 0088 define one live content runtime
+Experiments 0031-0086 and the current ADR set through 0089 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -176,8 +176,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
   eight-way locomotion facing that retains the last admitted yaw while stationary, and local
   phase-zero Survey spawn/Walk transition over the renderer's sole presentation clock,
   a 0.5-meter step-up bound, independent maximum-eight-step per-axis reduction against the
-  bootstrap-authored playable rectangle before the strict runtime transaction, one fixed
-  actor-relative camera anchor before each frame, explicit
+  bootstrap-authored playable rectangle before the strict runtime transaction, one committed
+  four-state Q/E quarter-orbit actor-relative camera policy applied before each frame, explicit
   no-retry/no-backlog render-block consumption, readiness after a nonzero commit/frame, one-time
   post-spawn composition traversal with prefetch disabled and compact status evidence, one top-level
   current actor authority equal to committed simulation
@@ -194,6 +194,10 @@ geometry/material/rig source, and one deterministic object-shadow path:
   diagnostic native-post adapter, five inspect verbs, four wrapper commands, and long-report field;
   workbench retains no input state after bootstrap, while prototype preserves one fixed input owner
   across bootstrap for pre-ready held input, with a guard rejecting every retired live surface;
+- one accepted post-v0 camera action whose prototype-owned four-state exact quarter-orbit policy
+  consumes Q/E press edges, prepares a complete actor-relative rig, commits its index only after the
+  sole checked runtime camera mutation succeeds, and drives the corresponding exact traversal desire
+  through the existing bounded latest-wins state machine without an engine input/camera controller;
 - one accepted plain Prototype v0 stage boundary over that exact self-contained finite single-actor
   loop; it does not claim sustained product traversal, a source service, finite-edge behavior,
   gameplay interaction, multiple actors, networking, or Wulin content;
@@ -286,6 +290,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0086-explicit-playable-region-boundary.md` | Accepted strict bootstrap rectangle and prototype-owned finite-edge policy. |
 | `docs/adr/0087-normalized-host-input-edges.md` | Superseded sample-scoped normalized edge and first product action decision. |
 | `docs/adr/0088-retired-diagnostic-host-input-journal.md` | Accepted fixed normalized input state and diagnostic journal retirement decision. |
+| `docs/adr/0089-committed-prototype-camera-orbit.md` | Accepted application-owned candidate/commit policy for discrete actor-relative camera orbit. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -342,6 +347,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0083-explicit-playable-region-boundary/README.md` | Accepted schema, per-axis maximum-batch policy, real held-input survival, and operator evidence. |
 | `experiments/0084-normalized-host-input-edges/README.md` | Accepted edge lifetime, journal isolation, native record preservation, and real Escape-exit evidence. |
 | `experiments/0085-mandatory-host-input-journal-cleanup/README.md` | Accepted diagnostic journal/native-post/operator deletion and product-input preservation proof. |
+| `experiments/0086-committed-prototype-camera-orbit/README.md` | Accepted Q/E edge, exact rig, commit ordering, and real-process camera-orbit evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -382,7 +388,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `apps/prototype/src/main.rs` | Non-diagnostic composition root, playable-boundary admission, one-time traversal activation, Ready-only typed simulation/frame ordering, block accounting, committed-current-actor readiness, and Escape press-edge host-exit consumer. |
 | `apps/prototype/src/actor.rs` | Prototype-owned grounded spawn motion and fixed gravity policy. |
 | `apps/prototype/src/boundary.rs` | Prototype-owned independent maximum-batch per-axis playable-region admission policy. |
-| `apps/prototype/src/camera.rs` | Prototype-owned fixed actor-relative camera rig policy. |
+| `apps/prototype/src/camera.rs` | Prototype-owned committed four-state Q/E actor-relative camera-orbit policy. |
 | `apps/prototype/src/locomotion.rs` | Prototype-owned fixed W/A/S/D integer command and bounded step-up policy. |
 | `apps/prototype/src/presentation.rs` | Prototype-owned imported Survey/Walk and committed eight-way locomotion-facing policy. |
 | `apps/prototype/src/time.rs` | Prototype-only HostClock admission plus no-retry/no-backlog render-block consumption policy. |
@@ -433,13 +439,14 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/actor/animation.ts` | Fixed-tick spawn/transition actor epoch, GPU local-phase, same-clip retention, and fractional rollback support. |
 | `.runseal/support/actor/simulation.ts` | Retired-route rejection plus schema-2 fractional, partition, rollback, and sole actor advance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
-| `.runseal/support/prototype/host.ts` | Prototype startup/failure, exact simulation/camera/zero-block readiness, held-input boundary survival, Escape clean exit, restart, and no-inspect lifecycle orchestration. |
+| `.runseal/support/prototype/host.ts` | Prototype startup/failure, exact simulation/camera-orbit/zero-block readiness, held-input boundary survival, Escape clean exit, restart, and no-inspect lifecycle orchestration. |
 | `.runseal/support/prototype/boundary.ts` | Real activated held-input finite-edge process survival and cleanup evidence owner. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
-| `.runseal/support/prototype/input.ts` | Process-qualified native prototype-window W/Escape injection for locomotion and action-edge acceptance. |
+| `.runseal/support/prototype/camera.ts` | Exact default/orbit rig, actor anchor, and camera/frame readiness invariant owner. |
+| `.runseal/support/prototype/input.ts` | Process-qualified native prototype-window W/Escape/E injection for locomotion and action-edge acceptance. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk, locomotion yaw, and committed actor presentation invariant owner. |
 | `.runseal/support/prototype/process.ts` | Shared prototype readiness-line framing and native Escape clean-exit process owner. |
-| `.runseal/support/prototype/traversal.ts` | Exact one-time prototype traversal target, bounded async publication, and no-prefetch/queue/failure invariant owner. |
+| `.runseal/support/prototype/traversal.ts` | Exact default/orbit traversal targets, bounded async/latest-wins publication, and no-prefetch/block/failure invariant owner. |
 | `.runseal/support/terrain/query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
 | `.runseal/support/temporal-presentation.ts` | Fixed-quantum duration time, common-period, and held-pair acceptance support. |
@@ -473,7 +480,7 @@ frame-slot writes, existing-pipeline participation, despawn/respawn clearing, fr
 outside-window rollback, and semantic capture. Its ignored evidence belongs under
 `out/captures/canonical-actor/`.
 
-The prototype workflow runs focused runtime/host/application tests, cooks the three required signed
+The prototype workflow runs focused runtime/host/application tests, cooks the four required signed
 centers, and proves exact grounded gravity admission, stationary and explicitly activated
 process-qualified native-W fixed locomotion, one-region held-input boundary survival, one committed
 current actor authority, actor-relative camera/frame ordering,
@@ -542,13 +549,13 @@ runseal :prototype stop
 The prototype has no inspect endpoint or idle-shell mode. It shows the same canonical runtime only
 after configured content is ready, advances one grounded runtime actor with fixed gravity and fixed
 W/A/S/D displacement on Ready samples, reduces unsafe maximum-batch axes against bootstrap-authored
-inclusive playable bounds, anchors one fixed camera rig before every live frame, and enables
+inclusive playable bounds, applies one committed four-state Q/E camera orbit before every live frame, and enables
 camera-driven composition traversal once after spawn with prefetch disabled. Window close, Escape,
 and wrapper stop are its current controls. Start deterministically cooks the documented zero-origin
 `[-8,8]²` finite sandbox, declares inclusive `[-6,6]²` playable bounds, and publishes strict schema
 2 before Sidecar readiness; no prior acceptance output is required. Prototype v0 remains the sealed
-base loop and the explicit finite-edge policy is its first accepted post-seal dependency. Camera
-actions, infinite source service, sustained traversal policy, gameplay
+base loop with explicit finite-edge, input-edge, cleanup, and discrete-camera dependencies. Pointer
+camera control, infinite source service, sustained traversal policy, gameplay
 interaction, and multiple actors are not part of this workflow.
 
 ### 6.6 Experiment lifecycle

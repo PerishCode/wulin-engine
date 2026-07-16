@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-15
 - Experiment: 0071 Actor-Relative Camera Anchor
+- Superseded by: ADR 0089 for the prototype's fixed-rig policy only
 
 ## Context
 

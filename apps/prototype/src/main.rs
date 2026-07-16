@@ -52,6 +52,7 @@ unsafe fn run() -> Result<()> {
     let mut camera_anchor_count = 0_u64;
     let mut render_block_count = 0_u64;
     let mut presentation_policy = presentation::Policy::new();
+    let mut camera_policy = camera::Policy::new();
     unsafe { window::show(hwnd) };
 
     'running: loop {
@@ -99,12 +100,15 @@ unsafe fn run() -> Result<()> {
         let completed = advance
             .filter(|advance| advance.simulation.step_count != 0)
             .map(|advance| (sample, clock.status(), advance, command));
+        let camera_candidate = camera_policy.candidate(&input);
+        let anchored_rig = camera_candidate.rig();
         runtime.set_actor_relative_camera(
             runtime_actor.handle,
-            camera::POSITION_OFFSET,
-            camera::TARGET_OFFSET,
-            camera::VERTICAL_FOV_DEGREES,
+            anchored_rig.position_offset,
+            anchored_rig.target_offset,
+            anchored_rig.vertical_fov_degrees,
         )?;
+        camera_policy.commit(camera_candidate);
         let anchored_camera = runtime.camera_json();
         camera_anchor_count = camera_anchor_count
             .checked_add(1)
@@ -132,6 +136,7 @@ unsafe fn run() -> Result<()> {
                 command,
                 bootstrap_frame_count,
                 live_frame_count,
+                anchored_rig,
                 anchored_camera,
                 camera_anchor_count,
                 render_block_count,
@@ -153,6 +158,7 @@ struct ReadinessEvidence {
     command: ActorSimulationCommand,
     bootstrap_frame_count: u64,
     live_frame_count: u64,
+    anchored_rig: camera::Rig,
     anchored_camera: Value,
     camera_anchor_count: u64,
     render_block_count: u64,
@@ -187,12 +193,13 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "totalFrameCount": total_frame_count,
             },
             "camera_driver": {
-                "revision": "live-prototype-actor-camera-v1",
+                "revision": "live-prototype-actor-camera-v2",
                 "actor": evidence.advance.actor.output.handle,
                 "rig": {
-                    "positionOffset": camera::POSITION_OFFSET,
-                    "targetOffset": camera::TARGET_OFFSET,
-                    "verticalFovDegrees": camera::VERTICAL_FOV_DEGREES,
+                    "orbitIndex": evidence.anchored_rig.orbit_index,
+                    "positionOffset": evidence.anchored_rig.position_offset,
+                    "targetOffset": evidence.anchored_rig.target_offset,
+                    "verticalFovDegrees": evidence.anchored_rig.vertical_fov_degrees,
                 },
                 "camera": evidence.anchored_camera,
                 "anchorCount": evidence.camera_anchor_count,
