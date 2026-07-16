@@ -514,6 +514,15 @@ source-byte oracle 精确证明 0/31/511/992/1023 的 same/X/Z/diagonal seam 与
 秒 `canonical-runtime-v3` 保持 A/B、revisit、adjacent、两类 rollback、restart、32+32 traversal、8
 publication resource checkpoint 和 2 lifecycle。owner region + local ID 身份不随 spatial seam 改写；
 没有 enumeration、selection、interaction、persistent ID、format/asset、networking 或 Wulin 变化。
+Experiment 0095 完成逢五清理：删除重复的 `Runtime::presentation_time_status`、
+`canonical.time.status` protocol/dispatch 全链，11 个维护型读取统一消费既有
+`canonical.status.presentationClock`；pause/resume/set/step 保持唯一 mutation 与原响应形状，直接从
+私有 timeline 返回。80.180 秒 `canonical-actor-v8` 保持 lifecycle/restart、fractional、60-step
+coarse/nominal、rollback、pending admission、GPU/epoch；268.804 秒 `canonical-runtime-v4` 中旧 verb
+仅一次并返回 generic `unknown_event`，manual/wrap/invalid/automatic/held-publication 时间证据、32+32
+traversal、8 publication resource checkpoint 与 2 lifecycle 全部通过。故意回填旧 method 名在一秒内
+被 guard 拒绝；最终零 Flavor deny。没有 alias、replacement status、product、renderer/GPU/resource/
+source/format/asset、networking 或 Wulin 变化。
 
 ## Project model
 

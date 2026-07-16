@@ -54,7 +54,6 @@ pub(crate) fn handle_commands(
                 .and_then(|path| runtime.open_cooked_object_pack(path))
                 .map_err(|error| protocol_error("pack_open_failed", error)),
             ControlKind::CanonicalStatus => Ok(runtime.composition_status()),
-            ControlKind::CanonicalTimeStatus => Ok(runtime.presentation_time_status()),
             ControlKind::CanonicalTimePause => Ok(runtime.pause_presentation_time()),
             ControlKind::CanonicalTimeResume => Ok(runtime.resume_presentation_time()),
             ControlKind::CanonicalTimeSet { tick } => runtime

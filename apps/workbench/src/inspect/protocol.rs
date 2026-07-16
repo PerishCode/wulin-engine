@@ -67,7 +67,6 @@ pub enum ControlKind {
         path: String,
     },
     CanonicalStatus,
-    CanonicalTimeStatus,
     CanonicalTimePause,
     CanonicalTimeResume,
     CanonicalTimeSet {
@@ -216,7 +215,6 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "source.terrain.open" => parse_pack(payload, true),
         "source.objects.open" => parse_pack(payload, false),
         "canonical.status" => Ok(ControlKind::CanonicalStatus),
-        "canonical.time.status" => Ok(ControlKind::CanonicalTimeStatus),
         "canonical.time.pause" => Ok(ControlKind::CanonicalTimePause),
         "canonical.time.resume" => Ok(ControlKind::CanonicalTimeResume),
         "canonical.time.set" => parse_canonical_time_set(payload),

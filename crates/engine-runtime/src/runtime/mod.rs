@@ -305,28 +305,24 @@ impl Runtime {
         }))
     }
 
-    pub fn presentation_time_status(&self) -> Value {
-        self.presentation_timeline.status_json()
-    }
-
     pub fn pause_presentation_time(&mut self) -> Value {
         self.presentation_timeline.pause();
-        self.presentation_time_status()
+        self.presentation_timeline.status_json()
     }
 
     pub fn resume_presentation_time(&mut self) -> Value {
         self.presentation_timeline.resume();
-        self.presentation_time_status()
+        self.presentation_timeline.status_json()
     }
 
     pub fn set_presentation_time(&mut self, tick: u32) -> Result<Value> {
         self.presentation_timeline.set(tick)?;
-        Ok(self.presentation_time_status())
+        Ok(self.presentation_timeline.status_json())
     }
 
     pub fn step_presentation_time(&mut self, ticks: u32) -> Result<Value> {
         self.presentation_timeline.step(ticks)?;
-        Ok(self.presentation_time_status())
+        Ok(self.presentation_timeline.status_json())
     }
 
     /// Schedules one canonical terrain/object pair publication.

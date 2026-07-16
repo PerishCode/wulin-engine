@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0094 and the current ADR set through 0097 define one live content runtime
+Experiments 0031-0095 and the current ADR set through 0098 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -244,6 +244,10 @@ geometry/material/rig source, and one deterministic object-shadow path:
   Q9 X/Z into the sole signed-region/half-open-local-Q9 `TerrainPosition`, independently normalizing
   each positive edge while preserving owner-region/local-ID identity and rejecting non-lattice,
   out-of-range, and signed-overflow input without selection or interaction policy;
+- one mandatory post-v0 cleanup that deletes the duplicate standalone presentation-timeline Runtime
+  forwarder and inspect verb; exact presentation state remains readable only through
+  `canonical.status.presentationClock`, pause/resume/set/step keep their direct exact responses, and
+  one current unknown-event witness plus a stable guard prevent the old route from returning;
 - one accepted plain Prototype v0 stage boundary over that exact self-contained finite single-actor
   loop; it does not claim sustained product traversal, a source service, finite-edge behavior,
   gameplay interaction, multiple actors, networking, or Wulin content;
@@ -258,7 +262,7 @@ geometry/material/rig source, and one deterministic object-shadow path:
   performs no PNG encoding or artifact writes; persistent captures remain explicit representative
   assets rather than a side effect of every frame assertion;
 - one compact `actor.*` / `simulation.actor.advance` / `camera.*` / `source.*` / `canonical.*`
-  inspect vocabulary with no standalone simulation-schedule status alias;
+  inspect vocabulary with no standalone simulation-schedule or presentation-timeline status alias;
 - one non-recursive `runseal :canonical-prototype` host/application workflow, one non-recursive
   `runseal :canonical-actor` actor GPU workflow, one `runseal :canonical-frame`
   focused GPU regression workflow, one `runseal :canonical-resources` deep same-process plateau and
@@ -351,6 +355,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0095-committed-camera-relative-locomotion.md` | Accepted exact current-camera-candidate quarter rotation of prototype locomotion. |
 | `docs/adr/0096-exact-canonical-object-query.md` | Accepted bounded committed CPU object residency and exact authored-triple lookup. |
 | `docs/adr/0097-exact-canonical-object-position.md` | Accepted exact authored-object conversion into the sole terrain-position domain. |
+| `docs/adr/0098-retired-standalone-presentation-status.md` | Accepted retirement of the duplicate presentation status inspect chain. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -416,6 +421,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0092-committed-camera-relative-locomotion/README.md` | Accepted exact four-orbit Walk/Run mapping and same-sample E+W process proof. |
 | `experiments/0093-exact-canonical-object-query/README.md` | Accepted exact committed authored-object lookup, atomic CPU/GPU lifetime, and lifecycle evidence. |
 | `experiments/0094-exact-canonical-object-position/README.md` | Accepted checked Q9 object-position conversion, seam normalization, and integration evidence. |
+| `experiments/0095-mandatory-presentation-status-cleanup/README.md` | Accepted standalone presentation-status removal and canonical aggregate preservation evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -509,6 +515,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for the retired dense contact command and runtime coverage mode. |
 | `.runseal/support/guard/terrain-transaction-removal.ts` | Forbidden-file/symbol gate for retired copied-value terrain mutation controls and support. |
 | `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls, duplicate schedule status, recurring history evidence, retained-body history, and pre-owner actor support paths. |
+| `.runseal/support/guard/presentation-status-removal.ts` | Forbidden-symbol/verb gate for the retired standalone presentation status chain. |
 | `.runseal/support/guard/canonical-operator.ts` | Exact neutral canonical revision/collection and current evidence-path guard. |
 | `.runseal/support/guard/live-operator-surface.ts` | Exact wrapper set, single current-boundary authority, and maintained prototype-operator documentation gate. |
 | `.runseal/support/guard/input-journal-removal.ts` | Forbidden-file/symbol/verb/command gate for the retired diagnostic input journal surface. |
@@ -529,7 +536,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/traversal.ts` | Exact default/orbit traversal targets, bounded async/latest-wins publication, and no-prefetch/block/failure invariant owner. |
 | `.runseal/support/terrain/query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
-| `.runseal/support/temporal-presentation.ts` | Fixed-quantum duration time, common-period, and held-pair acceptance support. |
+| `.runseal/support/temporal-presentation.ts` | Aggregate-clock ownership, retired-status rejection, fixed-quantum duration time, common-period, and held-pair acceptance support. |
 
 ## 6. Core Operational Workflows
 

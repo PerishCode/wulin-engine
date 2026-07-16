@@ -191,12 +191,16 @@ async function scheduleStatus(): Promise<Json> {
     return object(await event("canonical.status"), "simulationSchedule");
 }
 
+async function presentationClock(): Promise<Json> {
+    return object(await event("canonical.status"), "presentationClock");
+}
+
 export async function actorGates(): Promise<Json> {
     console.log("==> retained runtime-actor lifecycle gates");
     await startClean();
     await event("workbench.pause");
     const initialSimulation = await scheduleStatus();
-    const initialPresentation = await event("canonical.time.status");
+    const initialPresentation = await presentationClock();
     const zero = await rejectedEvent("actor.read", { generation: 0 });
     requireRejection(zero, "zero generation", "must be nonzero");
     const malformed = await rejectedEvent("actor.read", { generation: -1 });
@@ -207,7 +211,7 @@ export async function actorGates(): Promise<Json> {
     const first = await lifecycleSequence();
     same(await scheduleStatus(), initialSimulation, "lifecycle schedule independence");
     same(
-        await event("canonical.time.status"),
+        await presentationClock(),
         initialPresentation,
         "lifecycle presentation independence",
     );
@@ -225,7 +229,7 @@ export async function actorGates(): Promise<Json> {
     if (firstSha256 !== replaySha256) fail("actor lifecycle replay digest diverged");
     same(await scheduleStatus(), initialSimulation, "replay schedule independence");
     same(
-        await event("canonical.time.status"),
+        await presentationClock(),
         initialPresentation,
         "replay presentation independence",
     );
