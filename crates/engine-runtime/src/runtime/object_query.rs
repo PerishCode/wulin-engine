@@ -36,6 +36,15 @@ pub struct CanonicalObject {
     pub presentation: CanonicalObjectPresentation,
 }
 
+/// Typed lifetime result for one source-qualified canonical object identity.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(tag = "outcome", content = "object", rename_all = "kebab-case")]
+pub enum CanonicalObjectResolution {
+    Resolved(CanonicalObject),
+    SourceReplaced,
+    OutsidePublishedWindow,
+}
+
 /// One exact nearest-object candidate from the current committed snapshot.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,10 +67,8 @@ pub struct CanonicalObjectNearestQuery {
 impl CanonicalObject {
     /// Converts the authored planar position to the sole canonical terrain-position domain.
     ///
-    /// spatially into the adjacent region because [`TerrainPosition`] uses half-open local axes.
     /// The identity owner region remains unchanged. An authored `+8m` edge normalizes spatially
     /// into the adjacent region because [`TerrainPosition`] uses half-open local axes.
-    /// spatially into the adjacent region because [`TerrainPosition`] uses half-open local axes.
     pub fn terrain_position(self) -> Result<TerrainPosition> {
         let local_x_q9 = exact_local_q9("X", self.position[0])?;
         let local_z_q9 = exact_local_q9("Z", self.position[2])?;

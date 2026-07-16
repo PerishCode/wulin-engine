@@ -5,7 +5,7 @@ use super::{ControlKind, ParsedControl, ProtocolError, decode};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ObjectQueryPayload {
+struct ObjectResolvePayload {
     source_namespace: String,
     region_x: i64,
     region_z: i64,
@@ -22,9 +22,9 @@ struct ObjectNearestPayload {
     max_distance_q9: u32,
 }
 
-pub(super) fn query(value: Value) -> ParsedControl {
-    let payload: ObjectQueryPayload = decode(value)?;
-    Ok(ControlKind::CanonicalObjectQuery {
+pub(super) fn resolve(value: Value) -> ParsedControl {
+    let payload: ObjectResolvePayload = decode(value)?;
+    Ok(ControlKind::CanonicalObjectResolve {
         source_namespace: decode_source_namespace(&payload.source_namespace)?,
         region_x: payload.region_x,
         region_z: payload.region_z,

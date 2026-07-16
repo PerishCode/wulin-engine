@@ -105,12 +105,12 @@ pub(crate) fn handle_commands(
                     })
                 }
             }
-            ControlKind::CanonicalObjectQuery {
+            ControlKind::CanonicalObjectResolve {
                 source_namespace,
                 region_x,
                 region_z,
                 authored_local_id,
-            } => objects::query(
+            } => objects::resolve(
                 runtime,
                 source_namespace,
                 region_x,

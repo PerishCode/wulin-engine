@@ -11,7 +11,9 @@ use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObj
 use windows::core::Interface;
 
 use crate::objects::CookedObjectStreamer;
-use crate::runtime::{CanonicalObject, CanonicalObjectIdentity, CanonicalObjectNearestQuery};
+use crate::runtime::{
+    CanonicalObjectIdentity, CanonicalObjectNearestQuery, CanonicalObjectResolution,
+};
 use crate::terrain::TerrainStreamer;
 use crate::terrain_query::{TerrainHeight, TerrainPosition};
 
@@ -266,12 +268,12 @@ impl Renderer {
         self.terrain_renderer.query_height(position)
     }
 
-    pub fn query_canonical_object(
+    pub fn resolve_canonical_object(
         &self,
         identity: CanonicalObjectIdentity,
-    ) -> Result<CanonicalObject> {
+    ) -> Result<CanonicalObjectResolution> {
         self.async_resident_renderer
-            .query_canonical_object(identity)
+            .resolve_canonical_object(identity)
     }
 
     pub fn query_nearest_canonical_object(

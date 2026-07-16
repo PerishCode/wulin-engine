@@ -550,6 +550,17 @@ hashes 全部通过；75.899 秒 `canonical-prototype-v18` 保持 F+W committed 
 rollback、restart、32+32 traversal、资源 checkpoint 和 2 lifecycle 全通过。最终保持 492 handles/21
 threads，private bytes 仅比基线高 299,008。它仍是 source/snapshot qualification，不是 gameplay persistent
 ID、retained selection 或 interaction。
+Experiment 0099 将 qualified address 的普通失效从文本错误中分离：唯一
+`Runtime::resolve_canonical_object`/`canonical.objects.resolve` 返回 `resolved`、
+`source-replaced` 或 `outside-published-window`；未发布、非法 local ID、快照/页损坏、缺失或重复
+authored ID 仍严格失败。旧 Runtime method 与 inspect verb 均直接移除，无 alias。18.164 秒
+`canonical-frame-v6` 精确通过三种 outcome、独立 source oracle、旧 verb `unknown_event`、零 resolver-side
+work 与不变的 color/object-ID replay hashes。249.862 秒 `canonical-runtime-v7` 中 A/B 双向 stale 均为
+`source-replaced`，A revisit 恢复 `resolved`，同源 adjacent departure 为
+`outside-published-window`；两类 rollback、restart、32+32 traversal、资源 checkpoint 与 2 lifecycle
+全部通过。资源保持 492 handles/21 threads，private bytes 从 424,329,216 到 424,501,248（+172,032），
+报告 24 files/25,346,200 bytes。prototype 尚不 retain target，也没有逐帧 resolution、registry、
+interaction、networking 或 Wulin 语义。
 
 ## Project model
 

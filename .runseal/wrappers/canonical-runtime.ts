@@ -55,11 +55,11 @@ import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 import { actorGates } from "../support/actor/lifecycle.ts";
 import { simulationActorGates } from "../support/actor/simulation.ts";
 import {
-    OBJECT_QUERY_SAMPLE_IDS,
-    objectQueryGates,
-    queryObjectSamples,
-    sameObjectQueries,
-    unavailableObjectQueryGate,
+    OBJECT_RESOLUTION_SAMPLE_IDS,
+    objectResolutionGates,
+    resolveObjectSamples,
+    sameObjectResolutions,
+    unavailableObjectResolutionGate,
 } from "../support/object/query.ts";
 import {
     objectNearestGates,
@@ -69,10 +69,9 @@ import {
     unavailableObjectNearestGate,
 } from "../support/object/nearest.ts";
 import * as objectIntegration from "../support/object/integration.ts";
-const REVISION = "canonical-runtime-v6";
+const REVISION = "canonical-runtime-v7";
 const COLLECTION = "canonical-runtime";
 const BASE: Coord = [2 ** 40, -(2 ** 40)];
-
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log("Usage: runseal :canonical-runtime");
     Deno.exit(0);
@@ -123,15 +122,19 @@ try {
     await startClean();
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
-    const unavailableObjectQuery = await unavailableObjectQueryGate(BASE);
+    const unavailableObjectResolution = await unavailableObjectResolutionGate(BASE);
     const unavailableObjectNearest = await unavailableObjectNearestGate(BASE);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
     const unavailableTerrainContact = await unavailableContact(BASE);
     await openSources(TERRAIN, OBJECTS_A);
     const basePublication = await publish(target(BASE));
     assertObjectCopies(basePublication, 25, "cold publication");
-    const objectQuery = await objectQueryGates(OBJECTS_A, BASE, unavailableObjectQuery);
-    const orderAObjectQueries = objectQuery.samples as Json[];
+    const objectResolution = await objectResolutionGates(
+        OBJECTS_A,
+        BASE,
+        unavailableObjectResolution,
+    );
+    const orderAObjectResolutions = objectResolution.samples as Json[];
     const nearestSamples = objectNearestSamples(BASE);
     const objectNearest = await objectNearestGates(
         OBJECTS_A,
@@ -216,12 +219,12 @@ try {
     const orderBObjects = await objectIntegration.differentObjectSourceGates(
         OBJECTS_B,
         BASE,
-        OBJECT_QUERY_SAMPLE_IDS,
-        orderAObjectQueries,
+        OBJECT_RESOLUTION_SAMPLE_IDS,
+        orderAObjectResolutions,
         nearestSamples,
         orderAObjectNearest,
     );
-    const orderBObjectQueries = orderBObjects.queries as Json[];
+    const orderBObjectResolutions = orderBObjects.resolutions as Json[];
     const orderBObjectNearest = orderBObjects.nearest as Json[];
     const orderB = await frame("order-b", COLLECTION, false, false);
     same(orderB.stable, orderA.stable, "physical object order A/B behavior");
@@ -229,16 +232,21 @@ try {
     await event("source.objects.open", { path: OBJECTS_A });
     const revisitPublication = await publish(target(BASE));
     assertObjectCopies(revisitPublication, 0, "order A source revisit");
-    const staleOrderBIdentity = await objectIntegration.rejectStaleObjectIdentity(
-        orderBObjectQueries[0],
+    const staleOrderBIdentity = await objectIntegration.resolveStaleObjectIdentity(
+        orderBObjectResolutions[0],
+        "source-replaced",
         "order B identity after order A revisit",
     );
-    const revisitObjectQueries = await queryObjectSamples(
+    const revisitObjectResolutions = await resolveObjectSamples(
         OBJECTS_A,
         BASE,
-        OBJECT_QUERY_SAMPLE_IDS,
+        OBJECT_RESOLUTION_SAMPLE_IDS,
     );
-    sameObjectQueries(revisitObjectQueries, orderAObjectQueries, "object source revisit query");
+    sameObjectResolutions(
+        revisitObjectResolutions,
+        orderAObjectResolutions,
+        "object source revisit resolution",
+    );
     const revisitObjectNearest = await queryObjectNearestSamples(OBJECTS_A, nearestSamples);
     sameObjectNearestQueries(
         revisitObjectNearest,
@@ -313,12 +321,16 @@ try {
     await lifecycle("start");
     await openSources(TERRAIN, OBJECTS_A);
     const restartPublication = await publish(target(BASE));
-    const restartObjectQueries = await queryObjectSamples(
+    const restartObjectResolutions = await resolveObjectSamples(
         OBJECTS_A,
         BASE,
-        OBJECT_QUERY_SAMPLE_IDS,
+        OBJECT_RESOLUTION_SAMPLE_IDS,
     );
-    sameObjectQueries(restartObjectQueries, orderAObjectQueries, "canonical restart object query");
+    sameObjectResolutions(
+        restartObjectResolutions,
+        orderAObjectResolutions,
+        "canonical restart object resolution",
+    );
     const restartObjectNearest = await queryObjectNearestSamples(OBJECTS_A, nearestSamples);
     sameObjectNearestQueries(
         restartObjectNearest,
@@ -414,7 +426,7 @@ try {
             actor,
             simulationActor,
             compatibilityRemoval,
-            objectQuery,
+            objectResolution,
             objectNearest,
             terrainQuery,
             terrainContact,
@@ -428,16 +440,16 @@ try {
             sourceDuration,
             orderBPublication,
             staleOrderAIdentity: orderBObjects.staleIdentity,
-            orderBObjectQueries,
+            orderBObjectResolutions,
             orderBObjectNearest,
             orderB,
             revisitPublication,
             staleOrderBIdentity,
-            revisitObjectQueries,
+            revisitObjectResolutions,
             revisitObjectNearest,
             revisit,
             adjacentPublication: adjacentObjects.publication,
-            adjacentObjectQuery: adjacentObjects.query,
+            adjacentObjectResolution: adjacentObjects.resolution,
             adjacentObjectNearest: adjacentObjects.nearest,
             adjacent,
             diagonalBasePublication,
@@ -451,10 +463,10 @@ try {
             holds,
             objectFailure: failures.objectFailure,
             terrainFailure: failures.terrainFailure,
-            failureObjectQuery: failures.objectQuery,
+            failureObjectResolution: failures.objectResolution,
             failureObjectNearest: failures.objectNearest,
             restartPublication,
-            restartObjectQueries,
+            restartObjectResolutions,
             restartObjectNearest,
             restarted,
             rolloverBase,
