@@ -116,25 +116,21 @@ unsafe fn run() -> Result<()> {
             && observation_policy.wants_completion(advance.simulation.step_count)
         {
             let origin = advance.actor.output.motion.body().position();
+            let snapshot = runtime
+                .canonical_object_snapshot()
+                .context("prototype object observation snapshot failed")?;
             let query = runtime
                 .query_nearest_canonical_object(origin, observation::OBJECT_OBSERVATION_RADIUS_Q9)
                 .context("prototype committed object observation failed")?;
-            observation_policy.complete_after_advance(advance.simulation.step_count, origin, query)
+            observation_policy
+                .complete_after_advance(advance.simulation.step_count, origin, snapshot, query)
+                .context("prototype object target admission failed")?
         } else {
             None
         };
         let completed = advance
             .filter(|advance| advance.simulation.step_count != 0)
-            .map(|advance| {
-                (
-                    sample,
-                    clock.status(),
-                    advance,
-                    command,
-                    object_observation,
-                    observation_policy.status(),
-                )
-            });
+            .map(|advance| (sample, clock.status(), advance, command, object_observation));
         let anchored_rig = camera_candidate.rig();
         runtime.set_actor_relative_camera(
             runtime_actor.handle,
@@ -158,8 +154,20 @@ unsafe fn run() -> Result<()> {
         live_frame_count = live_frame_count
             .checked_add(1)
             .context("prototype live frame count overflowed")?;
-        if let Some((sample, clock, advance, command, object_observation, observation_status)) =
-            completed
+        if observation_policy.has_target() {
+            let snapshot = runtime
+                .canonical_object_snapshot()
+                .context("prototype object target snapshot check failed")?;
+            if let Some(identity) = observation_policy.validation_request(snapshot) {
+                let resolution = runtime
+                    .resolve_canonical_object(identity)
+                    .context("prototype retained object target resolution failed")?;
+                observation_policy
+                    .complete_validation(snapshot, resolution)
+                    .context("prototype retained object target transition failed")?;
+            }
+        }
+        if let Some((sample, clock, advance, command, object_observation)) = completed
             && let Some(startup) = startup.take()
         {
             publish_readiness(ReadinessEvidence {
@@ -177,7 +185,7 @@ unsafe fn run() -> Result<()> {
                 render_block_count,
                 jump_status: jump_policy.status(),
                 object_observation,
-                observation_status,
+                observation_status: observation_policy.status(),
             })?;
         }
     }
@@ -213,7 +221,18 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
     let object_observation = evidence.object_observation.map(|completed| {
         json!({
             "origin": completed.origin,
+            "snapshot": completed.snapshot,
             "query": completed.query,
+        })
+    });
+    let object_target = evidence.observation_status.target.map(|target| {
+        json!({
+            "identity": target.identity,
+            "snapshot": target.snapshot,
+            "availability": match target.availability {
+                observation::Availability::Resolved => "resolved",
+                observation::Availability::OutsidePublishedWindow => "outside-published-window",
+            },
         })
     });
     println!(
@@ -261,10 +280,11 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 },
             },
             "object_observation_driver": {
-                "revision": "live-prototype-object-observation-v1",
+                "revision": "live-prototype-object-target-v2",
                 "maxDistanceQ9": observation::OBJECT_OBSERVATION_RADIUS_Q9,
                 "status": {
                     "pending": evidence.observation_status.pending,
+                    "target": object_target,
                 },
                 "completed": object_observation.is_some(),
                 "observation": object_observation,

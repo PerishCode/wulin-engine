@@ -17,7 +17,8 @@ pub use runtime::{
     ActorSimulationOutcome, ActorSimulationRenderBlock, ActorStateTransition,
     CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CANONICAL_OBJECTS_PER_REGION, CanonicalObject,
     CanonicalObjectIdentity, CanonicalObjectNearest, CanonicalObjectNearestQuery,
-    CanonicalObjectPresentation, CanonicalObjectResolution, FrameRequest, Runtime, RuntimeActor,
+    CanonicalObjectPresentation, CanonicalObjectResolution, CanonicalObjectSnapshot, FrameRequest,
+    Runtime, RuntimeActor,
 };
 pub use streaming::address::GlobalRegionConfig;
 pub use streaming::async_resident::ObjectSourceNamespace;

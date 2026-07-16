@@ -13,6 +13,7 @@ use windows::core::Interface;
 use crate::objects::CookedObjectStreamer;
 use crate::runtime::{
     CanonicalObjectIdentity, CanonicalObjectNearestQuery, CanonicalObjectResolution,
+    CanonicalObjectSnapshot,
 };
 use crate::terrain::TerrainStreamer;
 use crate::terrain_query::{TerrainHeight, TerrainPosition};
@@ -274,6 +275,10 @@ impl Renderer {
     ) -> Result<CanonicalObjectResolution> {
         self.async_resident_renderer
             .resolve_canonical_object(identity)
+    }
+
+    pub fn canonical_object_snapshot(&self) -> Result<CanonicalObjectSnapshot> {
+        self.composition.canonical_object_snapshot()
     }
 
     pub fn query_nearest_canonical_object(

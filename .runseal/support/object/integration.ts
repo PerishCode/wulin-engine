@@ -9,6 +9,7 @@ import {
     number,
     object,
     publish,
+    same,
     target,
 } from "../canonical-runtime.ts";
 import {
@@ -20,6 +21,7 @@ import {
     sameObjectNearestQueries,
 } from "./nearest.ts";
 import {
+    canonicalObjectSnapshot,
     canonicalObjectSource,
     resolvedObject,
     resolveObject,
@@ -28,6 +30,17 @@ import {
     sameObjectResolutionContent,
     sameObjectResolutions,
 } from "./query.ts";
+
+function changedSnapshot(before: Json, after: Json, sourceChanged: boolean, label: string): Json {
+    const beforeSnapshot = canonicalObjectSnapshot(before);
+    const afterSnapshot = canonicalObjectSnapshot(after);
+    if (
+        number(afterSnapshot, "publicationToken") ===
+            number(beforeSnapshot, "publicationToken") ||
+        (afterSnapshot.sourceNamespace !== beforeSnapshot.sourceNamespace) !== sourceChanged
+    ) fail(`${label} did not expose the expected committed snapshot transition`);
+    return { before: beforeSnapshot, after: afterSnapshot, sourceChanged };
+}
 
 export async function resolveStaleObjectIdentity(
     resolved: Json,
@@ -73,7 +86,17 @@ export async function differentObjectSourceGates(
         referenceNearest,
         "physical object order A/B nearest content",
     );
-    return { staleIdentity, resolutions, nearest };
+    return {
+        staleIdentity,
+        resolutions,
+        nearest,
+        snapshot: changedSnapshot(
+            referenceResolutions[0],
+            staleIdentity,
+            true,
+            "object source replacement",
+        ),
+    };
 }
 
 export async function adjacentObjectGates(
@@ -101,6 +124,12 @@ export async function adjacentObjectGates(
     sameObjectNearestQueries(nearest, referenceNearest, "adjacent-window nearest query");
     return {
         publication,
+        snapshot: changedSnapshot(
+            oldBefore,
+            oldAfter,
+            false,
+            "adjacent object window publication",
+        ),
         resolution: {
             adjacentOldBefore: oldBefore,
             adjacentOldAfter: oldAfter,
@@ -144,6 +173,11 @@ export async function objectFailureGates(
         [nearestBefore],
         "object-corrupt rollback nearest query",
     );
+    same(
+        canonicalObjectSnapshot(objectAfterObject),
+        canonicalObjectSnapshot(objectBefore),
+        "object-corrupt rollback snapshot",
+    );
 
     await event("source.objects.open", { path: objects });
     await event("source.terrain.open", { path: corruptTerrain });
@@ -165,6 +199,11 @@ export async function objectFailureGates(
         [nearestAfterTerrain],
         [nearestBefore],
         "terrain-corrupt rollback nearest query",
+    );
+    same(
+        canonicalObjectSnapshot(objectAfterTerrain),
+        canonicalObjectSnapshot(objectBefore),
+        "terrain-corrupt rollback object snapshot",
     );
     await event("source.terrain.open", { path: terrain });
 

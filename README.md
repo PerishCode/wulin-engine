@@ -571,6 +571,17 @@ A/B、rollback、restart、32+32 traversal、5 warm/8 measured resource checkpoi
 保持 492 handles/21 threads，private +376,832 bytes。最终在全部验证与 commit hook 后移除
 `target/` 35,590 files/10,908,689,993 bytes 和 `out/` 5,394 files/9,356,065,266 bytes，合计回收
 40,984 files/20,264,755,259 bytes；不影响 committed source/evidence、asset、networking 或 Wulin 行为。
+Experiment 0101 新增 live-Runtime-scoped `CanonicalObjectSnapshot(publication token + source
+namespace)`，prototype 的 F observation 现在原子保留一个只含 qualified identity、last-validated
+snapshot 和 availability 的 target。无 target 不读 stamp；stamp 不变不调用 resolver；同源 window
+departure 保留 unavailable target，后续同源 publication 可恢复，source replacement 清空，explicit
+empty scan 也清空。27.122 秒 `canonical-frame-v7`、71.515 秒 `canonical-prototype-v19` 与 253.412 秒
+`canonical-runtime-v9` 全通过；native F+W 在 token 1 获取 ID 496，并在同帧 traversal publication 后
+精确重验证到 token 2，target 不复制 object/position/presentation。全量 A/B token/source、adjacent
+10→11、两类失败保持 token 21、GPU replay、4 warm/8 measured resource checkpoint 与 2 lifecycle
+通过；资源保持 492 handles/21 threads，private +1,187,840 bytes，报告 24 files/25,346,346 bytes。
+没有逐帧 nearest、unchanged-frame resolver、engine target、persistent gameplay ID、highlight、
+interaction、asset/format、networking 或 Wulin 语义。
 
 ## Project model
 
@@ -623,9 +634,10 @@ bootstrap schema 2, and then uses
 `sidecar.prototype.toml` to launch the application without an inspect endpoint. It becomes visible
 and ready only after canonical content has rendered; close the window, press Escape, or use
 `runseal :prototype stop` to end it. W/A/S/D moves relative to the current camera, hold Shift to run,
-Q/E changes the committed camera orbit, Space requests one grounded Jump, and F requests one
-read-only nearby-object observation after the next committed movement step. No prior canonical
-acceptance output is required.
+Q/E changes the committed camera orbit, Space requests one grounded Jump, and F acquires or clears
+one read-only nearby-object target after the next committed movement step. Target lifetime follows
+the current source/window but has no visual or interaction effect. No prior canonical acceptance
+output is required.
 
 `runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
 runtime/prototype/reference-host tests, cooks the four required signed centers, and proves

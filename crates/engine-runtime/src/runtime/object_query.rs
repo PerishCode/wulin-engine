@@ -26,6 +26,17 @@ pub struct CanonicalObjectIdentity {
     pub authored_local_id: u32,
 }
 
+/// One version stamp for the immutable object snapshot published by a live [`crate::Runtime`].
+///
+/// Publication tokens are monotonic only within that Runtime lifetime. The source namespace is
+/// carried with the token so callers cannot compare or retain an unqualified snapshot version.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalObjectSnapshot {
+    pub publication_token: u64,
+    pub source_namespace: ObjectSourceNamespace,
+}
+
 /// One exact authored triple from the current committed canonical object snapshot.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]

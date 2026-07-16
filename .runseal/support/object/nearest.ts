@@ -8,7 +8,12 @@ import {
     root,
     same,
 } from "../canonical-runtime.ts";
-import { canonicalObjectContent, canonicalObjectSource, objectSourceNamespace } from "./query.ts";
+import {
+    canonicalObjectContent,
+    canonicalObjectSnapshot,
+    canonicalObjectSource,
+    objectSourceNamespace,
+} from "./query.ts";
 
 const RECORD_COUNT = 1_024;
 const RECORD_BYTES = 20;
@@ -129,10 +134,14 @@ export async function queryObjectNearest(
     windowCenter: [number, number] = sample.region,
 ): Promise<Json> {
     const value = await event("canonical.objects.nearest", request(sample));
-    if (value.revision !== "source-qualified-canonical-object-nearest-v1") {
+    if (value.revision !== "versioned-canonical-object-nearest-v2") {
         fail(`object nearest ${sample.region.join(",")} revision diverged`);
     }
     requireZeroRuntimeWork(value, `object nearest ${sample.region.join(",")}`);
+    const sourceNamespace = await objectSourceNamespace(source);
+    if (canonicalObjectSnapshot(value).sourceNamespace !== sourceNamespace) {
+        fail(`object nearest ${sample.region.join(",")} snapshot source diverged`);
+    }
     const query = object(value, "query");
     if (number(query, "candidateCount") !== MAXIMUM_CANDIDATE_COUNT) {
         fail("object nearest did not scan the exact committed candidate bound");

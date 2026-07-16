@@ -14,19 +14,25 @@ pub(super) fn resolve(
     authored_local_id: u32,
 ) -> ControlResult {
     runtime
-        .resolve_canonical_object(CanonicalObjectIdentity {
-            source_namespace: ObjectSourceNamespace::from_bytes(source_namespace),
-            region: RegionCoord::new(region_x, region_z),
-            authored_local_id,
+        .canonical_object_snapshot()
+        .and_then(|snapshot| {
+            runtime
+                .resolve_canonical_object(CanonicalObjectIdentity {
+                    source_namespace: ObjectSourceNamespace::from_bytes(source_namespace),
+                    region: RegionCoord::new(region_x, region_z),
+                    authored_local_id,
+                })
+                .map(|resolution| (snapshot, resolution))
         })
-        .and_then(|resolution| {
+        .and_then(|(snapshot, resolution)| {
             let terrain_position = match resolution {
                 CanonicalObjectResolution::Resolved(object) => Some(object.terrain_position()?),
                 CanonicalObjectResolution::SourceReplaced
                 | CanonicalObjectResolution::OutsidePublishedWindow => None,
             };
             Ok(json!({
-                "revision": "typed-canonical-object-resolution-v1",
+                "revision": "versioned-canonical-object-resolution-v2",
+                "snapshot": snapshot,
                 "resolution": resolution,
                 "terrainPosition": terrain_position,
                 "perResolutionAllocationBytes": 0,
@@ -50,23 +56,26 @@ pub(super) fn nearest(
 ) -> ControlResult {
     TerrainPosition::new(RegionCoord::new(region_x, region_z), local_x_q9, local_z_q9)
         .and_then(|origin| {
-            runtime
-                .query_nearest_canonical_object(origin, max_distance_q9)
-                .map(|query| {
-                    json!({
-                        "revision": "source-qualified-canonical-object-nearest-v1",
-                        "origin": origin,
-                        "maxDistanceQ9": max_distance_q9,
-                        "query": query,
-                        "maximumCandidateCount": CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY,
-                        "perQueryAllocationBytes": 0,
-                        "sourceReadCount": 0,
-                        "gpuCopyCount": 0,
-                        "gpuReadbackCount": 0,
-                        "fenceWaitCount": 0,
-                        "synchronizationCount": 0,
+            runtime.canonical_object_snapshot().and_then(|snapshot| {
+                runtime
+                    .query_nearest_canonical_object(origin, max_distance_q9)
+                    .map(|query| {
+                        json!({
+                            "revision": "versioned-canonical-object-nearest-v2",
+                            "snapshot": snapshot,
+                            "origin": origin,
+                            "maxDistanceQ9": max_distance_q9,
+                            "query": query,
+                            "maximumCandidateCount": CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY,
+                            "perQueryAllocationBytes": 0,
+                            "sourceReadCount": 0,
+                            "gpuCopyCount": 0,
+                            "gpuReadbackCount": 0,
+                            "fenceWaitCount": 0,
+                            "synchronizationCount": 0,
+                        })
                     })
-                })
+            })
         })
         .map_err(|error| protocol_error("canonical_object_nearest_failed", error))
 }
