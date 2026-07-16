@@ -13,15 +13,23 @@ import {
 } from "../canonical-runtime.ts";
 import {
     holdPrototypeForwardKey,
+    holdRunForwardKeys,
     pressPrototypeCameraClockwise,
     pressPrototypeJump,
 } from "./input.ts";
-import { JUMP_VELOCITY_DELTA_Q16, jumpMotionInvariant, jumpPolicyInvariant } from "./jump.ts";
+import { jumpMotionInvariant, jumpPolicyInvariant } from "./jump.ts";
 import { actorInvariant } from "./actor.ts";
 import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
 import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
 import { escapeExit, readinessLine } from "./process.ts";
+import {
+    type ExpectedCommand,
+    FORWARD_COMMAND,
+    JUMP_COMMAND,
+    RUN_FORWARD_COMMAND,
+    STATIONARY_COMMAND,
+} from "./simulation.ts";
 import { cameraOrbitTraversalInvariant, traversalInvariant } from "./traversal.ts";
 
 const CONFIG = "out/cooked/bootstrap/runtime.json";
@@ -73,7 +81,7 @@ async function failedStart(label: string): Promise<Json> {
     };
 }
 
-type StartupInput = "camera-clockwise" | "forward" | "jump";
+type StartupInput = "camera-clockwise" | "forward" | "jump" | "run-forward";
 
 async function capturedReady(label: string, startupInput?: StartupInput): Promise<Json> {
     const started = performance.now();
@@ -91,6 +99,9 @@ async function capturedReady(label: string, startupInput?: StartupInput): Promis
     let nativeInput: Json | null = null;
     try {
         if (startupInput === "forward") nativeInput = await holdPrototypeForwardKey(child.pid);
+        if (startupInput === "run-forward") {
+            nativeInput = await holdRunForwardKeys(child.pid);
+        }
         if (startupInput === "camera-clockwise") {
             nativeInput = await pressPrototypeCameraClockwise(child.pid);
         }
@@ -135,48 +146,10 @@ function startupInvariant(launch: Json): Json {
     };
 }
 
-type ExpectedCommand = {
-    deltaXQ9: number;
-    deltaZQ9: number;
-    stepUpLimitQ16: number;
-    initialVelocityDeltaQ16: number;
-    groundedAfterBatch: boolean;
-    animationClip: number;
-    yawQ16: number;
-};
-
-const STATIONARY_COMMAND: ExpectedCommand = {
-    deltaXQ9: 0,
-    deltaZQ9: 0,
-    stepUpLimitQ16: 32_768,
-    initialVelocityDeltaQ16: 0,
-    groundedAfterBatch: true,
-    animationClip: 0,
-    yawQ16: 0,
-};
-const FORWARD_COMMAND: ExpectedCommand = {
-    deltaXQ9: 0,
-    deltaZQ9: -32,
-    stepUpLimitQ16: 32_768,
-    initialVelocityDeltaQ16: 0,
-    groundedAfterBatch: true,
-    animationClip: 1,
-    yawQ16: 49_152,
-};
-const JUMP_COMMAND: ExpectedCommand = {
-    deltaXQ9: 0,
-    deltaZQ9: 0,
-    stepUpLimitQ16: 32_768,
-    initialVelocityDeltaQ16: JUMP_VELOCITY_DELTA_Q16,
-    groundedAfterBatch: false,
-    animationClip: 0,
-    yawQ16: 0,
-};
-
 function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "simulation_driver");
-    if (driver.revision !== "live-prototype-locomotion-driver-v7") {
+    if (driver.revision !== "live-prototype-locomotion-driver-v8") {
         fail("prototype simulation driver revision diverged");
     }
     if (number(driver, "renderBlockCount") !== 0) {
@@ -361,6 +334,7 @@ export async function prototypeHostGates(
     const first = await capturedReady("prototype first process");
     const restarted = await capturedReady("prototype restarted process");
     const forward = await capturedReady("prototype forward locomotion", "forward");
+    const runForward = await capturedReady("prototype forward Run modifier", "run-forward");
     const cameraOrbit = await capturedReady("prototype clockwise camera orbit", "camera-clockwise");
     const jump = await capturedReady("prototype committed jump", "jump");
     const escape = await escapeExit(EXECUTABLE, CONFIG, "prototype Escape press exit");
@@ -414,6 +388,20 @@ export async function prototypeHostGates(
         jump: jumpPolicyInvariant(forward, true),
         camera: cameraDriverInvariant(forward),
         traversal: forwardTraversal,
+    };
+    same(startupInvariant(runForward), startupInvariant(first), "prototype Run configuration");
+    same(
+        actorInvariant(runForward, base),
+        actorInvariant(first, base),
+        "prototype Run initial actor authority",
+    );
+    const runTraversal = traversalInvariant(runForward, base);
+    same(runTraversal, firstTraversal, "prototype Run traversal activation");
+    const runInvariant = {
+        simulation: simulationDriverInvariant(runForward, RUN_FORWARD_COMMAND),
+        jump: jumpPolicyInvariant(runForward, true),
+        camera: cameraDriverInvariant(runForward),
+        traversal: runTraversal,
     };
     same(
         startupInvariant(cameraOrbit),
@@ -484,8 +472,10 @@ export async function prototypeHostGates(
         first,
         restarted,
         forward,
+        runForward,
         escape,
         forwardInvariant,
+        runInvariant,
         cameraOrbit,
         cameraOrbitInvariant,
         jump,

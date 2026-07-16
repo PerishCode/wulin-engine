@@ -2,15 +2,24 @@ import { fail, type Json, root } from "../canonical-runtime.ts";
 
 const decoder = new TextDecoder();
 
-async function postPrototypeKey(
+type PrototypeKey = {
+    key: "E" | "Escape" | "Shift" | "Space" | "W";
+    virtualKey: number;
+};
+
+async function postPrototypeKeys(
     processId: number,
-    key: "E" | "Escape" | "Space" | "W",
-    virtualKey: number,
+    keys: PrototypeKey[],
     requireVisible: boolean,
 ): Promise<Json> {
     if (!Number.isSafeInteger(processId) || processId <= 0) {
         fail(`prototype native input received invalid process id ${processId}`);
     }
+    if (keys.length === 0) fail("prototype native input requires at least one key");
+    const nativeKeys = keys.map(({ key, virtualKey }) => ({ key, virtualKey, down: true }));
+    const powershellKeys = keys.map(({ key, virtualKey }) =>
+        `[ordered]@{ key = "${key}"; virtualKey = ${virtualKey}; down = $true }`
+    ).join(", ");
     const script = String.raw`
 $ErrorActionPreference = "Stop"
 Add-Type -TypeDefinition @'
@@ -36,6 +45,7 @@ public static class PrototypeInputNative {
 
 $expectedProcessId = ${processId}
 $requireVisible = ${requireVisible ? "$true" : "$false"}
+$keys = @(${powershellKeys})
 $deadline = [DateTime]::UtcNow.AddSeconds(20)
 $window = [IntPtr]::Zero
 $windowProcessId = [uint32]0
@@ -69,27 +79,27 @@ if (-not [PrototypeInputNative]::PostMessage(
     $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
     throw "posting prototype focus activation failed with Win32 error $code"
 }
-if (-not [PrototypeInputNative]::PostMessage(
-    $window,
-    0x0100,
-    [UIntPtr]${virtualKey},
-    [IntPtr]1
-)) {
-    $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-    throw "posting prototype ${key} key down failed with Win32 error $code"
+foreach ($key in $keys) {
+    if (-not [PrototypeInputNative]::PostMessage(
+        $window,
+        0x0100,
+        [UIntPtr][uint32]$key.virtualKey,
+        [IntPtr]1
+    )) {
+        $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw "posting prototype $($key.key) key down failed with Win32 error $code"
+    }
 }
 
 [Console]::Out.Write((ConvertTo-Json ([ordered]@{
-    schema = "prototype-native-key-v3"
+    schema = "prototype-native-input-v4"
     processId = [int]$windowProcessId
     windowHandle = $window.ToInt64().ToString()
     activated = $true
     requiredVisible = $requireVisible
     windowVisible = [PrototypeInputNative]::IsWindowVisible($window)
-    key = "${key}"
-    virtualKey = ${virtualKey}
-    down = $true
-}) -Compress))
+    keys = @($keys)
+}) -Depth 4 -Compress))
 `;
     const output = await new Deno.Command("pwsh", {
         args: ["-NoProfile", "-NonInteractive", "-Command", script],
@@ -104,30 +114,36 @@ if (-not [PrototypeInputNative]::PostMessage(
     }
     const evidence = JSON.parse(stdout) as Json;
     if (
-        evidence.schema !== "prototype-native-key-v3" ||
+        evidence.schema !== "prototype-native-input-v4" ||
         evidence.processId !== processId ||
         evidence.activated !== true ||
         evidence.requiredVisible !== requireVisible ||
         (requireVisible && evidence.windowVisible !== true) ||
-        evidence.key !== key ||
-        evidence.virtualKey !== virtualKey ||
-        evidence.down !== true
+        JSON.stringify(evidence.keys) !== JSON.stringify(nativeKeys)
     ) fail("prototype native input evidence diverged");
     return evidence;
 }
 
 export async function holdPrototypeForwardKey(processId: number): Promise<Json> {
-    return await postPrototypeKey(processId, "W", 0x57, false);
+    return await postPrototypeKeys(processId, [{ key: "W", virtualKey: 0x57 }], false);
+}
+
+export async function holdRunForwardKeys(processId: number): Promise<Json> {
+    return await postPrototypeKeys(
+        processId,
+        [{ key: "Shift", virtualKey: 0x10 }, { key: "W", virtualKey: 0x57 }],
+        true,
+    );
 }
 
 export async function pressPrototypeEscape(processId: number): Promise<Json> {
-    return await postPrototypeKey(processId, "Escape", 0x1B, false);
+    return await postPrototypeKeys(processId, [{ key: "Escape", virtualKey: 0x1B }], false);
 }
 
 export async function pressPrototypeCameraClockwise(processId: number): Promise<Json> {
-    return await postPrototypeKey(processId, "E", 0x45, true);
+    return await postPrototypeKeys(processId, [{ key: "E", virtualKey: 0x45 }], true);
 }
 
 export async function pressPrototypeJump(processId: number): Promise<Json> {
-    return await postPrototypeKey(processId, "Space", 0x20, true);
+    return await postPrototypeKeys(processId, [{ key: "Space", virtualKey: 0x20 }], true);
 }
