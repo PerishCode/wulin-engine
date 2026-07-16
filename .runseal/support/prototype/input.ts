@@ -3,7 +3,7 @@ import { fail, type Json, root } from "../canonical-runtime.ts";
 const decoder = new TextDecoder();
 
 type PrototypeKey = {
-    key: "E" | "Escape" | "Shift" | "Space" | "W";
+    key: "E" | "Escape" | "F" | "Shift" | "Space" | "W";
     virtualKey: number;
 };
 
@@ -144,6 +144,14 @@ export async function holdOrbitForwardKeys(processId: number): Promise<Json> {
     );
 }
 
+export async function holdObserveForwardKeys(processId: number): Promise<Json> {
+    return await postPrototypeKeys(
+        processId,
+        [{ key: "F", virtualKey: 0x46 }, { key: "W", virtualKey: 0x57 }],
+        true,
+    );
+}
+
 export async function pressPrototypeEscape(processId: number): Promise<Json> {
     return await postPrototypeKeys(processId, [{ key: "Escape", virtualKey: 0x1B }], false);
 }
@@ -154,4 +162,34 @@ export async function pressPrototypeCameraClockwise(processId: number): Promise<
 
 export async function pressPrototypeJump(processId: number): Promise<Json> {
     return await postPrototypeKeys(processId, [{ key: "Space", virtualKey: 0x20 }], true);
+}
+
+export type StartupInput =
+    | "camera-clockwise"
+    | "camera-forward"
+    | "forward"
+    | "jump"
+    | "observe-forward"
+    | "run-forward";
+
+export async function applyStartupInput(
+    processId: number,
+    input?: StartupInput,
+): Promise<Json | null> {
+    switch (input) {
+        case "camera-clockwise":
+            return await pressPrototypeCameraClockwise(processId);
+        case "camera-forward":
+            return await holdOrbitForwardKeys(processId);
+        case "forward":
+            return await holdPrototypeForwardKey(processId);
+        case "jump":
+            return await pressPrototypeJump(processId);
+        case "observe-forward":
+            return await holdObserveForwardKeys(processId);
+        case "run-forward":
+            return await holdRunForwardKeys(processId);
+        case undefined:
+            return null;
+    }
 }

@@ -3,6 +3,7 @@ mod boundary;
 mod camera;
 mod jump;
 mod locomotion;
+mod observation;
 mod presentation;
 mod time;
 
@@ -18,6 +19,7 @@ const WIDTH: u32 = 1280;
 const HEIGHT: u32 = 720;
 const ESCAPE: u8 = 0x1B;
 const SPACE: u8 = 0x20;
+const OBSERVE_OBJECT: u8 = 0x46;
 const CLEAR_COLOR: [f32; 4] = [0.035, 0.105, 0.14, 1.0];
 const WINDOW_CONFIG: window::Config = window::Config {
     class_name: "WulinEnginePrototypeWindow",
@@ -56,6 +58,7 @@ unsafe fn run() -> Result<()> {
     let mut presentation_policy = presentation::Policy::new();
     let mut camera_policy = camera::Policy::new();
     let mut jump_policy = jump::Policy::new();
+    let mut observation_policy = observation::Policy::new();
     unsafe { window::show(hwnd) };
 
     'running: loop {
@@ -69,7 +72,9 @@ unsafe fn run() -> Result<()> {
         }
         let sample = clock.sample(&window::drain_activation())?;
         jump_policy.observe_sample(sample);
+        observation_policy.observe_sample(sample);
         jump_policy.ingest(input.was_pressed(SPACE));
+        observation_policy.ingest(input.was_pressed(OBSERVE_OBJECT));
         let camera_candidate = camera_policy.candidate(&input);
         let requested_locomotion = locomotion::command(&input, camera_candidate.rig().orbit_index);
         let actor = runtime
@@ -107,9 +112,29 @@ unsafe fn run() -> Result<()> {
                 advance.actor.output.presentation,
             );
         }
+        let object_observation = if let Some(advance) = &advance
+            && observation_policy.wants_completion(advance.simulation.step_count)
+        {
+            let origin = advance.actor.output.motion.body().position();
+            let query = runtime
+                .query_nearest_canonical_object(origin, observation::OBJECT_OBSERVATION_RADIUS_Q9)
+                .context("prototype committed object observation failed")?;
+            observation_policy.complete_after_advance(advance.simulation.step_count, origin, query)
+        } else {
+            None
+        };
         let completed = advance
             .filter(|advance| advance.simulation.step_count != 0)
-            .map(|advance| (sample, clock.status(), advance, command));
+            .map(|advance| {
+                (
+                    sample,
+                    clock.status(),
+                    advance,
+                    command,
+                    object_observation,
+                    observation_policy.status(),
+                )
+            });
         let anchored_rig = camera_candidate.rig();
         runtime.set_actor_relative_camera(
             runtime_actor.handle,
@@ -133,7 +158,8 @@ unsafe fn run() -> Result<()> {
         live_frame_count = live_frame_count
             .checked_add(1)
             .context("prototype live frame count overflowed")?;
-        if let Some((sample, clock, advance, command)) = completed
+        if let Some((sample, clock, advance, command, object_observation, observation_status)) =
+            completed
             && let Some(startup) = startup.take()
         {
             publish_readiness(ReadinessEvidence {
@@ -150,6 +176,8 @@ unsafe fn run() -> Result<()> {
                 camera_anchor_count,
                 render_block_count,
                 jump_status: jump_policy.status(),
+                object_observation,
+                observation_status,
             })?;
         }
     }
@@ -173,6 +201,8 @@ struct ReadinessEvidence {
     camera_anchor_count: u64,
     render_block_count: u64,
     jump_status: jump::Status,
+    object_observation: Option<observation::Completed>,
+    observation_status: observation::Status,
 }
 
 fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
@@ -180,6 +210,12 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
         .bootstrap_frame_count
         .checked_add(evidence.live_frame_count)
         .context("prototype total frame count overflowed")?;
+    let object_observation = evidence.object_observation.map(|completed| {
+        json!({
+            "origin": completed.origin,
+            "query": completed.query,
+        })
+    });
     println!(
         "{}",
         json!({
@@ -223,6 +259,15 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                     "pending": evidence.jump_status.pending,
                     "grounded": evidence.jump_status.grounded,
                 },
+            },
+            "object_observation_driver": {
+                "revision": "live-prototype-object-observation-v1",
+                "maxDistanceQ9": observation::OBJECT_OBSERVATION_RADIUS_Q9,
+                "status": {
+                    "pending": evidence.observation_status.pending,
+                },
+                "completed": object_observation.is_some(),
+                "observation": object_observation,
             },
         })
     );
