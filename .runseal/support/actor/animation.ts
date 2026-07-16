@@ -77,11 +77,14 @@ export async function actorAnimationEpochGates(base: Coord): Promise<Json> {
         "actor",
     );
     if (
-        fractionalResponse.revision !== "runtime-actor-simulation-v5" ||
+        fractionalResponse.revision !== "runtime-actor-simulation-v6" ||
         fractionalResponse.outcome !== "advanced" ||
         number(fractionalResponse, "preparedStepCount") !== 0 ||
         number(fractionalResponse, "presentationMutationCount") !== 0
     ) fail("fractional clip command returned the wrong outcome");
+    if (fractional.lastStepGrounded !== null) {
+        fail("fractional clip command published a grounded witness");
+    }
     same(object(fractional, "input"), object(fractional, "output"), "fractional epoch rollback");
     same(
         object(await event("actor.read", { generation }), "actor"),
@@ -100,6 +103,11 @@ export async function actorAnimationEpochGates(base: Coord): Promise<Json> {
         sameClipEpoch: 46,
         yawProgress,
         fractionalEpochRollback: true,
+        groundedWitness: {
+            walkTransition: true,
+            sameClipYaw: true,
+            fractional: null,
+        },
     };
 }
 
@@ -150,12 +158,16 @@ function simulationRequest(
 
 function requireAdvance(value: Json, label: string): Json {
     if (
-        value.revision !== "runtime-actor-simulation-v5" || value.outcome !== "advanced" ||
+        value.revision !== "runtime-actor-simulation-v6" || value.outcome !== "advanced" ||
         number(value, "preparedStepCount") !== 1 ||
         number(value, "terrainQueryCount") !== 1 ||
         number(value, "scheduleCommitCount") !== 1 || number(value, "actorCommitCount") !== 1
     ) fail(`${label} did not commit one actor step`);
-    return object(object(value, "actorSimulationAdvance"), "actor");
+    const actor = object(object(value, "actorSimulationAdvance"), "actor");
+    if (actor.lastStepGrounded !== true) {
+        fail(`${label} did not publish exact grounded contact`);
+    }
+    return actor;
 }
 
 function requireEpoch(actor: Json, expected: number, label: string): void {

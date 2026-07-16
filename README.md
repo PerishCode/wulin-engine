@@ -450,6 +450,13 @@ pending block 都保持 actor/schedule 双回滚。最终 typed-command 版 56.1
 报告 step/query `1/1`、commit `0/0`。81.960 秒 `canonical-prototype-v12` 中 81 runtime、18 prototype、
 20 host tests 及全部真实进程显式传零并保持既有行为。没有 jump verb/intent queue/default、独立 actor
 mutation、renderer/GPU/resource/sync/source/format/asset 或 Wulin 变化。
+Experiment 0088 将既有 planar-first step 已计算的 grounded 结果提升为 committed actor transition
+witness：zero-step 为 null，nonzero 只报告最后一步，failure/pending block 不泄漏 candidate 状态。
+38.654 秒 `canonical-actor-v6` 精确证明 fractional null、向上 impulse false、grounded animation
+true 与 blocked 无 transition；67.343 秒 `canonical-prototype-v13` 中 83 runtime、18 prototype、
+20 host tests 及所有真实进程直接消费 committed true，不再从零 velocity 推断
+`groundedAfterBatch`。没有 RuntimeActor contact cache、额外 query、Space/jump policy、renderer/GPU/
+resource/sync/source/format/asset 或 Wulin 变化。
 
 ## Project model
 
@@ -505,7 +512,7 @@ and ready only after canonical content has rendered; close the window, press Esc
 
 `runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
 runtime/prototype/reference-host tests, cooks the four required signed centers, and proves
-strict bootstrap failure, grounded gravity admission, exact stationary and native-W fixed
+strict bootstrap failure, exact committed grounded gravity witness, exact stationary and native-W fixed
 locomotion with transactional Survey/Walk selection and exact committed eight-way facing, one
 committed current actor authority, Q/E committed actor-relative camera orbit/frame ordering, typed render-block
 consumption with zero normal-path blocks,
@@ -520,7 +527,8 @@ complete process cleanup. It does not replace end-to-end acceptance.
 `runseal :canonical-actor` is the focused frame-safe actor GPU workflow. It proves typed
 advanced/render-blocked motion/presentation candidate admission against published and non-prefetch
 pending windows, one checked batch-entry vertical velocity delta with exact success/block rollback,
-retained rendering, dynamic candidate identity, alternating frame-slot
+the final committed fixed-step grounded witness with blocked-candidate isolation, retained
+rendering, dynamic candidate identity, alternating frame-slot
 writes, cull/surface/shadow/occlusion participation, despawn/respawn clearing, frustum rejection,
 outside-window rollback, and semantic capture.
 

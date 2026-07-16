@@ -13,6 +13,7 @@ pub struct ActorStateTransition {
     pub output: RuntimeActor,
     pub step_count: u32,
     pub terrain_query_count: u32,
+    pub last_step_grounded: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
