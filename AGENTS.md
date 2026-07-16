@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0082 and the current ADR set through 0085 define one live content runtime
+Experiments 0031-0083 and the current ADR set through 0086 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -163,8 +163,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
   before exact bounded sampling, with prototype consumption, stall recovery, reset, and rollback;
 - one concrete Win32 activation reducer that maps arbitrary focus-loss/resume bursts into at most
   two order-equivalent typed transitions without an event queue;
-- one optional strict schema-1 bootstrap document that selects both sources and one signed global
-  target, hides async progress, and emits readiness only after a canonical frame;
+- one optional strict schema-2 bootstrap document that selects both sources, one signed global
+  target, and one inclusive signed playable-region rectangle containing that target, hides async
+  progress, and emits readiness only after a canonical frame;
 - one concrete Windows reference-host owner for the single window/message lifecycle, normalized
   input journal, bootstrap parser, canonical-ready driver, and composed time policy;
 - one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
@@ -172,11 +173,17 @@ geometry/material/rig source, and one deterministic object-shadow path:
   transactional Survey-while-stationary/Walk-while-moving clip selection plus exact committed
   eight-way locomotion facing that retains the last admitted yaw while stationary, and local
   phase-zero Survey spawn/Walk transition over the renderer's sole presentation clock,
-  a 0.5-meter step-up bound, one fixed actor-relative camera anchor before each frame, explicit
+  a 0.5-meter step-up bound, independent maximum-eight-step per-axis reduction against the
+  bootstrap-authored playable rectangle before the strict runtime transaction, one fixed
+  actor-relative camera anchor before each frame, explicit
   no-retry/no-backlog render-block consumption, readiness after a nonzero commit/frame, one-time
   post-spawn composition traversal with prefetch disabled and compact status evidence, one top-level
   current actor authority equal to committed simulation
   output with no spawn-time terrain/actor compatibility snapshot, and Escape limited to host exit;
+- one accepted post-v0 finite-edge policy whose maintained operator declares inclusive `[-6,6]²`
+  playable bounds inside cooked `[-8,8]²` centers, whose focused real process remains live under
+  explicitly activated held locomotion, and which adds no engine boundary mode, source-index
+  inference, compatibility decoder, product telemetry, or weakened runtime source/query failure;
 - one accepted plain Prototype v0 stage boundary over that exact self-contained finite single-actor
   loop; it does not claim sustained product traversal, a source service, finite-edge behavior,
   gameplay interaction, multiple actors, networking, or Wulin content;
@@ -267,6 +274,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0083-live-documentation-authority.md` | Accepted single current-boundary authority and prototype-operator documentation decision. |
 | `docs/adr/0084-actor-local-animation-epoch.md` | Accepted transactional actor animation epoch and frame-resolved GPU phase decision. |
 | `docs/adr/0085-plain-prototype-v0-stage-boundary.md` | Accepted finite single-actor plain Prototype v0 stage boundary. |
+| `docs/adr/0086-explicit-playable-region-boundary.md` | Accepted strict bootstrap rectangle and prototype-owned finite-edge policy. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -320,6 +328,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0080-mandatory-live-documentation-authority-cleanup/README.md` | Accepted duplicate state-ledger removal and maintained prototype-operator documentation evidence. |
 | `experiments/0081-actor-local-animation-epoch/README.md` | Accepted actor-local Survey/Walk phase origin, GPU resolution, rollback, and prototype evidence. |
 | `experiments/0082-plain-prototype-v0-stage-seal/README.md` | Accepted source-free product, focused prototype, and long canonical Prototype v0 stage evidence. |
+| `experiments/0083-explicit-playable-region-boundary/README.md` | Accepted schema, per-axis maximum-batch policy, real held-input survival, and operator evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -342,7 +351,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/reference-host/src/activation.rs` | Constant-state focus-burst reduction and typed bounded activation transitions. |
 | `crates/reference-host/src/clock.rs` | Activation-aware bounded monotonic admission, typed outcomes/status, candidate commit, stall recovery, and reset. |
 | `crates/reference-host/src/input.rs` | Normalized key state, bounded record lifecycle, canonical hashing, isolated replay, and held-state query. |
-| `crates/reference-host/src/bootstrap.rs` | Strict arguments/config/pack paths and hidden canonical-ready bootstrap driver. |
+| `crates/reference-host/src/bootstrap.rs` | Strict schema-2 arguments/config/pack paths, playable-region validation/evidence, and hidden canonical-ready driver. |
 | `crates/meshlet-catalog/build.rs` | Verified build-time glTF geometry/joint/weight cook, normalization, normals, LOD simplification, and canonical payload emission. |
 | `crates/meshlet-catalog/src/imported.rs` | Strict canonical imported-geometry/binding payload decoder and metadata owner. |
 | `crates/meshlet-catalog/src/procedural.rs` | Retained deterministic fixture generation for procedural archetypes 0 through 6. |
@@ -357,8 +366,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/canonical-object-fixture/src/lib.rs` | Deterministic arbitrary-Q8 authored object fixture. |
 | `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
-| `apps/prototype/src/main.rs` | Non-diagnostic composition root, one-time traversal activation, Ready-only typed simulation/frame ordering, block accounting, committed-current-actor readiness, and host-exit input consumer. |
+| `apps/prototype/src/main.rs` | Non-diagnostic composition root, playable-boundary admission, one-time traversal activation, Ready-only typed simulation/frame ordering, block accounting, committed-current-actor readiness, and host-exit input consumer. |
 | `apps/prototype/src/actor.rs` | Prototype-owned grounded spawn motion and fixed gravity policy. |
+| `apps/prototype/src/boundary.rs` | Prototype-owned independent maximum-batch per-axis playable-region admission policy. |
 | `apps/prototype/src/camera.rs` | Prototype-owned fixed actor-relative camera rig policy. |
 | `apps/prototype/src/locomotion.rs` | Prototype-owned fixed W/A/S/D integer command and bounded step-up policy. |
 | `apps/prototype/src/presentation.rs` | Prototype-owned imported Survey/Walk and committed eight-way locomotion-facing policy. |
@@ -386,9 +396,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/init.ts` | Toolchain and repository initialization. |
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
-| `.runseal/wrappers/prototype.ts` | Self-contained finite-sandbox cook, strict bootstrap, and manual prototype lifecycle entry point. |
+| `.runseal/wrappers/prototype.ts` | Self-contained finite-sandbox cook, conservative playable bounds, strict bootstrap, and manual prototype lifecycle entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype gravity/locomotion/facing/presentation epoch/camera/traversal/backpressure, restart, failure, and lifecycle entry point. |
+| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype boundary/gravity/locomotion/facing/presentation epoch/camera/traversal/backpressure, restart, failure, and lifecycle entry point. |
 | `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source typed motion/presentation/animation-epoch admission, actor GPU phase, and rollback entry point. |
 | `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source canonical GPU frame and immediate replay entry point. |
 | `.runseal/wrappers/canonical-resources.ts` | Focused active/quiescent same-process GPU resource plateau entry point. |
@@ -410,10 +420,12 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/actor/simulation.ts` | Retired-route rejection plus schema-2 fractional, partition, rollback, and sole actor advance support. |
 | `.runseal/support/host-input-replay.ts` | Native message, paused record/replay, invalid-operation, and process-restart acceptance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
-| `.runseal/support/prototype/host.ts` | Prototype process startup/failure, exact simulation/camera/zero-block readiness, restart, and no-inspect lifecycle orchestration. |
+| `.runseal/support/prototype/host.ts` | Prototype process startup/failure, exact simulation/camera/zero-block readiness, held-input boundary survival, restart, and no-inspect lifecycle orchestration. |
+| `.runseal/support/prototype/boundary.ts` | Real activated held-input finite-edge process survival and cleanup evidence owner. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
 | `.runseal/support/prototype/input.ts` | Process-qualified native prototype-window key injection for maintained locomotion acceptance. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk, locomotion yaw, and committed actor presentation invariant owner. |
+| `.runseal/support/prototype/process.ts` | Shared prototype readiness-line deadline and stream framing owner. |
 | `.runseal/support/prototype/traversal.ts` | Exact one-time prototype traversal target, bounded async publication, and no-prefetch/queue/failure invariant owner. |
 | `.runseal/support/terrain/query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
@@ -449,8 +461,9 @@ outside-window rollback, and semantic capture. Its ignored evidence belongs unde
 `out/captures/canonical-actor/`.
 
 The prototype workflow runs focused runtime/host/application tests, cooks the three required signed
-centers, and proves exact grounded gravity admission, stationary and process-qualified native-W
-fixed locomotion, one committed current actor authority, actor-relative camera/frame ordering,
+centers, and proves exact grounded gravity admission, stationary and explicitly activated
+process-qualified native-W fixed locomotion, one-region held-input boundary survival, one committed
+current actor authority, actor-relative camera/frame ordering,
 typed Survey/Walk selection with exact committed eight-way facing, render-block consumption with
 zero normal-path blocks, one exact camera-derived traversal schedule with prefetch disabled,
 no-readiness bootstrap failures, direct restart equality, and complete Sidecar cleanup. Its
@@ -519,12 +532,14 @@ runseal :prototype stop
 
 The prototype has no inspect endpoint or idle-shell mode. It shows the same canonical runtime only
 after configured content is ready, advances one grounded runtime actor with fixed gravity and fixed
-W/A/S/D displacement on Ready samples, anchors one fixed camera rig before every live frame, and
-enables camera-driven composition traversal once after spawn with prefetch disabled. Window close,
-Escape, and wrapper stop are its current controls. Start deterministically cooks the documented
-zero-origin `[-8,8]²` finite sandbox before Sidecar readiness; no prior acceptance output is
-required. This exact finite single-actor loop is the accepted plain Prototype v0 boundary. Camera
-actions, infinite source service, finite-edge behavior, sustained traversal policy, gameplay
+W/A/S/D displacement on Ready samples, reduces unsafe maximum-batch axes against bootstrap-authored
+inclusive playable bounds, anchors one fixed camera rig before every live frame, and enables
+camera-driven composition traversal once after spawn with prefetch disabled. Window close, Escape,
+and wrapper stop are its current controls. Start deterministically cooks the documented zero-origin
+`[-8,8]²` finite sandbox, declares inclusive `[-6,6]²` playable bounds, and publishes strict schema
+2 before Sidecar readiness; no prior acceptance output is required. Prototype v0 remains the sealed
+base loop and the explicit finite-edge policy is its first accepted post-seal dependency. Camera
+actions, infinite source service, sustained traversal policy, gameplay
 interaction, and multiple actors are not part of this workflow.
 
 ### 6.6 Experiment lifecycle

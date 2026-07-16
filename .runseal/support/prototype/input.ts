@@ -47,15 +47,25 @@ do {
 if ($window -eq [IntPtr]::Zero) {
     throw "prototype window for process $expectedProcessId was not found"
 }
+if (-not [PrototypeInputNative]::PostMessage(
+    $window,
+    0x0007,
+    [UIntPtr]::Zero,
+    [IntPtr]::Zero
+)) {
+    $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+    throw "posting prototype focus activation failed with Win32 error $code"
+}
 if (-not [PrototypeInputNative]::PostMessage($window, 0x0100, [UIntPtr]0x57, [IntPtr]1)) {
     $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
     throw "posting prototype W key down failed with Win32 error $code"
 }
 
 [Console]::Out.Write((ConvertTo-Json ([ordered]@{
-    schema = "prototype-native-key-v1"
+    schema = "prototype-native-key-v2"
     processId = [int]$windowProcessId
     windowHandle = $window.ToInt64().ToString()
+    activated = $true
     key = "W"
     virtualKey = 0x57
     down = $true
@@ -74,8 +84,9 @@ if (-not [PrototypeInputNative]::PostMessage($window, 0x0100, [UIntPtr]0x57, [In
     }
     const evidence = JSON.parse(stdout) as Json;
     if (
-        evidence.schema !== "prototype-native-key-v1" ||
+        evidence.schema !== "prototype-native-key-v2" ||
         evidence.processId !== processId ||
+        evidence.activated !== true ||
         evidence.key !== "W" ||
         evidence.virtualKey !== 0x57 ||
         evidence.down !== true

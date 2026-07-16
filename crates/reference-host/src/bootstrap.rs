@@ -4,14 +4,14 @@ use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail, ensure};
-use engine_runtime::{FrameRequest, GlobalRegionConfig, Runtime};
+use engine_runtime::{FrameRequest, GlobalRegionConfig, RegionCoord, Runtime};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::{HostInput, window};
 
-pub const REVISION: &str = "declarative-runtime-bootstrap-v1";
+pub const REVISION: &str = "declarative-runtime-bootstrap-v2";
 pub const TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_CONFIG_BYTES: usize = 64 * 1024;
 
@@ -70,6 +70,7 @@ struct Document {
     global_origin: Coordinate,
     global_center: Coordinate,
     active_radius: u32,
+    playable_region_bounds: RegionBoundsDocument,
 }
 
 #[derive(Deserialize)]
@@ -79,6 +80,49 @@ struct Coordinate {
     z: i64,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RegionBoundsDocument {
+    minimum: Coordinate,
+    maximum: Coordinate,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayableRegionBounds {
+    minimum: RegionCoord,
+    maximum: RegionCoord,
+}
+
+impl PlayableRegionBounds {
+    pub fn new(minimum: RegionCoord, maximum: RegionCoord) -> Result<Self> {
+        ensure!(
+            minimum.x <= maximum.x,
+            "playable region minimum X must not exceed maximum X"
+        );
+        ensure!(
+            minimum.z <= maximum.z,
+            "playable region minimum Z must not exceed maximum Z"
+        );
+        Ok(Self { minimum, maximum })
+    }
+
+    pub const fn minimum(self) -> RegionCoord {
+        self.minimum
+    }
+
+    pub const fn maximum(self) -> RegionCoord {
+        self.maximum
+    }
+
+    pub const fn contains(self, region: RegionCoord) -> bool {
+        region.x >= self.minimum.x
+            && region.x <= self.maximum.x
+            && region.z >= self.minimum.z
+            && region.z <= self.maximum.z
+    }
+}
+
 pub struct Plan {
     config_path: PathBuf,
     config_bytes: usize,
@@ -86,6 +130,7 @@ pub struct Plan {
     terrain_path: PathBuf,
     object_path: PathBuf,
     global_config: GlobalRegionConfig,
+    playable_region_bounds: PlayableRegionBounds,
 }
 
 impl Plan {
@@ -111,8 +156,8 @@ impl Plan {
         );
         let document: Document = serde_json::from_slice(bytes).context("invalid bootstrap JSON")?;
         ensure!(
-            document.schema_version == 1,
-            "bootstrap schemaVersion must equal 1"
+            document.schema_version == 2,
+            "bootstrap schemaVersion must equal 2"
         );
         let terrain_path = validate_pack_path(&document.terrain, PackKind::Terrain)?;
         let object_path = validate_pack_path(&document.objects, PackKind::Objects)?;
@@ -123,6 +168,20 @@ impl Plan {
             document.global_center.z,
             document.active_radius,
         )?;
+        let playable_region_bounds = PlayableRegionBounds::new(
+            RegionCoord::new(
+                document.playable_region_bounds.minimum.x,
+                document.playable_region_bounds.minimum.z,
+            ),
+            RegionCoord::new(
+                document.playable_region_bounds.maximum.x,
+                document.playable_region_bounds.maximum.z,
+            ),
+        )?;
+        ensure!(
+            playable_region_bounds.contains(global_config.global_center),
+            "playable region bounds must contain globalCenter"
+        );
         let config_sha256 = format!("{:x}", Sha256::digest(bytes));
         Ok(Self {
             config_path,
@@ -131,6 +190,7 @@ impl Plan {
             terrain_path,
             object_path,
             global_config,
+            playable_region_bounds,
         })
     }
 
@@ -146,6 +206,10 @@ impl Plan {
         self.global_config
     }
 
+    pub fn playable_region_bounds(&self) -> PlayableRegionBounds {
+        self.playable_region_bounds
+    }
+
     pub fn pending_json(&self) -> Value {
         json!({
             "revision": REVISION,
@@ -156,6 +220,7 @@ impl Plan {
             "terrainPath": self.terrain_path,
             "objectPath": self.object_path,
             "globalConfig": self.global_config,
+            "playableRegionBounds": self.playable_region_bounds,
         })
     }
 

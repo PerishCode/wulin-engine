@@ -25,12 +25,16 @@ function document(
     center: Coord,
 ): Json {
     return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         terrain,
         objects,
         globalOrigin: { x: origin[0], z: origin[1] },
         globalCenter: { x: center[0], z: center[1] },
         activeRadius: 2,
+        playableRegionBounds: {
+            minimum: { x: center[0], z: center[1] },
+            maximum: { x: center[0], z: center[1] },
+        },
     };
 }
 
@@ -81,6 +85,7 @@ function startupInvariant(value: Json): Json {
         terrainPath: value.terrainPath,
         objectPath: value.objectPath,
         globalConfig: value.globalConfig,
+        playableRegionBounds: value.playableRegionBounds,
     };
 }
 
