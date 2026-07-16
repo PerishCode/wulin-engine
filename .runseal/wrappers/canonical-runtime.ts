@@ -47,10 +47,6 @@ import {
     prototypeHostCheckpointGates,
 } from "../support/runtime-bootstrap.ts";
 import { terrainQueryGates, unavailableTerrainQueryGate } from "../support/terrain/query.ts";
-import {
-    terrainContactGates as contactGates,
-    unavailableTerrainContactGate as unavailableContact,
-} from "../support/terrain/contact.ts";
 import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 import { actorGates } from "../support/actor/lifecycle.ts";
 import { simulationActorGates } from "../support/actor/simulation.ts";
@@ -69,7 +65,7 @@ import {
     unavailableObjectNearestGate,
 } from "../support/object/nearest.ts";
 import * as objectIntegration from "../support/object/integration.ts";
-const REVISION = "canonical-runtime-v7";
+const REVISION = "canonical-runtime-v8";
 const COLLECTION = "canonical-runtime";
 const BASE: Coord = [2 ** 40, -(2 ** 40)];
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
@@ -125,7 +121,6 @@ try {
     const unavailableObjectResolution = await unavailableObjectResolutionGate(BASE);
     const unavailableObjectNearest = await unavailableObjectNearestGate(BASE);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
-    const unavailableTerrainContact = await unavailableContact(BASE);
     await openSources(TERRAIN, OBJECTS_A);
     const basePublication = await publish(target(BASE));
     assertObjectCopies(basePublication, 25, "cold publication");
@@ -144,7 +139,6 @@ try {
     const orderAObjectNearest = objectNearest.samples as Json[];
     const orderA = await frame("order-a", COLLECTION);
     const terrainQuery = await terrainQueryGates(BASE, orderA, unavailableTerrainQuery);
-    const terrainContact = await contactGates(BASE, orderA, unavailableTerrainContact);
     assertCanonicalFrame(orderA, "canonical order A");
 
     console.log("==> deterministic presentation time gates");
@@ -429,7 +423,6 @@ try {
             objectResolution,
             objectNearest,
             terrainQuery,
-            terrainContact,
             basePublication,
             orderA,
             temporal,

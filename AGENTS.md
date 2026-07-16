@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0099 and the current ADR set through 0102 define one live content runtime
+Experiments 0031-0100 and the current ADR set through 0103 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -160,7 +160,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one signed-region/half-open-local-Q9 `TerrainPosition` shared by query/contact/motion, with exact
   checked positive, negative, and multi-region planar translation and no compatibility alias;
 - one bounded 225-body contact transition witness in the generic canonical probe; the historical
-  230,400-body checkpoint has no live inspect verb, runtime branch, or coverage mode;
+  230,400-body checkpoint and standalone copied-value contact path have no live inspect verb,
+  Runtime method, branch, coverage mode, or recurring history witness;
 - one host-owned Win32 keyboard/focus adapter and fixed normalized input state with exact held plus
   most-recent-ingest pressed/released sets, repeat/unmatched/invalid suppression, focus cleanup,
   and empty-ingest edge expiry without a journal or replay branch;
@@ -273,9 +274,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
   gameplay interaction, multiple actors, networking, or Wulin content;
 - one exact read-only CPU terrain-height query over the committed snapshot, addressed by signed
   region plus half-open local Q9 and independent from camera, render LOD, source I/O, and GPU work;
-- one caller-owned exact vertical terrain-body contact transaction with strict
-  separated/touching/penetrating classification, minimum upward correction, and no runtime body
-  mutation, gravity, or locomotion policy;
+- one private pure exact vertical terrain-body contact contract with strict
+  separated/touching/penetrating classification and minimum upward correction, consumed only by
+  motion/translation owners and the bounded canonical probe with no standalone Runtime/inspect path;
 - one clear-only diagnostic idle shell with neutral reverse-Z depth and semantic frame targets,
   no calibration scene, and no split-world control surface;
 - one readback-only `perception.observe` path for acceptance hashes and semantic evidence that
@@ -380,6 +381,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0100-committed-prototype-object-observation.md` | Accepted capacity-one post-commit prototype object-observation intent. |
 | `docs/adr/0101-source-qualified-object-identity.md` | Accepted exact source-qualified committed object identity and stale-address rejection. |
 | `docs/adr/0102-typed-canonical-object-resolution.md` | Accepted typed on-demand object lifetime resolution and strict invalid-state separation. |
+| `docs/adr/0103-retired-standalone-terrain-contact.md` | Accepted retirement of standalone contact Runtime/inspect ownership and retention of one private pure contract. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -450,6 +452,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0097-committed-prototype-object-observation/README.md` | Accepted native F+W post-commit observation and independent source-oracle evidence. |
 | `experiments/0098-source-qualified-object-identity/README.md` | Accepted A/B source-qualified identity, stale-address rejection, and lifecycle evidence. |
 | `experiments/0099-typed-canonical-object-resolution/README.md` | Accepted typed resolved/source/window outcomes, strict invalid-state failures, and lifecycle evidence. |
+| `experiments/0100-retired-standalone-terrain-contact/README.md` | Accepted standalone contact removal, bounded private-witness preservation, and compiler/generated resource cleanup. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -465,7 +468,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/timeline/mod.rs` | Presentation and simulation timeline ownership boundary. |
 | `crates/engine-runtime/src/timeline/presentation.rs` | Deterministic presentation state, controls, counters, and successful-frame commit. |
 | `crates/engine-runtime/src/timeline/simulation.rs` | Exact rational simulation accumulator, checked transaction, typed batch, and private one-hour proof. |
-| `crates/engine-runtime/src/terrain_query/mod.rs` | Exact height query, caller-owned body, and minimum-correction contact transaction. |
+| `crates/engine-runtime/src/terrain_query/mod.rs` | Exact height query, caller-owned body values, and private minimum-correction contact contract. |
 | `crates/engine-runtime/src/terrain_query/advance.rs` | Planar-first translation/vertical composition, destination-height reuse, ordered blocked-origin query, and final tick output. |
 | `crates/engine-runtime/src/terrain_query/motion.rs` | Caller-owned fixed vertical motion, checked one-tick integration, and grounded composition. |
 | `crates/engine-runtime/src/terrain_query/position.rs` | Canonical signed-region/local-Q9 terrain position and checked Euclidean translation. |
@@ -502,7 +505,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
 | `apps/workbench/src/inspect/protocol/objects.rs` | Strict source-qualified canonical object resolution and nearest-query payload decoding. |
-| `apps/workbench/src/inspect/protocol/terrain.rs` | Strict terrain query/contact plus actor lifecycle/simulation payload decoding. |
+| `apps/workbench/src/inspect/protocol/terrain.rs` | Strict terrain-height query plus actor lifecycle/simulation payload decoding. |
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch. |
 | `apps/workbench/src/inspect/app/actor.rs` | Strict actor lifecycle/typed simulation dispatch and schema-2 prepared-work/commit evidence response. |
 | `apps/workbench/src/inspect/app/objects.rs` | Typed source-qualified committed object resolution/nearest dispatch and zero-work evidence responses. |
@@ -521,7 +524,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/actor.rs` | Exact frame-resolved actor-local phase encoding and two-frame GPU upload-resource ownership. |
 | `crates/engine-runtime/src/rendering/composition/traversal.rs` | Latest-wins traversal, prefetch, and rollover policy. |
 | `crates/engine-runtime/src/rendering/composition/probe.rs` | Canonical attachment and oracle evidence. |
-| `crates/engine-runtime/src/rendering/composition/probe/terrain_query.rs` | Dense query/contact oracle evidence and compact body-contact transition witness. |
+| `crates/engine-runtime/src/rendering/composition/probe/terrain_query.rs` | Bounded query oracle evidence and the sole process-level body-contact transition witness. |
 | `crates/engine-runtime/src/rendering/frame_targets.rs` | Neutral reverse-Z depth and semantic render-target ownership. |
 | `crates/engine-runtime/src/rendering/renderer/frame.rs` | Clear-only idle-shell/canonical frame dispatch. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/surface/shadow.rs` | Fixed directional-light projection and shadow probe oracle. |
@@ -546,8 +549,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/object/gates.ts` | Prototype observation process, restart, and unchanged-subsystem gate composition. |
 | `.runseal/support/object/integration.ts` | Object resolution/nearest source, window, movement, and corrupt-pair preservation integration gates. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
-| `.runseal/support/terrain/contact.ts` | Exact contact rejection, direct classification, and bounded-witness acceptance support. |
-| `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for the retired dense contact command and runtime coverage mode. |
+| `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for retired dense/standalone contact surfaces and required private witness authority. |
 | `.runseal/support/guard/terrain-transaction-removal.ts` | Forbidden-file/symbol gate for retired copied-value terrain mutation controls and support. |
 | `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls, duplicate schedule status, recurring history evidence, retained-body history, and pre-owner actor support paths. |
 | `.runseal/support/guard/presentation-status-removal.ts` | Forbidden-symbol/verb gate for the retired standalone presentation status chain. |

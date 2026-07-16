@@ -1,6 +1,6 @@
 use std::sync::mpsc::Receiver;
 
-use engine_runtime::{GlobalRegionConfig, RegionCoord, Runtime, TerrainBody, TerrainPosition};
+use engine_runtime::{GlobalRegionConfig, RegionCoord, Runtime, TerrainPosition};
 use reference_host::bootstrap::{PackKind, validate_pack_path};
 use serde_json::json;
 use windows::Win32::Foundation::HWND;
@@ -153,33 +153,6 @@ pub(crate) fn handle_commands(
                     })
                 })
                 .map_err(|error| protocol_error("terrain_query_failed", error)),
-            ControlKind::CanonicalTerrainContact {
-                region_x,
-                region_z,
-                local_x_q9,
-                local_z_q9,
-                center_height_numerator,
-                half_height_numerator,
-            } => TerrainPosition::new(RegionCoord::new(region_x, region_z), local_x_q9, local_z_q9)
-                .and_then(|position| {
-                    TerrainBody::new(position, center_height_numerator, half_height_numerator)
-                })
-                .and_then(|body| {
-                    runtime.resolve_terrain_contact(body).map(|contact| {
-                        json!({
-                            "revision": "exact-terrain-body-contact-v1",
-                            "inputBody": body,
-                            "contact": contact,
-                            "perResolutionAllocationBytes": 0,
-                            "sourceReadCount": 0,
-                            "gpuCopyCount": 0,
-                            "gpuReadbackCount": 0,
-                            "fenceWaitCount": 0,
-                            "synchronizationCount": 0,
-                        })
-                    })
-                })
-                .map_err(|error| protocol_error("terrain_contact_failed", error)),
             ControlKind::ActorSpawn(payload) => actor::spawn(runtime, payload),
             ControlKind::ActorRead { generation } => actor::read(runtime, generation),
             ControlKind::ActorDespawn { generation } => actor::despawn(runtime, generation),

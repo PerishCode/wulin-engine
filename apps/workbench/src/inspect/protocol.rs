@@ -106,14 +106,6 @@ pub enum ControlKind {
         local_x_q9: i32,
         local_z_q9: i32,
     },
-    CanonicalTerrainContact {
-        region_x: i64,
-        region_z: i64,
-        local_x_q9: i32,
-        local_z_q9: i32,
-        center_height_numerator: i32,
-        half_height_numerator: i32,
-    },
     ActorSpawn(ActorSpawnControl),
     ActorRead {
         generation: u64,
@@ -236,7 +228,6 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "canonical.objects.resolve" => objects::resolve(payload),
         "canonical.objects.nearest" => objects::nearest(payload),
         "canonical.terrain.height" => terrain::height(payload),
-        "canonical.terrain.contact" => terrain::contact(payload),
         "actor.spawn" => terrain::actor_spawn(payload),
         "actor.read" => terrain::actor_read(payload),
         "actor.despawn" => terrain::actor_despawn(payload),

@@ -7,10 +7,7 @@ use windows::Win32::Foundation::HWND;
 use crate::rendering::{RenderFrame, RenderOutcome, Renderer};
 use crate::scene::SceneState;
 use crate::streaming::address::GlobalRegionConfig;
-use crate::terrain_query::{
-    TerrainBody, TerrainBodyContact, TerrainBodyMotion, TerrainHeight, TerrainPosition,
-    resolve_body_contact,
-};
+use crate::terrain_query::{TerrainBodyMotion, TerrainHeight, TerrainPosition};
 use crate::timeline::{PresentationTimeline, SimulationSchedule};
 
 mod actor;
@@ -229,11 +226,6 @@ impl Runtime {
     ) -> Result<CanonicalObjectNearestQuery> {
         self.renderer
             .query_nearest_canonical_object(origin, max_distance_q9)
-    }
-
-    pub fn resolve_terrain_contact(&self, body: TerrainBody) -> Result<TerrainBodyContact> {
-        let terrain = self.query_terrain_height(body.position())?;
-        resolve_body_contact(body, terrain)
     }
 
     pub fn spawn_actor(

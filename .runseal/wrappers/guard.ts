@@ -1,4 +1,4 @@
-import { requireContactHistoryRemoved } from "../support/guard/contact-removal.ts";
+import { requireStandaloneContactRemoved } from "../support/guard/contact-removal.ts";
 import { requireCanonicalOperatorIdentity } from "../support/guard/canonical-operator.ts";
 import { requireLiveOperatorSurface } from "../support/guard/live-operator-surface.ts";
 import { requireTypedObjectResolution } from "../support/guard/object-identity.ts";
@@ -403,7 +403,7 @@ await requireLiveOperatorSurface(root, fail);
 await requireInputJournalRemoved(root, fail);
 await requireRuntimeBoundary();
 await requireCalibrationSurfaceRemoved();
-await requireContactHistoryRemoved(root, fail);
+await requireStandaloneContactRemoved(root, fail);
 await requireTerrainHistoryRemoved(root, fail);
 await requireSimulationHistoryRemoved(root, fail);
 await requirePresentationStatusRemoved(root, fail);

@@ -38,7 +38,7 @@ export async function compatibilityRemovalGates(
             "world.rebase",
             "world.reset",
             "world.probe",
-            "canonical.terrain.contact.probe",
+            "canonical.terrain.contact",
             "canonical.terrain.body.step",
             "canonical.terrain.body.translate",
             "canonical.terrain.body.advance",
