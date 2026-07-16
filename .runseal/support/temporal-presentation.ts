@@ -45,6 +45,19 @@ function assertClock(
     ) fail(`${label} presentation clock diverged`);
 }
 
+async function presentationClock(): Promise<Json> {
+    return object(await event("canonical.status"), "presentationClock");
+}
+
+async function retiredStatusGate(): Promise<Json> {
+    const verb = ["canonical", "time", "status"].join(".");
+    const rejected = await rejectedEvent(verb, {});
+    if (typeof rejected.error !== "string" || !rejected.error.startsWith("unknown_event: ")) {
+        fail(`${verb} did not fail through the retired-status contract`);
+    }
+    return { verb, rejected };
+}
+
 function assertTemporalChange(before: Json, after: Json, label: string): void {
     const beforeStable = object(before, "stable");
     const afterStable = object(after, "stable");
@@ -80,6 +93,7 @@ export async function temporalGates(
     collection: string,
     persistArtifacts = true,
 ): Promise<Json> {
+    const retiredStatus = await retiredStatusGate();
     const timeZeroStatus = await event("canonical.status");
     const timeZeroClock = object(timeZeroStatus, "presentationClock");
     assertClock(timeZeroClock, 0, false, "paused tick zero");
@@ -120,7 +134,7 @@ export async function temporalGates(
     same(timeWrapped.stable, orderA.stable, "common-period presentation wrap");
 
     const invalidSet = await rejectedEvent("canonical.time.set", { tick: CLOCK_FRAME_PERIOD });
-    assertClock(await event("canonical.time.status"), 0, false, "invalid set rollback");
+    assertClock(await presentationClock(), 0, false, "invalid set rollback");
     await event("canonical.time.resume");
     const invalidStep = await rejectedEvent("canonical.time.step", { ticks: 1 });
     const invalidStepClock = await event("canonical.time.pause");
@@ -156,6 +170,7 @@ export async function temporalGates(
     ) fail("automatic frame did not use the paused observed tick");
     await event("canonical.time.set", { tick: 0 });
     return {
+        retiredStatus,
         timeZeroStatus,
         timeOneClock,
         timeOne,
@@ -201,7 +216,7 @@ export async function temporalHold(
     });
     await event("canonical.time.pause");
     await event("workbench.pause");
-    let heldClock = await event("canonical.time.status");
+    let heldClock = await presentationClock();
     if (number(heldClock, "tick") === 0) {
         heldClock = await event("canonical.time.step", { ticks: 1 });
     }

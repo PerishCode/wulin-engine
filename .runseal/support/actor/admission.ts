@@ -231,7 +231,10 @@ async function heldPending(
     });
     await event("workbench.pause");
 
-    const presentationTick = number(await event("canonical.time.status"), "tick");
+    const presentationTick = number(
+        object(await event("canonical.status"), "presentationClock"),
+        "tick",
+    );
     const actor = object(await event("actor.spawn", await groundedActor(base)), "actor");
     if (number(actor, "animationEpochTick") !== presentationTick) {
         fail("shared-window actor spawn animation epoch diverged");

@@ -69,6 +69,10 @@ async function scheduleStatus(): Promise<Json> {
     return object(await event("canonical.status"), "simulationSchedule");
 }
 
+async function presentationClock(): Promise<Json> {
+    return object(await event("canonical.status"), "presentationClock");
+}
+
 function requireAdvance(
     response: Json,
     elapsed: number,
@@ -155,7 +159,7 @@ async function prepublication(base: [number, number]): Promise<Json> {
     await startClean();
     await event("workbench.pause");
     const initialSimulation = await scheduleStatus();
-    const initialPresentation = await event("canonical.time.status");
+    const initialPresentation = await presentationClock();
     const empty = await rejectedEvent(
         "simulation.actor.advance",
         request(1, 1, 0, 0, 0, 0, 0),
@@ -201,7 +205,7 @@ async function prepublication(base: [number, number]): Promise<Json> {
     );
     same(object(object(fractional, "actor"), "output"), stored, "fractional actor identity");
     requireStatus(await scheduleStatus(), 0, 60, 1, 0, "fractional dual commit");
-    same(await event("canonical.time.status"), initialPresentation, "dual time isolation");
+    same(await presentationClock(), initialPresentation, "dual time isolation");
     return { empty, malformed, stale, oversized, fractional };
 }
 
@@ -214,7 +218,7 @@ async function startPublished(
     await event("workbench.pause");
     await openSources(terrain, objects);
     await publish(target(base));
-    return await event("canonical.time.status");
+    return await presentationClock();
 }
 
 async function groundActor(base: [number, number]): Promise<ActorPayload> {
@@ -263,7 +267,7 @@ async function coarseRun(
     const result = await advanceSequence(Array(8).fill(MAX_ELAPSED));
     requireStatus(await scheduleStatus(), 60, 0, 8, 60, "coarse dual second");
     if (result.terrainQueryCount !== 60) fail("coarse dual query count diverged");
-    same(await event("canonical.time.status"), presentation, "coarse dual time isolation");
+    same(await presentationClock(), presentation, "coarse dual time isolation");
     return { actorInput: actor, ...result };
 }
 
@@ -320,7 +324,7 @@ async function nominalRun(
     );
     same(await scheduleStatus(), beforeFailure, "dual arithmetic schedule rollback");
     same(await read(3), overflowStored, "dual arithmetic actor rollback");
-    same(await event("canonical.time.status"), presentation, "nominal dual time isolation");
+    same(await presentationClock(), presentation, "nominal dual time isolation");
     return { intervals, ...result, failed, edgeStored, overflow, overflowStored };
 }
 

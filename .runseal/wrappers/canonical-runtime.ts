@@ -65,7 +65,7 @@ import {
     unavailableObjectQueryGate,
 } from "../support/object-query.ts";
 
-const REVISION = "canonical-runtime-v3";
+const REVISION = "canonical-runtime-v4";
 const COLLECTION = "canonical-runtime";
 const FAR = 2 ** 40;
 const BASE: Coord = [FAR, -FAR];
