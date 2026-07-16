@@ -1,8 +1,9 @@
 # ADR 0087: Normalized Host Input Edges
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-07-16
 - Experiment: 0084 Normalized Host Input Edges
+- Superseded by: ADR 0088 Retired Diagnostic Host Input Journal
 
 ## Context
 

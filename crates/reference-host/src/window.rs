@@ -10,7 +10,7 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{BOOL, HSTRING, PCWSTR};
 
 use crate::activation::{ActivationState, HostActivation};
-use crate::input::{NativeMessage, PostedMessage};
+use crate::input::NativeMessage;
 
 static WINDOW_HANDLE: AtomicIsize = AtomicIsize::new(0);
 
@@ -120,33 +120,6 @@ pub fn drain_activation() -> Vec<HostActivation> {
 
 pub fn drain_input() -> Vec<NativeMessage> {
     INPUT_MESSAGES.with(|messages| mem::take(&mut *messages.borrow_mut()))
-}
-
-pub fn post_input(hwnd: HWND, messages: &[PostedMessage]) -> Result<()> {
-    for message in messages {
-        let (message, wparam, lparam) = match *message {
-            PostedMessage::Key { key, down, system } => {
-                let message = match (system, down) {
-                    (false, true) => WM_KEYDOWN,
-                    (false, false) => WM_KEYUP,
-                    (true, true) => WM_SYSKEYDOWN,
-                    (true, false) => WM_SYSKEYUP,
-                };
-                let mut bits = 1_isize;
-                if system {
-                    bits |= 1_isize << 29;
-                }
-                if !down {
-                    bits |= (1_isize << 30) | (1_isize << 31);
-                }
-                (message, WPARAM(usize::from(key)), LPARAM(bits))
-            }
-            PostedMessage::FocusLost => (WM_KILLFOCUS, WPARAM(0), LPARAM(0)),
-        };
-        unsafe { PostMessageW(Some(hwnd), message, wparam, lparam) }
-            .with_context(|| format!("posting native input message 0x{message:04X} failed"))?;
-    }
-    Ok(())
 }
 
 unsafe extern "system" fn window_proc(

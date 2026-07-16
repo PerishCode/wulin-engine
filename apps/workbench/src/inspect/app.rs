@@ -1,10 +1,7 @@
 use std::sync::mpsc::Receiver;
 
 use engine_runtime::{GlobalRegionConfig, RegionCoord, Runtime, TerrainBody, TerrainPosition};
-use reference_host::{
-    bootstrap::{PackKind, validate_pack_path},
-    window,
-};
+use reference_host::bootstrap::{PackKind, validate_pack_path};
 use serde_json::json;
 use windows::Win32::Foundation::HWND;
 
@@ -40,23 +37,7 @@ pub(crate) fn handle_commands(
                 state.paused = false;
                 Ok(json!({"paused": false}))
             }
-            ControlKind::InputStatus => Ok(state.input.status_json()),
-            ControlKind::InputRecordStart => state
-                .input
-                .start_recording()
-                .map_err(|error| protocol_error("input_record_failed", error)),
-            ControlKind::InputRecordStop => state
-                .input
-                .stop_recording()
-                .map_err(|error| protocol_error("input_record_failed", error)),
-            ControlKind::InputReplay => state
-                .input
-                .replay()
-                .map_err(|error| protocol_error("input_replay_failed", error)),
             ControlKind::SimulationStatus => Ok(runtime.simulation_status()),
-            ControlKind::InputPost { messages } => window::post_input(hwnd, &messages)
-                .map(|()| json!({"postedMessageCount": messages.len()}))
-                .map_err(|error| protocol_error("native_input_failed", error)),
             ControlKind::CameraStatus => Ok(runtime.camera_json()),
             ControlKind::CameraReset => Ok(runtime.reset_camera()),
             ControlKind::CameraSetPose {
