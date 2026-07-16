@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0090 and the current ADR set through 0093 define one live content runtime
+Experiments 0031-0091 and the current ADR set through 0094 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -175,15 +175,16 @@ geometry/material/rig source, and one deterministic object-shadow path:
   normalized held/edge input boundary, bootstrap parser, canonical-ready driver, and composed time
   policy;
 - one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
-  one grounded imported-Fox actor, Ready-only fixed gravity plus fixed W/A/S/D integer locomotion,
+  one grounded imported-Fox actor, Ready-only fixed gravity plus fixed W/A/S/D integer locomotion
+  with held Shift selecting exact 64/45-Q9 Run components instead of the retained 32/23-Q9 Walk,
   one capacity-one grounded Space Jump intent that selects a fixed 4,369-Q16 batch-entry velocity
   delta, observes activation/time discontinuity before current-batch action admission, retains only
   the action bit across fractional work, stalls, and pending-window backpressure, consumes it on the
   next committed nonzero actor transition, and updates eligibility from its exact final grounded
   witness,
-  transactional Survey-while-stationary/Walk-while-moving clip selection plus exact committed
+  transactional Survey-while-stationary/Walk-or-imported-Run-while-moving clip selection plus exact committed
   eight-way locomotion facing that retains the last admitted yaw while stationary, and local
-  phase-zero Survey spawn/Walk transition over the renderer's sole presentation clock,
+  phase-zero Survey spawn/Walk/Run transition over the renderer's sole presentation clock,
   a 0.5-meter step-up bound, independent maximum-eight-step per-axis reduction against the
   bootstrap-authored playable rectangle before the strict runtime transaction, one committed
   four-state Q/E quarter-orbit actor-relative camera policy applied before each frame, explicit
@@ -224,6 +225,10 @@ geometry/material/rig source, and one deterministic object-shadow path:
   forwarder and inspect verb plus the recurring eight-request retired-control report; exact schedule
   state remains available only through the canonical aggregate/frame probe and per-transaction
   actor advance, with one current unknown-event witness and a stable removal guard;
+- one accepted post-v0 Run modifier whose prototype derives a private gait fact only from held Shift
+  plus final admitted nonzero W/A/S/D, selects exact fixed 64/45-Q9 displacement and the existing
+  imported Run clip in the sole actor transaction, and adds no retained gait state, host/engine
+  action state, acceleration, horizontal velocity, alternate movement path, or new asset;
 - one accepted plain Prototype v0 stage boundary over that exact self-contained finite single-actor
   loop; it does not claim sustained product traversal, a source service, finite-edge behavior,
   gameplay interaction, multiple actors, networking, or Wulin content;
@@ -322,6 +327,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0091-committed-actor-grounded-witness.md` | Accepted exact final fixed-step grounded witness on committed actor transitions. |
 | `docs/adr/0092-committed-prototype-jump-intent.md` | Accepted capacity-one Space intent and committed prototype jump policy. |
 | `docs/adr/0093-retired-standalone-simulation-status.md` | Accepted retirement of the duplicate simulation status inspect chain. |
+| `docs/adr/0094-committed-prototype-run-modifier.md` | Accepted stateless held-Shift Run displacement and imported-clip policy. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -383,6 +389,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0088-committed-actor-grounded-witness/README.md` | Accepted exact committed last-step grounded witness and blocked-candidate isolation proof. |
 | `experiments/0089-committed-prototype-jump-intent/README.md` | Accepted grounded Space admission, bounded intent lifetime, and committed jump-consumption proof. |
 | `experiments/0090-mandatory-simulation-status-cleanup/README.md` | Accepted standalone simulation-status and recurring history-evidence cleanup. |
+| `experiments/0091-committed-prototype-run-modifier/README.md` | Accepted exact Shift+W Run displacement, presentation, and native-process proof. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -420,13 +427,13 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/canonical-object-fixture/src/lib.rs` | Deterministic arbitrary-Q8 authored object fixture. |
 | `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
-| `apps/prototype/src/main.rs` | Non-diagnostic composition root, playable-boundary admission, one-time traversal activation, Ready-only typed simulation/frame ordering, committed Jump composition, block accounting, current-actor readiness, and Escape host-exit consumer. |
+| `apps/prototype/src/main.rs` | Non-diagnostic composition root, playable-boundary admission, one-time traversal activation, Ready-only typed simulation/frame ordering, committed Run/Jump composition, block accounting, current-actor readiness, and Escape host-exit consumer. |
 | `apps/prototype/src/actor.rs` | Prototype-owned grounded spawn motion and fixed gravity policy. |
 | `apps/prototype/src/boundary.rs` | Prototype-owned independent maximum-batch per-axis playable-region admission policy. |
 | `apps/prototype/src/camera.rs` | Prototype-owned committed four-state Q/E actor-relative camera-orbit policy. |
 | `apps/prototype/src/jump.rs` | Prototype-owned capacity-one grounded Space intent, discontinuity, and committed-consumption policy. |
-| `apps/prototype/src/locomotion.rs` | Prototype-owned fixed W/A/S/D integer command and bounded step-up policy. |
-| `apps/prototype/src/presentation.rs` | Prototype-owned imported Survey/Walk and committed eight-way locomotion-facing policy. |
+| `apps/prototype/src/locomotion.rs` | Prototype-owned fixed W/A/S/D Walk plus held-Shift Run integer command and bounded step-up policy. |
+| `apps/prototype/src/presentation.rs` | Prototype-owned imported Survey/Walk/Run and committed eight-way locomotion-facing policy. |
 | `apps/prototype/src/time.rs` | Prototype-only HostClock admission plus no-retry/no-backlog render-block consumption policy. |
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
 | `apps/workbench/src/inspect/protocol.rs` | Compact workbench control vocabulary. |
@@ -453,7 +460,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/prototype.ts` | Self-contained finite-sandbox cook, conservative playable bounds, strict bootstrap, and manual prototype lifecycle entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype input-edge/boundary/gravity/locomotion/Jump/presentation/camera/traversal/backpressure, restart, failure, and lifecycle entry point. |
+| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype input-edge/boundary/gravity/Walk/Run/Jump/presentation/camera/traversal/backpressure, restart, failure, and lifecycle entry point. |
 | `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source actor lifecycle, schedule/actor partition and rollback, render admission, animation epoch, and GPU phase entry point. |
 | `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source canonical GPU frame and immediate replay entry point. |
 | `.runseal/wrappers/canonical-resources.ts` | Focused active/quiescent same-process GPU resource plateau entry point. |
@@ -475,13 +482,14 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/actor/animation.ts` | Fixed-tick spawn/transition actor epoch, GPU local-phase, same-clip retention, and fractional rollback support. |
 | `.runseal/support/actor/simulation.ts` | Canonical-aggregate schedule assertions plus schema-2 fractional, partition, rollback, and sole actor advance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
-| `.runseal/support/prototype/host.ts` | Prototype startup/failure, exact simulation/camera-orbit/zero-block readiness, held-input boundary survival, Escape clean exit, restart, and no-inspect lifecycle orchestration. |
+| `.runseal/support/prototype/host.ts` | Prototype startup/failure, exact Walk/Run/Jump simulation, camera-orbit/zero-block readiness, held-input boundary survival, Escape clean exit, restart, and no-inspect lifecycle orchestration. |
 | `.runseal/support/prototype/boundary.ts` | Real activated held-input finite-edge process survival and cleanup evidence owner. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
 | `.runseal/support/prototype/camera.ts` | Exact default/orbit rig, actor anchor, and camera/frame readiness invariant owner. |
-| `.runseal/support/prototype/input.ts` | Process-qualified native prototype-window W/Escape/E injection for locomotion and action-edge acceptance. |
-| `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk, locomotion yaw, and committed actor presentation invariant owner. |
+| `.runseal/support/prototype/input.ts` | Process-qualified ordered native prototype-window W/Shift/Escape/E/Space injection for locomotion and action acceptance. |
+| `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk/Run, locomotion yaw, and committed actor presentation invariant owner. |
 | `.runseal/support/prototype/process.ts` | Shared prototype readiness-line framing and native Escape clean-exit process owner. |
+| `.runseal/support/prototype/simulation.ts` | Exact stationary, Walk, Run, and Jump command expectation owner for prototype process acceptance. |
 | `.runseal/support/prototype/traversal.ts` | Exact default/orbit traversal targets, bounded async/latest-wins publication, and no-prefetch/block/failure invariant owner. |
 | `.runseal/support/terrain/query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
@@ -518,9 +526,10 @@ outside-window rollback, and semantic capture. Its ignored evidence belongs unde
 
 The prototype workflow runs focused runtime/host/application tests, cooks the four required signed
 centers, and proves exact grounded gravity admission, stationary and explicitly activated
-process-qualified native-W fixed locomotion, one-region held-input boundary survival, one committed
+process-qualified native-W Walk plus visible native-Shift+W Run locomotion, one-region held-input
+boundary survival, one committed
 current actor authority, actor-relative camera/frame ordering,
-typed Survey/Walk selection with exact committed eight-way facing, render-block consumption with
+typed Survey/Walk/Run selection with exact committed eight-way facing, render-block consumption with
 zero normal-path blocks, one exact camera-derived traversal schedule with prefetch disabled,
 no-readiness bootstrap failures, direct restart equality, and complete Sidecar cleanup. Its
 ignored evidence belongs under

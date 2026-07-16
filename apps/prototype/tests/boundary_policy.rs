@@ -20,6 +20,16 @@ fn command(delta_x_q9: i32, delta_z_q9: i32) -> locomotion::Command {
         delta_x_q9,
         delta_z_q9,
         step_up_limit_q16: 32_768,
+        running: false,
+    }
+}
+
+fn run_command(delta_x_q9: i32, delta_z_q9: i32) -> locomotion::Command {
+    locomotion::Command {
+        delta_x_q9,
+        delta_z_q9,
+        step_up_limit_q16: 32_768,
+        running: delta_x_q9 != 0 || delta_z_q9 != 0,
     }
 }
 
@@ -66,6 +76,38 @@ fn unsafe_axis_is_reduced_independently_and_inward_motion_remains_live() {
         )
         .unwrap(),
         command(-32, 0)
+    );
+}
+
+#[test]
+fn run_uses_the_exact_maximum_batch_candidate_and_clears_when_fully_reduced() {
+    let extent = bounds(RegionCoord::ZERO, RegionCoord::ZERO);
+    assert_eq!(
+        boundary::admit(
+            position(RegionCoord::ZERO, 0, 3583),
+            extent,
+            run_command(0, 64),
+        )
+        .unwrap(),
+        run_command(0, 64)
+    );
+    assert_eq!(
+        boundary::admit(
+            position(RegionCoord::ZERO, 0, 3584),
+            extent,
+            run_command(0, 64),
+        )
+        .unwrap(),
+        run_command(0, 0)
+    );
+    assert_eq!(
+        boundary::admit(
+            position(RegionCoord::ZERO, 3736, 0),
+            extent,
+            run_command(45, -45),
+        )
+        .unwrap(),
+        run_command(0, -45)
     );
 }
 

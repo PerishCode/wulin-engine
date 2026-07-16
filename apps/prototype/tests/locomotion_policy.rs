@@ -20,6 +20,16 @@ fn expected(delta_x_q9: i32, delta_z_q9: i32) -> locomotion::Command {
         delta_x_q9,
         delta_z_q9,
         step_up_limit_q16: 32_768,
+        running: false,
+    }
+}
+
+fn expected_run(delta_x_q9: i32, delta_z_q9: i32) -> locomotion::Command {
+    locomotion::Command {
+        delta_x_q9,
+        delta_z_q9,
+        step_up_limit_q16: 32_768,
+        running: true,
     }
 }
 
@@ -41,6 +51,17 @@ fn diagonals_use_the_fixed_nearest_normalized_component() {
 }
 
 #[test]
+fn held_shift_selects_exact_run_components_only_for_nonzero_motion() {
+    assert_eq!(command(&[0x10]), expected(0, 0));
+    assert_eq!(command(&[0x10, 0x57]), expected_run(0, -64));
+    assert_eq!(command(&[0x10, 0x41]), expected_run(-64, 0));
+    assert_eq!(command(&[0x10, 0x53, 0x44]), expected_run(45, 45));
+    assert_eq!(command(&[0x10, 0x57, 0x41]), expected_run(-45, -45));
+    assert_eq!(command(&[0x10, 0x57, 0x53]), expected(0, 0));
+    assert_eq!(command(&[0x10, 0x41, 0x44]), expected(0, 0));
+}
+
+#[test]
 fn opposing_axes_cancel_independently() {
     assert_eq!(command(&[0x41, 0x44]), expected(0, 0));
     assert_eq!(command(&[0x57, 0x53]), expected(0, 0));
@@ -51,21 +72,22 @@ fn opposing_axes_cancel_independently() {
 
 #[test]
 fn focus_loss_clears_motion_and_irrelevant_keys_do_not_change_it() {
-    assert_eq!(command(&[0x20, 0x31, 0x70]), expected(0, 0));
+    assert_eq!(command(&[0x10, 0x20, 0x31, 0x70]), expected(0, 0));
 
     let mut input = HostInput::new();
-    input.ingest(vec![key(0x57, true), key(0x20, true)]);
-    assert_eq!(locomotion::command(&input), expected(0, -32));
+    input.ingest(vec![key(0x10, true), key(0x57, true), key(0x20, true)]);
+    assert_eq!(locomotion::command(&input), expected_run(0, -64));
     input.ingest(vec![NativeMessage::FocusLost]);
     assert_eq!(locomotion::command(&input), expected(0, 0));
 }
 
 #[test]
-fn stationary_uses_survey_and_motion_uses_walk() {
+fn gaits_use_exact_presentation() {
     let policy = presentation::Policy::new();
     let stationary = policy.command(command(&[]));
     assert_eq!(stationary, presentation::initial());
     assert_eq!(stationary.animation_clip(), Some(0));
+    assert_eq!(policy.command(command(&[0x10])), presentation::initial());
 
     for (keys, yaw_q16) in [
         (vec![0x44], 0),
@@ -85,6 +107,22 @@ fn stationary_uses_survey_and_motion_uses_walk() {
         assert_eq!(moving.animation_phase_offset(), Some(0));
         assert_eq!(moving.animation_variant(), Some(0));
         moving.validate().unwrap();
+    }
+
+    for (keys, yaw_q16) in [
+        (vec![0x10, 0x44], 0),
+        (vec![0x10, 0x53, 0x44], 8_192),
+        (vec![0x10, 0x53], 16_384),
+        (vec![0x10, 0x53, 0x41], 24_576),
+        (vec![0x10, 0x41], 32_768),
+        (vec![0x10, 0x57, 0x41], 40_960),
+        (vec![0x10, 0x57], 49_152),
+        (vec![0x10, 0x57, 0x44], 57_344),
+    ] {
+        let running = policy.command(command(&keys));
+        assert_eq!(running.animation_clip(), Some(2));
+        assert_eq!(running.yaw_q16, yaw_q16);
+        running.validate().unwrap();
     }
 }
 

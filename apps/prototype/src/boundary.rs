@@ -9,10 +9,13 @@ pub(crate) fn admit(
     bounds: PlayableRegionBounds,
     requested: Command,
 ) -> Result<Command> {
+    let delta_x_q9 = admit_axis(position, bounds, requested.delta_x_q9, true)?;
+    let delta_z_q9 = admit_axis(position, bounds, requested.delta_z_q9, false)?;
     Ok(Command {
-        delta_x_q9: admit_axis(position, bounds, requested.delta_x_q9, true)?,
-        delta_z_q9: admit_axis(position, bounds, requested.delta_z_q9, false)?,
+        delta_x_q9,
+        delta_z_q9,
         step_up_limit_q16: requested.step_up_limit_q16,
+        running: requested.running && (delta_x_q9 != 0 || delta_z_q9 != 0),
     })
 }
 

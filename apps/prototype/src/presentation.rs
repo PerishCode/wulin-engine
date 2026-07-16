@@ -4,6 +4,7 @@ use crate::locomotion::Command;
 
 const SURVEY_CLIP: u32 = 0;
 const WALK_CLIP: u32 = 1;
+const RUN_CLIP: u32 = 2;
 
 pub(crate) struct Policy {
     committed_yaw_q16: u32,
@@ -18,7 +19,13 @@ impl Policy {
 
     pub(crate) const fn command(&self, command: Command) -> ActorPresentation {
         let moving = command.delta_x_q9 != 0 || command.delta_z_q9 != 0;
-        let clip = if moving { WALK_CLIP } else { SURVEY_CLIP };
+        let clip = if moving && command.running {
+            RUN_CLIP
+        } else if moving {
+            WALK_CLIP
+        } else {
+            SURVEY_CLIP
+        };
         let yaw_q16 = if moving {
             locomotion_yaw_q16(command)
         } else {
