@@ -64,6 +64,7 @@ pub(super) fn simulation_advance(
                     delta_x_q9: payload.delta_x_q9,
                     delta_z_q9: payload.delta_z_q9,
                     step_up_limit_q16: payload.step_up_limit_q16,
+                    initial_step_velocity_delta_q16: payload.initial_step_velocity_delta_q16,
                     step_acceleration_q16: payload.step_acceleration_q16,
                     presentation: ActorPresentation {
                         archetype: payload.archetype,
@@ -89,7 +90,7 @@ fn advanced_response(advance: ActorSimulationAdvance) -> Value {
     let presentation_mutation_count =
         u32::from(advance.actor.input.presentation != advance.actor.output.presentation);
     json!({
-        "revision": "runtime-actor-simulation-v4",
+        "revision": "runtime-actor-simulation-v5",
         "outcome": "advanced",
         "preparedStepCount": advance.simulation.step_count,
         "terrainQueryCount": advance.actor.terrain_query_count,
@@ -110,7 +111,7 @@ fn advanced_response(advance: ActorSimulationAdvance) -> Value {
 
 fn blocked_response(blocked: ActorSimulationRenderBlock) -> Value {
     json!({
-        "revision": "runtime-actor-simulation-v4",
+        "revision": "runtime-actor-simulation-v5",
         "outcome": "render-blocked",
         "preparedStepCount": blocked.prepared_step_count,
         "terrainQueryCount": blocked.terrain_query_count,

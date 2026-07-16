@@ -77,7 +77,7 @@ export async function actorAnimationEpochGates(base: Coord): Promise<Json> {
         "actor",
     );
     if (
-        fractionalResponse.revision !== "runtime-actor-simulation-v4" ||
+        fractionalResponse.revision !== "runtime-actor-simulation-v5" ||
         fractionalResponse.outcome !== "advanced" ||
         number(fractionalResponse, "preparedStepCount") !== 0 ||
         number(fractionalResponse, "presentationMutationCount") !== 0
@@ -139,6 +139,7 @@ function simulationRequest(
         delta_x_q9: deltaXQ9,
         delta_z_q9: 0,
         step_up_limit_q16: 2_147_483_647,
+        initial_step_velocity_delta_q16: 0,
         step_acceleration_q16: 0,
         archetype: 7,
         material: 63,
@@ -149,7 +150,7 @@ function simulationRequest(
 
 function requireAdvance(value: Json, label: string): Json {
     if (
-        value.revision !== "runtime-actor-simulation-v4" || value.outcome !== "advanced" ||
+        value.revision !== "runtime-actor-simulation-v5" || value.outcome !== "advanced" ||
         number(value, "preparedStepCount") !== 1 ||
         number(value, "terrainQueryCount") !== 1 ||
         number(value, "scheduleCommitCount") !== 1 || number(value, "actorCommitCount") !== 1

@@ -21,14 +21,17 @@ const HALF_HEIGHT_Q16 = 65_536;
 const SHORT_STEP_NANOSECONDS = 16_666_666;
 const LONG_STEP_NANOSECONDS = 16_666_667;
 const I32_MAX = 2_147_483_647;
-const REVISION = "runtime-actor-simulation-v4";
+const REVISION = "runtime-actor-simulation-v5";
 const SURVEY = { archetype: 7, material: 63, yaw_q16: 0, animation: 0 };
 const WALK = { ...SURVEY, animation: 1 };
+const ADMITTED_VELOCITY_DELTA_Q16 = 16_384;
+const BLOCKED_VELOCITY_DELTA_Q16 = 8_192;
 
 function request(
     generation: number,
     elapsedNanoseconds: number,
     deltaXQ9: number,
+    initialVelocityDeltaQ16: number,
     presentation = SURVEY,
 ): Json {
     return {
@@ -37,6 +40,7 @@ function request(
         delta_x_q9: deltaXQ9,
         delta_z_q9: 0,
         step_up_limit_q16: I32_MAX,
+        initial_step_velocity_delta_q16: initialVelocityDeltaQ16,
         step_acceleration_q16: 0,
         ...presentation,
     };
@@ -106,8 +110,24 @@ async function prepublication(center: Coord): Promise<Json> {
         await event("actor.spawn", actorPayload(center, HALF_HEIGHT_Q16)),
         "actor",
     );
+    const retiredShape = request(1, SHORT_STEP_NANOSECONDS, 0, 0);
+    delete retiredShape["initial_step_velocity_delta_q16"];
+    const retiredPayload = await rejectedEvent("simulation.actor.advance", retiredShape);
+    if (
+        typeof retiredPayload.error !== "string" ||
+        !retiredPayload.error.startsWith("invalid_payload: ") ||
+        !retiredPayload.error.includes("initial_step_velocity_delta_q16")
+    ) fail("retired simulation actor payload did not fail closed");
+    const aliasPayload = await rejectedEvent("simulation.actor.advance", {
+        ...retiredShape,
+        initial_velocity_delta_q16: 0,
+    });
+    if (
+        typeof aliasPayload.error !== "string" ||
+        !aliasPayload.error.startsWith("invalid_payload: ")
+    ) fail("simulation actor velocity alias did not fail closed");
     const invalidPresentation = await rejectedEvent("simulation.actor.advance", {
-        ...request(1, SHORT_STEP_NANOSECONDS, 0),
+        ...request(1, SHORT_STEP_NANOSECONDS, 0, 0),
         archetype: 8,
     });
     if (
@@ -126,6 +146,7 @@ async function prepublication(center: Coord): Promise<Json> {
         delta_x_q9: 17,
         delta_z_q9: -19,
         step_up_limit_q16: 0,
+        initial_step_velocity_delta_q16: 4_096,
         step_acceleration_q16: 0,
         ...WALK,
     });
@@ -153,7 +174,7 @@ async function prepublication(center: Coord): Promise<Json> {
         number(after, "successfulAdvanceCount") !== number(before, "successfulAdvanceCount") + 1
     ) fail("prepublication schedule commit diverged");
     await event("actor.despawn", { generation: 1 });
-    return { before, invalidPresentation, response, after };
+    return { before, retiredPayload, aliasPayload, invalidPresentation, response, after };
 }
 
 async function heldPending(
@@ -184,7 +205,13 @@ async function heldPending(
     const admitted = requireAdvance(
         await event(
             "simulation.actor.advance",
-            request(2, SHORT_STEP_NANOSECONDS, 1, WALK),
+            request(
+                2,
+                SHORT_STEP_NANOSECONDS,
+                1,
+                ADMITTED_VELOCITY_DELTA_Q16,
+                WALK,
+            ),
         ),
         1,
         "shared-window actor",
@@ -197,6 +224,16 @@ async function heldPending(
         number(committedPosition, "localXQ9") !== 1 || number(committedPosition, "localZQ9") !== 0
     ) fail("shared-window actor committed the wrong position");
     same(committed.handle, actor.handle, "shared-window actor handle");
+    const inputMotion = object(object(object(admitted, "actor"), "input"), "motion");
+    const outputMotion = object(committed, "motion");
+    const inputBody = object(inputMotion, "body");
+    const outputBody = object(outputMotion, "body");
+    if (
+        number(inputMotion, "stepVelocityQ16") !== 0 ||
+        number(outputMotion, "stepVelocityQ16") !== ADMITTED_VELOCITY_DELTA_Q16 ||
+        number(outputBody, "centerHeightNumerator") !==
+            number(inputBody, "centerHeightNumerator") + ADMITTED_VELOCITY_DELTA_Q16
+    ) fail("shared-window actor initial velocity delta ordering diverged");
     same(
         object(object(admitted, "actor"), "input").presentation,
         actor.presentation,
@@ -218,7 +255,13 @@ async function heldPending(
     const pendingBeforeBlock = await event("canonical.status");
     const blocked = await event(
         "simulation.actor.advance",
-        request(2, LONG_STEP_NANOSECONDS, -4_098, SURVEY),
+        request(
+            2,
+            LONG_STEP_NANOSECONDS,
+            -4_098,
+            BLOCKED_VELOCITY_DELTA_Q16,
+            SURVEY,
+        ),
     );
     if (
         blocked.revision !== REVISION || blocked.outcome !== "render-blocked" ||
@@ -275,6 +318,8 @@ async function heldPending(
         pendingBeforeBlock,
         retainedFrame,
         completed,
+        admittedInitialStepVelocityDeltaQ16: ADMITTED_VELOCITY_DELTA_Q16,
+        blockedInitialStepVelocityDeltaQ16: BLOCKED_VELOCITY_DELTA_Q16,
     };
 }
 

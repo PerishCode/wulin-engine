@@ -10,13 +10,18 @@ pub(crate) struct MotionBatch {
     pub terrain_query_count: u32,
 }
 
+pub(crate) struct MotionBatchCommand {
+    pub delta_x_q9: i32,
+    pub delta_z_q9: i32,
+    pub step_up_limit_q16: i32,
+    pub initial_step_velocity_delta_q16: i32,
+    pub step_acceleration_q16: i32,
+}
+
 pub(crate) fn advance_motion_batch(
     input: TerrainBodyMotion,
     step_count: u32,
-    delta_x_q9: i32,
-    delta_z_q9: i32,
-    step_up_limit_q16: i32,
-    step_acceleration_q16: i32,
+    command: MotionBatchCommand,
     mut query: impl FnMut(TerrainPosition) -> Result<TerrainHeight>,
 ) -> Result<MotionBatch> {
     ensure!(
@@ -26,12 +31,23 @@ pub(crate) fn advance_motion_batch(
     let mut output = input;
     let mut terrain_query_count = 0_u32;
     for index in 0..step_count {
+        if index == 0 {
+            let step_velocity_q16 = output
+                .step_velocity_q16()
+                .checked_add(command.initial_step_velocity_delta_q16)
+                .ok_or_else(|| {
+                    anyhow!(
+                        "terrain-body motion batch step 1 of {step_count} failed: initial step velocity delta is outside the signed 32-bit Q16 range"
+                    )
+                })?;
+            output = TerrainBodyMotion::new(output.body(), step_velocity_q16);
+        }
         let advance = advance_terrain_body(
             output,
-            delta_x_q9,
-            delta_z_q9,
-            step_up_limit_q16,
-            step_acceleration_q16,
+            command.delta_x_q9,
+            command.delta_z_q9,
+            command.step_up_limit_q16,
+            command.step_acceleration_q16,
             &mut query,
         )
         .map_err(|error| {

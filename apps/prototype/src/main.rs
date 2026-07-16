@@ -78,6 +78,7 @@ unsafe fn run() -> Result<()> {
             delta_x_q9: locomotion.delta_x_q9,
             delta_z_q9: locomotion.delta_z_q9,
             step_up_limit_q16: locomotion.step_up_limit_q16,
+            initial_step_velocity_delta_q16: 0,
             step_acceleration_q16: actor::GRAVITY_STEP_ACCELERATION_Q16,
             presentation: presentation_policy.command(locomotion),
         };
@@ -182,7 +183,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "state": evidence.advance.actor.output,
             },
             "simulation_driver": {
-                "revision": "live-prototype-locomotion-driver-v4",
+                "revision": "live-prototype-locomotion-driver-v5",
                 "sample": evidence.sample,
                 "clock": evidence.clock,
                 "command": evidence.command,
