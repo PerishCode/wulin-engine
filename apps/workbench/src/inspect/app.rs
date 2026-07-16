@@ -37,7 +37,6 @@ pub(crate) fn handle_commands(
                 state.paused = false;
                 Ok(json!({"paused": false}))
             }
-            ControlKind::SimulationStatus => Ok(runtime.simulation_status()),
             ControlKind::CameraStatus => Ok(runtime.camera_json()),
             ControlKind::CameraReset => Ok(runtime.reset_camera()),
             ControlKind::CameraSetPose {

@@ -1,6 +1,8 @@
 import { actorRenderAdmissionGates } from "../support/actor/admission.ts";
 import { actorAnimationEpochGates } from "../support/actor/animation.ts";
 import { actorGpuGates } from "../support/actor/gpu.ts";
+import { actorGates } from "../support/actor/lifecycle.ts";
+import { simulationActorGates } from "../support/actor/simulation.ts";
 import { prepareCanonicalFrameSetup } from "../support/canonical-setup.ts";
 import {
     fail,
@@ -13,7 +15,7 @@ import {
     target,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-actor-v6";
+const REVISION = "canonical-actor-v7";
 const COLLECTION = "canonical-actor";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];
@@ -34,6 +36,8 @@ try {
         [BASE[0] + 2, BASE[1] + 2],
     ]);
     report = setup.paths.report;
+    const lifecycle = await actorGates();
+    const simulation = await simulationActorGates(setup.paths.terrain, setup.paths.objects, BASE);
     const admission = await actorRenderAdmissionGates(
         setup.paths.terrain,
         setup.paths.objects,
@@ -50,6 +54,8 @@ try {
         outcome: "pass",
         storage: setup.storage,
         publication,
+        lifecycle,
+        simulation,
         admission,
         actor,
         animationEpoch,

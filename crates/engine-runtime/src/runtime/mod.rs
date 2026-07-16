@@ -291,10 +291,6 @@ impl Runtime {
         }))
     }
 
-    pub fn simulation_status(&self) -> Value {
-        self.simulation_schedule.status_json()
-    }
-
     pub fn presentation_time_status(&self) -> Value {
         self.presentation_timeline.status_json()
     }

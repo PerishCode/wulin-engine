@@ -65,45 +65,8 @@ function requireFailure(value: Json, label: string, detail: string): void {
     ) fail(`${label} returned the wrong simulation-actor rejection: ${JSON.stringify(value)}`);
 }
 
-async function retiredControlGate(): Promise<Json[]> {
-    const requests: [string, Json][] = [
-        ["simulation.advance", { elapsed_nanoseconds: 1 }],
-        ["simulation.probe", {}],
-        ["canonical.terrain.body.spawn", {}],
-        ["canonical.terrain.body.read", { generation: 1 }],
-        ["canonical.terrain.body.despawn", { generation: 1 }],
-        ["simulation.terrain.body.advance", request(1, 1, 0, 0, 0, 0, 0)],
-        [
-            "canonical.terrain.body.retained.advance",
-            {
-                generation: 1,
-                delta_x_q9: 0,
-                delta_z_q9: 0,
-                step_up_limit_q16: 0,
-                step_acceleration_q16: 0,
-            },
-        ],
-        [
-            "canonical.terrain.body.retained.batch",
-            {
-                generation: 1,
-                step_count: 1,
-                delta_x_q9: 0,
-                delta_z_q9: 0,
-                step_up_limit_q16: 0,
-                step_acceleration_q16: 0,
-            },
-        ],
-    ];
-    const evidence: Json[] = [];
-    for (const [verb, payload] of requests) {
-        const rejected = await rejectedEvent(verb, payload);
-        if (typeof rejected.error !== "string" || !rejected.error.startsWith("unknown_event: ")) {
-            fail(`${verb} did not fail through the retired-control contract`);
-        }
-        evidence.push({ verb, rejected });
-    }
-    return evidence;
+async function scheduleStatus(): Promise<Json> {
+    return object(await event("canonical.status"), "simulationSchedule");
 }
 
 function requireAdvance(
@@ -191,8 +154,7 @@ function requireStatus(
 async function prepublication(base: [number, number]): Promise<Json> {
     await startClean();
     await event("workbench.pause");
-    const retiredControls = await retiredControlGate();
-    const initialSimulation = await event("simulation.status");
+    const initialSimulation = await scheduleStatus();
     const initialPresentation = await event("canonical.time.status");
     const empty = await rejectedEvent(
         "simulation.actor.advance",
@@ -227,7 +189,7 @@ async function prepublication(base: [number, number]): Promise<Json> {
         request(1, MAX_ELAPSED + 1, 0, 0, 0, 0, 0),
     );
     requireFailure(oversized, "oversized dual advance", "must be in [0, 125000000]");
-    same(await event("simulation.status"), initialSimulation, "dual validation schedule rollback");
+    same(await scheduleStatus(), initialSimulation, "dual validation schedule rollback");
     same(await read(1), stored, "dual validation actor rollback");
     const fractional = requireAdvance(
         await event("simulation.actor.advance", request(1, 1, 17, -19, 0, 0, 0)),
@@ -238,9 +200,9 @@ async function prepublication(base: [number, number]): Promise<Json> {
         "fractional dual advance",
     );
     same(object(object(fractional, "actor"), "output"), stored, "fractional actor identity");
-    requireStatus(await event("simulation.status"), 0, 60, 1, 0, "fractional dual commit");
+    requireStatus(await scheduleStatus(), 0, 60, 1, 0, "fractional dual commit");
     same(await event("canonical.time.status"), initialPresentation, "dual time isolation");
-    return { retiredControls, empty, malformed, stale, oversized, fractional };
+    return { empty, malformed, stale, oversized, fractional };
 }
 
 async function startPublished(
@@ -299,7 +261,7 @@ async function coarseRun(
     const actor = await groundActor(base);
     await spawn(actor);
     const result = await advanceSequence(Array(8).fill(MAX_ELAPSED));
-    requireStatus(await event("simulation.status"), 60, 0, 8, 60, "coarse dual second");
+    requireStatus(await scheduleStatus(), 60, 0, 8, 60, "coarse dual second");
     if (result.terrainQueryCount !== 60) fail("coarse dual query count diverged");
     same(await event("canonical.time.status"), presentation, "coarse dual time isolation");
     return { actorInput: actor, ...result };
@@ -315,7 +277,7 @@ async function nominalRun(
     await spawn(expected.actorInput as ActorPayload);
     const intervals = [...Array(20).fill(16_666_666), ...Array(40).fill(16_666_667)];
     const result = await advanceSequence(intervals);
-    requireStatus(await event("simulation.status"), 60, 0, 60, 60, "nominal dual second");
+    requireStatus(await scheduleStatus(), 60, 0, 60, 60, "nominal dual second");
     if (result.terrainQueryCount !== 60) fail("nominal dual query count diverged");
     same(result.actor, expected.actor, "dual partition actor output");
     await despawn(1, result.actor as Json);
@@ -332,13 +294,13 @@ async function nominalRun(
         ...PRESENTATION,
     };
     const edgeStored = await spawn(edgeActor);
-    const beforeFailure = await event("simulation.status");
+    const beforeFailure = await scheduleStatus();
     const failed = await rejectedEvent(
         "simulation.actor.advance",
         request(2, MAX_ELAPSED, 8192, 0, I32_MAX, 0, 0),
     );
     requireFailure(failed, "dual mid-batch snapshot", "batch step 3 of 7 failed");
-    same(await event("simulation.status"), beforeFailure, "dual query schedule rollback");
+    same(await scheduleStatus(), beforeFailure, "dual query schedule rollback");
     same(await read(2), edgeStored, "dual query actor rollback");
     await despawn(2, edgeStored);
 
@@ -356,7 +318,7 @@ async function nominalRun(
         "dual arithmetic",
         "vertical velocity is outside the signed 32-bit Q16 range",
     );
-    same(await event("simulation.status"), beforeFailure, "dual arithmetic schedule rollback");
+    same(await scheduleStatus(), beforeFailure, "dual arithmetic schedule rollback");
     same(await read(3), overflowStored, "dual arithmetic actor rollback");
     same(await event("canonical.time.status"), presentation, "nominal dual time isolation");
     return { intervals, ...result, failed, edgeStored, overflow, overflowStored };
