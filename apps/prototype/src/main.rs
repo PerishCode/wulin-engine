@@ -55,6 +55,7 @@ unsafe fn run() -> Result<()> {
     let mut live_frame_count = 0_u64;
     let mut camera_anchor_count = 0_u64;
     let mut render_block_count = 0_u64;
+    let mut object_target_frame_count = 0_u64;
     let mut presentation_policy = presentation::Policy::new();
     let mut camera_policy = camera::Policy::new();
     let mut jump_policy = jump::Policy::new();
@@ -143,13 +144,20 @@ unsafe fn run() -> Result<()> {
         camera_anchor_count = camera_anchor_count
             .checked_add(1)
             .context("prototype camera anchor count overflowed")?;
+        let object_target = observation_policy.target_identity();
         unsafe {
             let _ = runtime.frame(FrameRequest {
                 clear_color: CLEAR_COLOR,
                 capture: false,
                 capture_object_ids: false,
                 probe: false,
+                object_target,
             })?;
+        }
+        if object_target.is_some() {
+            object_target_frame_count = object_target_frame_count
+                .checked_add(1)
+                .context("prototype object target frame count overflowed")?;
         }
         live_frame_count = live_frame_count
             .checked_add(1)
@@ -183,6 +191,8 @@ unsafe fn run() -> Result<()> {
                 anchored_camera,
                 camera_anchor_count,
                 render_block_count,
+                object_target_frame_count,
+                submitted_object_target: object_target,
                 jump_status: jump_policy.status(),
                 object_observation,
                 observation_status: observation_policy.status(),
@@ -208,6 +218,8 @@ struct ReadinessEvidence {
     anchored_camera: Value,
     camera_anchor_count: u64,
     render_block_count: u64,
+    object_target_frame_count: u64,
+    submitted_object_target: Option<engine_runtime::CanonicalObjectIdentity>,
     jump_status: jump::Status,
     object_observation: Option<observation::Completed>,
     observation_status: observation::Status,
@@ -280,7 +292,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 },
             },
             "object_observation_driver": {
-                "revision": "live-prototype-object-target-v2",
+                "revision": "live-prototype-object-target-v3",
                 "maxDistanceQ9": observation::OBJECT_OBSERVATION_RADIUS_Q9,
                 "status": {
                     "pending": evidence.observation_status.pending,
@@ -288,6 +300,11 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 },
                 "completed": object_observation.is_some(),
                 "observation": object_observation,
+                "frameFeedback": {
+                    "submittedIdentity": evidence.submitted_object_target,
+                    "submittedFrameCount": evidence.object_target_frame_count,
+                    "copiedObjectState": false,
+                },
             },
         })
     );

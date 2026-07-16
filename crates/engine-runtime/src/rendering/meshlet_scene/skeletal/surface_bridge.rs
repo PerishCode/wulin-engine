@@ -20,6 +20,7 @@ pub(in crate::rendering) struct CompositionSurfaceInput<'a> {
     pub ground_numerators: &'a [i32],
     pub ground_denominator: u32,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
+    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
 }
 
 pub(super) unsafe fn create_surface(
@@ -73,6 +74,7 @@ impl SkeletalSceneRenderer {
                 timestamp_readback: &self.resources.timestamp_readback,
                 timestamp_frequency: self.timestamp_frequency,
                 actor: input.actor,
+                object_target: input.object_target,
             })
         }
     }

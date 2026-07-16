@@ -35,6 +35,7 @@ pub struct FrameRequest {
     pub capture: bool,
     pub capture_object_ids: bool,
     pub probe: bool,
+    pub object_target: Option<CanonicalObjectIdentity>,
 }
 
 pub struct Runtime {
@@ -87,6 +88,7 @@ impl Runtime {
                 presentation_status: presentation_status.as_ref(),
                 simulation_status: simulation_status.as_ref(),
                 actor,
+                object_target: request.object_target,
                 scene: &mut self.scene,
             })
         }?;

@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "object_target.rs"]
+mod object_target;
+
 use crate::load::{LoadConfig, MAX_REGION_SIDE};
 use crate::region::RegionCoord;
 use crate::runtime::{ActorHandle, ActorPresentation};

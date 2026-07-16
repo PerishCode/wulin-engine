@@ -13,14 +13,19 @@ export async function observationInvariant(
     const driver = object(readiness, "object_observation_driver");
     const status = object(driver, "status");
     if (
-        driver.revision !== "live-prototype-object-target-v2" ||
+        driver.revision !== "live-prototype-object-target-v3" ||
         number(driver, "maxDistanceQ9") !== OBSERVATION_RADIUS_Q9 ||
         status.pending !== false ||
         driver.completed !== expectedCompleted
     ) fail("prototype object observation driver diverged");
 
     if (!expectedCompleted) {
-        if (driver.observation !== null || status.target !== null) {
+        const feedback = object(driver, "frameFeedback");
+        if (
+            driver.observation !== null || status.target !== null ||
+            feedback.submittedIdentity !== null || number(feedback, "submittedFrameCount") !== 0 ||
+            feedback.copiedObjectState !== false
+        ) {
             fail("prototype retained an object observation or target without an intent");
         }
         return {
@@ -66,6 +71,15 @@ export async function observationInvariant(
         fail("prototype newly observed target was not resolved");
     }
     same(object(target, "identity"), observedIdentity, "prototype retained target identity");
+    const feedback = object(driver, "frameFeedback");
+    same(
+        object(feedback, "submittedIdentity"),
+        observedIdentity,
+        "prototype frame object-target input",
+    );
+    if (
+        number(feedback, "submittedFrameCount") < 1 || feedback.copiedObjectState !== false
+    ) fail("prototype did not forward identity-only target feedback");
     const targetSnapshot = object(target, "snapshot");
     const targetToken = number(targetSnapshot, "publicationToken");
     if (targetSnapshot.sourceNamespace !== snapshot.sourceNamespace) {
@@ -106,5 +120,6 @@ export async function observationInvariant(
         snapshotGatedTarget: true,
         revalidatedAfterPublication: targetToken !== publicationToken,
         copiedObjectState: false,
+        frameFeedback: feedback,
     };
 }

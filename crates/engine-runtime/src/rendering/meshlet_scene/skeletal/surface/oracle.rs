@@ -39,6 +39,7 @@ pub struct OracleInput<'a> {
     pub shadow_depth: &'a [u8],
     pub background_color: [f32; 4],
     pub actor: Option<ActorRenderProjection>,
+    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
 }
 
 pub fn shade(sample: &SurfaceSample, input: OracleInput<'_>) -> Result<OracleResult> {
@@ -70,6 +71,20 @@ fn shade_visible(
     sample: &SurfaceSample,
     input: OracleInput<'_>,
 ) -> Result<(u32, [u32; 2], bool, [u32; 2])> {
+    let targeted = if candidate == ACTOR_CANDIDATE_INDEX {
+        false
+    } else if let Some(target) = input.object_target {
+        let active_index = (candidate / 1024) as usize;
+        let local_index = (candidate % 1024) as usize;
+        active_index == target.active_index as usize
+            && input
+                .local_ids
+                .get(active_index)
+                .and_then(|ids| ids.get(local_index))
+                .is_some_and(|local_id| *local_id == target.authored_local_id)
+    } else {
+        false
+    };
     let (position, object_height, presentation, stable_identity) =
         if candidate == ACTOR_CANDIDATE_INDEX {
             let actor = input
@@ -113,7 +128,7 @@ fn shade_visible(
                 position,
                 instance.height,
                 presentation,
-                [canonical_stable_key(instance.region_id, local_id), 0],
+                [canonical_stable_key(instance.region_id, local_id), local_id],
             )
         };
     ensure!(
@@ -226,9 +241,12 @@ fn shade_visible(
     let lighting = 0.22 + direct_visibility * diffuse * (0.78 - material.roughness * 0.18);
     let metallic_lift =
         direct_visibility * material.metallic * normal.y.clamp(0.0, 1.0).powi(4) * 0.25;
-    let color =
+    let mut color =
         Vec3::from_array(material.base_color[..3].try_into().unwrap()) * texture_rgb * lighting
             + Vec3::splat(metallic_lift);
+    if targeted {
+        color = color * 0.45 + Vec3::new(1.0, 0.62, 0.08) * 0.55;
+    }
     Ok((
         pack_rgba8([
             color.x.clamp(0.0, 1.0),

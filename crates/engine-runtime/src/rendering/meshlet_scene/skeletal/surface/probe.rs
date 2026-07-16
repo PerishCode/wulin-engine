@@ -31,6 +31,8 @@ pub struct SurfaceStats {
     pub background_pixels: u32,
     pub observed_material_mask: [u32; 2],
     pub observed_material_count: u32,
+    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
+    pub targeted_pixels: u32,
 }
 
 #[derive(Serialize)]
@@ -134,6 +136,7 @@ pub struct ProbeInput<'a> {
     pub bypass_reason: &'static str,
     pub bound_proof: BoundProof,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
+    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
 }
 
 pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {
@@ -182,6 +185,12 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {
         stats_words[4],
         input.settings.material_count,
     )?;
+    let expected_targeted_pixels =
+        super::target_probe::pixel_count(&visibility.bytes, input.object_target, input.local_ids)?;
+    ensure!(
+        stats_words[5] == expected_targeted_pixels,
+        "surface targeted-pixel counter differs from the exact visibility identities"
+    );
     let mut samples = decode_samples(
         &sample_words,
         &visibility.bytes,
@@ -208,6 +217,7 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {
                 shadow_depth: &shadow_depth.bytes,
                 background_color: input.background_color,
                 actor: input.actor,
+                object_target: input.object_target,
             },
         )?;
         sample.expected_rgba8 = result.expected_rgba8;
@@ -286,6 +296,8 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {
             background_pixels: stats_words[2],
             observed_material_mask: [stats_words[3], stats_words[4]],
             observed_material_count: stats_words[3].count_ones() + stats_words[4].count_ones(),
+            object_target: input.object_target,
+            targeted_pixels: stats_words[5],
         },
         samples,
         maximum_sample_channel_delta,

@@ -30,8 +30,10 @@ use super::terrain::TerrainRenderer;
 
 mod actor_projection;
 mod frame;
+mod object_target;
 
 pub(crate) use actor_projection::ActorRenderProjection;
+pub(crate) use object_target::ObjectTargetFeedback;
 
 const BUFFER_COUNT: usize = 2;
 
@@ -85,6 +87,7 @@ pub(crate) struct RenderFrame<'a> {
     pub presentation_status: Option<&'a Value>,
     pub simulation_status: Option<&'a Value>,
     pub actor: Option<crate::runtime::RuntimeActor>,
+    pub object_target: Option<CanonicalObjectIdentity>,
     pub scene: &'a mut crate::scene::SceneState,
 }
 

@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0101 and the current ADR set through 0104 define one live content runtime
+Experiments 0031-0102 and the current ADR set through 0105 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -135,9 +135,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
   the enabled/pending published composition into bounded window-relative Q9/Q16 input without
   float global coordinates, a public projection transaction, or a second scene path;
 - one 56-byte self-contained GPU visible record carrying grounded window position, authored height,
-  semantic region, frame-resolved actor-local animation phase, pose, and exact two-word source
-  identity; streamed instances and ground values are skeletal-cull inputs only and are not rebound
-  downstream;
+  semantic region, frame-resolved actor-local animation phase, pose, and exact two-word identity;
+  streamed records expose their authored local ID in the high word, actor records retain their full
+  generation identity, and streamed instances/ground values are skeletal-cull inputs only;
 - one fixed actor candidate after the 25,600 streamed candidates, backed by one two-frame upload
   resource and consumed by the existing skeletal, surface, shadow, and occlusion path without a GPU
   copy or additional synchronization;
@@ -271,6 +271,11 @@ geometry/material/rig source, and one deterministic object-shadow path:
   compare stamps only while a target exists, equal stamps eliminate resolver work, and changed
   stamps trigger exactly one typed resolution without copied object state, automatic nearest scans,
   engine target ownership, or gameplay-persistent identity;
+- one optional immutable frame object target that validates before work and projects source/owner
+  region only after the frame's pending publication; exact streamed semantic-region/authored-ID
+  matches receive a static amber mix in the sole surface resolve, the prototype forwards only its
+  retained qualified identity, and existing visible-record, root-constant, statistics, dispatch,
+  resource, descriptor, copy, readback, and synchronization ownership remains structurally fixed;
 - one mandatory post-v0 cleanup that deletes the duplicate standalone presentation-timeline Runtime
   forwarder and inspect verb; exact presentation state remains readable only through
   `canonical.status.presentationClock`, pause/resume/set/step keep their direct exact responses, and
@@ -389,6 +394,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0102-typed-canonical-object-resolution.md` | Accepted typed on-demand object lifetime resolution and strict invalid-state separation. |
 | `docs/adr/0103-retired-standalone-terrain-contact.md` | Accepted retirement of standalone contact Runtime/inspect ownership and retention of one private pure contract. |
 | `docs/adr/0104-version-gated-prototype-object-target.md` | Accepted live snapshot stamp and version-gated identity-only prototype target policy. |
+| `docs/adr/0105-frame-bound-object-target-feedback.md` | Accepted immutable frame target projection and exact existing-surface visual feedback. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -461,6 +467,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0099-typed-canonical-object-resolution/README.md` | Accepted typed resolved/source/window outcomes, strict invalid-state failures, and lifecycle evidence. |
 | `experiments/0100-retired-standalone-terrain-contact/README.md` | Accepted standalone contact removal, bounded private-witness preservation, and compiler/generated resource cleanup. |
 | `experiments/0101-version-gated-prototype-object-target/README.md` | Accepted typed snapshot, native retained-target revalidation, A/B/window/rollback, resource, and lifecycle evidence. |
+| `experiments/0102-frame-bound-object-target-feedback/README.md` | Accepted frame-bound target projection, exact surface feedback, product forwarding, and source/window lifecycle evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -528,13 +535,17 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/rendering/terrain/transfer.rs` | Terrain GPU copy and slot lifecycle. |
 | `crates/engine-runtime/src/rendering/composition/mod.rs` | Atomic pair publication and fixed composition. |
 | `crates/engine-runtime/src/rendering/renderer/actor_projection.rs` | Private actor projection, active/pending typed admission, required failure conversion, and bounded scene-center derivation. |
+| `crates/engine-runtime/src/rendering/renderer/object_target.rs` | Immutable source/window-qualified frame target projection and focused lifetime tests. |
+| `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/surface/target_probe.rs` | Independent visibility/authored-ID target pixel oracle. |
+| `crates/engine-runtime/tests/private/object_target.rs` | Private invalid/source/window/traversal target projection evidence. |
+| `crates/engine-runtime/tests/private/surface_target.rs` | Private authored-ID permutation and neighbor-exclusion target evidence. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/mod.rs` | Fixed visible-record layout, capacity, descriptors, and skeletal GPU resource ownership. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/actor.rs` | Exact frame-resolved actor-local phase encoding and two-frame GPU upload-resource ownership. |
 | `crates/engine-runtime/src/rendering/composition/traversal.rs` | Latest-wins traversal, prefetch, and rollover policy. |
 | `crates/engine-runtime/src/rendering/composition/probe.rs` | Canonical attachment and oracle evidence. |
 | `crates/engine-runtime/src/rendering/composition/probe/terrain_query.rs` | Bounded query oracle evidence and the sole process-level body-contact transition witness. |
 | `crates/engine-runtime/src/rendering/frame_targets.rs` | Neutral reverse-Z depth and semantic render-target ownership. |
-| `crates/engine-runtime/src/rendering/renderer/frame.rs` | Clear-only idle-shell/canonical frame dispatch. |
+| `crates/engine-runtime/src/rendering/renderer/frame.rs` | Clear-only idle-shell/canonical frame dispatch plus post-publication frame-target projection. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/surface/shadow.rs` | Fixed directional-light projection and shadow probe oracle. |
 | `.runseal/wrappers/init.ts` | Toolchain and repository initialization. |
 | `.runseal/wrappers/guard.ts` | Repository/runtime ownership, dependency, and retired compatibility-symbol gates. |
@@ -548,11 +559,13 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/canonical-runtime.ts` | Timed direct canonical acceptance with bounded resource/lifecycle checkpoints. |
 | `.runseal/support/canonical-frame.ts` | Shared exact canonical frame, shadow, occlusion, and capture baseline. |
 | `.runseal/support/canonical-runtime.ts` | Non-recursive acceptance, operation metrics, observation, and checkpoint/soak support. |
+| `.runseal/support/canonical-rollover.ts` | Prepared traversal rollover acceptance stage. |
 | `.runseal/support/canonical-setup.ts` | Typed deterministic test/build, source-cooking, identity, and corruption setup owner. |
 | `.runseal/support/resource-acceptance.ts` | Pure warm-convergence, active, and recovery resource threshold policy used by checkpoints and deep soak. |
 | `.runseal/support/resource-acceptance_test.ts` | Injected warm, early/delayed handle, and private-byte growth rejection evidence. |
 | `.runseal/support/object/query.ts` | Independent schema-3 namespace/raw/Q9 oracle plus snapshot/published-pair, typed resolution, strict payload, rollback, and restart evidence. |
 | `.runseal/support/object/nearest.ts` | Independent versioned source-qualified bounded nearest oracle, strict origin/radius/tie, order, movement, rollback, and restart evidence. |
+| `.runseal/support/object/feedback.ts` | Exact visible target selection, invalid-ID rejection, surface replay, and source/window projection gates. |
 | `.runseal/support/prototype/object/observation.ts` | Committed-origin observation, identity-only retained target, snapshot revalidation, and independent source-oracle gate. |
 | `.runseal/support/prototype/object/gates.ts` | Prototype observation process, restart, and unchanged-subsystem gate composition. |
 | `.runseal/support/object/integration.ts` | Object resolution/nearest source, window, movement, and corrupt-pair preservation integration gates. |

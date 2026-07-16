@@ -454,6 +454,7 @@ groupshared uint group_visible;
 groupshared uint group_background;
 groupshared uint group_material_low;
 groupshared uint group_material_high;
+groupshared uint group_targeted;
 
 [numthreads(8, 8, 1)]
 void shade_main(
@@ -466,6 +467,7 @@ void shade_main(
         group_background = 0;
         group_material_low = 0;
         group_material_high = 0;
+        group_targeted = 0;
     }
     GroupMemoryBarrierWithGroupSync();
     if (dispatch_thread.x >= surface_shape.z || dispatch_thread.y >= surface_shape.w)
@@ -567,6 +569,17 @@ void shade_main(
             saturate(material.base_color.rgb * texture_value.rgb * lighting + metallic_lift),
             1.0
         );
+        bool targeted = surface_animation.y != 0u
+            && candidate != ACTOR_CANDIDATE_INDEX
+            && visible.semantic_region == surface_animation.z
+            && visible.stable_identity_high == surface_animation.w;
+        if (targeted)
+        {
+            color.rgb = saturate(
+                color.rgb * 0.45 + float3(1.0, 0.62, 0.08) * 0.55
+            );
+            InterlockedAdd(group_targeted, 1);
+        }
         InterlockedAdd(group_visible, 1);
         if (material_index < 32)
         {
@@ -611,6 +624,7 @@ void shade_main(
         surface_stats.InterlockedAdd(8, group_background, ignored);
         surface_stats.InterlockedOr(12, group_material_low, ignored);
         surface_stats.InterlockedOr(16, group_material_high, ignored);
+        surface_stats.InterlockedAdd(20, group_targeted, ignored);
     }
     if (all(pixel == uint2(0, 0)))
     {

@@ -114,16 +114,30 @@ struct CompositionTiming {
     combined_gpu_ms: f64,
 }
 
+pub(in crate::rendering) struct CompositionFrameProbeInput<'a> {
+    pub scene: &'a crate::scene::SceneState,
+    pub background_color: [f32; 4],
+    pub presentation_tick: u32,
+    pub presentation_status: &'a serde_json::Value,
+    pub simulation_status: &'a serde_json::Value,
+    pub actor: Option<crate::rendering::ActorRenderProjection>,
+    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
+}
+
 impl Renderer {
     pub(in crate::rendering) unsafe fn read_composition_probe(
         &self,
-        scene: &crate::scene::SceneState,
-        background_color: [f32; 4],
-        presentation_tick: u32,
-        presentation_status: &serde_json::Value,
-        simulation_status: &serde_json::Value,
-        actor: Option<crate::rendering::ActorRenderProjection>,
+        input: CompositionFrameProbeInput<'_>,
     ) -> Result<CompositionProbe> {
+        let CompositionFrameProbeInput {
+            scene,
+            background_color,
+            presentation_tick,
+            presentation_status,
+            simulation_status,
+            actor,
+            object_target,
+        } = input;
         let snapshot = self
             .async_resident_renderer
             .snapshot()
@@ -318,6 +332,7 @@ impl Renderer {
                     ground_numerators: &cpu,
                     ground_denominator: authority::GROUND_DENOMINATOR,
                     actor,
+                    object_target,
                 },
             )
         }?;

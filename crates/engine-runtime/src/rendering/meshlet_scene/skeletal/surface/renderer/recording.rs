@@ -26,8 +26,12 @@ impl SurfaceRenderer {
         } else {
             "execution-signature-changed"
         };
-        let surface_constants =
-            self.constants(skeletal_constants, frame.background_color, history_queried);
+        let surface_constants = self.constants(
+            skeletal_constants,
+            frame.background_color,
+            history_queried,
+            frame.object_target,
+        );
         let gpu_start = unsafe { self.resources.gpu_start() };
         let visibility_target = unsafe { self.resources.visibility_handle() };
         let shadow_target = unsafe { self.resources.shadow_handle() };
