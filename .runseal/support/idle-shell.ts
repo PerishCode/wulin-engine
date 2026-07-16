@@ -1,24 +1,6 @@
-import {
-    array,
-    event,
-    fail,
-    type Json,
-    number,
-    object,
-    rejectedEvent,
-    string,
-} from "./canonical-runtime.ts";
+import { array, event, fail, type Json, number, object, string } from "./canonical-runtime.ts";
 
-function requireUnknownEvent(value: Json, verb: string): void {
-    if (typeof value.error !== "string" || !value.error.startsWith("unknown_event: ")) {
-        fail(`${verb} did not fail through the unknown-event contract`);
-    }
-}
-
-export async function compatibilityRemovalGates(
-    collection: string,
-    idleStatus: Json,
-): Promise<Json> {
+export async function idleShellGates(collection: string, idleStatus: Json): Promise<Json> {
     if (object(idleStatus, "workload").mode !== "idle-shell") {
         fail("workbench did not start in the clear-only idle shell");
     }
@@ -28,26 +10,6 @@ export async function compatibilityRemovalGates(
         JSON.stringify(Object.keys(spatial).sort()) !==
             JSON.stringify(["camera", "coordinateSystem", "depth", "revision"])
     ) fail("idle spatial status retained calibration scene state");
-
-    const removedVerbs: Json[] = [];
-    for (
-        const verb of [
-            "scene.list_objects",
-            "world.status",
-            "world.relocate",
-            "world.rebase",
-            "world.reset",
-            "world.probe",
-            "canonical.terrain.contact",
-            "canonical.terrain.body.step",
-            "canonical.terrain.body.translate",
-            "canonical.terrain.body.advance",
-        ]
-    ) {
-        const rejected = await rejectedEvent(verb);
-        requireUnknownEvent(rejected, verb);
-        removedVerbs.push({ verb, rejected });
-    }
 
     const capture = await event("perception.capture", {
         id: "idle-shell",
@@ -79,7 +41,6 @@ export async function compatibilityRemovalGates(
 
     return {
         status: idleStatus,
-        removedVerbs,
         capture: {
             colorSha256: string(image, "pixelSha256"),
             pngSha256: string(image, "pngSha256"),

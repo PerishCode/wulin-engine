@@ -619,6 +619,15 @@ occlusion source 同步减一，CPU/GPU、replay、clear 全精确；75.750 秒 
 失效与返回恢复；5 warm/8 measured 保持 492 handles/21 threads，private 427,048,960→426,463,232，
 报告 24 files/25,346,262 bytes。没有 canonical source mutation、registry、inventory、dispatcher、
 respawn、persistence、networking 或 Wulin 语义。
+Experiment 0105 完成逢五兼容清理：删除每次 full acceptance 都经 generic unknown-event 重放的
+10 个历史 `scene/world/contact/terrain-body` inspect 请求、`removedVerbs` 报告链和混合职责的
+`compatibility-removal.ts`；这些缺席事实继续由 calibration/contact/terrain-transaction 静态守卫
+负责。当前 clear-only 行为独立为 `idleShell`，仍保持 color `cd26eaab…76db8`、semantic
+`0c660f2b…a5f`、921,600 background pixels、0 different/visible/unknown。263.724 秒
+`canonical-runtime-v13` 全通过，十个历史 event key 与旧字段均不存在；本轮因状态驱动多一次当前
+`canonical.status` poll，总 Sidecar invocation 从 988 净降到 979。5 warm/8 measured 保持 492
+handles/21 threads，private +90,112 bytes，inventory 24 files/25,346,280 bytes。没有替代 rejection
+registry、alias、runtime/product/GPU/source/asset/networking 或 Wulin 行为。
 
 ## Project model
 
