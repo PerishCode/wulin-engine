@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0104 and the current ADR set through 0107 define one live content runtime
+Experiments 0031-0105 and the current ADR set through 0108 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -291,6 +291,11 @@ geometry/material/rig source, and one deterministic object-shadow path:
   skeletal cull, so same-source departure/revisit, source replacement, restart, and every downstream
   render path retain one deterministic lifetime without canonical mutation, registry, inventory,
   persistence, networking, or Wulin semantics;
+- one mandatory compatibility cleanup that deletes ten recurring process requests for settled
+  calibration/world, standalone-contact, and caller-owned terrain-body routes plus their
+  `removedVerbs` report and mixed-purpose support module; owner-specific static guards remain the
+  sole removal authority, while current clear-only status/image/semantic evidence lives only as
+  `idleShell`, with no replacement rejection registry, alias, or runtime/product behavior;
 - one mandatory post-v0 cleanup that deletes the duplicate standalone presentation-timeline Runtime
   forwarder and inspect verb; exact presentation state remains readable only through
   `canonical.status.presentationClock`, pause/resume/set/step keep their direct exact responses, and
@@ -412,6 +417,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0105-frame-bound-object-target-feedback.md` | Accepted immutable frame target projection and exact existing-surface visual feedback. |
 | `docs/adr/0106-committed-prototype-object-action.md` | Accepted exact committed target proximity, projected action commit, and bounded acknowledgement. |
 | `docs/adr/0107-capacity-one-prototype-object-consumption.md` | Accepted capacity-one consumed identity, nearest exclusion, deferred exact GPU suppression, and source/window lifetime. |
+| `docs/adr/0108-retired-recurring-compatibility-witness.md` | Accepted removal of recurring retired-verb process evidence and retention of one current idle-shell authority. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -487,6 +493,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0102-frame-bound-object-target-feedback/README.md` | Accepted frame-bound target projection, exact surface feedback, product forwarding, and source/window lifecycle evidence. |
 | `experiments/0103-committed-prototype-object-action/README.md` | Accepted native committed Enter action, exact proximity, activated frame commit, and bounded acknowledgement evidence. |
 | `experiments/0104-capacity-one-prototype-object-consumption/README.md` | Accepted exact nearest exclusion, native capacity-one consumption, GPU suppression, and source/window lifecycle evidence. |
+| `experiments/0105-retired-recurring-compatibility-witness/README.md` | Accepted retired-verb IPC/report deletion, static removal authority, and current idle-shell preservation evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -594,8 +601,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/object/interaction.ts` | Native exact-proximity, activated-frame consumption/exclusion commit, deferred suppression, acknowledgement, restart, and copied-state-absence gate. |
 | `.runseal/support/prototype/object/gates.ts` | Prototype observation/action process, restart, and unchanged-subsystem gate composition. |
 | `.runseal/support/object/integration.ts` | Object resolution/nearest source, window, movement, and corrupt-pair preservation integration gates. |
-| `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
+| `.runseal/support/idle-shell.ts` | Current clear-only status, renderer-health, image, and uniformly background semantic evidence. |
 | `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for retired dense/standalone contact surfaces and required private witness authority. |
+| `.runseal/support/guard/compatibility-witness-removal.ts` | Forbidden old support/report names plus required current idle-shell authority gate. |
 | `.runseal/support/guard/terrain-transaction-removal.ts` | Forbidden-file/symbol gate for retired copied-value terrain mutation controls and support. |
 | `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls, duplicate schedule status, recurring history evidence, retained-body history, and pre-owner actor support paths. |
 | `.runseal/support/guard/presentation-status-removal.ts` | Forbidden-symbol/verb gate for the retired standalone presentation status chain. |

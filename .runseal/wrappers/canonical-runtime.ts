@@ -44,7 +44,7 @@ import {
     prototypeHostCheckpointGates,
 } from "../support/runtime-bootstrap.ts";
 import { terrainQueryGates, unavailableTerrainQueryGate } from "../support/terrain/query.ts";
-import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
+import { idleShellGates } from "../support/idle-shell.ts";
 import { actorGates } from "../support/actor/lifecycle.ts";
 import { simulationActorGates } from "../support/actor/simulation.ts";
 import {
@@ -70,7 +70,7 @@ import {
     targetDepartureReturn,
     visibleObjectTarget,
 } from "../support/object/feedback.ts";
-const REVISION = "canonical-runtime-v12";
+const REVISION = "canonical-runtime-v13";
 const COLLECTION = "canonical-runtime";
 const BASE: Coord = [2 ** 40, -(2 ** 40)];
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
@@ -121,7 +121,7 @@ try {
     const correctnessStarted = performance.now();
     await startClean();
     const idle = await status();
-    const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
+    const idleShell = await idleShellGates(COLLECTION, idle);
     const unavailableObjectResolution = await unavailableObjectResolutionGate(BASE);
     const unavailableObjectNearest = await unavailableObjectNearestGate(BASE);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
@@ -415,7 +415,7 @@ try {
             prototype,
             actor,
             simulationActor,
-            compatibilityRemoval,
+            idleShell,
             objectResolution,
             objectNearest,
             terrainQuery,

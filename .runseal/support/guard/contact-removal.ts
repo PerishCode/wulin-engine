@@ -52,15 +52,10 @@ export async function requireStandaloneContactRemoved(root: string, fail: Fail):
     const probe = await Deno.readTextFile(
         `${root}/crates/engine-runtime/src/rendering/composition/probe/terrain_query.rs`,
     );
-    const acceptance = await Deno.readTextFile(
-        `${root}/.runseal/support/compatibility-removal.ts`,
-    );
     if (
         !contract.includes("pub(crate) fn resolve_body_contact(") ||
-        !probe.includes("body_contact_count == 225") ||
-        !acceptance.includes('"canonical.terrain.contact"') ||
-        acceptance.includes('"canonical.terrain.contact.probe"')
+        !probe.includes("body_contact_count == 225")
     ) {
-        fail("guard: private contact authority or sole current removal witness diverged");
+        fail("guard: private contact authority or bounded current witness diverged");
     }
 }
