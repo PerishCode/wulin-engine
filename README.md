@@ -11,7 +11,8 @@
 **Plain Prototype v0 已完成阶段封版**：`runseal :prototype start` 可从无生成 source/config 的状态
 确定性准备有限 sandbox，并启动唯一 canonical renderer 下的原生窗口。当前边界包含一个 grounded
 imported-Fox actor、Ready-only 60 Hz gravity/W/A/S/D transaction、Survey/Walk 与精确八向 facing、
-held Shift 的固定 Run displacement/clip、actor-local clip phase、四态 Q/E actor-relative camera
+held Shift 的固定 Run displacement/clip、随当前 Q/E quarter-orbit candidate 精确旋转的 camera-relative
+locomotion、actor-local clip phase、四态 Q/E actor-relative camera
 orbit、capacity-one grounded Space Jump intent
 和启用一次的 engine traversal。它明确不是无限世界、
 持续 product traversal、gameplay interaction、multi-actor、networking 或 Wulin content 承诺。
@@ -33,7 +34,8 @@ motion 与 schema-3 presentation 的 capacity-one actor，prototype 已在 canon
 reference host 已将 bounded monotonic elapsed policy 与至多两个等价
 transition 的 Win32 activation batch 组成唯一的 activation-before-sample 操作；prototype 现以
 Ready-only fixed gravity 加固定 W/A/S/D 整数水平 command 驱动 live schedule/actor transaction；
-held Shift 将最终非零准入位移从 Walk 32/23 Q9 切为 Run 64/45 Q9；同一 typed command/commit
+held Shift 将最终非零准入位移从 Walk 32/23 Q9 切为 Run 64/45 Q9，当前纯 Q/E camera candidate
+再用整数符号/轴置换将 local input 旋为 world XZ；同一 typed command/commit
 以 Survey 表示静止、Walk/Run 表示对应非零位移，fractional 与 render-block 均不
 提前改变 presentation；nonzero command 使用 Fox +X forward 的精确八方向 Q16 yaw，静止时保留最后
 一次 nonzero committed facing，并在每个 live frame 前通过唯一内部投影应用已提交的四态 Q/E
@@ -487,6 +489,14 @@ Shift/VK 16 与 W/VK 87，3 step 精确提交 Z `0 -> -192`、Survey/clip 0 -> R
 epoch `1 -> 3`、3 queries、grounded true、vertical velocity 0 与零 render block，并保持 camera/
 traversal/actor identity。没有 acceleration、horizontal velocity、stamina/toggle/config、root motion、
 blend、host/engine action state、renderer/GPU/resource/sync/source/format/asset 或 Wulin 变化。
+Experiment 0092 将 W/A/S/D 与四态 camera orbit 闭合：同 sample 的 pure camera candidate 在
+playable-boundary admission 前按 orbit 0 `(x,z)`、1 `(z,-x)`、2 `(-x,-z)`、3 `(-z,x)` 精确旋转
+Walk/Run，camera index 仍只在既有 runtime mutation 成功后提交。72.161 秒
+`canonical-prototype-v16` 通过 83 runtime、26 prototype、20 host tests；可见窗口按序收到 E/VK 69
+与 W/VK 87，2 step 将 local X `0 -> -64`、Z 保持 0，并原子提交 Walk/clip 1、yaw `32768`、epoch
+`1 -> 3`、2 queries、grounded true、orbit 1、精确 camera anchor、`[+1,-1]` traversal 与零 block。
+没有 arbitrary steering、cross-subsystem transaction、host/engine state、renderer/GPU/resource/sync/
+source/format/asset 或 Wulin 变化。
 
 ## Project model
 
@@ -538,13 +548,15 @@ the zero-origin `[-8,8]²` finite sandbox, declares inclusive `[-6,6]²` playabl
 bootstrap schema 2, and then uses
 `sidecar.prototype.toml` to launch the application without an inspect endpoint. It becomes visible
 and ready only after canonical content has rendered; close the window, press Escape, or use
-`runseal :prototype stop` to end it. W/A/S/D walks, hold Shift to run, Q/E changes the committed
-camera orbit, and Space requests one grounded Jump. No prior canonical acceptance output is required.
+`runseal :prototype stop` to end it. W/A/S/D moves relative to the current camera, hold Shift to run,
+Q/E changes the committed camera orbit, and Space requests one grounded Jump. No prior canonical
+acceptance output is required.
 
 `runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
 runtime/prototype/reference-host tests, cooks the four required signed centers, and proves
 strict bootstrap failure, exact committed grounded gravity witness, exact stationary/native-W Walk
-and visible native-Shift+W Run locomotion with transactional Survey/Walk/Run selection and exact
+plus visible native-Shift+W Run and same-sample E+W camera-relative locomotion with transactional
+Survey/Walk/Run selection and exact
 committed eight-way facing, one
 committed current actor authority, Q/E committed actor-relative camera orbit/frame ordering, typed render-block
 consumption with zero normal-path blocks, one visible-window native Space action with exact committed

@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0091 and the current ADR set through 0094 define one live content runtime
+Experiments 0031-0092 and the current ADR set through 0095 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -177,6 +177,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one mandatory-bootstrap, non-diagnostic prototype composition root over the same runtime, with
   one grounded imported-Fox actor, Ready-only fixed gravity plus fixed W/A/S/D integer locomotion
   with held Shift selecting exact 64/45-Q9 Run components instead of the retained 32/23-Q9 Walk,
+  one exact current-candidate quarter-orbit integer rotation from local input into world XZ before
+  playable-boundary admission,
   one capacity-one grounded Space Jump intent that selects a fixed 4,369-Q16 batch-entry velocity
   delta, observes activation/time discontinuity before current-batch action admission, retains only
   the action bit across fractional work, stalls, and pending-window backpressure, consumes it on the
@@ -229,6 +231,10 @@ geometry/material/rig source, and one deterministic object-shadow path:
   plus final admitted nonzero W/A/S/D, selects exact fixed 64/45-Q9 displacement and the existing
   imported Run clip in the sole actor transaction, and adds no retained gait state, host/engine
   action state, acceleration, horizontal velocity, alternate movement path, or new asset;
+- one accepted post-v0 camera-relative locomotion policy that uses the current pure Q/E camera
+  candidate to quarter-rotate exact local Walk/Run into world XZ before boundary admission, authors
+  facing from that final world command, and still commits orbit state only after the existing checked
+  runtime camera mutation without another controller or cross-subsystem transaction;
 - one accepted plain Prototype v0 stage boundary over that exact self-contained finite single-actor
   loop; it does not claim sustained product traversal, a source service, finite-edge behavior,
   gameplay interaction, multiple actors, networking, or Wulin content;
@@ -328,6 +334,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0092-committed-prototype-jump-intent.md` | Accepted capacity-one Space intent and committed prototype jump policy. |
 | `docs/adr/0093-retired-standalone-simulation-status.md` | Accepted retirement of the duplicate simulation status inspect chain. |
 | `docs/adr/0094-committed-prototype-run-modifier.md` | Accepted stateless held-Shift Run displacement and imported-clip policy. |
+| `docs/adr/0095-committed-camera-relative-locomotion.md` | Accepted exact current-camera-candidate quarter rotation of prototype locomotion. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -390,6 +397,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0089-committed-prototype-jump-intent/README.md` | Accepted grounded Space admission, bounded intent lifetime, and committed jump-consumption proof. |
 | `experiments/0090-mandatory-simulation-status-cleanup/README.md` | Accepted standalone simulation-status and recurring history-evidence cleanup. |
 | `experiments/0091-committed-prototype-run-modifier/README.md` | Accepted exact Shift+W Run displacement, presentation, and native-process proof. |
+| `experiments/0092-committed-camera-relative-locomotion/README.md` | Accepted exact four-orbit Walk/Run mapping and same-sample E+W process proof. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -427,12 +435,12 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/canonical-object-fixture/src/lib.rs` | Deterministic arbitrary-Q8 authored object fixture. |
 | `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
-| `apps/prototype/src/main.rs` | Non-diagnostic composition root, playable-boundary admission, one-time traversal activation, Ready-only typed simulation/frame ordering, committed Run/Jump composition, block accounting, current-actor readiness, and Escape host-exit consumer. |
+| `apps/prototype/src/main.rs` | Non-diagnostic composition root, camera-relative playable-boundary admission, one-time traversal activation, Ready-only typed simulation/frame ordering, committed Run/Jump composition, block accounting, current-actor readiness, and Escape host-exit consumer. |
 | `apps/prototype/src/actor.rs` | Prototype-owned grounded spawn motion and fixed gravity policy. |
 | `apps/prototype/src/boundary.rs` | Prototype-owned independent maximum-batch per-axis playable-region admission policy. |
 | `apps/prototype/src/camera.rs` | Prototype-owned committed four-state Q/E actor-relative camera-orbit policy. |
 | `apps/prototype/src/jump.rs` | Prototype-owned capacity-one grounded Space intent, discontinuity, and committed-consumption policy. |
-| `apps/prototype/src/locomotion.rs` | Prototype-owned fixed W/A/S/D Walk plus held-Shift Run integer command and bounded step-up policy. |
+| `apps/prototype/src/locomotion.rs` | Prototype-owned fixed W/A/S/D Walk/Run plus exact current-camera quarter rotation and bounded step-up policy. |
 | `apps/prototype/src/presentation.rs` | Prototype-owned imported Survey/Walk/Run and committed eight-way locomotion-facing policy. |
 | `apps/prototype/src/time.rs` | Prototype-only HostClock admission plus no-retry/no-backlog render-block consumption policy. |
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
@@ -460,7 +468,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/prototype.ts` | Self-contained finite-sandbox cook, conservative playable bounds, strict bootstrap, and manual prototype lifecycle entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype input-edge/boundary/gravity/Walk/Run/Jump/presentation/camera/traversal/backpressure, restart, failure, and lifecycle entry point. |
+| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype input-edge/boundary/gravity/camera-relative Walk/Run/Jump/presentation/traversal/backpressure, restart, failure, and lifecycle entry point. |
 | `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source actor lifecycle, schedule/actor partition and rollback, render admission, animation epoch, and GPU phase entry point. |
 | `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source canonical GPU frame and immediate replay entry point. |
 | `.runseal/wrappers/canonical-resources.ts` | Focused active/quiescent same-process GPU resource plateau entry point. |
@@ -486,10 +494,10 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/boundary.ts` | Real activated held-input finite-edge process survival and cleanup evidence owner. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
 | `.runseal/support/prototype/camera.ts` | Exact default/orbit rig, actor anchor, and camera/frame readiness invariant owner. |
-| `.runseal/support/prototype/input.ts` | Process-qualified ordered native prototype-window W/Shift/Escape/E/Space injection for locomotion and action acceptance. |
+| `.runseal/support/prototype/input.ts` | Process-qualified ordered native prototype-window W/Shift/Escape/E/Space and E+W injection for locomotion and action acceptance. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk/Run, locomotion yaw, and committed actor presentation invariant owner. |
-| `.runseal/support/prototype/process.ts` | Shared prototype readiness-line framing and native Escape clean-exit process owner. |
-| `.runseal/support/prototype/simulation.ts` | Exact stationary, Walk, Run, and Jump command expectation owner for prototype process acceptance. |
+| `.runseal/support/prototype/process.ts` | Shared readiness framing, native Escape exit, and prototype Sidecar status/PID process owner. |
+| `.runseal/support/prototype/simulation.ts` | Exact stationary, Walk, Run, camera-relative Walk, and Jump command expectation owner. |
 | `.runseal/support/prototype/traversal.ts` | Exact default/orbit traversal targets, bounded async/latest-wins publication, and no-prefetch/block/failure invariant owner. |
 | `.runseal/support/terrain/query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
@@ -526,7 +534,8 @@ outside-window rollback, and semantic capture. Its ignored evidence belongs unde
 
 The prototype workflow runs focused runtime/host/application tests, cooks the four required signed
 centers, and proves exact grounded gravity admission, stationary and explicitly activated
-process-qualified native-W Walk plus visible native-Shift+W Run locomotion, one-region held-input
+process-qualified native-W Walk, visible native-Shift+W Run, and same-sample native-E+W
+camera-relative locomotion, one-region held-input
 boundary survival, one committed
 current actor authority, actor-relative camera/frame ordering,
 typed Survey/Walk/Run selection with exact committed eight-way facing, render-block consumption with

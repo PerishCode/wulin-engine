@@ -136,6 +136,14 @@ export async function holdRunForwardKeys(processId: number): Promise<Json> {
     );
 }
 
+export async function holdOrbitForwardKeys(processId: number): Promise<Json> {
+    return await postPrototypeKeys(
+        processId,
+        [{ key: "E", virtualKey: 0x45 }, { key: "W", virtualKey: 0x57 }],
+        true,
+    );
+}
+
 export async function pressPrototypeEscape(processId: number): Promise<Json> {
     return await postPrototypeKeys(processId, [{ key: "Escape", virtualKey: 0x1B }], false);
 }

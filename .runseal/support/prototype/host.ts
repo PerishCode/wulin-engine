@@ -1,5 +1,4 @@
 import {
-    array,
     type Coord,
     fail,
     type Json,
@@ -12,6 +11,7 @@ import {
     useSidecar,
 } from "../canonical-runtime.ts";
 import {
+    holdOrbitForwardKeys,
     holdPrototypeForwardKey,
     holdRunForwardKeys,
     pressPrototypeCameraClockwise,
@@ -22,8 +22,9 @@ import { actorInvariant } from "./actor.ts";
 import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
 import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
-import { escapeExit, readinessLine } from "./process.ts";
+import { escapeExit, prototypePids, readinessLine, sidecarStatus } from "./process.ts";
 import {
+    CAMERA_FORWARD_COMMAND,
     type ExpectedCommand,
     FORWARD_COMMAND,
     JUMP_COMMAND,
@@ -81,7 +82,7 @@ async function failedStart(label: string): Promise<Json> {
     };
 }
 
-type StartupInput = "camera-clockwise" | "forward" | "jump" | "run-forward";
+type StartupInput = "camera-clockwise" | "camera-forward" | "forward" | "jump" | "run-forward";
 
 async function capturedReady(label: string, startupInput?: StartupInput): Promise<Json> {
     const started = performance.now();
@@ -101,6 +102,9 @@ async function capturedReady(label: string, startupInput?: StartupInput): Promis
         if (startupInput === "forward") nativeInput = await holdPrototypeForwardKey(child.pid);
         if (startupInput === "run-forward") {
             nativeInput = await holdRunForwardKeys(child.pid);
+        }
+        if (startupInput === "camera-forward") {
+            nativeInput = await holdOrbitForwardKeys(child.pid);
         }
         if (startupInput === "camera-clockwise") {
             nativeInput = await pressPrototypeCameraClockwise(child.pid);
@@ -287,28 +291,6 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
     };
 }
 
-async function sidecarStatus(): Promise<Json> {
-    const output = await new Deno.Command("sidecar", {
-        args: ["status", "--config", SIDECAR, "--format", "json"],
-        cwd: root,
-        stdout: "piped",
-        stderr: "inherit",
-    }).output();
-    if (!output.success) fail(`prototype Sidecar status failed with ${output.code}`);
-    return JSON.parse(decoder.decode(output.stdout).trim()) as Json;
-}
-
-function prototypePids(status: Json): number[] {
-    const targets = array(status, "targets");
-    if (targets.length !== 1) fail("prototype Sidecar target count diverged");
-    const target = targets[0] as Json;
-    if (target.name !== "prototype") fail("prototype Sidecar target identity diverged");
-    return array(target, "pids").map((value) => {
-        if (typeof value !== "number") fail("prototype Sidecar PID must be numeric");
-        return value;
-    });
-}
-
 export async function prototypeHostGates(
     terrain: string,
     objects: string,
@@ -335,6 +317,10 @@ export async function prototypeHostGates(
     const restarted = await capturedReady("prototype restarted process");
     const forward = await capturedReady("prototype forward locomotion", "forward");
     const runForward = await capturedReady("prototype forward Run modifier", "run-forward");
+    const cameraForward = await capturedReady(
+        "prototype camera-relative forward locomotion",
+        "camera-forward",
+    );
     const cameraOrbit = await capturedReady("prototype clockwise camera orbit", "camera-clockwise");
     const jump = await capturedReady("prototype committed jump", "jump");
     const escape = await escapeExit(EXECUTABLE, CONFIG, "prototype Escape press exit");
@@ -404,6 +390,22 @@ export async function prototypeHostGates(
         traversal: runTraversal,
     };
     same(
+        startupInvariant(cameraForward),
+        startupInvariant(first),
+        "prototype camera-relative locomotion configuration",
+    );
+    same(
+        actorInvariant(cameraForward, base),
+        actorInvariant(first, base),
+        "prototype camera-relative locomotion initial actor authority",
+    );
+    const cameraForwardInvariant = {
+        simulation: simulationDriverInvariant(cameraForward, CAMERA_FORWARD_COMMAND),
+        jump: jumpPolicyInvariant(cameraForward, true),
+        camera: cameraDriverInvariant(cameraForward, 1),
+        traversal: cameraOrbitTraversalInvariant(cameraForward, base),
+    };
+    same(
         startupInvariant(cameraOrbit),
         startupInvariant(first),
         "prototype camera-orbit configuration",
@@ -447,18 +449,18 @@ export async function prototypeHostGates(
     };
 
     await lifecycle("start");
-    const firstSidecar = await sidecarStatus();
+    const firstSidecar = await sidecarStatus(SIDECAR);
     const firstPids = prototypePids(firstSidecar);
     if (firstPids.length === 0) fail("prototype Sidecar start retained no process");
     await lifecycle("restart");
-    const restartedSidecar = await sidecarStatus();
+    const restartedSidecar = await sidecarStatus(SIDECAR);
     const restartedPids = prototypePids(restartedSidecar);
     if (
         restartedPids.length === 0 ||
         JSON.stringify(restartedPids) === JSON.stringify(firstPids)
     ) fail("prototype Sidecar restart did not replace its process set");
     await lifecycle("stop");
-    const stopped = await sidecarStatus();
+    const stopped = await sidecarStatus(SIDECAR);
     if (prototypePids(stopped).length !== 0 || object(stopped, "runtime").running !== false) {
         fail("prototype Sidecar stop left an owned process");
     }
@@ -473,9 +475,11 @@ export async function prototypeHostGates(
         restarted,
         forward,
         runForward,
+        cameraForward,
         escape,
         forwardInvariant,
         runInvariant,
+        cameraForwardInvariant,
         cameraOrbit,
         cameraOrbitInvariant,
         jump,
