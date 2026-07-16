@@ -1,6 +1,11 @@
+use anyhow::{Result, ensure};
 use serde::Serialize;
 
 use crate::region::RegionCoord;
+use crate::terrain_query::{
+    TERRAIN_POSITION_DENOMINATOR, TERRAIN_POSITION_LOCAL_MAX_Q9_EXCLUSIVE,
+    TERRAIN_POSITION_LOCAL_MIN_Q9, TerrainPosition,
+};
 
 pub const CANONICAL_OBJECTS_PER_REGION: u32 = region_format::RECORDS_PER_REGION;
 
@@ -18,4 +23,42 @@ pub struct CanonicalObject {
     pub position: [f32; 3],
     pub height: f32,
     pub presentation: CanonicalObjectPresentation,
+}
+
+impl CanonicalObject {
+    /// Converts the authored planar position to the sole canonical terrain-position domain.
+    ///
+    /// The owner `region` remains the object's identity scope. An authored `+8m` edge normalizes
+    /// spatially into the adjacent region because [`TerrainPosition`] uses half-open local axes.
+    pub fn terrain_position(self) -> Result<TerrainPosition> {
+        let local_x_q9 = exact_local_q9("X", self.position[0])?;
+        let local_z_q9 = exact_local_q9("Z", self.position[2])?;
+        TerrainPosition::new(
+            self.region,
+            TERRAIN_POSITION_LOCAL_MIN_Q9,
+            TERRAIN_POSITION_LOCAL_MIN_Q9,
+        )?
+        .translated_q9(
+            local_x_q9 - TERRAIN_POSITION_LOCAL_MIN_Q9,
+            local_z_q9 - TERRAIN_POSITION_LOCAL_MIN_Q9,
+        )
+    }
+}
+
+fn exact_local_q9(axis: &str, value: f32) -> Result<i32> {
+    ensure!(
+        value.is_finite(),
+        "canonical object local {axis} position is not finite"
+    );
+    let scaled = value * TERRAIN_POSITION_DENOMINATOR as f32;
+    ensure!(
+        (TERRAIN_POSITION_LOCAL_MIN_Q9 as f32..=TERRAIN_POSITION_LOCAL_MAX_Q9_EXCLUSIVE as f32)
+            .contains(&scaled),
+        "canonical object local {axis} position is outside the closed authored region"
+    );
+    ensure!(
+        scaled == scaled.round(),
+        "canonical object local {axis} position is outside the exact Q9 lattice"
+    );
+    Ok(scaled as i32)
 }
