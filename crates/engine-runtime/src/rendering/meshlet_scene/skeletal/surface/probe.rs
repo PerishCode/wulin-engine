@@ -31,7 +31,7 @@ pub struct SurfaceStats {
     pub background_pixels: u32,
     pub observed_material_mask: [u32; 2],
     pub observed_material_count: u32,
-    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
+    pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
     pub targeted_pixels: u32,
 }
 
@@ -136,7 +136,7 @@ pub struct ProbeInput<'a> {
     pub bypass_reason: &'static str,
     pub bound_proof: BoundProof,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
-    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
+    pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
 }
 
 pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {

@@ -22,13 +22,13 @@ impl Renderer {
             presentation_status,
             simulation_status,
             actor,
-            object_target,
+            object_target_feedback,
             scene,
         } = frame;
         debug_assert!(!capture_object_ids || capture);
         debug_assert!(!probe || self.composition_enabled());
         debug_assert!(!probe || presentation_status.is_some());
-        super::object_target::validate(object_target)?;
+        super::object_target::validate(object_target_feedback)?;
         if self.composition_enabled()
             && let Some(actor) = actor
         {
@@ -90,7 +90,7 @@ impl Renderer {
                     .context("composition has no resident snapshot")?;
                 let projection = self.terrain_renderer.projection()?;
                 rendered_object_target = super::object_target::project(
-                    object_target,
+                    object_target_feedback,
                     snapshot.object_source_namespace,
                     snapshot.global_config,
                     projection,
@@ -185,6 +185,10 @@ impl Renderer {
         self.next_fence_value += 1;
         unsafe { self.queue.Signal(&self.fence, signal) }.context("queue signal failed")?;
         self.fence_values[index] = signal;
+        let projected_object_target_feedback = rendered_object_target.map(|_| {
+            object_target_feedback
+                .expect("projected object target must preserve its validated frame feedback")
+        });
         let outcome = if capture || probe {
             unsafe { self.wait_for_value(signal)? };
             let captured_frame = if capture {
@@ -222,11 +226,13 @@ impl Renderer {
             RenderOutcome {
                 capture: captured_frame,
                 composition_probe,
+                object_target_feedback: projected_object_target_feedback,
             }
         } else {
             RenderOutcome {
                 capture: None,
                 composition_probe: None,
+                object_target_feedback: projected_object_target_feedback,
             }
         };
         Ok(outcome)

@@ -1,5 +1,6 @@
 import { fail, type Json, number, object, same } from "../../canonical-runtime.ts";
 import { objectNearestOracle } from "../../object/nearest.ts";
+import { traversalObservationOrder } from "./observation_order.ts";
 
 const OBSERVATION_RADIUS_Q9 = 512;
 
@@ -8,12 +9,13 @@ export async function observationInvariant(
     source: string,
     windowCenter: [number, number],
     expectedCompleted: boolean,
+    expectedFeedbackKind: "activated" | "selected" = "selected",
 ): Promise<Json> {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "object_observation_driver");
     const status = object(driver, "status");
     if (
-        driver.revision !== "live-prototype-object-target-v3" ||
+        driver.revision !== "live-prototype-object-target-v4" ||
         number(driver, "maxDistanceQ9") !== OBSERVATION_RADIUS_Q9 ||
         status.pending !== false ||
         driver.completed !== expectedCompleted
@@ -23,7 +25,8 @@ export async function observationInvariant(
         const feedback = object(driver, "frameFeedback");
         if (
             driver.observation !== null || status.target !== null ||
-            feedback.submittedIdentity !== null || number(feedback, "submittedFrameCount") !== 0 ||
+            feedback.submitted !== null || feedback.projected !== null ||
+            number(feedback, "submittedFrameCount") !== 0 ||
             feedback.copiedObjectState !== false
         ) {
             fail("prototype retained an object observation or target without an intent");
@@ -72,32 +75,32 @@ export async function observationInvariant(
     }
     same(object(target, "identity"), observedIdentity, "prototype retained target identity");
     const feedback = object(driver, "frameFeedback");
+    const submitted = object(feedback, "submitted");
+    const projected = object(feedback, "projected");
     same(
-        object(feedback, "submittedIdentity"),
+        object(submitted, "identity"),
         observedIdentity,
         "prototype frame object-target input",
     );
+    same(projected, submitted, "prototype projected object-target feedback");
     if (
+        submitted.kind !== expectedFeedbackKind ||
         number(feedback, "submittedFrameCount") < 1 || feedback.copiedObjectState !== false
-    ) fail("prototype did not forward identity-only target feedback");
+    ) fail("prototype did not forward exact immutable target feedback");
     const targetSnapshot = object(target, "snapshot");
     const targetToken = number(targetSnapshot, "publicationToken");
     if (targetSnapshot.sourceNamespace !== snapshot.sourceNamespace) {
         fail("prototype target validation changed source without clearing the target");
     }
     const traversal = object(readiness, "traversal");
-    const traversalPublicationCount = number(traversal, "automaticPublicationCount");
-    if (targetToken === publicationToken) {
-        if (traversalPublicationCount !== 0 || traversal.lastPublished !== null) {
-            fail("prototype target missed a completed traversal publication");
-        }
-    } else {
-        const lastPublished = object(traversal, "lastPublished");
-        if (
-            targetToken <= publicationToken || traversalPublicationCount !== 1 ||
-            number(lastPublished, "token") !== targetToken
-        ) fail("prototype target validation snapshot diverged from traversal publication");
-    }
+    const traversalOrder = traversalObservationOrder({
+        automaticPublicationCount: number(traversal, "automaticPublicationCount"),
+        lastPublishedToken: traversal.lastPublished === null
+            ? null
+            : number(object(traversal, "lastPublished"), "token"),
+        publicationToken,
+        targetToken,
+    });
     if ("object" in target || "position" in target || "presentation" in target) {
         fail("prototype retained copied canonical object content in target state");
     }
@@ -118,7 +121,7 @@ export async function observationInvariant(
         exactCommittedOrigin: true,
         independentSourceOracle: true,
         snapshotGatedTarget: true,
-        revalidatedAfterPublication: targetToken !== publicationToken,
+        ...traversalOrder,
         copiedObjectState: false,
         frameFeedback: feedback,
     };

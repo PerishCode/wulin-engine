@@ -21,6 +21,8 @@ export type VisibleObjectTarget = {
     semanticRegion: number;
 };
 
+export type ObjectFeedbackKind = "activated" | "selected";
+
 export function visibleObjectTarget(
     value: Json,
     sourceNamespace: string,
@@ -56,26 +58,37 @@ export function visibleObjectTarget(
     fail("canonical surface samples contain no visible streamed object");
 }
 
-export async function setObjectTarget(identity: Json): Promise<Json> {
+export async function setObjectTarget(
+    identity: Json,
+    feedbackKind: ObjectFeedbackKind = "selected",
+): Promise<Json> {
     const region = object(identity, "region");
     const payload = {
         source_namespace: string(identity, "sourceNamespace"),
         region_x: number(region, "x"),
         region_z: number(region, "z"),
         authored_local_id: number(identity, "authoredLocalId"),
+        feedback_kind: feedbackKind,
     };
     const value = await event("canonical.objects.target.set", payload);
-    const actual = object(value, "objectTarget");
+    const actual = object(value, "objectTargetFeedback");
+    const actualIdentity = object(actual, "identity");
     same(
         {
-            authoredLocalId: number(actual, "authoredLocalId"),
-            region: object(actual, "region"),
-            sourceNamespace: string(actual, "sourceNamespace"),
+            identity: {
+                authoredLocalId: number(actualIdentity, "authoredLocalId"),
+                region: object(actualIdentity, "region"),
+                sourceNamespace: string(actualIdentity, "sourceNamespace"),
+            },
+            kind: string(actual, "kind"),
         },
         {
-            authoredLocalId: number(identity, "authoredLocalId"),
-            region: object(identity, "region"),
-            sourceNamespace: string(identity, "sourceNamespace"),
+            identity: {
+                authoredLocalId: number(identity, "authoredLocalId"),
+                region: object(identity, "region"),
+                sourceNamespace: string(identity, "sourceNamespace"),
+            },
+            kind: feedbackKind,
         },
         "workbench object target input",
     );
@@ -89,6 +102,7 @@ export async function invalidObjectTargetGate(identity: Json): Promise<Json> {
         region_x: number(region, "x"),
         region_z: number(region, "z"),
         authored_local_id: 1_024,
+        feedback_kind: "selected",
     });
     if (
         typeof value.error !== "string" ||
@@ -97,9 +111,24 @@ export async function invalidObjectTargetGate(identity: Json): Promise<Json> {
     return value;
 }
 
+export async function invalidObjectFeedbackGate(identity: Json): Promise<Json> {
+    const region = object(identity, "region");
+    const value = await rejectedEvent("canonical.objects.target.set", {
+        source_namespace: string(identity, "sourceNamespace"),
+        region_x: number(region, "x"),
+        region_z: number(region, "z"),
+        authored_local_id: number(identity, "authoredLocalId"),
+        feedback_kind: "pulsing",
+    });
+    if (typeof value.error !== "string" || !value.error.startsWith("invalid_payload: ")) {
+        fail("unknown workbench object feedback kind was not rejected");
+    }
+    return value;
+}
+
 export async function clearObjectTarget(): Promise<Json> {
     const value = await event("canonical.objects.target.clear");
-    if (value.objectTarget !== null) fail("workbench object target did not clear");
+    if (value.objectTargetFeedback !== null) fail("workbench object target did not clear");
     return value;
 }
 
@@ -110,6 +139,7 @@ export function assertTargetedFrame(
     semanticRegion: number,
     baseline: Json,
     label: string,
+    feedbackKind: ObjectFeedbackKind = "selected",
 ): number {
     const stats = object(object(object(value, "probe"), "surface"), "stats");
     same(
@@ -117,6 +147,7 @@ export function assertTargetedFrame(
         {
             activeIndex,
             authoredLocalId: number(identity, "authoredLocalId"),
+            kind: feedbackKind,
             semanticRegion,
         },
         `${label} projected object target`,

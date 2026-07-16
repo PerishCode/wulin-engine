@@ -139,6 +139,7 @@ pub(crate) fn handle_commands(
                 region_x,
                 region_z,
                 authored_local_id,
+                feedback_kind,
             } => {
                 if authored_local_id >= CANONICAL_OBJECTS_PER_REGION {
                     Err(ProtocolError {
@@ -151,13 +152,17 @@ pub(crate) fn handle_commands(
                         region: RegionCoord::new(region_x, region_z),
                         authored_local_id,
                     };
-                    state.object_target = Some(identity);
-                    Ok(json!({"objectTarget": identity}))
+                    let feedback = engine_runtime::ObjectTargetFeedback {
+                        identity,
+                        kind: feedback_kind,
+                    };
+                    state.object_target_feedback = Some(feedback);
+                    Ok(json!({"objectTargetFeedback": feedback}))
                 }
             }
             ControlKind::CanonicalObjectTargetClear => {
-                state.object_target = None;
-                Ok(json!({"objectTarget": null}))
+                state.object_target_feedback = None;
+                Ok(json!({"objectTargetFeedback": null}))
             }
             ControlKind::CanonicalTerrainHeight {
                 region_x,

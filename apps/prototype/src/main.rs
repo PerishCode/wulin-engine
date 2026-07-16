@@ -1,6 +1,7 @@
 mod actor;
 mod boundary;
 mod camera;
+mod interaction;
 mod jump;
 mod locomotion;
 mod observation;
@@ -9,8 +10,8 @@ mod time;
 
 use anyhow::{Context, Result};
 use engine_runtime::{
-    ActorSimulationAdvance, ActorSimulationCommand, FrameRequest, GlobalRegionConfig, Runtime,
-    RuntimeActor, TerrainPosition,
+    ActorSimulationAdvance, ActorSimulationCommand, FrameRequest, GlobalRegionConfig,
+    ObjectTargetFeedback, ObjectTargetFeedbackKind, Runtime, RuntimeActor, TerrainPosition,
 };
 use reference_host::{HostClock, HostClockStatus, HostElapsedSample, HostInput, bootstrap, window};
 use serde_json::{Value, json};
@@ -20,6 +21,7 @@ const HEIGHT: u32 = 720;
 const ESCAPE: u8 = 0x1B;
 const SPACE: u8 = 0x20;
 const OBSERVE_OBJECT: u8 = 0x46;
+const ACTIVATE_OBJECT: u8 = 0x0D;
 const CLEAR_COLOR: [f32; 4] = [0.035, 0.105, 0.14, 1.0];
 const WINDOW_CONFIG: window::Config = window::Config {
     class_name: "WulinEnginePrototypeWindow",
@@ -56,10 +58,12 @@ unsafe fn run() -> Result<()> {
     let mut camera_anchor_count = 0_u64;
     let mut render_block_count = 0_u64;
     let mut object_target_frame_count = 0_u64;
+    let mut object_action_frame_count = 0_u64;
     let mut presentation_policy = presentation::Policy::new();
     let mut camera_policy = camera::Policy::new();
     let mut jump_policy = jump::Policy::new();
     let mut observation_policy = observation::Policy::new();
+    let mut interaction_policy = interaction::Policy::new();
     unsafe { window::show(hwnd) };
 
     'running: loop {
@@ -74,8 +78,10 @@ unsafe fn run() -> Result<()> {
         let sample = clock.sample(&window::drain_activation())?;
         jump_policy.observe_sample(sample);
         observation_policy.observe_sample(sample);
+        interaction_policy.observe_sample(sample);
         jump_policy.ingest(input.was_pressed(SPACE));
         observation_policy.ingest(input.was_pressed(OBSERVE_OBJECT));
+        interaction_policy.ingest(input.was_pressed(ACTIVATE_OBJECT));
         let camera_candidate = camera_policy.candidate(&input);
         let requested_locomotion = locomotion::command(&input, camera_candidate.rig().orbit_index);
         let actor = runtime
@@ -129,9 +135,45 @@ unsafe fn run() -> Result<()> {
         } else {
             None
         };
+        let interaction_attempt = if let Some(advance) = &advance
+            && interaction_policy.wants_completion(advance.simulation.step_count)
+        {
+            let target = observation_policy.status().target;
+            let interaction_target = target.map(|target| interaction::Target {
+                identity: target.identity,
+                available: target.availability == observation::Availability::Resolved,
+            });
+            let resolution = match target {
+                Some(target) if target.availability == observation::Availability::Resolved => Some(
+                    runtime
+                        .resolve_canonical_object(target.identity)
+                        .context("prototype object action resolution failed")?,
+                ),
+                _ => None,
+            };
+            interaction_policy
+                .prepare_after_advance(
+                    advance.simulation.step_count,
+                    advance.actor.output.motion.body().position(),
+                    interaction_target,
+                    resolution,
+                )
+                .context("prototype object action eligibility failed")?
+        } else {
+            None
+        };
         let completed = advance
             .filter(|advance| advance.simulation.step_count != 0)
-            .map(|advance| (sample, clock.status(), advance, command, object_observation));
+            .map(|advance| {
+                (
+                    sample,
+                    clock.status(),
+                    advance,
+                    command,
+                    object_observation,
+                    interaction_attempt,
+                )
+            });
         let anchored_rig = camera_candidate.rig();
         runtime.set_actor_relative_camera(
             runtime_actor.handle,
@@ -145,19 +187,36 @@ unsafe fn run() -> Result<()> {
             .checked_add(1)
             .context("prototype camera anchor count overflowed")?;
         let object_target = observation_policy.target_identity();
-        unsafe {
-            let _ = runtime.frame(FrameRequest {
+        let object_target_feedback =
+            interaction_policy.frame_feedback(object_target, interaction_attempt);
+        let render_outcome = unsafe {
+            runtime.frame(FrameRequest {
                 clear_color: CLEAR_COLOR,
                 capture: false,
                 capture_object_ids: false,
                 probe: false,
-                object_target,
-            })?;
-        }
+                object_target_feedback,
+            })?
+        };
+        let interaction_completion = interaction_policy
+            .complete_frame(
+                interaction_attempt,
+                object_target_feedback,
+                render_outcome.object_target_feedback,
+            )
+            .context("prototype object action frame commit failed")?;
         if object_target.is_some() {
             object_target_frame_count = object_target_frame_count
                 .checked_add(1)
                 .context("prototype object target frame count overflowed")?;
+        }
+        if render_outcome
+            .object_target_feedback
+            .is_some_and(|feedback| feedback.kind == ObjectTargetFeedbackKind::Activated)
+        {
+            object_action_frame_count = object_action_frame_count
+                .checked_add(1)
+                .context("prototype object action frame count overflowed")?;
         }
         live_frame_count = live_frame_count
             .checked_add(1)
@@ -175,7 +234,14 @@ unsafe fn run() -> Result<()> {
                     .context("prototype retained object target transition failed")?;
             }
         }
-        if let Some((sample, clock, advance, command, object_observation)) = completed
+        interaction_policy.observe_target(observation_policy.status().target.map(|target| {
+            interaction::Target {
+                identity: target.identity,
+                available: target.availability == observation::Availability::Resolved,
+            }
+        }));
+        if let Some((sample, clock, advance, command, object_observation, interaction_attempt)) =
+            completed
             && let Some(startup) = startup.take()
         {
             publish_readiness(ReadinessEvidence {
@@ -192,10 +258,15 @@ unsafe fn run() -> Result<()> {
                 camera_anchor_count,
                 render_block_count,
                 object_target_frame_count,
-                submitted_object_target: object_target,
+                object_action_frame_count,
+                submitted_object_feedback: object_target_feedback,
+                rendered_object_feedback: render_outcome.object_target_feedback,
                 jump_status: jump_policy.status(),
                 object_observation,
                 observation_status: observation_policy.status(),
+                interaction_attempt,
+                interaction_completion,
+                interaction_status: interaction_policy.status(),
             })?;
         }
     }
@@ -219,10 +290,15 @@ struct ReadinessEvidence {
     camera_anchor_count: u64,
     render_block_count: u64,
     object_target_frame_count: u64,
-    submitted_object_target: Option<engine_runtime::CanonicalObjectIdentity>,
+    object_action_frame_count: u64,
+    submitted_object_feedback: Option<ObjectTargetFeedback>,
+    rendered_object_feedback: Option<ObjectTargetFeedback>,
     jump_status: jump::Status,
     object_observation: Option<observation::Completed>,
     observation_status: observation::Status,
+    interaction_attempt: Option<interaction::Attempt>,
+    interaction_completion: Option<interaction::FrameCompletion>,
+    interaction_status: interaction::Status,
 }
 
 fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
@@ -247,6 +323,32 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
             },
         })
     });
+    let object_action_attempt = evidence.interaction_attempt.map(|attempt| match attempt {
+        interaction::Attempt::Eligible(eligible) => json!({
+            "outcome": "eligible",
+            "feedback": eligible.feedback,
+            "proximity": eligible.proximity,
+        }),
+        interaction::Attempt::Ineligible(reason) => json!({
+            "outcome": "ineligible",
+            "reason": match reason {
+                interaction::Ineligible::MissingTarget => "missing-target",
+                interaction::Ineligible::UnavailableTarget => "unavailable-target",
+                interaction::Ineligible::SourceReplaced => "source-replaced",
+                interaction::Ineligible::OutsidePublishedWindow => "outside-published-window",
+                interaction::Ineligible::OutsideRadius => "outside-radius",
+            },
+        }),
+    });
+    let acknowledgement = evidence
+        .interaction_status
+        .acknowledgement
+        .map(|acknowledgement| {
+            json!({
+                "identity": acknowledgement.identity,
+                "remainingFrames": acknowledgement.remaining_frames,
+            })
+        });
     println!(
         "{}",
         json!({
@@ -292,7 +394,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 },
             },
             "object_observation_driver": {
-                "revision": "live-prototype-object-target-v3",
+                "revision": "live-prototype-object-target-v4",
                 "maxDistanceQ9": observation::OBJECT_OBSERVATION_RADIUS_Q9,
                 "status": {
                     "pending": evidence.observation_status.pending,
@@ -301,10 +403,30 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "completed": object_observation.is_some(),
                 "observation": object_observation,
                 "frameFeedback": {
-                    "submittedIdentity": evidence.submitted_object_target,
+                    "submitted": evidence.submitted_object_feedback,
+                    "projected": evidence.rendered_object_feedback,
                     "submittedFrameCount": evidence.object_target_frame_count,
                     "copiedObjectState": false,
                 },
+            },
+            "object_interaction_driver": {
+                "revision": "live-prototype-object-action-v1",
+                "input": "Enter",
+                "maxDistanceQ9": interaction::OBJECT_ACTION_RADIUS_Q9,
+                "acknowledgementFrameCount": interaction::ACKNOWLEDGEMENT_FRAME_COUNT,
+                "attempt": object_action_attempt,
+                "completion": evidence.interaction_completion.map(|completion| json!({
+                    "applied": completion.applied,
+                    "feedback": completion.feedback,
+                })),
+                "status": {
+                    "pending": evidence.interaction_status.pending,
+                    "acknowledgement": acknowledgement,
+                    "committedCount": evidence.interaction_status.committed_count,
+                    "ineligibleCount": evidence.interaction_status.ineligible_count,
+                },
+                "activatedFrameCount": evidence.object_action_frame_count,
+                "copiedObjectState": false,
             },
         })
     );

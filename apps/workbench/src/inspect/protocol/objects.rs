@@ -22,6 +22,23 @@ struct ObjectNearestPayload {
     max_distance_q9: u32,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum ObjectTargetFeedbackKindPayload {
+    Selected,
+    Activated,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ObjectTargetPayload {
+    source_namespace: String,
+    region_x: i64,
+    region_z: i64,
+    authored_local_id: u32,
+    feedback_kind: ObjectTargetFeedbackKindPayload,
+}
+
 pub(super) fn resolve(value: Value) -> ParsedControl {
     let payload: ObjectResolvePayload = decode(value)?;
     Ok(ControlKind::CanonicalObjectResolve {
@@ -33,12 +50,20 @@ pub(super) fn resolve(value: Value) -> ParsedControl {
 }
 
 pub(super) fn target(value: Value) -> ParsedControl {
-    let payload: ObjectResolvePayload = decode(value)?;
+    let payload: ObjectTargetPayload = decode(value)?;
     Ok(ControlKind::CanonicalObjectTargetSet {
         source_namespace: decode_source_namespace(&payload.source_namespace)?,
         region_x: payload.region_x,
         region_z: payload.region_z,
         authored_local_id: payload.authored_local_id,
+        feedback_kind: match payload.feedback_kind {
+            ObjectTargetFeedbackKindPayload::Selected => {
+                engine_runtime::ObjectTargetFeedbackKind::Selected
+            }
+            ObjectTargetFeedbackKindPayload::Activated => {
+                engine_runtime::ObjectTargetFeedbackKind::Activated
+            }
+        },
     })
 }
 

@@ -3,7 +3,7 @@ import { fail, type Json, root } from "../canonical-runtime.ts";
 const decoder = new TextDecoder();
 
 type PrototypeKey = {
-    key: "E" | "Escape" | "F" | "Shift" | "Space" | "W";
+    key: "E" | "Enter" | "Escape" | "F" | "Shift" | "Space" | "W";
     virtualKey: number;
 };
 
@@ -92,7 +92,7 @@ foreach ($key in $keys) {
 }
 
 [Console]::Out.Write((ConvertTo-Json ([ordered]@{
-    schema = "prototype-native-input-v4"
+    schema = "prototype-native-input-v5"
     processId = [int]$windowProcessId
     windowHandle = $window.ToInt64().ToString()
     activated = $true
@@ -114,7 +114,7 @@ foreach ($key in $keys) {
     }
     const evidence = JSON.parse(stdout) as Json;
     if (
-        evidence.schema !== "prototype-native-input-v4" ||
+        evidence.schema !== "prototype-native-input-v5" ||
         evidence.processId !== processId ||
         evidence.activated !== true ||
         evidence.requiredVisible !== requireVisible ||
@@ -144,10 +144,14 @@ export async function holdOrbitForwardKeys(processId: number): Promise<Json> {
     );
 }
 
-export async function holdObserveForwardKeys(processId: number): Promise<Json> {
+export async function postObserveActionForward(processId: number): Promise<Json> {
     return await postPrototypeKeys(
         processId,
-        [{ key: "F", virtualKey: 0x46 }, { key: "W", virtualKey: 0x57 }],
+        [
+            { key: "F", virtualKey: 0x46 },
+            { key: "Enter", virtualKey: 0x0D },
+            { key: "W", virtualKey: 0x57 },
+        ],
         true,
     );
 }
@@ -169,7 +173,7 @@ export type StartupInput =
     | "camera-forward"
     | "forward"
     | "jump"
-    | "observe-forward"
+    | "observe-action-forward"
     | "run-forward";
 
 export async function applyStartupInput(
@@ -185,8 +189,8 @@ export async function applyStartupInput(
             return await holdPrototypeForwardKey(processId);
         case "jump":
             return await pressPrototypeJump(processId);
-        case "observe-forward":
-            return await holdObserveForwardKeys(processId);
+        case "observe-action-forward":
+            return await postObserveActionForward(processId);
         case "run-forward":
             return await holdRunForwardKeys(processId);
         case undefined:

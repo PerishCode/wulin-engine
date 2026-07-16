@@ -595,6 +595,19 @@ active baseline/final 保持 527 handles/24 threads，private +589,824 bytes 且
 报告 24 files/25,346,225 bytes。当前只证明
 presentation feedback，不引入 interaction eligibility/effect、persistent gameplay ID、networking 或
 Wulin 语义。
+Experiment 0103 将 canonical object 的 exact signed-region/Q9 proximity 提升为唯一纯计算权威，既被
+nearest scan 复用，也在 actor 非零提交后对 retained identity 进行固定 512-Q9 动作资格检查；frame
+feedback 直接替换为 Selected/Activated 两类 immutable 输入，并只在同一 identity 被成功帧实际投影
+后返回。Prototype 以 Enter 持有 capacity-one intent，成功 candidate 作为 12 帧绿色确认的第一帧，
+余下帧只随成功 projected frame 递减；没有 object mutation、engine action state、新 pass/resource/
+descriptor/copy/readback/synchronization。32.302 秒 `canonical-frame-v9` 对 ID 987 的两类反馈都精确
+覆盖 3,472 pixels，颜色 hash 不同、object-ID attachment 不变；72.589 秒
+`canonical-prototype-v21` 中 native F+Enter+W 在同一 committed step 获取 ID 496，以 `(160,0)` Q9 /
+25,600 Q18 通过资格，frame 返回 exact Activated identity，committed count 为 1、remaining frames
+为 11，且没有 copied canonical object state。245.223 秒 `canonical-runtime-v11` 保持 source
+replacement/departure 禁用与 revisit/return 精确恢复 3,472 pixels，并通过 rollback、restart、32+32
+traversal、4 warm/8 measured resource checkpoint 与 2 lifecycle；active baseline/final 均为 492
+handles/21 threads，private +487,424 bytes，报告 24 files/25,346,259 bytes。
 
 ## Project model
 
@@ -648,9 +661,10 @@ bootstrap schema 2, and then uses
 and ready only after canonical content has rendered; close the window, press Escape, or use
 `runseal :prototype stop` to end it. W/A/S/D moves relative to the current camera, hold Shift to run,
 Q/E changes the committed camera orbit, Space requests one grounded Jump, and F acquires or clears
-one read-only nearby-object target after the next committed movement step. Target lifetime follows
-the current source/window but has no visual or interaction effect. No prior canonical acceptance
-output is required.
+one read-only nearby-object target after the next committed movement step. Its source/window lifetime
+is shown by static amber feedback. Enter acts only after the next committed step re-resolves that
+exact target inside 512 Q9; a successful projected action receives a bounded 12-frame green
+acknowledgement. No prior canonical acceptance output is required.
 
 `runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
 runtime/prototype/reference-host tests, cooks the four required signed centers, and proves
@@ -661,8 +675,9 @@ committed eight-way facing, one
 committed current actor authority, Q/E committed actor-relative camera orbit/frame ordering, typed render-block
 consumption with zero normal-path blocks, one visible-window native Space action with exact committed
 vertical trajectory and grounded-policy consumption,
-one visible-window native F+W observation whose origin is the exact committed actor output and whose
-bounded result matches an independent source oracle,
+one visible-window native F+Enter+W observation/action whose origin is the exact committed actor
+output, whose bounded result matches an independent source oracle, and whose exact activated target
+commits only through the successful frame,
 one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-W
 finite-edge survival, one native Escape press-edge clean exit, direct restart equality, and Sidecar
 cleanup.
