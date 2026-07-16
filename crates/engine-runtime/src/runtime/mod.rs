@@ -20,7 +20,7 @@ pub use actor::{ActorHandle, RuntimeActor};
 pub use object_query::{
     CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CANONICAL_OBJECTS_PER_REGION, CanonicalObject,
     CanonicalObjectIdentity, CanonicalObjectNearest, CanonicalObjectNearestQuery,
-    CanonicalObjectPresentation, CanonicalObjectResolution,
+    CanonicalObjectPresentation, CanonicalObjectResolution, CanonicalObjectSnapshot,
 };
 pub use region_format::PresentationRecord as ActorPresentation;
 use simulation_actor::prepare_simulation_actor;
@@ -217,6 +217,10 @@ impl Runtime {
         identity: CanonicalObjectIdentity,
     ) -> Result<CanonicalObjectResolution> {
         self.renderer.resolve_canonical_object(identity)
+    }
+
+    pub fn canonical_object_snapshot(&self) -> Result<CanonicalObjectSnapshot> {
+        self.renderer.canonical_object_snapshot()
     }
 
     pub fn query_nearest_canonical_object(

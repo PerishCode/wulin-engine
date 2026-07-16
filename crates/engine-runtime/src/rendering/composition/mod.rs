@@ -10,6 +10,7 @@ use crate::address::GlobalRegionConfig;
 use crate::async_resident::ObjectSourceNamespace;
 use crate::load::LoadConfig;
 use crate::region::RegionCoord;
+use crate::runtime::CanonicalObjectSnapshot;
 use crate::terrain::TerrainSourceNamespace;
 
 use super::renderer::Renderer;
@@ -383,6 +384,17 @@ impl Renderer {
 }
 
 impl CompositionCoordinator {
+    pub(super) fn canonical_object_snapshot(&self) -> Result<CanonicalObjectSnapshot> {
+        let published = self
+            .published
+            .as_ref()
+            .context("canonical object snapshot requires a published composition")?;
+        Ok(CanonicalObjectSnapshot {
+            publication_token: published.token,
+            source_namespace: published.object_source_namespace,
+        })
+    }
+
     pub(super) fn actor_projection_config(&self) -> Result<(GlobalRegionConfig, LoadConfig)> {
         ensure!(
             self.enabled,

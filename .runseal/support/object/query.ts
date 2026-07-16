@@ -1,4 +1,13 @@
-import { event, fail, type Json, object, rejectedEvent, root, same } from "../canonical-runtime.ts";
+import {
+    event,
+    fail,
+    type Json,
+    number,
+    object,
+    rejectedEvent,
+    root,
+    same,
+} from "../canonical-runtime.ts";
 
 const RECORD_COUNT = 1_024;
 const RECORD_BYTES = 20;
@@ -48,6 +57,19 @@ export function resolvedObject(value: Json): Json {
     return object(object(value, "resolution"), "object");
 }
 
+export function canonicalObjectSnapshot(value: Json): Json {
+    const snapshot = object(value, "snapshot");
+    const publicationToken = number(snapshot, "publicationToken");
+    if (!Number.isSafeInteger(publicationToken) || publicationToken < 1) {
+        fail("canonical object snapshot has an invalid live publication token");
+    }
+    if (
+        typeof snapshot.sourceNamespace !== "string" ||
+        !/^[0-9a-f]{64}$/.test(snapshot.sourceNamespace)
+    ) fail("canonical object snapshot has an invalid source namespace");
+    return snapshot;
+}
+
 export async function unavailableObjectResolutionGate(base: [number, number]): Promise<Json> {
     return await failedObjectResolution(
         ZERO_SOURCE_NAMESPACE,
@@ -84,9 +106,10 @@ export async function resolveObjectIdentity(
         region_z: region[1],
         authored_local_id: localId,
     });
-    if (value.revision !== "typed-canonical-object-resolution-v1") {
+    if (value.revision !== "versioned-canonical-object-resolution-v2") {
         fail(`object identity resolution ${region[0]},${region[1]}:${localId} revision diverged`);
     }
+    canonicalObjectSnapshot(value);
     requireZeroResolutionWork(
         value,
         `object identity resolution ${region[0]},${region[1]}:${localId}`,
@@ -98,6 +121,7 @@ export async function objectResolutionGates(
     source: string,
     base: [number, number],
     unavailable: Json,
+    publication: Json,
 ): Promise<Json> {
     const sourceNamespace = await objectSourceNamespace(source);
     const invalidLocalId = await rejectedEvent("canonical.objects.resolve", {
@@ -119,6 +143,9 @@ export async function objectResolutionGates(
         0,
     );
     requireResolutionOutcome(sourceMismatch, "source-replaced", "object source replacement");
+    if (canonicalObjectSnapshot(sourceMismatch).sourceNamespace === ZERO_SOURCE_NAMESPACE) {
+        fail("source-replaced resolution exposed the stale source as the current snapshot");
+    }
     const unqualified = await rejectedEvent("canonical.objects.resolve", {
         region_x: base[0],
         region_z: base[1],
@@ -140,6 +167,12 @@ export async function objectResolutionGates(
         fail("retired canonical.objects.query verb remains live");
     }
     const samples = await resolveObjectSamples(source, base, OBJECT_RESOLUTION_SAMPLE_IDS);
+    const published = object(publication, "published");
+    const snapshot = canonicalObjectSnapshot(samples[0]);
+    if (
+        number(snapshot, "publicationToken") !== number(published, "token") ||
+        snapshot.sourceNamespace !== published.objectSourceNamespace
+    ) fail("canonical object snapshot diverged from the published composition pair");
     return {
         unavailable,
         invalidLocalId,
@@ -148,6 +181,7 @@ export async function objectResolutionGates(
         unqualified,
         retiredVerb,
         samples,
+        snapshot,
     };
 }
 
@@ -176,6 +210,9 @@ export async function resolveObject(
         `object resolution ${region[0]},${region[1]}:${localId}`,
     );
     const expected = await readObjectOracle(source, region, localId);
+    if (canonicalObjectSnapshot(value).sourceNamespace !== sourceNamespace) {
+        fail(`object resolution ${region[0]},${region[1]}:${localId} snapshot source diverged`);
+    }
     same(
         resolvedObject(value),
         object(expected, "object"),

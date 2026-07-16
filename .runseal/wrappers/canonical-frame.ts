@@ -15,7 +15,7 @@ import {
     target,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-frame-v6";
+const REVISION = "canonical-frame-v7";
 const COLLECTION = "canonical-frame";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];
@@ -43,6 +43,7 @@ try {
         setup.paths.objects,
         BASE,
         unavailableObjectResolution,
+        publication,
     );
     const objectNearest = await objectNearestGates(
         setup.paths.objects,

@@ -13,15 +13,15 @@ export async function observationInvariant(
     const driver = object(readiness, "object_observation_driver");
     const status = object(driver, "status");
     if (
-        driver.revision !== "live-prototype-object-observation-v1" ||
+        driver.revision !== "live-prototype-object-target-v2" ||
         number(driver, "maxDistanceQ9") !== OBSERVATION_RADIUS_Q9 ||
         status.pending !== false ||
         driver.completed !== expectedCompleted
     ) fail("prototype object observation driver diverged");
 
     if (!expectedCompleted) {
-        if (driver.observation !== null) {
-            fail("prototype emitted an object observation without an intent");
+        if (driver.observation !== null || status.target !== null) {
+            fail("prototype retained an object observation or target without an intent");
         }
         return {
             revision: driver.revision,
@@ -29,6 +29,7 @@ export async function observationInvariant(
             pending: false,
             completed: false,
             observation: null,
+            target: null,
         };
     }
     const observation = object(driver, "observation");
@@ -53,6 +54,39 @@ export async function observationInvariant(
     const query = object(observation, "query");
     same(query, oracle, "prototype object observation source oracle");
     const nearest = object(query, "nearest");
+    const observedIdentity = object(object(nearest, "object"), "identity");
+    const snapshot = object(observation, "snapshot");
+    const publicationToken = number(snapshot, "publicationToken");
+    if (
+        !Number.isSafeInteger(publicationToken) || publicationToken < 1 ||
+        snapshot.sourceNamespace !== observedIdentity.sourceNamespace
+    ) fail("prototype object observation snapshot diverged from its qualified result");
+    const target = object(status, "target");
+    if (target.availability !== "resolved") {
+        fail("prototype newly observed target was not resolved");
+    }
+    same(object(target, "identity"), observedIdentity, "prototype retained target identity");
+    const targetSnapshot = object(target, "snapshot");
+    const targetToken = number(targetSnapshot, "publicationToken");
+    if (targetSnapshot.sourceNamespace !== snapshot.sourceNamespace) {
+        fail("prototype target validation changed source without clearing the target");
+    }
+    const traversal = object(readiness, "traversal");
+    const traversalPublicationCount = number(traversal, "automaticPublicationCount");
+    if (targetToken === publicationToken) {
+        if (traversalPublicationCount !== 0 || traversal.lastPublished !== null) {
+            fail("prototype target missed a completed traversal publication");
+        }
+    } else {
+        const lastPublished = object(traversal, "lastPublished");
+        if (
+            targetToken <= publicationToken || traversalPublicationCount !== 1 ||
+            number(lastPublished, "token") !== targetToken
+        ) fail("prototype target validation snapshot diverged from traversal publication");
+    }
+    if ("object" in target || "position" in target || "presentation" in target) {
+        fail("prototype retained copied canonical object content in target state");
+    }
     const distanceSquaredQ18 = number(nearest, "distanceSquaredQ18");
     if (
         number(query, "candidateCount") !== 25_600 ||
@@ -66,7 +100,11 @@ export async function observationInvariant(
         completed: true,
         origin,
         query,
+        target,
         exactCommittedOrigin: true,
         independentSourceOracle: true,
+        snapshotGatedTarget: true,
+        revalidatedAfterPublication: targetToken !== publicationToken,
+        copiedObjectState: false,
     };
 }
