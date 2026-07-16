@@ -1,10 +1,9 @@
 use anyhow::{Context, Result, ensure};
 
 use crate::async_resident::canonical_stable_seed;
-use crate::region::RegionCoord;
 use crate::runtime::{
     CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CANONICAL_OBJECTS_PER_REGION, CanonicalObject,
-    CanonicalObjectNearest, CanonicalObjectNearestQuery,
+    CanonicalObjectIdentity, CanonicalObjectNearest, CanonicalObjectNearestQuery,
 };
 use crate::terrain_query::{TERRAIN_POSITION_REGION_SIDE_Q9, TerrainPosition};
 
@@ -14,14 +13,13 @@ use crate::rendering::async_resident::transfer::CpuObjectPage;
 impl AsyncResidentRenderer {
     pub(in crate::rendering) fn query_canonical_object(
         &self,
-        region: RegionCoord,
-        authored_local_id: u32,
+        identity: CanonicalObjectIdentity,
     ) -> Result<CanonicalObject> {
         let snapshot = self
             .published
             .as_ref()
             .context("canonical object query requires a published snapshot")?;
-        query_snapshot(snapshot, region, authored_local_id)
+        query_snapshot(snapshot, identity)
     }
 
     pub(in crate::rendering) fn query_nearest_canonical_object(
@@ -39,23 +37,26 @@ impl AsyncResidentRenderer {
 
 fn query_snapshot(
     snapshot: &PublishedSnapshot,
-    region: RegionCoord,
-    authored_local_id: u32,
+    identity: CanonicalObjectIdentity,
 ) -> Result<CanonicalObject> {
+    ensure!(
+        identity.source_namespace == snapshot.object_source_namespace,
+        "canonical object identity source does not match the published snapshot"
+    );
     require_snapshot_shape(snapshot)?;
     ensure!(
-        authored_local_id < CANONICAL_OBJECTS_PER_REGION,
+        identity.authored_local_id < CANONICAL_OBJECTS_PER_REGION,
         "canonical object authored local ID is outside the fixed region capacity"
     );
     let active_index = snapshot
         .global_config
-        .active_index(region)
+        .active_index(identity.region)
         .context("canonical object query region is outside the published active window")?;
     let page = &snapshot.active_cpu_pages[active_index];
     require_page_shape(snapshot, page, active_index)?;
     let mut matched_index = None;
     for (index, local_id) in page.local_ids.iter().copied().enumerate() {
-        if local_id == authored_local_id {
+        if local_id == identity.authored_local_id {
             ensure!(
                 matched_index.replace(index).is_none(),
                 "published canonical object CPU page contains duplicate authored local IDs"
@@ -63,7 +64,12 @@ fn query_snapshot(
         }
     }
     let index = matched_index.context("published canonical object CPU page is missing local ID")?;
-    object_at(snapshot, page, index, authored_local_id)
+    let object = object_at(snapshot, page, index, identity.authored_local_id)?;
+    ensure!(
+        object.identity == identity,
+        "published canonical object identity diverged from the requested address"
+    );
+    Ok(object)
 }
 
 fn query_nearest_snapshot(
@@ -129,9 +135,9 @@ fn query_nearest_snapshot(
             };
             let key = (
                 candidate.distance_squared_q18,
-                object.region.x,
-                object.region.z,
-                object.authored_local_id,
+                object.identity.region.x,
+                object.identity.region.z,
+                object.identity.authored_local_id,
             );
             if nearest
                 .as_ref()
@@ -192,8 +198,11 @@ fn object_at(
         "published canonical object CPU record has the wrong stable seed"
     );
     Ok(CanonicalObject {
-        region: page.global_region,
-        authored_local_id,
+        identity: CanonicalObjectIdentity {
+            source_namespace: snapshot.object_source_namespace,
+            region: page.global_region,
+            authored_local_id,
+        },
         position: record.position,
         height: record.height,
         presentation: page.presentations[index],
@@ -217,6 +226,7 @@ mod tests {
     use crate::address::GlobalRegionConfig;
     use crate::async_resident::ObjectSourceNamespace;
     use crate::load::INSTANCES_PER_REGION;
+    use crate::region::RegionCoord;
     use crate::rendering::async_resident::transfer::CpuObjectPage;
     use crate::resident::{InstanceRecord, PresentationRecord};
 
@@ -304,12 +314,15 @@ mod tests {
         let first = snapshot(769, 73);
         let second = snapshot(641, 419);
         for local_id in [0, 511, 1023] {
-            let expected =
-                query_snapshot(&first, first.global_config.global_center, local_id).unwrap();
-            let reordered =
-                query_snapshot(&second, second.global_config.global_center, local_id).unwrap();
+            let identity = CanonicalObjectIdentity {
+                source_namespace: first.object_source_namespace,
+                region: first.global_config.global_center,
+                authored_local_id: local_id,
+            };
+            let expected = query_snapshot(&first, identity).unwrap();
+            let reordered = query_snapshot(&second, identity).unwrap();
             assert_eq!(reordered, expected);
-            assert_eq!(expected.authored_local_id, local_id);
+            assert_eq!(expected.identity, identity);
         }
     }
 
@@ -317,8 +330,40 @@ mod tests {
     fn invalid_inputs_fail() {
         let snapshot = snapshot(769, 73);
         let region = snapshot.global_config.global_center;
-        assert!(query_snapshot(&snapshot, region, CANONICAL_OBJECTS_PER_REGION).is_err());
-        assert!(query_snapshot(&snapshot, region.checked_offset(1, 0).unwrap(), 0,).is_err());
+        let identity = |source_namespace, region, authored_local_id| CanonicalObjectIdentity {
+            source_namespace,
+            region,
+            authored_local_id,
+        };
+        assert!(
+            query_snapshot(
+                &snapshot,
+                identity(
+                    snapshot.object_source_namespace,
+                    region,
+                    CANONICAL_OBJECTS_PER_REGION,
+                ),
+            )
+            .is_err()
+        );
+        assert!(
+            query_snapshot(
+                &snapshot,
+                identity(
+                    snapshot.object_source_namespace,
+                    region.checked_offset(1, 0).unwrap(),
+                    0,
+                ),
+            )
+            .is_err()
+        );
+        assert!(
+            query_snapshot(
+                &snapshot,
+                identity(ObjectSourceNamespace::from_bytes([4; 32]), region, 0),
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -328,14 +373,19 @@ mod tests {
         Arc::get_mut(&mut mismatched.active_cpu_pages[0])
             .unwrap()
             .global_region = region.checked_offset(1, 0).unwrap();
-        assert!(query_snapshot(&mismatched, region, 0).is_err());
+        let identity = CanonicalObjectIdentity {
+            source_namespace: mismatched.object_source_namespace,
+            region,
+            authored_local_id: 0,
+        };
+        assert!(query_snapshot(&mismatched, identity).is_err());
 
         let mut malformed = snapshot(769, 73);
         Arc::get_mut(&mut malformed.active_cpu_pages[0])
             .unwrap()
             .presentations
             .pop();
-        assert!(query_snapshot(&malformed, region, 0).is_err());
+        assert!(query_snapshot(&malformed, identity).is_err());
     }
 
     #[test]
@@ -352,10 +402,14 @@ mod tests {
         assert_eq!(nearest.distance_squared_q18, 0);
         assert_eq!((nearest.delta_x_q9, nearest.delta_z_q9), (0, 0));
         assert_eq!(
-            nearest.object.region,
+            nearest.object.identity.region,
             center.checked_offset(-1, -1).unwrap()
         );
-        assert_eq!(nearest.object.authored_local_id, 1023);
+        assert_eq!(nearest.object.identity.authored_local_id, 1023);
+        assert_eq!(
+            nearest.object.identity.source_namespace,
+            first.object_source_namespace
+        );
         assert_eq!(nearest.terrain_position, origin);
     }
 
@@ -365,7 +419,15 @@ mod tests {
         let region = snapshot.global_config.global_center;
         let exact = TerrainPosition::new(region, -4096, -4096).unwrap();
         let exact_query = query_nearest_snapshot(&snapshot, exact, 0).unwrap();
-        assert_eq!(exact_query.nearest.unwrap().object.authored_local_id, 0);
+        assert_eq!(
+            exact_query
+                .nearest
+                .unwrap()
+                .object
+                .identity
+                .authored_local_id,
+            0
+        );
 
         let displaced = exact.translated_q9(1, 0).unwrap();
         assert_eq!(
@@ -378,7 +440,7 @@ mod tests {
             .unwrap()
             .nearest
             .unwrap();
-        assert_eq!(inclusive.object.authored_local_id, 0);
+        assert_eq!(inclusive.object.identity.authored_local_id, 0);
         assert_eq!((inclusive.delta_x_q9, inclusive.delta_z_q9), (-1, 0));
         assert_eq!(inclusive.distance_squared_q18, 1);
     }

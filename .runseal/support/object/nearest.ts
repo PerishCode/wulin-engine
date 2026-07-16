@@ -8,6 +8,7 @@ import {
     root,
     same,
 } from "../canonical-runtime.ts";
+import { canonicalObjectContent, canonicalObjectSource, objectSourceNamespace } from "./query.ts";
 
 const RECORD_COUNT = 1_024;
 const RECORD_BYTES = 20;
@@ -97,10 +98,11 @@ export async function objectNearestGates(
     const samples = await queryObjectNearestSamples(source, objectNearestSamples(base));
 
     const seam = object(object(samples[0], "query"), "nearest");
+    const seamIdentity = object(object(seam, "object"), "identity");
     if (
-        number(object(object(seam, "object"), "region"), "x") !== base[0] - 1 ||
-        number(object(object(seam, "object"), "region"), "z") !== base[1] - 1 ||
-        number(object(seam, "object"), "authoredLocalId") !== 1_023 ||
+        number(object(seamIdentity, "region"), "x") !== base[0] - 1 ||
+        number(object(seamIdentity, "region"), "z") !== base[1] - 1 ||
+        number(seamIdentity, "authoredLocalId") !== 1_023 ||
         number(seam, "distanceSquaredQ18") !== 0
     ) fail("zero-radius shared-seam tie order diverged");
     if (object(samples[2], "query").nearest !== null) {
@@ -127,7 +129,7 @@ export async function queryObjectNearest(
     windowCenter: [number, number] = sample.region,
 ): Promise<Json> {
     const value = await event("canonical.objects.nearest", request(sample));
-    if (value.revision !== "exact-canonical-object-nearest-v1") {
+    if (value.revision !== "source-qualified-canonical-object-nearest-v1") {
         fail(`object nearest ${sample.region.join(",")} revision diverged`);
     }
     requireZeroRuntimeWork(value, `object nearest ${sample.region.join(",")}`);
@@ -149,6 +151,48 @@ export function sameObjectNearestQueries(actual: Json[], expected: Json[], label
         expected.map((value) => object(value, "query")),
         label,
     );
+}
+
+export function sameObjectNearestContent(
+    actual: Json[],
+    expected: Json[],
+    label: string,
+): void {
+    same(
+        actual.map(nearestContent),
+        expected.map(nearestContent),
+        label,
+    );
+    const actualSources = actual.map(nearestSource);
+    const expectedSources = expected.map(nearestSource);
+    if (
+        actualSources.some((source, index) => source !== null && source === expectedSources[index])
+    ) {
+        fail(`${label} did not change every nearest source-qualified identity`);
+    }
+}
+
+function nearestContent(value: Json): Json {
+    const query = object(value, "query");
+    if (query.nearest === null) return query;
+    const nearest = object(query, "nearest");
+    return {
+        candidateCount: query.candidateCount,
+        nearest: {
+            deltaXQ9: nearest.deltaXQ9,
+            deltaZQ9: nearest.deltaZQ9,
+            distanceSquaredQ18: nearest.distanceSquaredQ18,
+            object: canonicalObjectContent(object(nearest, "object")),
+            terrainPosition: nearest.terrainPosition,
+        },
+    };
+}
+
+function nearestSource(value: Json): string | null {
+    const query = object(value, "query");
+    return query.nearest === null
+        ? null
+        : canonicalObjectSource(object(object(query, "nearest"), "object"));
 }
 
 async function sourceIndex(source: string): Promise<SourceIndex> {
@@ -190,6 +234,7 @@ export async function objectNearestOracle(
     windowCenter: [number, number],
 ): Promise<Json> {
     const { view, regions } = await sourceIndex(source);
+    const sourceNamespace = await objectSourceNamespace(source);
     const radius = BigInt(sample.maxDistanceQ9);
     const radiusSquared = radius * radius;
     let candidateCount = 0;
@@ -267,8 +312,12 @@ export async function objectNearestOracle(
                         deltaZQ9: Number(deltaZ),
                         distanceSquaredQ18: distance,
                         object: {
-                            authoredLocalId,
                             height: view.getFloat32(record + 12, true),
+                            identity: {
+                                authoredLocalId,
+                                region: { x: regionX, z: regionZ },
+                                sourceNamespace,
+                            },
                             position,
                             presentation: {
                                 animation: view.getUint32(presentation + 12, true),
@@ -276,7 +325,6 @@ export async function objectNearestOracle(
                                 material: view.getUint32(presentation + 4, true),
                                 yawQ16: view.getUint32(presentation + 8, true),
                             },
-                            region: { x: regionX, z: regionZ },
                         },
                         terrainPosition,
                     },

@@ -88,6 +88,7 @@ pub enum ControlKind {
     CanonicalPrefetchDisable,
     CanonicalProbe,
     CanonicalObjectQuery {
+        source_namespace: [u8; 32],
         region_x: i64,
         region_z: i64,
         authored_local_id: u32,

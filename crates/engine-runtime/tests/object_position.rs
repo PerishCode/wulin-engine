@@ -1,9 +1,15 @@
-use engine_runtime::{CanonicalObject, CanonicalObjectPresentation, RegionCoord};
+use engine_runtime::{
+    CanonicalObject, CanonicalObjectIdentity, CanonicalObjectPresentation, ObjectSourceNamespace,
+    RegionCoord,
+};
 
 fn object(region: RegionCoord, x: f32, z: f32) -> CanonicalObject {
     CanonicalObject {
-        region,
-        authored_local_id: 73,
+        identity: CanonicalObjectIdentity {
+            source_namespace: ObjectSourceNamespace::from_bytes([1; 32]),
+            region,
+            authored_local_id: 73,
+        },
         position: [x, 0.0, z],
         height: 1.0,
         presentation: CanonicalObjectPresentation::static_object(0, 0, 0),

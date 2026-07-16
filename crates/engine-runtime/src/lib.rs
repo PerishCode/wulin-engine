@@ -16,10 +16,11 @@ pub use runtime::{
     ActorHandle, ActorPresentation, ActorSimulationAdvance, ActorSimulationCommand,
     ActorSimulationOutcome, ActorSimulationRenderBlock, ActorStateTransition,
     CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CANONICAL_OBJECTS_PER_REGION, CanonicalObject,
-    CanonicalObjectNearest, CanonicalObjectNearestQuery, CanonicalObjectPresentation, FrameRequest,
-    Runtime, RuntimeActor,
+    CanonicalObjectIdentity, CanonicalObjectNearest, CanonicalObjectNearestQuery,
+    CanonicalObjectPresentation, FrameRequest, Runtime, RuntimeActor,
 };
 pub use streaming::address::GlobalRegionConfig;
+pub use streaming::async_resident::ObjectSourceNamespace;
 pub(crate) use streaming::{address, async_resident, objects, terrain};
 pub use terrain_query::{
     TERRAIN_BODY_HEIGHT_DENOMINATOR, TERRAIN_POSITION_DENOMINATOR,
