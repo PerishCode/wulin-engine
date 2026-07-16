@@ -31,7 +31,7 @@ import {
     target,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-frame-v10";
+const REVISION = "canonical-frame-v11";
 const COLLECTION = "canonical-frame";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];
@@ -125,6 +125,35 @@ try {
         string(object(activated, "capture"), "color") ===
             string(object(targeted, "capture"), "color")
     ) fail("activated target feedback did not change the selected color");
+    const rejectedSet = await setObjectTarget(identity, "rejected");
+    const rejected = await frame("target-rejected", COLLECTION);
+    const rejectedReplay = await frame("target-rejected-replay", COLLECTION);
+    const rejectedPixels = assertTargetedFrame(
+        rejected,
+        identity,
+        selected.activeIndex,
+        selected.semanticRegion,
+        first,
+        "canonical rejected frame",
+        "rejected",
+    );
+    assertTargetedFrame(
+        rejectedReplay,
+        identity,
+        selected.activeIndex,
+        selected.semanticRegion,
+        first,
+        "canonical rejected replay",
+        "rejected",
+    );
+    same(rejectedPixels, targetedPixels, "selected/rejected exact target pixel count");
+    same(rejectedReplay.stable, rejected.stable, "canonical rejected immediate replay");
+    if (
+        string(object(rejected, "capture"), "color") ===
+            string(object(targeted, "capture"), "color") ||
+        string(object(rejected, "capture"), "color") ===
+            string(object(activated, "capture"), "color")
+    ) fail("rejected target feedback did not produce one distinct color");
     const targetCleared = await clearObjectTarget();
     const cleared = await frame("target-cleared", COLLECTION);
     assertUntargetedFrame(cleared, "canonical target-cleared frame");
@@ -173,6 +202,10 @@ try {
             activatedPixels,
             activated,
             activatedReplay,
+            rejectedSet,
+            rejectedPixels,
+            rejected,
+            rejectedReplay,
             targetCleared,
             cleared,
         },

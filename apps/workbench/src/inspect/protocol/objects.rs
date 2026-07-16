@@ -37,6 +37,7 @@ struct ObjectIdentityPayload {
 enum ObjectTargetFeedbackKindPayload {
     Selected,
     Activated,
+    Rejected,
 }
 
 #[derive(Deserialize)]
@@ -72,6 +73,9 @@ pub(super) fn target(value: Value) -> ParsedControl {
             }
             ObjectTargetFeedbackKindPayload::Activated => {
                 engine_runtime::ObjectTargetFeedbackKind::Activated
+            }
+            ObjectTargetFeedbackKindPayload::Rejected => {
+                engine_runtime::ObjectTargetFeedbackKind::Rejected
             }
         },
     })

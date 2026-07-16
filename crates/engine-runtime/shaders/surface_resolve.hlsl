@@ -575,9 +575,18 @@ void shade_main(
             && visible.stable_identity_high == surface_animation.w;
         if (targeted)
         {
-            color.rgb = surface_animation.y == 1u
-                ? saturate(color.rgb * 0.45 + float3(1.0, 0.62, 0.08) * 0.55)
-                : saturate(color.rgb * 0.30 + float3(0.12, 1.0, 0.32) * 0.70);
+            if (surface_animation.y == 1u)
+            {
+                color.rgb = saturate(color.rgb * 0.45 + float3(1.0, 0.62, 0.08) * 0.55);
+            }
+            else if (surface_animation.y == 2u)
+            {
+                color.rgb = saturate(color.rgb * 0.30 + float3(0.12, 1.0, 0.32) * 0.70);
+            }
+            else
+            {
+                color.rgb = saturate(color.rgb * 0.30 + float3(1.0, 0.12, 0.08) * 0.70);
+            }
             InterlockedAdd(group_targeted, 1);
         }
         InterlockedAdd(group_visible, 1);
