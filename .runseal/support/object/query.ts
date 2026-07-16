@@ -7,7 +7,16 @@ const PRESENTATION_BYTES = 16;
 const HEADER_BYTES = 96;
 const INDEX_ENTRY_BYTES = 64;
 const REGION_BYTES = RECORD_COUNT * (RECORD_BYTES + IDENTITY_BYTES + PRESENTATION_BYTES);
+const ZERO_SOURCE_NAMESPACE = "00".repeat(32);
 export const OBJECT_QUERY_SAMPLE_IDS = [0, 31, 511, 992, 1_023];
+
+type SourceIndex = {
+    bytes: Uint8Array;
+    view: DataView;
+    sourceNamespace: string;
+};
+
+const sourceIndexes = new Map<string, SourceIndex>();
 
 function requireQueryRejection(value: Json, label: string): void {
     if (
@@ -25,15 +34,22 @@ function requireZeroRuntimeWork(value: Json, label: string): void {
 }
 
 export async function unavailableObjectQueryGate(base: [number, number]): Promise<Json> {
-    return await rejectedObjectQuery(base, 0, "pre-publication object query");
+    return await rejectedObjectQuery(
+        ZERO_SOURCE_NAMESPACE,
+        base,
+        0,
+        "pre-publication object query",
+    );
 }
 
 export async function rejectedObjectQuery(
+    sourceNamespace: string,
     region: [number, number],
     localId: number,
     label: string,
 ): Promise<Json> {
     const rejected = await rejectedEvent("canonical.objects.query", {
+        source_namespace: sourceNamespace,
         region_x: region[0],
         region_z: region[1],
         authored_local_id: localId,
@@ -47,20 +63,40 @@ export async function objectQueryGates(
     base: [number, number],
     unavailable: Json,
 ): Promise<Json> {
+    const sourceNamespace = await objectSourceNamespace(source);
     const invalidLocalId = await rejectedEvent("canonical.objects.query", {
+        source_namespace: sourceNamespace,
         region_x: base[0],
         region_z: base[1],
         authored_local_id: RECORD_COUNT,
     });
     const outside = await rejectedEvent("canonical.objects.query", {
+        source_namespace: sourceNamespace,
         region_x: base[0] + 3,
         region_z: base[1],
         authored_local_id: 0,
     });
     requireQueryRejection(invalidLocalId, "out-of-range authored local ID");
     requireQueryRejection(outside, "outside-window object query");
+    const sourceMismatch = await rejectedObjectQuery(
+        ZERO_SOURCE_NAMESPACE,
+        base,
+        0,
+        "object source mismatch",
+    );
+    const unqualified = await rejectedEvent("canonical.objects.query", {
+        region_x: base[0],
+        region_z: base[1],
+        authored_local_id: 0,
+    });
+    if (
+        typeof unqualified.error !== "string" ||
+        !unqualified.error.startsWith("invalid_payload: ")
+    ) {
+        fail("unqualified canonical object query was not rejected at the current schema");
+    }
     const samples = await queryObjectSamples(source, base, OBJECT_QUERY_SAMPLE_IDS);
-    return { unavailable, invalidLocalId, outside, samples };
+    return { unavailable, invalidLocalId, outside, sourceMismatch, unqualified, samples };
 }
 
 export async function queryObjectSamples(
@@ -80,12 +116,14 @@ export async function queryObject(
     region: [number, number],
     localId: number,
 ): Promise<Json> {
+    const sourceNamespace = await objectSourceNamespace(source);
     const value = await event("canonical.objects.query", {
+        source_namespace: sourceNamespace,
         region_x: region[0],
         region_z: region[1],
         authored_local_id: localId,
     });
-    if (value.revision !== "exact-canonical-object-position-v1") {
+    if (value.revision !== "source-qualified-canonical-object-v1") {
         fail(`object query ${region[0]},${region[1]}:${localId} revision diverged`);
     }
     requireZeroRuntimeWork(value, `object query ${region[0]},${region[1]}:${localId}`);
@@ -111,11 +149,49 @@ export function sameObjectQueries(actual: Json[], expected: Json[], label: strin
     );
 }
 
-async function readObjectOracle(
-    source: string,
-    region: [number, number],
-    localId: number,
-): Promise<Json> {
+export function sameObjectQueryContent(
+    actual: Json[],
+    expected: Json[],
+    label: string,
+): void {
+    same(
+        actual.map((value) => canonicalObjectContent(object(value, "object"))),
+        expected.map((value) => canonicalObjectContent(object(value, "object"))),
+        label,
+    );
+    const actualSources = actual.map((value) => canonicalObjectSource(object(value, "object")));
+    const expectedSources = expected.map((value) => canonicalObjectSource(object(value, "object")));
+    if (actualSources.some((source, index) => source === expectedSources[index])) {
+        fail(`${label} did not change every source-qualified identity`);
+    }
+}
+
+export function canonicalObjectContent(value: Json): Json {
+    const identity = object(value, "identity");
+    return {
+        identity: {
+            region: object(identity, "region"),
+            authoredLocalId: identity.authoredLocalId,
+        },
+        position: value.position,
+        height: value.height,
+        presentation: value.presentation,
+    };
+}
+
+export function canonicalObjectSource(value: Json): string {
+    const source = object(value, "identity").sourceNamespace;
+    if (typeof source !== "string") fail("canonical object identity has no source namespace");
+    return source;
+}
+
+export async function objectSourceNamespace(source: string): Promise<string> {
+    return (await sourceIndex(source)).sourceNamespace;
+}
+
+async function sourceIndex(source: string): Promise<SourceIndex> {
+    const cached = sourceIndexes.get(source);
+    if (cached) return cached;
     const bytes = await Deno.readFile(`${root}/${source}`);
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     if (
@@ -125,6 +201,23 @@ async function readObjectOracle(
         view.getUint32(24, true) !== RECORD_COUNT || view.getUint32(28, true) !== RECORD_BYTES ||
         view.getUint32(56, true) !== 3
     ) fail("independent object query oracle rejected the schema-3 header");
+    const regionCount = view.getUint32(16, true);
+    const namespaceBytes = bytes.slice(0, HEADER_BYTES + regionCount * INDEX_ENTRY_BYTES);
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", namespaceBytes));
+    const sourceNamespace = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join(
+        "",
+    );
+    const parsed = { bytes, view, sourceNamespace };
+    sourceIndexes.set(source, parsed);
+    return parsed;
+}
+
+async function readObjectOracle(
+    source: string,
+    region: [number, number],
+    localId: number,
+): Promise<Json> {
+    const { view, sourceNamespace } = await sourceIndex(source);
     const regionCount = view.getUint32(16, true);
     let payloadOffset: number | undefined;
     for (let index = 0; index < regionCount; index += 1) {
@@ -158,8 +251,12 @@ async function readObjectOracle(
     const presentation = identityOffset + RECORD_COUNT * IDENTITY_BYTES +
         physicalIndex * PRESENTATION_BYTES;
     const authored = {
-        authoredLocalId: localId,
         height: view.getFloat32(record + 12, true),
+        identity: {
+            authoredLocalId: localId,
+            region: { x: region[0], z: region[1] },
+            sourceNamespace,
+        },
         position: [
             view.getFloat32(record, true),
             view.getFloat32(record + 4, true),
@@ -171,7 +268,6 @@ async function readObjectOracle(
             material: view.getUint32(presentation + 4, true),
             yawQ16: view.getUint32(presentation + 8, true),
         },
-        region: { x: region[0], z: region[1] },
     };
     return {
         object: authored,

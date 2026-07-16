@@ -106,10 +106,17 @@ pub(crate) fn handle_commands(
                 }
             }
             ControlKind::CanonicalObjectQuery {
+                source_namespace,
                 region_x,
                 region_z,
                 authored_local_id,
-            } => objects::query(runtime, region_x, region_z, authored_local_id),
+            } => objects::query(
+                runtime,
+                source_namespace,
+                region_x,
+                region_z,
+                authored_local_id,
+            ),
             ControlKind::CanonicalObjectNearest {
                 region_x,
                 region_z,

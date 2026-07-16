@@ -68,12 +68,10 @@ import {
     sameObjectNearestQueries,
     unavailableObjectNearestGate,
 } from "../support/object/nearest.ts";
-import { adjacentObjectGates, objectFailureGates } from "../support/object/integration.ts";
-
-const REVISION = "canonical-runtime-v5";
+import * as objectIntegration from "../support/object/integration.ts";
+const REVISION = "canonical-runtime-v6";
 const COLLECTION = "canonical-runtime";
-const FAR = 2 ** 40;
-const BASE: Coord = [FAR, -FAR];
+const BASE: Coord = [2 ** 40, -(2 ** 40)];
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log("Usage: runseal :canonical-runtime");
@@ -215,24 +213,26 @@ try {
     await event("source.objects.open", { path: OBJECTS_B });
     const orderBPublication = await publish(target(BASE));
     assertObjectCopies(orderBPublication, 25, "order B source publication");
-    const orderBObjectQueries = await queryObjectSamples(
+    const orderBObjects = await objectIntegration.differentObjectSourceGates(
         OBJECTS_B,
         BASE,
         OBJECT_QUERY_SAMPLE_IDS,
-    );
-    sameObjectQueries(orderBObjectQueries, orderAObjectQueries, "physical object order A/B query");
-    const orderBObjectNearest = await queryObjectNearestSamples(OBJECTS_B, nearestSamples);
-    sameObjectNearestQueries(
-        orderBObjectNearest,
+        orderAObjectQueries,
+        nearestSamples,
         orderAObjectNearest,
-        "physical object order A/B nearest query",
     );
+    const orderBObjectQueries = orderBObjects.queries as Json[];
+    const orderBObjectNearest = orderBObjects.nearest as Json[];
     const orderB = await frame("order-b", COLLECTION, false, false);
     same(orderB.stable, orderA.stable, "physical object order A/B behavior");
 
     await event("source.objects.open", { path: OBJECTS_A });
     const revisitPublication = await publish(target(BASE));
     assertObjectCopies(revisitPublication, 0, "order A source revisit");
+    const staleOrderBIdentity = await objectIntegration.rejectStaleObjectIdentity(
+        orderBObjectQueries[0],
+        "order B identity after order A revisit",
+    );
     const revisitObjectQueries = await queryObjectSamples(
         OBJECTS_A,
         BASE,
@@ -248,7 +248,7 @@ try {
     const revisit = await frame("order-a-revisit", COLLECTION, false, false);
     same(revisit.stable, orderA.stable, "object source revisit");
 
-    const adjacentObjects = await adjacentObjectGates(
+    const adjacentObjects = await objectIntegration.adjacentObjectGates(
         OBJECTS_A,
         BASE,
         nearestSamples,
@@ -298,7 +298,7 @@ try {
             ),
         );
     }
-    const failures = await objectFailureGates(
+    const failures = await objectIntegration.objectFailureGates(
         COLLECTION,
         TERRAIN,
         OBJECTS_A,
@@ -427,10 +427,12 @@ try {
             importedTickSixteen,
             sourceDuration,
             orderBPublication,
+            staleOrderAIdentity: orderBObjects.staleIdentity,
             orderBObjectQueries,
             orderBObjectNearest,
             orderB,
             revisitPublication,
+            staleOrderBIdentity,
             revisitObjectQueries,
             revisitObjectNearest,
             revisit,

@@ -4,7 +4,6 @@ use anyhow::Result;
 use serde_json::Value;
 use windows::Win32::Foundation::HWND;
 
-use crate::region::RegionCoord;
 use crate::rendering::{RenderFrame, RenderOutcome, Renderer};
 use crate::scene::SceneState;
 use crate::streaming::address::GlobalRegionConfig;
@@ -23,7 +22,8 @@ use actor::ActorSlot;
 pub use actor::{ActorHandle, RuntimeActor};
 pub use object_query::{
     CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CANONICAL_OBJECTS_PER_REGION, CanonicalObject,
-    CanonicalObjectNearest, CanonicalObjectNearestQuery, CanonicalObjectPresentation,
+    CanonicalObjectIdentity, CanonicalObjectNearest, CanonicalObjectNearestQuery,
+    CanonicalObjectPresentation,
 };
 pub use region_format::PresentationRecord as ActorPresentation;
 use simulation_actor::prepare_simulation_actor;
@@ -217,11 +217,9 @@ impl Runtime {
 
     pub fn query_canonical_object(
         &self,
-        region: RegionCoord,
-        authored_local_id: u32,
+        identity: CanonicalObjectIdentity,
     ) -> Result<CanonicalObject> {
-        self.renderer
-            .query_canonical_object(region, authored_local_id)
+        self.renderer.query_canonical_object(identity)
     }
 
     pub fn query_nearest_canonical_object(

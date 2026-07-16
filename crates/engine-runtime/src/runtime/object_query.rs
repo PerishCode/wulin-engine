@@ -2,6 +2,7 @@ use anyhow::{Result, ensure};
 use serde::Serialize;
 
 use crate::region::RegionCoord;
+use crate::streaming::async_resident::ObjectSourceNamespace;
 use crate::terrain_query::{
     TERRAIN_POSITION_DENOMINATOR, TERRAIN_POSITION_LOCAL_MAX_Q9_EXCLUSIVE,
     TERRAIN_POSITION_LOCAL_MIN_Q9, TerrainPosition,
@@ -13,15 +14,23 @@ pub const CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY: u32 =
 
 pub use region_format::PresentationRecord as CanonicalObjectPresentation;
 
-/// One exact authored triple from the current committed canonical object snapshot.
+/// One exact address inside a specific committed canonical object source.
 ///
-/// `authored_local_id` is unique only within `region` and the current object source. It is not a
-/// persistent gameplay or network identifier.
+/// The source namespace prevents an address from silently aliasing content after source
+/// replacement. It is not a persistent gameplay or network identifier.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalObjectIdentity {
+    pub source_namespace: ObjectSourceNamespace,
+    pub region: RegionCoord,
+    pub authored_local_id: u32,
+}
+
+/// One exact authored triple from the current committed canonical object snapshot.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanonicalObject {
-    pub region: RegionCoord,
-    pub authored_local_id: u32,
+    pub identity: CanonicalObjectIdentity,
     pub position: [f32; 3],
     pub height: f32,
     pub presentation: CanonicalObjectPresentation,
@@ -49,13 +58,15 @@ pub struct CanonicalObjectNearestQuery {
 impl CanonicalObject {
     /// Converts the authored planar position to the sole canonical terrain-position domain.
     ///
-    /// The owner `region` remains the object's identity scope. An authored `+8m` edge normalizes
+    /// spatially into the adjacent region because [`TerrainPosition`] uses half-open local axes.
+    /// The identity owner region remains unchanged. An authored `+8m` edge normalizes spatially
+    /// into the adjacent region because [`TerrainPosition`] uses half-open local axes.
     /// spatially into the adjacent region because [`TerrainPosition`] uses half-open local axes.
     pub fn terrain_position(self) -> Result<TerrainPosition> {
         let local_x_q9 = exact_local_q9("X", self.position[0])?;
         let local_z_q9 = exact_local_q9("Z", self.position[2])?;
         TerrainPosition::new(
-            self.region,
+            self.identity.region,
             TERRAIN_POSITION_LOCAL_MIN_Q9,
             TERRAIN_POSITION_LOCAL_MIN_Q9,
         )?

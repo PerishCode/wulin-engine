@@ -1,6 +1,7 @@
 import { requireContactHistoryRemoved } from "../support/guard/contact-removal.ts";
 import { requireCanonicalOperatorIdentity } from "../support/guard/canonical-operator.ts";
 import { requireLiveOperatorSurface } from "../support/guard/live-operator-surface.ts";
+import { requireQualifiedObjectIdentity } from "../support/guard/object-identity.ts";
 import { requireInputJournalRemoved } from "../support/guard/input-journal-removal.ts";
 import { requirePresentationStatusRemoved } from "../support/guard/presentation-status-removal.ts";
 import { requireSimulationHistoryRemoved } from "../support/guard/simulation-control-removal.ts";
@@ -406,6 +407,7 @@ await requireContactHistoryRemoved(root, fail);
 await requireTerrainHistoryRemoved(root, fail);
 await requireSimulationHistoryRemoved(root, fail);
 await requirePresentationStatusRemoved(root, fail);
+await requireQualifiedObjectIdentity(root, fail);
 await run("git diff check", "git", ["diff", "--check"]);
 await run("cargo fmt", "cargo", ["fmt", "--all", "--check"]);
 await run("cargo clippy", "cargo", [

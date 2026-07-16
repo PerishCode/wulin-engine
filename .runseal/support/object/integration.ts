@@ -5,6 +5,8 @@ import {
     failedPair,
     frame,
     type Json,
+    number,
+    object,
     publish,
     target,
 } from "../canonical-runtime.ts";
@@ -13,9 +15,55 @@ import {
     objectNearestSamples,
     queryObjectNearest,
     queryObjectNearestSamples,
+    sameObjectNearestContent,
     sameObjectNearestQueries,
 } from "./nearest.ts";
-import { queryObject, rejectedObjectQuery, sameObjectQueries } from "./query.ts";
+import {
+    canonicalObjectSource,
+    objectSourceNamespace,
+    queryObject,
+    queryObjectSamples,
+    rejectedObjectQuery,
+    sameObjectQueries,
+    sameObjectQueryContent,
+} from "./query.ts";
+
+export async function rejectStaleObjectIdentity(
+    query: Json,
+    label: string,
+): Promise<Json> {
+    const identity = object(object(query, "object"), "identity");
+    const region = object(identity, "region");
+    return await rejectedObjectQuery(
+        canonicalObjectSource(object(query, "object")),
+        [number(region, "x"), number(region, "z")],
+        number(identity, "authoredLocalId"),
+        label,
+    );
+}
+
+export async function differentObjectSourceGates(
+    objects: string,
+    base: Coord,
+    localIds: number[],
+    referenceQueries: Json[],
+    nearestSamples: ObjectNearestSample[],
+    referenceNearest: Json[],
+): Promise<Json> {
+    const staleIdentity = await rejectStaleObjectIdentity(
+        referenceQueries[0],
+        "prior identity after replacement publication",
+    );
+    const queries = await queryObjectSamples(objects, base, localIds);
+    sameObjectQueryContent(queries, referenceQueries, "physical object order A/B query content");
+    const nearest = await queryObjectNearestSamples(objects, nearestSamples);
+    sameObjectNearestContent(
+        nearest,
+        referenceNearest,
+        "physical object order A/B nearest content",
+    );
+    return { staleIdentity, queries, nearest };
+}
 
 export async function adjacentObjectGates(
     objects: string,
@@ -29,6 +77,7 @@ export async function adjacentObjectGates(
     const publication = await publish(target([base[0] + 1, base[1]]));
     assertObjectCopies(publication, 5, "adjacent publication");
     const oldAfter = await rejectedObjectQuery(
+        await objectSourceNamespace(objects),
         retiredRegion,
         0,
         "retired adjacent-window object query",
