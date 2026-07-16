@@ -14,17 +14,6 @@ struct HeightPayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ContactPayload {
-    region_x: i64,
-    region_z: i64,
-    local_x_q9: i32,
-    local_z_q9: i32,
-    center_height_numerator: i32,
-    half_height_numerator: i32,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct ActorSpawnPayload {
     region_x: i64,
     region_z: i64,
@@ -68,18 +57,6 @@ pub(super) fn height(value: Value) -> ParsedControl {
         region_z: payload.region_z,
         local_x_q9: payload.local_x_q9,
         local_z_q9: payload.local_z_q9,
-    })
-}
-
-pub(super) fn contact(value: Value) -> ParsedControl {
-    let payload: ContactPayload = decode(value)?;
-    Ok(ControlKind::CanonicalTerrainContact {
-        region_x: payload.region_x,
-        region_z: payload.region_z,
-        local_x_q9: payload.local_x_q9,
-        local_z_q9: payload.local_z_q9,
-        center_height_numerator: payload.center_height_numerator,
-        half_height_numerator: payload.half_height_numerator,
     })
 }
 

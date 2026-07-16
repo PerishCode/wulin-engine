@@ -561,6 +561,16 @@ work 与不变的 color/object-ID replay hashes。249.862 秒 `canonical-runtime
 全部通过。资源保持 492 handles/21 threads，private bytes 从 424,329,216 到 424,501,248（+172,032），
 报告 24 files/25,346,200 bytes。prototype 尚不 retain target，也没有逐帧 resolution、registry、
 interaction、networking 或 Wulin 语义。
+Experiment 0100 完成逢五/逢二十双重清理：删除仅由 workbench/full acceptance 消费的
+`Runtime::resolve_terrain_contact`、`CanonicalTerrainContact`、payload/route/dispatch 与独立 support
+全链，无 alias 或替代入口；private `resolve_body_contact`、motion/translation 消费与通用 probe 的
+225-body witness 保持唯一权威。旧 dense-probe rejection 不再累计，唯一当前
+`canonical.terrain.contact` witness 返回 generic `unknown_event`。247.249 秒
+`canonical-runtime-v8` 保持 75/75/75 classification、75 corrections 与既有 contact hashes，并通过
+A/B、rollback、restart、32+32 traversal、5 warm/8 measured resource checkpoint 和 2 lifecycle；资源
+保持 492 handles/21 threads，private +376,832 bytes。最终在全部验证与 commit hook 后移除
+`target/` 35,590 files/10,908,689,993 bytes 和 `out/` 5,394 files/9,356,065,266 bytes，合计回收
+40,984 files/20,264,755,259 bytes；不影响 committed source/evidence、asset、networking 或 Wulin 行为。
 
 ## Project model
 
