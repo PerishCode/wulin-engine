@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::Serialize;
 
-use super::motion_batch::{MotionBatch, advance_motion_batch};
+use super::motion_batch::{MotionBatch, MotionBatchCommand, advance_motion_batch};
 use super::{ActorPresentation, RuntimeActor};
 use crate::terrain_query::{TerrainBodyMotion, TerrainHeight, TerrainPosition};
 use crate::timeline::{SimulationAdvance, SimulationSchedule};
@@ -28,6 +28,7 @@ pub struct ActorSimulationCommand {
     pub delta_x_q9: i32,
     pub delta_z_q9: i32,
     pub step_up_limit_q16: i32,
+    pub initial_step_velocity_delta_q16: i32,
     pub step_acceleration_q16: i32,
     pub presentation: ActorPresentation,
 }
@@ -64,10 +65,13 @@ pub(crate) fn prepare_simulation_actor(
     let motion = advance_motion_batch(
         input,
         simulation.step_count,
-        command.delta_x_q9,
-        command.delta_z_q9,
-        command.step_up_limit_q16,
-        command.step_acceleration_q16,
+        MotionBatchCommand {
+            delta_x_q9: command.delta_x_q9,
+            delta_z_q9: command.delta_z_q9,
+            step_up_limit_q16: command.step_up_limit_q16,
+            initial_step_velocity_delta_q16: command.initial_step_velocity_delta_q16,
+            step_acceleration_q16: command.step_acceleration_q16,
+        },
         query,
     )?;
     Ok(PreparedSimulationActor {

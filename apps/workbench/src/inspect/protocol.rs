@@ -25,6 +25,7 @@ pub(crate) struct SimulationActorControl {
     pub delta_x_q9: i32,
     pub delta_z_q9: i32,
     pub step_up_limit_q16: i32,
+    pub initial_step_velocity_delta_q16: i32,
     pub step_acceleration_q16: i32,
     pub archetype: u32,
     pub material: u32,

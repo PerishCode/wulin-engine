@@ -15,7 +15,7 @@ import {
     target,
 } from "../canonical-runtime.ts";
 
-const REVISION = "runtime-actor-simulation-v4";
+const REVISION = "runtime-actor-simulation-v5";
 const HALF_HEIGHT = 65_536;
 const MAX_ELAPSED = 125_000_000;
 const I32_MAX = 2_147_483_647;
@@ -42,6 +42,7 @@ function request(
     deltaXQ9: number,
     deltaZQ9: number,
     limit: number,
+    initialVelocityDelta: number,
     acceleration: number,
 ): Json {
     return {
@@ -50,6 +51,7 @@ function request(
         delta_x_q9: deltaXQ9,
         delta_z_q9: deltaZQ9,
         step_up_limit_q16: limit,
+        initial_step_velocity_delta_q16: initialVelocityDelta,
         step_acceleration_q16: acceleration,
         ...PRESENTATION,
     };
@@ -70,7 +72,7 @@ async function retiredControlGate(): Promise<Json[]> {
         ["canonical.terrain.body.spawn", {}],
         ["canonical.terrain.body.read", { generation: 1 }],
         ["canonical.terrain.body.despawn", { generation: 1 }],
-        ["simulation.terrain.body.advance", request(1, 1, 0, 0, 0, 0)],
+        ["simulation.terrain.body.advance", request(1, 1, 0, 0, 0, 0, 0)],
         [
             "canonical.terrain.body.retained.advance",
             {
@@ -190,11 +192,11 @@ async function prepublication(base: [number, number]): Promise<Json> {
     const initialPresentation = await event("canonical.time.status");
     const empty = await rejectedEvent(
         "simulation.actor.advance",
-        request(1, 1, 0, 0, 0, 0),
+        request(1, 1, 0, 0, 0, 0, 0),
     );
     requireFailure(empty, "empty dual advance", "no runtime actor is live");
     const malformed = await rejectedEvent("simulation.actor.advance", {
-        ...request(1, 1, 0, 0, 0, 0),
+        ...request(1, 1, 0, 0, 0, 0, 0),
         elapsed_nanoseconds: -1,
     });
     if (typeof malformed.error !== "string" || !malformed.error.startsWith("invalid_payload: ")) {
@@ -213,18 +215,18 @@ async function prepublication(base: [number, number]): Promise<Json> {
     const stored = await spawn(actor);
     const stale = await rejectedEvent(
         "simulation.actor.advance",
-        request(2, 1, 0, 0, 0, 0),
+        request(2, 1, 0, 0, 0, 0, 0),
     );
     requireFailure(stale, "stale dual advance", "handle is stale");
     const oversized = await rejectedEvent(
         "simulation.actor.advance",
-        request(1, MAX_ELAPSED + 1, 0, 0, 0, 0),
+        request(1, MAX_ELAPSED + 1, 0, 0, 0, 0, 0),
     );
     requireFailure(oversized, "oversized dual advance", "must be in [0, 125000000]");
     same(await event("simulation.status"), initialSimulation, "dual validation schedule rollback");
     same(await read(1), stored, "dual validation actor rollback");
     const fractional = requireAdvance(
-        await event("simulation.actor.advance", request(1, 1, 17, -19, 0, 0)),
+        await event("simulation.actor.advance", request(1, 1, 17, -19, 0, 0, 0)),
         1,
         0,
         0,
@@ -270,7 +272,7 @@ async function advanceSequence(intervals: number[]): Promise<Json> {
     for (const elapsed of intervals) {
         const response = await event(
             "simulation.actor.advance",
-            request(1, elapsed, 128, 0, I32_MAX, -1092),
+            request(1, elapsed, 128, 0, I32_MAX, 0, -1092),
         );
         const value = object(response, "actorSimulationAdvance");
         const stepCount = number(object(value, "simulation"), "stepCount");
@@ -329,7 +331,7 @@ async function nominalRun(
     const beforeFailure = await event("simulation.status");
     const failed = await rejectedEvent(
         "simulation.actor.advance",
-        request(2, MAX_ELAPSED, 8192, 0, I32_MAX, 0),
+        request(2, MAX_ELAPSED, 8192, 0, I32_MAX, 0, 0),
     );
     requireFailure(failed, "dual mid-batch snapshot", "batch step 3 of 7 failed");
     same(await event("simulation.status"), beforeFailure, "dual query schedule rollback");
@@ -343,7 +345,7 @@ async function nominalRun(
     const overflowStored = await spawn(overflowActor);
     const overflow = await rejectedEvent(
         "simulation.actor.advance",
-        request(3, MAX_ELAPSED, 0, 0, 0, 1),
+        request(3, MAX_ELAPSED, 0, 0, 0, 0, 1),
     );
     requireFailure(
         overflow,

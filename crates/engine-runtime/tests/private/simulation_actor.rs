@@ -23,6 +23,7 @@ fn command(delta_x_q9: i32, delta_z_q9: i32) -> ActorSimulationCommand {
         delta_x_q9,
         delta_z_q9,
         step_up_limit_q16: 0,
+        initial_step_velocity_delta_q16: 0,
         step_acceleration_q16: 0,
         presentation: ActorPresentation::animated(7, 63, 0, 1, 0, 0),
     }
@@ -46,13 +47,49 @@ fn run(intervals: &[u64]) -> (SimulationSchedule, TerrainBodyMotion, u32) {
 #[test]
 fn fractional_elapsed_commits_no_actor_step() {
     let input = motion();
+    let mut impulse = command(17, -19);
+    impulse.initial_step_velocity_delta_q16 = 7_777;
     let prepared =
-        prepare_simulation_actor(SimulationSchedule::new(), input, 1, command(17, -19), flat)
-            .unwrap();
+        prepare_simulation_actor(SimulationSchedule::new(), input, 1, impulse, flat).unwrap();
     assert_eq!(prepared.simulation.step_count, 0);
     assert_eq!(prepared.simulation.remainder_numerator, 60);
     assert_eq!(prepared.motion.output, input);
     assert_eq!(prepared.motion.terrain_query_count, 0);
+}
+
+#[test]
+fn emitted_step_applies_initial_velocity_delta_before_acceleration() {
+    let input = motion();
+    let mut impulse = command(0, 0);
+    impulse.initial_step_velocity_delta_q16 = 1_000;
+    impulse.step_acceleration_q16 = -100;
+    let prepared =
+        prepare_simulation_actor(SimulationSchedule::new(), input, 16_666_667, impulse, flat)
+            .unwrap();
+    assert_eq!(prepared.simulation.step_count, 1);
+    assert_eq!(prepared.motion.output.step_velocity_q16(), 900);
+    assert_eq!(
+        prepared.motion.output.body().center_height_numerator(),
+        66_436
+    );
+    assert_eq!(prepared.motion.terrain_query_count, 1);
+}
+
+#[test]
+fn initial_velocity_delta_overflow_preserves_schedule_without_query() {
+    let schedule = SimulationSchedule::new();
+    let status = schedule.status_json();
+    let input = TerrainBodyMotion::new(motion().body(), i32::MAX);
+    let mut impulse = command(0, 0);
+    impulse.initial_step_velocity_delta_q16 = 1;
+    let mut queries = 0;
+    let result = prepare_simulation_actor(schedule, input, 16_666_667, impulse, |position| {
+        queries += 1;
+        flat(position)
+    });
+    assert!(result.is_err());
+    assert_eq!(queries, 0);
+    assert_eq!(schedule.status_json(), status);
 }
 
 #[test]

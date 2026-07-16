@@ -155,7 +155,7 @@ const FORWARD_COMMAND: ExpectedCommand = {
 function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "simulation_driver");
-    if (driver.revision !== "live-prototype-locomotion-driver-v4") {
+    if (driver.revision !== "live-prototype-locomotion-driver-v5") {
         fail("prototype simulation driver revision diverged");
     }
     if (number(driver, "renderBlockCount") !== 0) {
@@ -178,7 +178,8 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
     if (
         number(command, "deltaXQ9") !== expected.deltaXQ9 ||
         number(command, "deltaZQ9") !== expected.deltaZQ9 ||
-        number(command, "stepUpLimitQ16") !== expected.stepUpLimitQ16
+        number(command, "stepUpLimitQ16") !== expected.stepUpLimitQ16 ||
+        number(command, "initialStepVelocityDeltaQ16") !== 0
     ) fail("prototype simulation locomotion command diverged");
     if (number(command, "stepAccelerationQ16") !== -179) {
         fail("prototype gravity command diverged");
