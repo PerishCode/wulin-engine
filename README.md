@@ -497,6 +497,16 @@ Walk/Run，camera index 仍只在既有 runtime mutation 成功后提交。72.16
 `1 -> 3`、2 queries、grounded true、orbit 1、精确 camera anchor、`[+1,-1]` traversal 与零 block。
 没有 arbitrary steering、cross-subsystem transaction、host/engine state、renderer/GPU/resource/sync/
 source/format/asset 或 Wulin 变化。
+Experiment 0093 将 object worker 已验证的 schema-3 spatial/identity/presentation triple 直接移入
+既有 source-addressed 50-slot cache 的有界 CPU 页，并让 committed snapshot 与 GPU mapping 共享同一
+reservation/copy completion/stage/pair publication/rollback 生命周期。新的只读
+`Runtime::query_canonical_object` 按 signed region + authored local ID 精确返回 raw triple；成功路径零
+allocation/source I/O/GPU copy/readback/fence/sync。16.131 秒 `canonical-frame-v2` 以独立 `.wlr` 字节
+oracle 验证 0/511/1023 与严格失败并保持全部 GPU hashes；807.8 秒 `canonical-runtime-v1` 进一步通过
+A/B physical order、adjacent old/new window、object/terrain failure retention、restart、32+32 traversal、
+64-publication plateau 和 16 lifecycle。50 页 payload 固定为 2,048,000 bytes；资源从 531 handles /
+413,949,952 private bytes 收敛到 516 / 412,336,128，最终 60 秒稳定。没有 spatial selection、fixed-point
+conversion、interaction policy、persistent gameplay ID、second scene、format/asset 或 Wulin 变化。
 
 ## Project model
 
@@ -566,8 +576,9 @@ finite-edge survival, one native Escape press-edge clean exit, direct restart eq
 cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
-minimal signed pair, checks the exact accepted canonical frame, immediately replays it, and owns
-complete process cleanup. It does not replace end-to-end acceptance.
+minimal signed pair, checks strict committed CPU object lookup against an independent pack-byte
+oracle, checks the exact accepted canonical frame, immediately replays it, and owns complete process
+cleanup. It does not replace end-to-end acceptance.
 
 `runseal :canonical-actor` is the focused frame-safe actor GPU workflow. It proves typed
 actor lifecycle/restart, fractional and coarse/nominal schedule/actor partition equality, complete
@@ -587,7 +598,8 @@ signed terrain and schema-3 object sources directly, validates explicit presenta
 deterministic presentation time, fixed camera-visible directional object shadows, canonical
 runtime and timeline ownership, successful-frame transactions, fixed normalized host input state,
 strict configured canonical readiness, shared reference-host ownership, plain prototype
-startup/restart/cleanup, exact published-snapshot CPU terrain queries,
+startup/restart/cleanup, exact committed-snapshot CPU object lookup, exact published-snapshot CPU
+terrain queries,
 exact caller-owned vertical terrain contact and bounded transition witnesses, the explicit bounded
 60 Hz simulation schedule and its frame/presentation independence, private fixed terrain-body
 motion/translation/planar-first/batch contracts, one retained terrain-body generation lifecycle

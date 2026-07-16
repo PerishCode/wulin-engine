@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{Context, Result, bail};
@@ -12,6 +13,7 @@ use crate::async_resident::{
     AsyncReservationReport, AsyncTransactionReport, ObjectSourceNamespace,
 };
 use crate::load::LoadConfig;
+use crate::region::RegionCoord;
 use crate::resident::{REGION_IDENTITY_BYTES, REGION_INSTANCE_BYTES, REGION_PRESENTATION_BYTES};
 
 use super::super::resident::{create_buffer, transition};
@@ -42,6 +44,7 @@ pub struct AsyncTransfer {
     armed_gate: Option<u64>,
     next_gate_fence: u64,
     cache: AsyncRegionCache,
+    cpu_pages: Vec<Option<Arc<CpuObjectPage>>>,
     reservation: Option<ReservedTransfer>,
     shader_slots: [bool; ASYNC_CACHE_CAPACITY],
     identity_shader_slots: [bool; ASYNC_CACHE_CAPACITY],
@@ -58,6 +61,7 @@ struct ReservedTransfer {
 
 struct PendingTransfer {
     next_cache: AsyncRegionCache,
+    next_cpu_pages: Vec<Option<Arc<CpuObjectPage>>>,
     active_slots: Vec<u32>,
     uploaded_slots: Vec<u32>,
     identity_transition_slots: Vec<u32>,
@@ -69,7 +73,15 @@ struct PendingTransfer {
 pub struct Publication {
     pub config: LoadConfig,
     pub active_slots: Vec<u32>,
+    pub(super) active_cpu_pages: Vec<Arc<CpuObjectPage>>,
     pub report: AsyncTransactionReport,
+}
+
+pub(super) struct CpuObjectPage {
+    pub global_region: RegionCoord,
+    pub records: Vec<crate::resident::InstanceRecord>,
+    pub local_ids: Vec<u32>,
+    pub presentations: Vec<crate::resident::PresentationRecord>,
 }
 
 impl AsyncTransfer {
@@ -191,6 +203,7 @@ impl AsyncTransfer {
             armed_gate: None,
             next_gate_fence: 1,
             cache: AsyncRegionCache::default(),
+            cpu_pages: vec![None; ASYNC_CACHE_CAPACITY],
             reservation: None,
             shader_slots: [false; ASYNC_CACHE_CAPACITY],
             identity_shader_slots: [false; ASYNC_CACHE_CAPACITY],
@@ -320,10 +333,22 @@ impl AsyncTransfer {
             self.presentation_shader_slots[index] = true;
         }
         self.cache = pending.next_cache;
+        self.cpu_pages = pending.next_cpu_pages;
         pending.report.pending_ms = pending.started_at.elapsed().as_secs_f64() * 1_000.0;
+        let active_cpu_pages = pending
+            .active_slots
+            .iter()
+            .map(|slot| {
+                self.cpu_pages[*slot as usize]
+                    .as_ref()
+                    .expect("published object slot has no CPU page")
+                    .clone()
+            })
+            .collect();
         Some(Publication {
             config: pending.report.config,
             active_slots: pending.active_slots,
+            active_cpu_pages,
             report: pending.report,
         })
     }

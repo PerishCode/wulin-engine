@@ -13,6 +13,7 @@ use super::protocol::{ControlKind, ControlResult, ProtocolError};
 use super::server::ControlCommand;
 
 mod actor;
+mod objects;
 
 pub(crate) fn handle_commands(
     hwnd: HWND,
@@ -105,6 +106,11 @@ pub(crate) fn handle_commands(
                     })
                 }
             }
+            ControlKind::CanonicalObjectQuery {
+                region_x,
+                region_z,
+                authored_local_id,
+            } => objects::query(runtime, region_x, region_z, authored_local_id),
             ControlKind::CanonicalTerrainHeight {
                 region_x,
                 region_z,

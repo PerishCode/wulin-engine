@@ -11,6 +11,8 @@ use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObj
 use windows::core::Interface;
 
 use crate::objects::CookedObjectStreamer;
+use crate::region::RegionCoord;
+use crate::runtime::CanonicalObject;
 use crate::terrain::TerrainStreamer;
 use crate::terrain_query::{TerrainHeight, TerrainPosition};
 
@@ -263,6 +265,15 @@ impl Renderer {
 
     pub fn query_terrain_height(&self, position: TerrainPosition) -> Result<TerrainHeight> {
         self.terrain_renderer.query_height(position)
+    }
+
+    pub fn query_canonical_object(
+        &self,
+        region: RegionCoord,
+        authored_local_id: u32,
+    ) -> Result<CanonicalObject> {
+        self.async_resident_renderer
+            .query_canonical_object(region, authored_local_id)
     }
 
     pub fn arm_async_copy_gate(&mut self) -> Result<u64> {

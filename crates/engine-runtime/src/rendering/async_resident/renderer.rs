@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::sync::Arc;
 use windows::Win32::Graphics::Direct3D12::{ID3D12Device, ID3D12GraphicsCommandList};
 
 use crate::address::GlobalRegionConfig;
@@ -6,10 +7,12 @@ use crate::async_resident::{AsyncTransactionReport, ObjectSourceNamespace};
 use crate::load::LoadConfig;
 use crate::rendering::terrain::TerrainProjection;
 
+use super::transfer::CpuObjectPage;
 use super::transfer::{AsyncTransfer, Publication};
 
 mod global;
 mod payload;
+mod query;
 mod status;
 
 pub(in crate::rendering) use payload::ActivePayloadReadback;
@@ -39,6 +42,7 @@ pub(in crate::rendering) struct PublishedSnapshot {
     pub object_stable_seed_namespace: ObjectSourceNamespace,
     pub object_page_checksums: Vec<[u8; 32]>,
     pub active_slots: Vec<u32>,
+    pub(super) active_cpu_pages: Vec<Arc<CpuObjectPage>>,
 }
 
 impl PublishedSnapshot {
@@ -97,6 +101,7 @@ impl AsyncResidentRenderer {
         let Publication {
             config,
             active_slots,
+            active_cpu_pages,
             report,
         } = self.staged.take()?;
         self.published = Some(PublishedSnapshot {
@@ -106,6 +111,7 @@ impl AsyncResidentRenderer {
             object_stable_seed_namespace: report.object_stable_seed_namespace,
             object_page_checksums: report.object_page_checksums.clone(),
             active_slots,
+            active_cpu_pages,
         });
         Some(report)
     }
