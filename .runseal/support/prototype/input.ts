@@ -4,8 +4,9 @@ const decoder = new TextDecoder();
 
 async function postPrototypeKey(
     processId: number,
-    key: "Escape" | "W",
+    key: "E" | "Escape" | "W",
     virtualKey: number,
+    requireVisible: boolean,
 ): Promise<Json> {
     if (!Number.isSafeInteger(processId) || processId <= 0) {
         fail(`prototype native input received invalid process id ${processId}`);
@@ -23,6 +24,10 @@ public static class PrototypeInputNative {
     [DllImport("user32.dll", EntryPoint = "GetWindowThreadProcessId", SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
+    [DllImport("user32.dll", EntryPoint = "IsWindowVisible")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(IntPtr window);
+
     [DllImport("user32.dll", EntryPoint = "PostMessageW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool PostMessage(IntPtr window, uint message, UIntPtr wParam, IntPtr lParam);
@@ -30,6 +35,7 @@ public static class PrototypeInputNative {
 '@
 
 $expectedProcessId = ${processId}
+$requireVisible = ${requireVisible ? "$true" : "$false"}
 $deadline = [DateTime]::UtcNow.AddSeconds(20)
 $window = [IntPtr]::Zero
 $windowProcessId = [uint32]0
@@ -40,7 +46,10 @@ do {
     )
     if ($candidate -ne [IntPtr]::Zero) {
         [void][PrototypeInputNative]::GetWindowThreadProcessId($candidate, [ref]$windowProcessId)
-        if ($windowProcessId -eq $expectedProcessId) {
+        if (
+            $windowProcessId -eq $expectedProcessId -and
+            (-not $requireVisible -or [PrototypeInputNative]::IsWindowVisible($candidate))
+        ) {
             $window = $candidate
             break
         }
@@ -71,10 +80,12 @@ if (-not [PrototypeInputNative]::PostMessage(
 }
 
 [Console]::Out.Write((ConvertTo-Json ([ordered]@{
-    schema = "prototype-native-key-v2"
+    schema = "prototype-native-key-v3"
     processId = [int]$windowProcessId
     windowHandle = $window.ToInt64().ToString()
     activated = $true
+    requiredVisible = $requireVisible
+    windowVisible = [PrototypeInputNative]::IsWindowVisible($window)
     key = "${key}"
     virtualKey = ${virtualKey}
     down = $true
@@ -93,9 +104,11 @@ if (-not [PrototypeInputNative]::PostMessage(
     }
     const evidence = JSON.parse(stdout) as Json;
     if (
-        evidence.schema !== "prototype-native-key-v2" ||
+        evidence.schema !== "prototype-native-key-v3" ||
         evidence.processId !== processId ||
         evidence.activated !== true ||
+        evidence.requiredVisible !== requireVisible ||
+        (requireVisible && evidence.windowVisible !== true) ||
         evidence.key !== key ||
         evidence.virtualKey !== virtualKey ||
         evidence.down !== true
@@ -104,9 +117,13 @@ if (-not [PrototypeInputNative]::PostMessage(
 }
 
 export async function holdPrototypeForwardKey(processId: number): Promise<Json> {
-    return await postPrototypeKey(processId, "W", 0x57);
+    return await postPrototypeKey(processId, "W", 0x57, false);
 }
 
 export async function pressPrototypeEscape(processId: number): Promise<Json> {
-    return await postPrototypeKey(processId, "Escape", 0x1B);
+    return await postPrototypeKey(processId, "Escape", 0x1B, false);
+}
+
+export async function pressPrototypeCameraClockwise(processId: number): Promise<Json> {
+    return await postPrototypeKey(processId, "E", 0x45, true);
 }

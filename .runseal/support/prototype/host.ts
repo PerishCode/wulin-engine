@@ -11,12 +11,13 @@ import {
     string,
     useSidecar,
 } from "../canonical-runtime.ts";
-import { holdPrototypeForwardKey } from "./input.ts";
+import { holdPrototypeForwardKey, pressPrototypeCameraClockwise } from "./input.ts";
 import { actorInvariant } from "./actor.ts";
 import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
+import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
 import { escapeExit, readinessLine } from "./process.ts";
-import { traversalInvariant } from "./traversal.ts";
+import { cameraOrbitTraversalInvariant, traversalInvariant } from "./traversal.ts";
 
 const CONFIG = "out/cooked/bootstrap/runtime.json";
 const SIDECAR = "sidecar.prototype.toml";
@@ -67,7 +68,9 @@ async function failedStart(label: string): Promise<Json> {
     };
 }
 
-async function capturedReady(label: string, holdForward = false): Promise<Json> {
+type StartupInput = "camera-clockwise" | "forward";
+
+async function capturedReady(label: string, startupInput?: StartupInput): Promise<Json> {
     const started = performance.now();
     const child = new Deno.Command(EXECUTABLE, {
         args: [`--bootstrap=${CONFIG}`],
@@ -82,7 +85,10 @@ async function capturedReady(label: string, holdForward = false): Promise<Json> 
     let value: Json;
     let nativeInput: Json | null = null;
     try {
-        if (holdForward) nativeInput = await holdPrototypeForwardKey(child.pid);
+        if (startupInput === "forward") nativeInput = await holdPrototypeForwardKey(child.pid);
+        if (startupInput === "camera-clockwise") {
+            nativeInput = await pressPrototypeCameraClockwise(child.pid);
+        }
         const line = await readinessLine(reader);
         value = JSON.parse(line) as Json;
         if (value.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
@@ -275,66 +281,6 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
     };
 }
 
-function numericArray(value: Json, key: string): number[] {
-    return array(value, key).map((entry) => {
-        if (typeof entry !== "number" || !Number.isFinite(entry)) {
-            fail(`prototype camera ${key} must contain finite numbers`);
-        }
-        return entry;
-    });
-}
-
-function cameraDriverInvariant(launch: Json): Json {
-    const readiness = object(launch, "readiness");
-    const driver = object(readiness, "camera_driver");
-    if (driver.revision !== "live-prototype-actor-camera-v1") {
-        fail("prototype camera driver revision diverged");
-    }
-    const actor = object(object(readiness, "actor"), "state");
-    same(object(driver, "actor"), object(actor, "handle"), "prototype camera actor handle");
-    const rig = object(driver, "rig");
-    same(numericArray(rig, "positionOffset"), [9, 4, 12], "prototype camera position rig");
-    same(numericArray(rig, "targetOffset"), [0, -1, -3], "prototype camera target rig");
-    if (number(rig, "verticalFovDegrees") !== 60) {
-        fail("prototype camera field of view diverged");
-    }
-    const centerHeightQ16 = number(
-        object(object(actor, "motion"), "body"),
-        "centerHeightNumerator",
-    );
-    const position = object(object(object(actor, "motion"), "body"), "position");
-    const actorX = number(position, "localXQ9") / 512;
-    const actorZ = number(position, "localZQ9") / 512;
-    const camera = object(driver, "camera");
-    const anchorY = centerHeightQ16 / 65_536;
-    same(
-        numericArray(camera, "position"),
-        [actorX + 9, anchorY + 4, actorZ + 12],
-        "prototype anchored camera position",
-    );
-    same(
-        numericArray(camera, "target"),
-        [actorX, anchorY - 1, actorZ - 3],
-        "prototype anchored camera target",
-    );
-    if (
-        number(camera, "verticalFovDegrees") !== 60 ||
-        number(camera, "nearPlaneMeters") !== Math.fround(0.1)
-    ) fail("prototype anchored camera lens diverged");
-    const liveFrames = number(driver, "liveFrameCount");
-    if (
-        liveFrames !== number(object(readiness, "simulation_driver"), "liveFrameCount") ||
-        number(driver, "anchorCount") !== liveFrames || liveFrames < 1
-    ) fail("prototype camera/frame ordering diverged");
-    return {
-        revision: driver.revision,
-        actor: driver.actor,
-        rig,
-        camera,
-        anchorPerLiveFrame: true,
-    };
-}
-
 async function sidecarStatus(): Promise<Json> {
     const output = await new Deno.Command("sidecar", {
         args: ["status", "--config", SIDECAR, "--format", "json"],
@@ -381,7 +327,8 @@ export async function prototypeHostGates(
     await writeDocument(document(terrain, objects, base));
     const first = await capturedReady("prototype first process");
     const restarted = await capturedReady("prototype restarted process");
-    const forward = await capturedReady("prototype forward locomotion", true);
+    const forward = await capturedReady("prototype forward locomotion", "forward");
+    const cameraOrbit = await capturedReady("prototype clockwise camera orbit", "camera-clockwise");
     const escape = await escapeExit(EXECUTABLE, CONFIG, "prototype Escape press exit");
     const boundary = await boundarySurvival(EXECUTABLE, CONFIG);
     if (number(first, "processId") === number(restarted, "processId")) {
@@ -422,6 +369,21 @@ export async function prototypeHostGates(
         simulation: simulationDriverInvariant(forward, FORWARD_COMMAND),
         camera: cameraDriverInvariant(forward),
         traversal: forwardTraversal,
+    };
+    same(
+        startupInvariant(cameraOrbit),
+        startupInvariant(first),
+        "prototype camera-orbit configuration",
+    );
+    same(
+        actorInvariant(cameraOrbit, base),
+        actorInvariant(first, base),
+        "prototype camera-orbit initial actor authority",
+    );
+    const cameraOrbitInvariant = {
+        simulation: simulationDriverInvariant(cameraOrbit, STATIONARY_COMMAND),
+        camera: cameraDriverInvariant(cameraOrbit, 1),
+        traversal: cameraOrbitTraversalInvariant(cameraOrbit, base),
     };
     same(startupInvariant(boundary), startupInvariant(first), "prototype boundary configuration");
     same(
@@ -465,6 +427,8 @@ export async function prototypeHostGates(
         forward,
         escape,
         forwardInvariant,
+        cameraOrbit,
+        cameraOrbitInvariant,
         boundary,
         boundaryInvariant,
         sidecar: { first: firstSidecar, restarted: restartedSidecar, stopped },

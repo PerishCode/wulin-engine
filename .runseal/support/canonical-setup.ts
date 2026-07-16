@@ -87,8 +87,9 @@ export async function preparePrototypeSetup(
     await Deno.mkdir(`${root}/${directory}`, { recursive: true });
     await Deno.mkdir(`${root}/out/captures/${collection}`, { recursive: true });
     const traversalCenter: Coord = [base[0] + 1, base[1] + 1];
+    const cameraOrbitCenter: Coord = [base[0] + 1, base[1] - 1];
     const corruptCenter: Coord = [base[0] + 70, base[1]];
-    const centers = [base, traversalCenter, corruptCenter];
+    const centers = [base, traversalCenter, cameraOrbitCenter, corruptCenter];
     const terrain = await cookTerrain(paths.terrain, centers);
     const objects = await cookObjects(paths.objects, centers, "a");
     await Deno.copyFile(`${root}/${paths.objects}`, `${root}/${paths.objectsCorrupt}`);
