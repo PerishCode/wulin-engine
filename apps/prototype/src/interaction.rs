@@ -36,13 +36,23 @@ pub(crate) enum Ineligible {
     SourceReplaced,
     OutsidePublishedWindow,
     OutsideRadius,
+    OutsideFacing,
     CapacityExhausted,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Facing {
+    pub yaw_q16: u32,
+    pub direction_x: i64,
+    pub direction_z: i64,
+    pub dot_q9: i64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Eligible {
     pub feedback: ObjectTargetFeedback,
     pub proximity: CanonicalObjectProximity,
+    pub facing: Facing,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -68,6 +78,7 @@ pub(crate) struct Policy {
 fn resolved_attempt(
     target: Target,
     origin: TerrainPosition,
+    yaw_q16: u32,
     resolution: Option<CanonicalObjectResolution>,
 ) -> Result<Attempt> {
     match resolution
@@ -78,18 +89,7 @@ fn resolved_attempt(
                 object.identity == target.identity,
                 "object action resolution diverged from the retained identity"
             );
-            Ok(
-                match object.proximity_from(origin, OBJECT_ACTION_RADIUS_Q9)? {
-                    Some(proximity) => Attempt::Eligible(Eligible {
-                        feedback: ObjectTargetFeedback {
-                            identity: target.identity,
-                            kind: ObjectTargetFeedbackKind::Activated,
-                        },
-                        proximity,
-                    }),
-                    None => Attempt::Ineligible(Ineligible::OutsideRadius),
-                },
-            )
+            proximity_attempt(target, origin, yaw_q16, object)
         }
         CanonicalObjectResolution::SourceReplaced => {
             Ok(Attempt::Ineligible(Ineligible::SourceReplaced))
@@ -98,6 +98,63 @@ fn resolved_attempt(
             Ok(Attempt::Ineligible(Ineligible::OutsidePublishedWindow))
         }
     }
+}
+
+fn proximity_attempt(
+    target: Target,
+    origin: TerrainPosition,
+    yaw_q16: u32,
+    object: engine_runtime::CanonicalObject,
+) -> Result<Attempt> {
+    let Some(proximity) = object.proximity_from(origin, OBJECT_ACTION_RADIUS_Q9)? else {
+        return Ok(Attempt::Ineligible(Ineligible::OutsideRadius));
+    };
+    let facing = facing(proximity, yaw_q16)?;
+    if proximity.distance_squared_q18 != 0 && facing.dot_q9 <= 0 {
+        return Ok(Attempt::Ineligible(Ineligible::OutsideFacing));
+    }
+    Ok(Attempt::Eligible(Eligible {
+        feedback: ObjectTargetFeedback {
+            identity: target.identity,
+            kind: ObjectTargetFeedbackKind::Activated,
+        },
+        proximity,
+        facing,
+    }))
+}
+
+fn facing(proximity: CanonicalObjectProximity, yaw_q16: u32) -> Result<Facing> {
+    let (direction_x, direction_z) = match yaw_q16 {
+        0 => (1, 0),
+        8_192 => (1, 1),
+        16_384 => (0, 1),
+        24_576 => (-1, 1),
+        32_768 => (-1, 0),
+        40_960 => (-1, -1),
+        49_152 => (0, -1),
+        57_344 => (1, -1),
+        _ => {
+            return Err(anyhow::anyhow!(
+                "object action received non-eight-way actor yaw"
+            ));
+        }
+    };
+    let dot_q9 = proximity
+        .delta_x_q9
+        .checked_mul(direction_x)
+        .and_then(|x| {
+            proximity
+                .delta_z_q9
+                .checked_mul(direction_z)
+                .and_then(|z| x.checked_add(z))
+        })
+        .ok_or_else(|| anyhow::anyhow!("object action facing dot product overflowed"))?;
+    Ok(Facing {
+        yaw_q16,
+        direction_x,
+        direction_z,
+        dot_q9,
+    })
 }
 
 impl Policy {
@@ -132,6 +189,7 @@ impl Policy {
         &mut self,
         step_count: u32,
         origin: TerrainPosition,
+        yaw_q16: u32,
         target: Option<Target>,
         resolution: Option<CanonicalObjectResolution>,
     ) -> Result<Option<Attempt>> {
@@ -160,7 +218,7 @@ impl Policy {
                 );
                 Attempt::Ineligible(Ineligible::UnavailableTarget)
             }
-            Some(target) => resolved_attempt(target, origin, resolution)?,
+            Some(target) => resolved_attempt(target, origin, yaw_q16, resolution)?,
         };
         let next_ineligible_count = if matches!(attempt, Attempt::Ineligible(_)) {
             self.ineligible_count

@@ -16,13 +16,14 @@ import { actorInvariant } from "./actor.ts";
 import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
 import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
-import { observationGates, restartObservation } from "./object/gates.ts";
+import { objectFacingGates, restartObservation } from "./object/gates.ts";
 import { escapeExit, prototypePids, readinessLine, sidecarStatus } from "./process.ts";
 import {
     CAMERA_FORWARD_COMMAND,
     type ExpectedCommand,
     FORWARD_COMMAND,
     JUMP_COMMAND,
+    RIGHT_COMMAND,
     RUN_FORWARD_COMMAND,
     STATIONARY_COMMAND,
 } from "./simulation.ts";
@@ -306,9 +307,13 @@ export async function prototypeHostGates(
     );
     const cameraOrbit = await capturedReady("prototype clockwise camera orbit", "camera-clockwise");
     const jump = await capturedReady("prototype committed jump", "jump");
-    const objectObservation = await capturedReady(
-        "prototype committed object observation and action",
-        "observe-action-forward",
+    const objectActionFacing = await capturedReady(
+        "prototype committed front-facing object action",
+        "observe-action-facing",
+    );
+    const objectActionSide = await capturedReady(
+        "prototype rejected side-facing object action",
+        "observe-action-side",
     );
     const escape = await escapeExit(EXECUTABLE, CONFIG, "prototype Escape press exit");
     const boundary = await boundarySurvival(EXECUTABLE, CONFIG);
@@ -421,12 +426,14 @@ export async function prototypeHostGates(
         camera: cameraDriverInvariant(jump),
         traversal: traversalInvariant(jump, base),
     };
-    const objectObservationInvariant = await observationGates(
-        objectObservation,
+    const objectFacingInvariant = await objectFacingGates(
+        objectActionFacing,
+        objectActionSide,
         first,
         objects,
         base,
         startupInvariant,
+        (launch) => simulationDriverInvariant(launch, RIGHT_COMMAND),
         (launch) => simulationDriverInvariant(launch, FORWARD_COMMAND),
     );
     same(startupInvariant(boundary), startupInvariant(first), "prototype boundary configuration");
@@ -480,8 +487,9 @@ export async function prototypeHostGates(
         cameraOrbitInvariant,
         jump,
         jumpInvariant,
-        objectObservation,
-        objectObservationInvariant,
+        objectActionFacing,
+        objectActionSide,
+        objectFacingInvariant,
         boundary,
         boundaryInvariant,
         sidecar: { first: firstSidecar, restarted: restartedSidecar, stopped },

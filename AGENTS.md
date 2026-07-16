@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0105 and the current ADR set through 0108 define one live content runtime
+Experiments 0031-0106 and the current ADR set through 0109 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -291,6 +291,11 @@ geometry/material/rig source, and one deterministic object-shadow path:
   skeletal cull, so same-source departure/revisit, source replacement, restart, and every downstream
   render path retain one deterministic lifetime without canonical mutation, registry, inventory,
   persistence, networking, or Wulin semantics;
+- one pure Prototype object-action facing gate that maps only the committed actor output's eight
+  exact yaws to integer planar directions, admits a non-coincident in-radius target only for a
+  positive exact Q9 dot product, retains zero-distance eligibility, consumes side/rear attempts as
+  typed `OutsideFacing`, and rejects malformed yaw before mutation without new retained state,
+  engine/GPU work, visibility policy, registry, or Wulin semantics;
 - one mandatory compatibility cleanup that deletes ten recurring process requests for settled
   calibration/world, standalone-contact, and caller-owned terrain-body routes plus their
   `removedVerbs` report and mixed-purpose support module; owner-specific static guards remain the
@@ -418,6 +423,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0106-committed-prototype-object-action.md` | Accepted exact committed target proximity, projected action commit, and bounded acknowledgement. |
 | `docs/adr/0107-capacity-one-prototype-object-consumption.md` | Accepted capacity-one consumed identity, nearest exclusion, deferred exact GPU suppression, and source/window lifetime. |
 | `docs/adr/0108-retired-recurring-compatibility-witness.md` | Accepted removal of recurring retired-verb process evidence and retention of one current idle-shell authority. |
+| `docs/adr/0109-committed-prototype-object-facing.md` | Accepted exact committed eight-way front-half-plane Prototype action gate. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -494,6 +500,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0103-committed-prototype-object-action/README.md` | Accepted native committed Enter action, exact proximity, activated frame commit, and bounded acknowledgement evidence. |
 | `experiments/0104-capacity-one-prototype-object-consumption/README.md` | Accepted exact nearest exclusion, native capacity-one consumption, GPU suppression, and source/window lifecycle evidence. |
 | `experiments/0105-retired-recurring-compatibility-witness/README.md` | Accepted retired-verb IPC/report deletion, static removal authority, and current idle-shell preservation evidence. |
+| `experiments/0106-committed-prototype-object-facing/README.md` | Accepted native front-facing admission and side-facing rejection evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |

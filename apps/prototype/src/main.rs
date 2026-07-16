@@ -165,6 +165,7 @@ unsafe fn run() -> Result<()> {
                 .prepare_after_advance(
                     advance.simulation.step_count,
                     advance.actor.output.motion.body().position(),
+                    advance.actor.output.presentation.yaw_q16,
                     interaction_target,
                     resolution,
                 )
@@ -355,6 +356,12 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
             "outcome": "eligible",
             "feedback": eligible.feedback,
             "proximity": eligible.proximity,
+            "facing": {
+                "yawQ16": eligible.facing.yaw_q16,
+                "directionX": eligible.facing.direction_x,
+                "directionZ": eligible.facing.direction_z,
+                "dotQ9": eligible.facing.dot_q9,
+            },
         }),
         interaction::Attempt::Ineligible(reason) => json!({
             "outcome": "ineligible",
@@ -364,6 +371,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 interaction::Ineligible::SourceReplaced => "source-replaced",
                 interaction::Ineligible::OutsidePublishedWindow => "outside-published-window",
                 interaction::Ineligible::OutsideRadius => "outside-radius",
+                interaction::Ineligible::OutsideFacing => "outside-facing",
                 interaction::Ineligible::CapacityExhausted => "capacity-exhausted",
             },
         }),
@@ -438,9 +446,14 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 },
             },
             "object_interaction_driver": {
-                "revision": "live-prototype-object-consumption-v1",
+                "revision": "live-prototype-object-facing-v1",
                 "input": "Enter",
                 "maxDistanceQ9": interaction::OBJECT_ACTION_RADIUS_Q9,
+                "facingRule": {
+                    "domain": "committed-eight-way-yaw",
+                    "nonCoincidentDot": "positive",
+                    "coincidentEligible": true,
+                },
                 "acknowledgementFrameCount": interaction::ACKNOWLEDGEMENT_FRAME_COUNT,
                 "attempt": object_action_attempt,
                 "completion": evidence.interaction_completion.map(|completion| json!({

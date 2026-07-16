@@ -628,6 +628,16 @@ Experiment 0105 完成逢五兼容清理：删除每次 full acceptance 都经 g
 `canonical.status` poll，总 Sidecar invocation 从 988 净降到 979。5 warm/8 measured 保持 492
 handles/21 threads，private +90,112 bytes，inventory 24 files/25,346,280 bytes。没有替代 rejection
 registry、alias、runtime/product/GPU/source/asset/networking 或 Wulin 行为。
+Experiment 0106 收紧 Prototype object action 的最后一个纯应用层前置条件：复用同一 committed actor
+output 的八向 yaw 与既有 exact Q9 proximity，非重合目标只在整数 dot 为正时准入，重合仍可交互，
+非法 yaw 在 policy mutation 前失败。75.629 秒 `canonical-prototype-v23` 中 native F+Enter+D 对 ID 496
+得到 delta `(128,-32)`、yaw/direction/dot `0/(1,0)/128` 并精确提交 Activated/consumption；独立
+native F+Enter+W 对同一 ID 得到 delta `(160,0)`、yaw `49152`，返回 `outside-facing`，completion、
+Activated frame、consumption 与 exclusion 均为零。没有 engine/renderer/GPU/resource/source 状态、
+registry、inventory、reward、dispatch、respawn、persistence、networking 或 Wulin 变化。
+最终 `canonical-runtime-v14` 在 254.675 秒内通过 source/window、rollback、restart、32+32 traversal、
+5 warm/8 measured resource checkpoint 与 2 lifecycle；资源保持 492 handles/21 threads，private
+423,571,456→424,103,936，报告 24 files/25,346,301 bytes。
 
 ## Project model
 
