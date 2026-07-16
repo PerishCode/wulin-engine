@@ -53,6 +53,7 @@ pub struct SurfaceFrame<'a> {
     pub depth_target: D3D12_CPU_DESCRIPTOR_HANDLE,
     pub background_color: [f32; 4],
     pub probe: bool,
+    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
 }
 
 pub struct SurfaceProbeContext<'a> {
@@ -71,6 +72,7 @@ pub struct SurfaceProbeContext<'a> {
     pub timestamp_readback: &'a ID3D12Resource,
     pub timestamp_frequency: u64,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
+    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
 }
 
 pub struct SurfaceRendererInput<'a> {
@@ -413,6 +415,7 @@ impl SurfaceRenderer {
                 bypass_reason: self.last_bypass_reason,
                 bound_proof: self.bound_proof,
                 actor: context.actor,
+                object_target: context.object_target,
             })
         }
     }
@@ -422,6 +425,7 @@ impl SurfaceRenderer {
         skeletal: [u32; SKELETAL_CONSTANT_COUNT as usize],
         background_color: [f32; 4],
         history_queried: bool,
+        object_target: Option<crate::rendering::ObjectTargetFeedback>,
     ) -> [u32; SURFACE_CONSTANT_COUNT as usize] {
         let mut constants = [0; SURFACE_CONSTANT_COUNT as usize];
         constants[..16].copy_from_slice(&skeletal[..16]);
@@ -435,8 +439,11 @@ impl SurfaceRenderer {
             *destination = channel.to_bits();
         }
         constants[24] = skeletal[49];
-        constants[25] = skeletal[16];
-        constants[26] = 65_536;
+        if let Some(target) = object_target {
+            constants[25] = 1;
+            constants[26] = target.semantic_region;
+            constants[27] = target.authored_local_id;
+        }
         constants[28..32].copy_from_slice(&[
             u32::from(history_queried),
             self.resources.occlusion.mip_count,

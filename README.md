@@ -582,6 +582,19 @@ empty scan 也清空。27.122 秒 `canonical-frame-v7`、71.515 秒 `canonical-p
 通过；资源保持 492 handles/21 threads，private +1,187,840 bytes，报告 24 files/25,346,346 bytes。
 没有逐帧 nearest、unchanged-frame resolver、engine target、persistent gameplay ID、highlight、
 interaction、asset/format、networking 或 Wulin 语义。
+Experiment 0102 将 retained qualified identity 作为可选 immutable `FrameRequest` 输入，并只在当帧
+pending publication 提交后投影 source/window；现有 56-byte visible record 的高 identity word 承载
+streamed authored local ID，sole surface resolve 对 exact semantic/local-ID match 施加静态 amber mix。
+没有 marker/outline、新 pass/resource/descriptor/copy/readback/synchronization 或 renderer-owned target。
+24.280 秒 `canonical-frame-v8` 对可见 ID 987 精确得到 3,472 target pixels、确定性 replay、清除后
+回到 baseline 且 object-ID attachment 不变；73.149 秒 `canonical-prototype-v20` 在 native F+W 后用
+一个 product frame 转发完整 identity，无 copied object state。282.045 秒 `canonical-runtime-v10`
+证明 source replacement/window departure 当帧禁用反馈，source revisit/return 恢复相同 3,472 pixels，
+并通过 rollback、restart、32+32 traversal、5 warm/8 measured resource checkpoint 与 2 lifecycle；
+active baseline/final 保持 527 handles/24 threads，private +589,824 bytes 且处于 accepted plateau，
+报告 24 files/25,346,225 bytes。当前只证明
+presentation feedback，不引入 interaction eligibility/effect、persistent gameplay ID、networking 或
+Wulin 语义。
 
 ## Project model
 

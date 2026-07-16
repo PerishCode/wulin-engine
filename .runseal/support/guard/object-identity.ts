@@ -38,6 +38,7 @@ export async function requireTypedObjectResolution(
     );
     const routing = await Deno.readTextFile(`${root}/apps/workbench/src/inspect/protocol.rs`);
     const acceptance = await Deno.readTextFile(`${root}/.runseal/support/object/query.ts`);
+    const feedback = await Deno.readTextFile(`${root}/.runseal/support/object/feedback.ts`);
     if (
         !protocol.includes("source_namespace: String") ||
         !protocol.includes("decode_source_namespace") ||
@@ -47,12 +48,25 @@ export async function requireTypedObjectResolution(
         !acceptance.includes("retired canonical.objects.query verb remains live") ||
         !dispatch.includes("versioned-canonical-object-resolution-v2") ||
         !dispatch.includes("versioned-canonical-object-nearest-v2") ||
+        !routing.includes('"canonical.objects.target.set" => objects::target(payload)') ||
+        !routing.includes('"canonical.objects.target.clear" =>') ||
+        !feedback.includes("targetedPixels") ||
+        !feedback.includes("visibleObjectTarget") ||
         dispatch.includes("exact-canonical-object-position-v1") ||
         dispatch.includes("exact-canonical-object-nearest-v1")
     ) fail("guard: workbench typed object-resolution schema diverged");
 
     const prototype = await Deno.readTextFile(`${root}/apps/prototype/src/observation.rs`);
     const prototypeMain = await Deno.readTextFile(`${root}/apps/prototype/src/main.rs`);
+    const runtimeFrame = await Deno.readTextFile(
+        `${root}/crates/engine-runtime/src/rendering/renderer/frame.rs`,
+    );
+    const skeletalShader = await Deno.readTextFile(
+        `${root}/crates/engine-runtime/shaders/skeletal_scene.hlsl`,
+    );
+    const surfaceShader = await Deno.readTextFile(
+        `${root}/crates/engine-runtime/shaders/surface_resolve.hlsl`,
+    );
     const targetFields = prototype.match(
         /pub\(crate\) struct Target \{([\s\S]*?)\n\}/,
     )?.[1];
@@ -74,7 +88,14 @@ export async function requireTypedObjectResolution(
         ) ||
         !prototypeMain.includes("if observation_policy.has_target()") ||
         !prototypeMain.includes("observation_policy.validation_request(snapshot)") ||
+        !prototypeMain.includes("let object_target = observation_policy.target_identity()") ||
+        !prototypeMain.includes('"frameFeedback"') ||
         !prototypeMain.includes("resolve_canonical_object(identity)") ||
+        !runtimeFrame.includes("rendered_object_target = super::object_target::project(") ||
+        !skeletalShader.includes("stable_identity_high = local_id;") ||
+        !surfaceShader.includes("visible.semantic_region == surface_animation.z") ||
+        !surfaceShader.includes("visible.stable_identity_high == surface_animation.w") ||
+        !surfaceShader.includes("surface_stats.InterlockedAdd(20, group_targeted") ||
         (prototypeMain.match(/query_nearest_canonical_object/g)?.length ?? 0) !== 1
     ) {
         fail("guard: prototype version-gated object target contract diverged");

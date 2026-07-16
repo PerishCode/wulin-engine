@@ -7,6 +7,9 @@ use crate::terrain_query::{TerrainBody, TerrainBodyMotion, TerrainPosition};
 use super::{ACTOR_VISIBLE_RECORD_BYTES, ActorVisibleCandidate};
 use crate::rendering::meshlet_scene::skeletal::resources::ACTOR_CANDIDATE_INDEX;
 
+#[path = "surface_target.rs"]
+mod surface_target;
+
 fn projection(generation: u64) -> ActorRenderProjection {
     let position =
         TerrainPosition::new(RegionCoord::new(2_i64.pow(40), -(2_i64.pow(40))), 0, 0).unwrap();

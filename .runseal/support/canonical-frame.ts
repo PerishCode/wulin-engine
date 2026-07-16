@@ -25,9 +25,11 @@ const EXPECTED_SKELETAL_GPU = {
 
 const EXPECTED_SURFACE_STATS = {
     backgroundPixels: 288_171,
+    objectTarget: null,
     observedMaterialCount: 64,
     observedMaterialMask: [4_294_967_295, 4_294_967_295],
     resolvedPixels: 921_600,
+    targetedPixels: 0,
     visiblePixels: 633_429,
 };
 

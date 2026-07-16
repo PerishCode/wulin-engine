@@ -22,11 +22,13 @@ impl Renderer {
             presentation_status,
             simulation_status,
             actor,
+            object_target,
             scene,
         } = frame;
         debug_assert!(!capture_object_ids || capture);
         debug_assert!(!probe || self.composition_enabled());
         debug_assert!(!probe || presentation_status.is_some());
+        super::object_target::validate(object_target)?;
         if self.composition_enabled()
             && let Some(actor) = actor
         {
@@ -58,6 +60,7 @@ impl Renderer {
         } else {
             None
         };
+        let mut rendered_object_target = None;
 
         unsafe {
             transition(
@@ -86,6 +89,12 @@ impl Renderer {
                     .snapshot()
                     .context("composition has no resident snapshot")?;
                 let projection = self.terrain_renderer.projection()?;
+                rendered_object_target = super::object_target::project(
+                    object_target,
+                    snapshot.object_source_namespace,
+                    snapshot.global_config,
+                    projection,
+                )?;
                 self.terrain_renderer.record(
                     &self.command_list,
                     TerrainFrame {
@@ -111,6 +120,7 @@ impl Renderer {
                         projection,
                         presentation_tick,
                         actor: actor_projection,
+                        object_target: rendered_object_target,
                         frame_slot: index as u32,
                     },
                 )?;
@@ -193,13 +203,17 @@ impl Renderer {
                     .context("composition probe requires a presentation status snapshot")?;
                 Some(unsafe {
                     self.read_composition_probe(
-                        scene,
-                        color,
-                        presentation_tick,
-                        presentation_status,
-                        simulation_status
-                            .context("composition probe requires a simulation status snapshot")?,
-                        actor_projection,
+                        crate::rendering::composition::CompositionFrameProbeInput {
+                            scene,
+                            background_color: color,
+                            presentation_tick,
+                            presentation_status,
+                            simulation_status: simulation_status.context(
+                                "composition probe requires a simulation status snapshot",
+                            )?,
+                            actor: actor_projection,
+                            object_target: rendered_object_target,
+                        },
                     )
                 }?)
             } else {

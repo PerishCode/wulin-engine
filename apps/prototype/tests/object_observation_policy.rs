@@ -107,6 +107,7 @@ fn intent_waits_for_commit_then_retains_only_qualified_target() {
         }
     );
     assert!(policy.has_target());
+    assert_eq!(policy.target_identity(), Some(identity(1, 7)));
 }
 
 #[test]
@@ -119,6 +120,7 @@ fn successful_empty_scan_clears_previous_target() {
         .unwrap();
     assert!(completed.is_some());
     assert_eq!(policy.status().target, None);
+    assert_eq!(policy.target_identity(), None);
     assert!(!policy.status().pending);
 }
 

@@ -100,6 +100,13 @@ pub enum ControlKind {
         local_z_q9: i32,
         max_distance_q9: u32,
     },
+    CanonicalObjectTargetSet {
+        source_namespace: [u8; 32],
+        region_x: i64,
+        region_z: i64,
+        authored_local_id: u32,
+    },
+    CanonicalObjectTargetClear,
     CanonicalTerrainHeight {
         region_x: i64,
         region_z: i64,
@@ -227,6 +234,8 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "canonical.probe" => Ok(ControlKind::CanonicalProbe),
         "canonical.objects.resolve" => objects::resolve(payload),
         "canonical.objects.nearest" => objects::nearest(payload),
+        "canonical.objects.target.set" => objects::target(payload),
+        "canonical.objects.target.clear" => Ok(ControlKind::CanonicalObjectTargetClear),
         "canonical.terrain.height" => terrain::height(payload),
         "actor.spawn" => terrain::actor_spawn(payload),
         "actor.read" => terrain::actor_read(payload),

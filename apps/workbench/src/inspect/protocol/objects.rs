@@ -32,6 +32,16 @@ pub(super) fn resolve(value: Value) -> ParsedControl {
     })
 }
 
+pub(super) fn target(value: Value) -> ParsedControl {
+    let payload: ObjectResolvePayload = decode(value)?;
+    Ok(ControlKind::CanonicalObjectTargetSet {
+        source_namespace: decode_source_namespace(&payload.source_namespace)?,
+        region_x: payload.region_x,
+        region_z: payload.region_z,
+        authored_local_id: payload.authored_local_id,
+    })
+}
+
 fn decode_source_namespace(value: &str) -> Result<[u8; 32], ProtocolError> {
     if value.len() != 64
         || !value

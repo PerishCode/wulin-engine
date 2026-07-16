@@ -56,6 +56,7 @@ unsafe fn run() -> Result<()> {
                 capture: false,
                 capture_object_ids: false,
                 probe: false,
+                object_target: None,
             })?;
         }
         state.record_frame();
@@ -97,6 +98,7 @@ unsafe fn run() -> Result<()> {
                 capture: capture_requested,
                 capture_object_ids: perception_requested,
                 probe: probe_requested,
+                object_target: state.object_target,
             })
         } {
             Ok(outcome) => complete_frame(
@@ -144,6 +146,7 @@ struct WorkbenchState {
     last_error: Option<String>,
     launched_by_sidecar: bool,
     startup: serde_json::Value,
+    object_target: Option<engine_runtime::CanonicalObjectIdentity>,
 }
 
 impl WorkbenchState {
@@ -157,6 +160,7 @@ impl WorkbenchState {
             last_error: None,
             launched_by_sidecar,
             startup,
+            object_target: None,
         }
     }
 

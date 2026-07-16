@@ -249,7 +249,7 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         position = object_position(instance, semantic_region);
         instance_height = instance.height;
         stable_identity_low = object_stable_key(instance, local_id, semantic_region);
-        stable_identity_high = 0u;
+        stable_identity_high = local_id;
         logical_index = group_id.x * INSTANCES_PER_REGION + local_index;
         float ground = 0.0;
         if (pose_shape.w != 0)

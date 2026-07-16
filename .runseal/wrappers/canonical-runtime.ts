@@ -21,16 +21,13 @@ import {
     root,
     same,
     setAliasCamera,
-    setPosition,
-    sleep,
     startClean,
     status,
     stopCanonicalProcesses,
     target,
-    targetMatches,
     traversalSweep,
-    waitStatus,
 } from "../support/canonical-runtime.ts";
+import { preparedRolloverGate } from "../support/canonical-rollover.ts";
 import { assertCanonicalFrame } from "../support/canonical-frame.ts";
 import { prepareCanonicalSetup } from "../support/canonical-setup.ts";
 import {
@@ -65,7 +62,14 @@ import {
     unavailableObjectNearestGate,
 } from "../support/object/nearest.ts";
 import * as objectIntegration from "../support/object/integration.ts";
-const REVISION = "canonical-runtime-v9";
+import {
+    assertUntargetedFrame,
+    beginTargetLifecycle,
+    confirmTargetRevisit,
+    targetDepartureReturn,
+    visibleObjectTarget,
+} from "../support/object/feedback.ts";
+const REVISION = "canonical-runtime-v10";
 const COLLECTION = "canonical-runtime";
 const BASE: Coord = [2 ** 40, -(2 ** 40)];
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
@@ -141,6 +145,11 @@ try {
     const orderA = await frame("order-a", COLLECTION);
     const terrainQuery = await terrainQueryGates(BASE, orderA, unavailableTerrainQuery);
     assertCanonicalFrame(orderA, "canonical order A");
+    const feedbackTarget = visibleObjectTarget(
+        orderA,
+        object(objectResolution, "snapshot").sourceNamespace as string,
+        BASE,
+    );
 
     console.log("==> deterministic presentation time gates");
     const temporal = await temporalGates(orderA, COLLECTION, false);
@@ -205,8 +214,14 @@ try {
         false,
     );
 
-    await event("source.objects.open", { path: OBJECTS_A });
-    await publish(target(BASE));
+    const initialTargetFeedback = await beginTargetLifecycle(
+        feedbackTarget,
+        orderA,
+        OBJECTS_A,
+        BASE,
+        COLLECTION,
+    );
+    const targetPixelsBeforeReplacement = number(initialTargetFeedback, "pixels");
 
     await event("source.objects.open", { path: OBJECTS_B });
     const orderBPublication = await publish(target(BASE));
@@ -222,6 +237,7 @@ try {
     const orderBObjectResolutions = orderBObjects.resolutions as Json[];
     const orderBObjectNearest = orderBObjects.nearest as Json[];
     const orderB = await frame("order-b", COLLECTION, false, false);
+    assertUntargetedFrame(orderB, "source-replaced target frame");
     same(orderB.stable, orderA.stable, "physical object order A/B behavior");
 
     await event("source.objects.open", { path: OBJECTS_A });
@@ -248,6 +264,12 @@ try {
         orderAObjectNearest,
         "object source revisit nearest query",
     );
+    const revisitTargetFeedback = await confirmTargetRevisit(
+        feedbackTarget,
+        orderA,
+        targetPixelsBeforeReplacement,
+        COLLECTION,
+    );
     const revisit = await frame("order-a-revisit", COLLECTION, false, false);
     same(revisit.stable, orderA.stable, "object source revisit");
 
@@ -258,14 +280,13 @@ try {
         orderAObjectNearest,
     );
     const adjacent = await frame("adjacent", COLLECTION, false, false);
-    const diagonalBasePublication = await publish(target([BASE[0] + 40, BASE[1]]));
-    assertObjectCopies(diagonalBasePublication, 25, "diagonal cold base");
-    const diagonalPublication = await publish(target([BASE[0] + 41, BASE[1] + 1]));
-    assertObjectCopies(diagonalPublication, 9, "diagonal publication");
-    const diagonal = await frame("diagonal", COLLECTION, false, false);
-    const returnedPublication = await publish(target(BASE));
-    const returned = await frame("returned", COLLECTION, false, false);
-    same(returned.stable, orderA.stable, "movement revisit");
+    const departureTargetFeedback = await targetDepartureReturn(
+        feedbackTarget,
+        orderA,
+        targetPixelsBeforeReplacement,
+        BASE,
+        COLLECTION,
+    );
 
     const aliasPublication = await publish(target(BASE, 65));
     await setAliasCamera(65);
@@ -336,41 +357,7 @@ try {
     same(restarted.stable, orderA.stable, "canonical restart frame");
 
     console.log("==> prepared rollover gate");
-    const rolloverBase = await publish(target(BASE, 96));
-    await setPosition([512, 0]);
-    await event("canonical.traversal.enable");
-    await event("canonical.prefetch.enable");
-    await event("workbench.resume");
-    await sleep(30);
-    const rolloverBefore = await event("canonical.status");
-    const traversalBefore = object(rolloverBefore, "traversal");
-    const automaticBefore = number(traversalBefore, "automaticPublicationCount");
-    const rolloverCount = number(object(traversalBefore, "rollover"), "count");
-    const prefetchBefore = number(object(traversalBefore, "prefetch"), "completionCount");
-    const rolloverTarget = target([BASE[0] + 1, BASE[1]]);
-    await setPosition([517, 0]);
-    const rolloverPrepared = await waitStatus("rollover preparation", (value) => {
-        if (value.pending !== null) return false;
-        const prefetch = object(object(value, "traversal"), "prefetch");
-        return number(prefetch, "completionCount") === prefetchBefore + 1 &&
-            targetMatches(prefetch.lastCompleted, rolloverTarget);
-    });
-    if (
-        number(object(object(rolloverPrepared, "traversal"), "rollover"), "count") !== rolloverCount
-    ) {
-        fail("prepared rollover committed before demand");
-    }
-    await setPosition([521, 0]);
-    const rolloverPublished = await waitStatus("rollover publication", (value) => {
-        if (value.pending !== null || !targetMatches(value.published, rolloverTarget)) return false;
-        const traversal = object(value, "traversal");
-        return number(traversal, "automaticPublicationCount") === automaticBefore + 1 &&
-            number(object(traversal, "rollover"), "count") === rolloverCount + 1;
-    });
-    await event("workbench.pause");
-    const rolloverProbe = await probe();
-    await event("canonical.traversal.disable");
-    await lifecycle("stop");
+    const rollover = await preparedRolloverGate(BASE);
     recordStage(stageTimings, "canonical-correctness", correctnessStarted);
 
     console.log("==> 32 reactive crossings");
@@ -424,6 +411,21 @@ try {
             objectResolution,
             objectNearest,
             terrainQuery,
+            objectTargetFeedback: {
+                identity: feedbackTarget.identity,
+                targetSetBeforeReplacement: initialTargetFeedback.targetSet,
+                targetBeforeReplacement: initialTargetFeedback.rendered,
+                targetPixelsBeforeReplacement,
+                sourceReplaced: orderB,
+                sourceRevisited: revisitTargetFeedback.rendered,
+                revisitTargetedPixels: revisitTargetFeedback.pixels,
+                targetClearedAfterReplacement: revisitTargetFeedback.cleared,
+                targetSetBeforeDeparture: departureTargetFeedback.targetSet,
+                sameSourceDeparted: departureTargetFeedback.departed,
+                sameSourceReturned: departureTargetFeedback.returnedTargeted,
+                returnedTargetedPixels: departureTargetFeedback.pixels,
+                targetClearedAfterReturn: departureTargetFeedback.cleared,
+            },
             basePublication,
             orderA,
             temporal,
@@ -446,11 +448,11 @@ try {
             adjacentObjectResolution: adjacentObjects.resolution,
             adjacentObjectNearest: adjacentObjects.nearest,
             adjacent,
-            diagonalBasePublication,
-            diagonalPublication,
-            diagonal,
-            returnedPublication,
-            returned,
+            diagonalBasePublication: departureTargetFeedback.departureBase,
+            diagonalPublication: departureTargetFeedback.departure,
+            diagonal: departureTargetFeedback.departed,
+            returnedPublication: departureTargetFeedback.returnedPublication,
+            returned: departureTargetFeedback.returned,
             aliasPublication,
             alias,
             temporalHeld,
@@ -463,10 +465,10 @@ try {
             restartObjectResolutions,
             restartObjectNearest,
             restarted,
-            rolloverBase,
-            rolloverPrepared,
-            rolloverPublished,
-            rolloverProbe,
+            rolloverBase: rollover.basePublication,
+            rolloverPrepared: rollover.prepared,
+            rolloverPublished: rollover.published,
+            rolloverProbe: rollover.evidence,
         },
         traversal: { reactive, prepared },
         resources,

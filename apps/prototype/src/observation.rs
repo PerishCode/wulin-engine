@@ -100,6 +100,13 @@ impl Policy {
         self.target.is_some()
     }
 
+    pub(crate) const fn target_identity(&self) -> Option<CanonicalObjectIdentity> {
+        match self.target {
+            Some(target) => Some(target.identity),
+            None => None,
+        }
+    }
+
     pub(crate) fn validation_request(
         &self,
         snapshot: CanonicalObjectSnapshot,

@@ -43,7 +43,7 @@ function finite(value: string | undefined, name: string): number {
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|restart|stop|status|inspect|pause|resume|terrain-open|objects-open|schedule|canonical-status|probe|traversal-enable|traversal-disable|prefetch-enable|prefetch-disable|camera|camera-set|camera-reset|capture|perception|observe|objects-io-arm|objects-io-release|objects-copy-arm|objects-copy-release|terrain-io-arm|terrain-io-release|terrain-copy-arm|terrain-copy-release>",
+        "Usage: runseal :workbench <start|restart|stop|status|inspect|pause|resume|terrain-open|objects-open|schedule|canonical-status|probe|object-target-set|object-target-clear|traversal-enable|traversal-disable|prefetch-enable|prefetch-disable|camera|camera-set|camera-reset|capture|perception|observe|objects-io-arm|objects-io-release|objects-copy-arm|objects-copy-release|terrain-io-arm|terrain-io-release|terrain-copy-arm|terrain-copy-release>",
     );
     Deno.exit(0);
 }
@@ -95,6 +95,33 @@ switch (verb) {
     case "probe":
         if (args.length !== 0) fail("workbench: probe accepts no arguments");
         await event("canonical.probe");
+        break;
+    case "object-target-set": {
+        if (args.length !== 4) {
+            fail(
+                "workbench: object-target-set requires source-namespace region-x region-z authored-local-id",
+            );
+        }
+        if (!/^[0-9a-f]{64}$/.test(args[0])) {
+            fail(
+                "workbench: object target source namespace must be 64 lowercase hexadecimal digits",
+            );
+        }
+        const authoredLocalId = integer(args[3], "authored local ID");
+        if (authoredLocalId < 0 || authoredLocalId >= 1_024) {
+            fail("workbench: object target authored local ID must be in 0..1024");
+        }
+        await event("canonical.objects.target.set", {
+            source_namespace: args[0],
+            region_x: integer(args[1], "region x"),
+            region_z: integer(args[2], "region z"),
+            authored_local_id: authoredLocalId,
+        });
+        break;
+    }
+    case "object-target-clear":
+        if (args.length !== 0) fail("workbench: object-target-clear accepts no arguments");
+        await event("canonical.objects.target.clear");
         break;
     case "traversal-enable":
     case "traversal-disable":

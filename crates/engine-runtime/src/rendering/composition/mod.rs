@@ -26,6 +26,7 @@ mod traversal;
 
 use traversal::TraversalTarget;
 
+pub(in crate::rendering) use probe::CompositionFrameProbeInput;
 pub use probe::CompositionProbe;
 
 const COMPOSITION_REVISION: &str = "atomic-terrain-object-composition-v1";

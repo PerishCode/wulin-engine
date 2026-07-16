@@ -1,6 +1,9 @@
 use std::sync::mpsc::Receiver;
 
-use engine_runtime::{GlobalRegionConfig, RegionCoord, Runtime, TerrainPosition};
+use engine_runtime::{
+    CANONICAL_OBJECTS_PER_REGION, CanonicalObjectIdentity, GlobalRegionConfig,
+    ObjectSourceNamespace, RegionCoord, Runtime, TerrainPosition,
+};
 use reference_host::bootstrap::{PackKind, validate_pack_path};
 use serde_json::json;
 use windows::Win32::Foundation::HWND;
@@ -131,6 +134,31 @@ pub(crate) fn handle_commands(
                 local_z_q9,
                 max_distance_q9,
             ),
+            ControlKind::CanonicalObjectTargetSet {
+                source_namespace,
+                region_x,
+                region_z,
+                authored_local_id,
+            } => {
+                if authored_local_id >= CANONICAL_OBJECTS_PER_REGION {
+                    Err(ProtocolError {
+                        code: "invalid_object_target",
+                        message: "object target authored local ID is outside the canonical region capacity".into(),
+                    })
+                } else {
+                    let identity = CanonicalObjectIdentity {
+                        source_namespace: ObjectSourceNamespace::from_bytes(source_namespace),
+                        region: RegionCoord::new(region_x, region_z),
+                        authored_local_id,
+                    };
+                    state.object_target = Some(identity);
+                    Ok(json!({"objectTarget": identity}))
+                }
+            }
+            ControlKind::CanonicalObjectTargetClear => {
+                state.object_target = None;
+                Ok(json!({"objectTarget": null}))
+            }
             ControlKind::CanonicalTerrainHeight {
                 region_x,
                 region_z,
