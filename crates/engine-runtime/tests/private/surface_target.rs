@@ -11,10 +11,11 @@ fn pixel(candidate: Option<u32>) -> [u8; 8] {
 fn uses_authored_id() {
     let mut ids = (0..1024).collect::<Vec<_>>();
     ids.swap(7, 91);
-    let target = crate::rendering::ObjectTargetFeedback {
+    let target = crate::rendering::ProjectedObjectTarget {
         active_index: 1,
         semantic_region: 42,
         authored_local_id: 7,
+        kind: crate::runtime::ObjectTargetFeedbackKind::Selected,
     };
     let exact_candidate = 1024 + 91;
     let mut visibility = Vec::new();

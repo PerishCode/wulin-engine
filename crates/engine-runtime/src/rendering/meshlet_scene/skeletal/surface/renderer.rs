@@ -53,7 +53,7 @@ pub struct SurfaceFrame<'a> {
     pub depth_target: D3D12_CPU_DESCRIPTOR_HANDLE,
     pub background_color: [f32; 4],
     pub probe: bool,
-    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
+    pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
 }
 
 pub struct SurfaceProbeContext<'a> {
@@ -72,7 +72,7 @@ pub struct SurfaceProbeContext<'a> {
     pub timestamp_readback: &'a ID3D12Resource,
     pub timestamp_frequency: u64,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
-    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
+    pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
 }
 
 pub struct SurfaceRendererInput<'a> {
@@ -425,7 +425,7 @@ impl SurfaceRenderer {
         skeletal: [u32; SKELETAL_CONSTANT_COUNT as usize],
         background_color: [f32; 4],
         history_queried: bool,
-        object_target: Option<crate::rendering::ObjectTargetFeedback>,
+        object_target: Option<crate::rendering::ProjectedObjectTarget>,
     ) -> [u32; SURFACE_CONSTANT_COUNT as usize] {
         let mut constants = [0; SURFACE_CONSTANT_COUNT as usize];
         constants[..16].copy_from_slice(&skeletal[..16]);
@@ -440,7 +440,10 @@ impl SurfaceRenderer {
         }
         constants[24] = skeletal[49];
         if let Some(target) = object_target {
-            constants[25] = 1;
+            constants[25] = match target.kind {
+                crate::runtime::ObjectTargetFeedbackKind::Selected => 1,
+                crate::runtime::ObjectTargetFeedbackKind::Activated => 2,
+            };
             constants[26] = target.semantic_region;
             constants[27] = target.authored_local_id;
         }

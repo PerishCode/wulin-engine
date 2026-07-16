@@ -1,6 +1,6 @@
 use engine_runtime::{
     CanonicalObject, CanonicalObjectIdentity, CanonicalObjectPresentation, ObjectSourceNamespace,
-    RegionCoord,
+    RegionCoord, TerrainPosition,
 };
 
 fn object(region: RegionCoord, x: f32, z: f32) -> CanonicalObject {
@@ -84,5 +84,35 @@ fn positive_edge_signed_region_overflow_fails() {
         object(RegionCoord::new(0, i64::MAX), 0.0, 8.0)
             .terrain_position()
             .is_err()
+    );
+}
+
+#[test]
+fn proximity_is_inclusive() {
+    let region = RegionCoord::new(i64::MIN + 4, i64::MAX - 4);
+    let origin = TerrainPosition::new(region, 4095, -4096).unwrap();
+    let proximity = object(region.checked_offset(1, 0).unwrap(), -7.5, -8.0)
+        .proximity_from(origin, 257)
+        .unwrap()
+        .unwrap();
+    assert_eq!(proximity.delta_x_q9, 257);
+    assert_eq!(proximity.delta_z_q9, 0);
+    assert_eq!(proximity.distance_squared_q18, 66_049);
+    assert!(
+        object(region.checked_offset(1, 0).unwrap(), -7.5, -8.0)
+            .proximity_from(origin, 256)
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn proximity_handles_signed_extremes() {
+    let origin = TerrainPosition::new(RegionCoord::new(i64::MIN, i64::MAX), 0, 0).unwrap();
+    assert!(
+        object(RegionCoord::new(i64::MAX, i64::MIN), 0.0, 0.0)
+            .proximity_from(origin, u32::MAX)
+            .unwrap()
+            .is_none()
     );
 }

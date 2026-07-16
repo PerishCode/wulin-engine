@@ -105,6 +105,7 @@ pub enum ControlKind {
         region_x: i64,
         region_z: i64,
         authored_local_id: u32,
+        feedback_kind: engine_runtime::ObjectTargetFeedbackKind,
     },
     CanonicalObjectTargetClear,
     CanonicalTerrainHeight {

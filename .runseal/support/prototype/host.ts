@@ -307,8 +307,8 @@ export async function prototypeHostGates(
     const cameraOrbit = await capturedReady("prototype clockwise camera orbit", "camera-clockwise");
     const jump = await capturedReady("prototype committed jump", "jump");
     const objectObservation = await capturedReady(
-        "prototype committed object observation",
-        "observe-forward",
+        "prototype committed object observation and action",
+        "observe-action-forward",
     );
     const escape = await escapeExit(EXECUTABLE, CONFIG, "prototype Escape press exit");
     const boundary = await boundarySurvival(EXECUTABLE, CONFIG);

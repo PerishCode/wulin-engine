@@ -39,7 +39,7 @@ pub struct OracleInput<'a> {
     pub shadow_depth: &'a [u8],
     pub background_color: [f32; 4],
     pub actor: Option<ActorRenderProjection>,
-    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
+    pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
 }
 
 pub fn shade(sample: &SurfaceSample, input: OracleInput<'_>) -> Result<OracleResult> {
@@ -71,19 +71,20 @@ fn shade_visible(
     sample: &SurfaceSample,
     input: OracleInput<'_>,
 ) -> Result<(u32, [u32; 2], bool, [u32; 2])> {
-    let targeted = if candidate == ACTOR_CANDIDATE_INDEX {
-        false
+    let target_kind = if candidate == ACTOR_CANDIDATE_INDEX {
+        None
     } else if let Some(target) = input.object_target {
         let active_index = (candidate / 1024) as usize;
         let local_index = (candidate % 1024) as usize;
-        active_index == target.active_index as usize
+        (active_index == target.active_index as usize
             && input
                 .local_ids
                 .get(active_index)
                 .and_then(|ids| ids.get(local_index))
-                .is_some_and(|local_id| *local_id == target.authored_local_id)
+                .is_some_and(|local_id| *local_id == target.authored_local_id))
+        .then_some(target.kind)
     } else {
-        false
+        None
     };
     let (position, object_height, presentation, stable_identity) =
         if candidate == ACTOR_CANDIDATE_INDEX {
@@ -244,8 +245,15 @@ fn shade_visible(
     let mut color =
         Vec3::from_array(material.base_color[..3].try_into().unwrap()) * texture_rgb * lighting
             + Vec3::splat(metallic_lift);
-    if targeted {
-        color = color * 0.45 + Vec3::new(1.0, 0.62, 0.08) * 0.55;
+    if let Some(kind) = target_kind {
+        color = match kind {
+            crate::runtime::ObjectTargetFeedbackKind::Selected => {
+                color * 0.45 + Vec3::new(1.0, 0.62, 0.08) * 0.55
+            }
+            crate::runtime::ObjectTargetFeedbackKind::Activated => {
+                color * 0.30 + Vec3::new(0.12, 1.0, 0.32) * 0.70
+            }
+        };
     }
     Ok((
         pack_rgba8([

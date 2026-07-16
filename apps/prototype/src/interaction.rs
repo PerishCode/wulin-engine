@@ -1,0 +1,258 @@
+use anyhow::{Result, ensure};
+use engine_runtime::{
+    CanonicalObjectProximity, CanonicalObjectResolution, ObjectTargetFeedback,
+    ObjectTargetFeedbackKind, TerrainPosition,
+};
+use reference_host::HostElapsedSample;
+
+pub(crate) const OBJECT_ACTION_RADIUS_Q9: u32 = 512;
+pub(crate) const ACKNOWLEDGEMENT_FRAME_COUNT: u32 = 12;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Acknowledgement {
+    pub identity: engine_runtime::CanonicalObjectIdentity,
+    pub remaining_frames: u32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Target {
+    pub identity: engine_runtime::CanonicalObjectIdentity,
+    pub available: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Status {
+    pub pending: bool,
+    pub acknowledgement: Option<Acknowledgement>,
+    pub committed_count: u64,
+    pub ineligible_count: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Ineligible {
+    MissingTarget,
+    UnavailableTarget,
+    SourceReplaced,
+    OutsidePublishedWindow,
+    OutsideRadius,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Eligible {
+    pub feedback: ObjectTargetFeedback,
+    pub proximity: CanonicalObjectProximity,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Attempt {
+    Eligible(Eligible),
+    Ineligible(Ineligible),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct FrameCompletion {
+    pub applied: bool,
+    pub feedback: ObjectTargetFeedback,
+}
+
+pub(crate) struct Policy {
+    pending: bool,
+    acknowledgement: Option<Acknowledgement>,
+    committed_count: u64,
+    ineligible_count: u64,
+}
+
+fn resolved_attempt(
+    target: Target,
+    origin: TerrainPosition,
+    resolution: Option<CanonicalObjectResolution>,
+) -> Result<Attempt> {
+    match resolution
+        .ok_or_else(|| anyhow::anyhow!("resolved target action has no object resolution"))?
+    {
+        CanonicalObjectResolution::Resolved(object) => {
+            ensure!(
+                object.identity == target.identity,
+                "object action resolution diverged from the retained identity"
+            );
+            Ok(
+                match object.proximity_from(origin, OBJECT_ACTION_RADIUS_Q9)? {
+                    Some(proximity) => Attempt::Eligible(Eligible {
+                        feedback: ObjectTargetFeedback {
+                            identity: target.identity,
+                            kind: ObjectTargetFeedbackKind::Activated,
+                        },
+                        proximity,
+                    }),
+                    None => Attempt::Ineligible(Ineligible::OutsideRadius),
+                },
+            )
+        }
+        CanonicalObjectResolution::SourceReplaced => {
+            Ok(Attempt::Ineligible(Ineligible::SourceReplaced))
+        }
+        CanonicalObjectResolution::OutsidePublishedWindow => {
+            Ok(Attempt::Ineligible(Ineligible::OutsidePublishedWindow))
+        }
+    }
+}
+
+impl Policy {
+    pub(crate) const fn new() -> Self {
+        Self {
+            pending: false,
+            acknowledgement: None,
+            committed_count: 0,
+            ineligible_count: 0,
+        }
+    }
+
+    pub(crate) fn observe_sample(&mut self, sample: HostElapsedSample) {
+        if matches!(
+            sample,
+            HostElapsedSample::Reset | HostElapsedSample::Suspended
+        ) {
+            self.pending = false;
+        }
+    }
+
+    pub(crate) fn ingest(&mut self, pressed: bool) {
+        self.pending |= pressed;
+    }
+
+    pub(crate) const fn wants_completion(&self, step_count: u32) -> bool {
+        self.pending && step_count != 0
+    }
+
+    pub(crate) fn prepare_after_advance(
+        &mut self,
+        step_count: u32,
+        origin: TerrainPosition,
+        target: Option<Target>,
+        resolution: Option<CanonicalObjectResolution>,
+    ) -> Result<Option<Attempt>> {
+        if !self.wants_completion(step_count) {
+            return Ok(None);
+        }
+        let attempt = match target {
+            None => {
+                ensure!(
+                    resolution.is_none(),
+                    "missing target must not carry a resolution"
+                );
+                Attempt::Ineligible(Ineligible::MissingTarget)
+            }
+            Some(target) if !target.available => {
+                ensure!(
+                    resolution.is_none(),
+                    "unavailable target must not trigger object resolution"
+                );
+                Attempt::Ineligible(Ineligible::UnavailableTarget)
+            }
+            Some(target) => resolved_attempt(target, origin, resolution)?,
+        };
+        let next_ineligible_count = if matches!(attempt, Attempt::Ineligible(_)) {
+            self.ineligible_count
+                .checked_add(1)
+                .ok_or_else(|| anyhow::anyhow!("object action ineligible count overflowed"))?
+        } else {
+            self.ineligible_count
+        };
+        self.pending = false;
+        self.ineligible_count = next_ineligible_count;
+        if matches!(attempt, Attempt::Ineligible(_)) {
+            self.acknowledgement = None;
+        }
+        Ok(Some(attempt))
+    }
+
+    pub(crate) fn frame_feedback(
+        &self,
+        target: Option<engine_runtime::CanonicalObjectIdentity>,
+        attempt: Option<Attempt>,
+    ) -> Option<ObjectTargetFeedback> {
+        if let Some(Attempt::Eligible(eligible)) = attempt {
+            return Some(eligible.feedback);
+        }
+        target.map(|identity| ObjectTargetFeedback {
+            identity,
+            kind: if self
+                .acknowledgement
+                .is_some_and(|acknowledgement| acknowledgement.identity == identity)
+            {
+                ObjectTargetFeedbackKind::Activated
+            } else {
+                ObjectTargetFeedbackKind::Selected
+            },
+        })
+    }
+
+    pub(crate) fn complete_frame(
+        &mut self,
+        attempt: Option<Attempt>,
+        submitted: Option<ObjectTargetFeedback>,
+        rendered: Option<ObjectTargetFeedback>,
+    ) -> Result<Option<FrameCompletion>> {
+        ensure!(
+            rendered.is_none() || rendered == submitted,
+            "rendered object feedback diverged from the submitted frame candidate"
+        );
+        if let Some(Attempt::Eligible(eligible)) = attempt {
+            ensure!(
+                submitted == Some(eligible.feedback),
+                "eligible object action was not submitted as the frame candidate"
+            );
+            let applied = rendered == Some(eligible.feedback);
+            if applied {
+                let committed_count = self
+                    .committed_count
+                    .checked_add(1)
+                    .ok_or_else(|| anyhow::anyhow!("object action committed count overflowed"))?;
+                self.acknowledgement = Some(Acknowledgement {
+                    identity: eligible.feedback.identity,
+                    remaining_frames: ACKNOWLEDGEMENT_FRAME_COUNT - 1,
+                });
+                self.committed_count = committed_count;
+            } else {
+                self.acknowledgement = None;
+            }
+            return Ok(Some(FrameCompletion {
+                applied,
+                feedback: eligible.feedback,
+            }));
+        }
+        if let Some(mut acknowledgement) = self.acknowledgement
+            && rendered
+                == Some(ObjectTargetFeedback {
+                    identity: acknowledgement.identity,
+                    kind: ObjectTargetFeedbackKind::Activated,
+                })
+        {
+            acknowledgement.remaining_frames -= 1;
+            self.acknowledgement =
+                (acknowledgement.remaining_frames != 0).then_some(acknowledgement);
+        }
+        Ok(None)
+    }
+
+    pub(crate) fn observe_target(&mut self, target: Option<Target>) {
+        let resolved_identity = target
+            .filter(|target| target.available)
+            .map(|target| target.identity);
+        if self
+            .acknowledgement
+            .is_some_and(|acknowledgement| Some(acknowledgement.identity) != resolved_identity)
+        {
+            self.acknowledgement = None;
+        }
+    }
+
+    pub(crate) const fn status(&self) -> Status {
+        Status {
+            pending: self.pending,
+            acknowledgement: self.acknowledgement,
+            committed_count: self.committed_count,
+            ineligible_count: self.ineligible_count,
+        }
+    }
+}

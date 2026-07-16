@@ -314,7 +314,7 @@ pub unsafe fn drive(
                 capture: false,
                 capture_object_ids: false,
                 probe: false,
-                object_target: None,
+                object_target_feedback: None,
             })?;
         }
         let last_frame_duration = frame_started.elapsed();

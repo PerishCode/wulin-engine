@@ -15,6 +15,12 @@ export async function requireTypedObjectResolution(
         !contract.includes("pub enum CanonicalObjectResolution") ||
         !contract.includes("pub struct CanonicalObjectSnapshot") ||
         !contract.includes("pub publication_token: u64") ||
+        !contract.includes("pub struct CanonicalObjectProximity") ||
+        !contract.includes("pub fn proximity_from(") ||
+        !contract.includes("pub struct ObjectTargetFeedback") ||
+        !contract.includes("pub enum ObjectTargetFeedbackKind") ||
+        !contract.includes("Selected") ||
+        !contract.includes("Activated") ||
         !contract.includes("SourceReplaced") ||
         !contract.includes("OutsidePublishedWindow") ||
         contract.includes("pub struct CanonicalObject {\n    pub region:")
@@ -39,6 +45,9 @@ export async function requireTypedObjectResolution(
     const routing = await Deno.readTextFile(`${root}/apps/workbench/src/inspect/protocol.rs`);
     const acceptance = await Deno.readTextFile(`${root}/.runseal/support/object/query.ts`);
     const feedback = await Deno.readTextFile(`${root}/.runseal/support/object/feedback.ts`);
+    const nearest = await Deno.readTextFile(
+        `${root}/crates/engine-runtime/src/rendering/async_resident/renderer/query.rs`,
+    );
     if (
         !protocol.includes("source_namespace: String") ||
         !protocol.includes("decode_source_namespace") ||
@@ -52,11 +61,15 @@ export async function requireTypedObjectResolution(
         !routing.includes('"canonical.objects.target.clear" =>') ||
         !feedback.includes("targetedPixels") ||
         !feedback.includes("visibleObjectTarget") ||
+        !feedback.includes('"activated" | "selected"') ||
+        !feedback.includes("invalidObjectFeedbackGate") ||
+        !nearest.includes("object.proximity_from(origin, max_distance_q9)?") ||
         dispatch.includes("exact-canonical-object-position-v1") ||
         dispatch.includes("exact-canonical-object-nearest-v1")
     ) fail("guard: workbench typed object-resolution schema diverged");
 
     const prototype = await Deno.readTextFile(`${root}/apps/prototype/src/observation.rs`);
+    const interaction = await Deno.readTextFile(`${root}/apps/prototype/src/interaction.rs`);
     const prototypeMain = await Deno.readTextFile(`${root}/apps/prototype/src/main.rs`);
     const runtimeFrame = await Deno.readTextFile(
         `${root}/crates/engine-runtime/src/rendering/renderer/frame.rs`,
@@ -66,6 +79,10 @@ export async function requireTypedObjectResolution(
     );
     const surfaceShader = await Deno.readTextFile(
         `${root}/crates/engine-runtime/shaders/surface_resolve.hlsl`,
+    );
+    const runtime = await Deno.readTextFile(`${root}/crates/engine-runtime/src/runtime/mod.rs`);
+    const renderer = await Deno.readTextFile(
+        `${root}/crates/engine-runtime/src/rendering/renderer/mod.rs`,
     );
     const targetFields = prototype.match(
         /pub\(crate\) struct Target \{([\s\S]*?)\n\}/,
@@ -90,11 +107,24 @@ export async function requireTypedObjectResolution(
         !prototypeMain.includes("observation_policy.validation_request(snapshot)") ||
         !prototypeMain.includes("let object_target = observation_policy.target_identity()") ||
         !prototypeMain.includes('"frameFeedback"') ||
+        !prototypeMain.includes("const ACTIVATE_OBJECT: u8 = 0x0D") ||
+        !prototypeMain.includes(".prepare_after_advance(") ||
+        !prototypeMain.includes(".complete_frame(") ||
+        !prototypeMain.includes('"object_interaction_driver"') ||
+        !interaction.includes("pub(crate) const OBJECT_ACTION_RADIUS_Q9: u32 = 512") ||
+        !interaction.includes("pub(crate) const ACKNOWLEDGEMENT_FRAME_COUNT: u32 = 12") ||
+        !interaction.includes("object.proximity_from(origin, OBJECT_ACTION_RADIUS_Q9)?") ||
+        !interaction.includes("kind: ObjectTargetFeedbackKind::Activated") ||
+        !runtime.includes("pub object_target_feedback: Option<ObjectTargetFeedback>") ||
+        !renderer.includes("pub object_target_feedback: Option<ObjectTargetFeedback>") ||
         !prototypeMain.includes("resolve_canonical_object(identity)") ||
-        !runtimeFrame.includes("rendered_object_target = super::object_target::project(") ||
+        !runtimeFrame.includes("projected_object_target_feedback") ||
+        !runtimeFrame.includes("object_target_feedback") ||
         !skeletalShader.includes("stable_identity_high = local_id;") ||
         !surfaceShader.includes("visible.semantic_region == surface_animation.z") ||
         !surfaceShader.includes("visible.stable_identity_high == surface_animation.w") ||
+        !surfaceShader.includes("surface_animation.y == 1u") ||
+        !surfaceShader.includes("float3(0.12, 1.0, 0.32)") ||
         !surfaceShader.includes("surface_stats.InterlockedAdd(20, group_targeted") ||
         (prototypeMain.match(/query_nearest_canonical_object/g)?.length ?? 0) !== 1
     ) {

@@ -13,7 +13,7 @@ use windows::core::Interface;
 use crate::objects::CookedObjectStreamer;
 use crate::runtime::{
     CanonicalObjectIdentity, CanonicalObjectNearestQuery, CanonicalObjectResolution,
-    CanonicalObjectSnapshot,
+    CanonicalObjectSnapshot, ObjectTargetFeedback,
 };
 use crate::terrain::TerrainStreamer;
 use crate::terrain_query::{TerrainHeight, TerrainPosition};
@@ -33,7 +33,7 @@ mod frame;
 mod object_target;
 
 pub(crate) use actor_projection::ActorRenderProjection;
-pub(crate) use object_target::ObjectTargetFeedback;
+pub(crate) use object_target::ProjectedObjectTarget;
 
 const BUFFER_COUNT: usize = 2;
 
@@ -76,6 +76,7 @@ pub struct CapturedFrame {
 pub struct RenderOutcome {
     pub capture: Option<CapturedFrame>,
     pub composition_probe: Option<CompositionProbe>,
+    pub object_target_feedback: Option<ObjectTargetFeedback>,
 }
 
 pub(crate) struct RenderFrame<'a> {
@@ -87,7 +88,7 @@ pub(crate) struct RenderFrame<'a> {
     pub presentation_status: Option<&'a Value>,
     pub simulation_status: Option<&'a Value>,
     pub actor: Option<crate::runtime::RuntimeActor>,
-    pub object_target: Option<CanonicalObjectIdentity>,
+    pub object_target_feedback: Option<ObjectTargetFeedback>,
     pub scene: &'a mut crate::scene::SceneState,
 }
 

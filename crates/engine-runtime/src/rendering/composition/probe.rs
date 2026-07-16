@@ -121,7 +121,7 @@ pub(in crate::rendering) struct CompositionFrameProbeInput<'a> {
     pub presentation_status: &'a serde_json::Value,
     pub simulation_status: &'a serde_json::Value,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
-    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
+    pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
 }
 
 impl Renderer {

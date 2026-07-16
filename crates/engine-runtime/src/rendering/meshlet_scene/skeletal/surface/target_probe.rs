@@ -2,7 +2,7 @@ use anyhow::{Result, ensure};
 
 pub(in crate::rendering::meshlet_scene::skeletal) fn pixel_count(
     visibility: &[u8],
-    target: Option<crate::rendering::ObjectTargetFeedback>,
+    target: Option<crate::rendering::ProjectedObjectTarget>,
     local_ids: &[Vec<u32>],
 ) -> Result<u32> {
     let Some(target) = target else {

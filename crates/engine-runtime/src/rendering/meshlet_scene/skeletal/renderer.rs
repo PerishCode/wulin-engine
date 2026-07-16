@@ -75,7 +75,7 @@ pub struct SkeletalFrame<'a> {
     pub projection: TerrainProjection,
     pub presentation_tick: u32,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
-    pub object_target: Option<crate::rendering::ObjectTargetFeedback>,
+    pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
     pub frame_slot: u32,
 }
 

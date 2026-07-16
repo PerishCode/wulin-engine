@@ -6,6 +6,7 @@ import {
     assertTargetedFrame,
     assertUntargetedFrame,
     clearObjectTarget,
+    invalidObjectFeedbackGate,
     invalidObjectTargetGate,
     setObjectTarget,
     visibleObjectTarget,
@@ -26,7 +27,7 @@ import {
     target,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-frame-v8";
+const REVISION = "canonical-frame-v9";
 const COLLECTION = "canonical-frame";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];
@@ -72,6 +73,7 @@ try {
     );
     const identity = selected.identity;
     const invalidTarget = await invalidObjectTargetGate(identity);
+    const invalidFeedback = await invalidObjectFeedbackGate(identity);
     const targetSet = await setObjectTarget(identity);
     const targeted = await frame("targeted", COLLECTION);
     const targetedReplay = await frame("targeted-replay", COLLECTION);
@@ -92,6 +94,33 @@ try {
         "canonical targeted replay",
     );
     same(targetedReplay.stable, targeted.stable, "canonical targeted immediate replay");
+    const activatedSet = await setObjectTarget(identity, "activated");
+    const activated = await frame("target-activated", COLLECTION);
+    const activatedReplay = await frame("target-activated-replay", COLLECTION);
+    const activatedPixels = assertTargetedFrame(
+        activated,
+        identity,
+        selected.activeIndex,
+        selected.semanticRegion,
+        first,
+        "canonical activated frame",
+        "activated",
+    );
+    assertTargetedFrame(
+        activatedReplay,
+        identity,
+        selected.activeIndex,
+        selected.semanticRegion,
+        first,
+        "canonical activated replay",
+        "activated",
+    );
+    same(activatedPixels, targetedPixels, "selected/activated exact target pixel count");
+    same(activatedReplay.stable, activated.stable, "canonical activated immediate replay");
+    if (
+        string(object(activated, "capture"), "color") ===
+            string(object(targeted, "capture"), "color")
+    ) fail("activated target feedback did not change the selected color");
     const targetCleared = await clearObjectTarget();
     const cleared = await frame("target-cleared", COLLECTION);
     assertUntargetedFrame(cleared, "canonical target-cleared frame");
@@ -108,10 +137,15 @@ try {
         targetFeedback: {
             identity,
             invalidTarget,
+            invalidFeedback,
             targetSet,
             targetedPixels,
             targeted,
             targetedReplay,
+            activatedSet,
+            activatedPixels,
+            activated,
+            activatedReplay,
             targetCleared,
             cleared,
         },

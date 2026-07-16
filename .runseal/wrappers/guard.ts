@@ -452,9 +452,10 @@ await run("deno check", "deno", [
     ".runseal/support/cooked-gltf-presentation.ts",
     ".runseal/support/temporal-presentation.ts",
 ]);
-await run("resource acceptance tests", "deno", [
+await run("acceptance support tests", "deno", [
     "test",
     ".runseal/support/resource-acceptance_test.ts",
+    ".runseal/support/prototype/object/observation_test.ts",
 ]);
 await run("flavor", "flavor", ["check", "--root", ".", "--config", "flavor.toml"]);
 await run("sidecar doctor", "sidecar", ["doctor", "--config", "sidecar.toml"]);

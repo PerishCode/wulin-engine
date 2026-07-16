@@ -20,7 +20,8 @@ pub use actor::{ActorHandle, RuntimeActor};
 pub use object_query::{
     CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CANONICAL_OBJECTS_PER_REGION, CanonicalObject,
     CanonicalObjectIdentity, CanonicalObjectNearest, CanonicalObjectNearestQuery,
-    CanonicalObjectPresentation, CanonicalObjectResolution, CanonicalObjectSnapshot,
+    CanonicalObjectPresentation, CanonicalObjectProximity, CanonicalObjectResolution,
+    CanonicalObjectSnapshot, ObjectTargetFeedback, ObjectTargetFeedbackKind,
 };
 pub use region_format::PresentationRecord as ActorPresentation;
 use simulation_actor::prepare_simulation_actor;
@@ -35,7 +36,7 @@ pub struct FrameRequest {
     pub capture: bool,
     pub capture_object_ids: bool,
     pub probe: bool,
-    pub object_target: Option<CanonicalObjectIdentity>,
+    pub object_target_feedback: Option<ObjectTargetFeedback>,
 }
 
 pub struct Runtime {
@@ -88,7 +89,7 @@ impl Runtime {
                 presentation_status: presentation_status.as_ref(),
                 simulation_status: simulation_status.as_ref(),
                 actor,
-                object_target: request.object_target,
+                object_target_feedback: request.object_target_feedback,
                 scene: &mut self.scene,
             })
         }?;

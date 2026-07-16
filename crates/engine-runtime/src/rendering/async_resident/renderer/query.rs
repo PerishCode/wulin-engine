@@ -6,7 +6,7 @@ use crate::runtime::{
     CanonicalObjectIdentity, CanonicalObjectNearest, CanonicalObjectNearestQuery,
     CanonicalObjectResolution,
 };
-use crate::terrain_query::{TERRAIN_POSITION_REGION_SIDE_Q9, TerrainPosition};
+use crate::terrain_query::TerrainPosition;
 
 use super::{AsyncResidentRenderer, PublishedSnapshot};
 use crate::rendering::async_resident::transfer::CpuObjectPage;
@@ -84,8 +84,6 @@ fn query_nearest_snapshot(
             .is_some(),
         "canonical object nearest origin is outside the published active window"
     );
-    let radius = i128::from(max_distance_q9);
-    let radius_squared = u128::from(max_distance_q9) * u128::from(max_distance_q9);
     let mut candidate_count = 0_u32;
     let mut nearest: Option<((u64, i64, i64, u32), CanonicalObjectNearest)> = None;
 
@@ -109,28 +107,15 @@ fn query_nearest_snapshot(
             candidate_count = candidate_count
                 .checked_add(1)
                 .context("canonical object nearest candidate count overflowed")?;
-            let terrain_position = object.terrain_position()?;
-            let (delta_x_q9, delta_z_q9) = planar_delta_q9(origin, terrain_position);
-            if !(-radius..=radius).contains(&delta_x_q9)
-                || !(-radius..=radius).contains(&delta_z_q9)
-            {
+            let Some(proximity) = object.proximity_from(origin, max_distance_q9)? else {
                 continue;
-            }
-            let distance_squared =
-                u128::try_from(delta_x_q9 * delta_x_q9 + delta_z_q9 * delta_z_q9)
-                    .expect("radius-bounded squared distance must be nonnegative");
-            if distance_squared > radius_squared {
-                continue;
-            }
+            };
             let candidate = CanonicalObjectNearest {
                 object,
-                terrain_position,
-                delta_x_q9: i64::try_from(delta_x_q9)
-                    .expect("radius-bounded X delta must fit signed 64-bit"),
-                delta_z_q9: i64::try_from(delta_z_q9)
-                    .expect("radius-bounded Z delta must fit signed 64-bit"),
-                distance_squared_q18: u64::try_from(distance_squared)
-                    .expect("radius-bounded squared distance must fit unsigned 64-bit"),
+                terrain_position: proximity.terrain_position,
+                delta_x_q9: proximity.delta_x_q9,
+                delta_z_q9: proximity.delta_z_q9,
+                distance_squared_q18: proximity.distance_squared_q18,
             };
             let key = (
                 candidate.distance_squared_q18,
@@ -206,15 +191,6 @@ fn object_at(
         height: record.height,
         presentation: page.presentations[index],
     })
-}
-
-fn planar_delta_q9(origin: TerrainPosition, candidate: TerrainPosition) -> (i128, i128) {
-    let region_side = i128::from(TERRAIN_POSITION_REGION_SIDE_Q9);
-    let delta_x = (i128::from(candidate.region().x) - i128::from(origin.region().x)) * region_side
-        + i128::from(candidate.local_x_q9() - origin.local_x_q9());
-    let delta_z = (i128::from(candidate.region().z) - i128::from(origin.region().z)) * region_side
-        + i128::from(candidate.local_z_q9() - origin.local_z_q9());
-    (delta_x, delta_z)
 }
 
 #[cfg(test)]
@@ -397,6 +373,18 @@ mod tests {
         assert_eq!(inclusive.object.identity.authored_local_id, 0);
         assert_eq!((inclusive.delta_x_q9, inclusive.delta_z_q9), (-1, 0));
         assert_eq!(inclusive.distance_squared_q18, 1);
+        let proximity = inclusive
+            .object
+            .proximity_from(displaced, 1)
+            .unwrap()
+            .unwrap();
+        assert_eq!(inclusive.terrain_position, proximity.terrain_position);
+        assert_eq!(inclusive.delta_x_q9, proximity.delta_x_q9);
+        assert_eq!(inclusive.delta_z_q9, proximity.delta_z_q9);
+        assert_eq!(
+            inclusive.distance_squared_q18,
+            proximity.distance_squared_q18
+        );
     }
 
     #[test]
