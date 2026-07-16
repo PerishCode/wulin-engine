@@ -1,4 +1,4 @@
-import { event, fail, type Json, object, rejectedEvent, root, same } from "./canonical-runtime.ts";
+import { event, fail, type Json, object, rejectedEvent, root, same } from "../canonical-runtime.ts";
 
 const RECORD_COUNT = 1_024;
 const RECORD_BYTES = 20;

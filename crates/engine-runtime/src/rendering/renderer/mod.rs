@@ -12,7 +12,7 @@ use windows::core::Interface;
 
 use crate::objects::CookedObjectStreamer;
 use crate::region::RegionCoord;
-use crate::runtime::CanonicalObject;
+use crate::runtime::{CanonicalObject, CanonicalObjectNearestQuery};
 use crate::terrain::TerrainStreamer;
 use crate::terrain_query::{TerrainHeight, TerrainPosition};
 
@@ -274,6 +274,15 @@ impl Renderer {
     ) -> Result<CanonicalObject> {
         self.async_resident_renderer
             .query_canonical_object(region, authored_local_id)
+    }
+
+    pub fn query_nearest_canonical_object(
+        &self,
+        origin: TerrainPosition,
+        max_distance_q9: u32,
+    ) -> Result<CanonicalObjectNearestQuery> {
+        self.async_resident_renderer
+            .query_nearest_canonical_object(origin, max_distance_q9)
     }
 
     pub fn arm_async_copy_gate(&mut self) -> Result<u64> {

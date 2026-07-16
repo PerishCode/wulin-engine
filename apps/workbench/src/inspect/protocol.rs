@@ -92,6 +92,13 @@ pub enum ControlKind {
         region_z: i64,
         authored_local_id: u32,
     },
+    CanonicalObjectNearest {
+        region_x: i64,
+        region_z: i64,
+        local_x_q9: i32,
+        local_z_q9: i32,
+        max_distance_q9: u32,
+    },
     CanonicalTerrainHeight {
         region_x: i64,
         region_z: i64,
@@ -226,6 +233,7 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "canonical.prefetch.disable" => Ok(ControlKind::CanonicalPrefetchDisable),
         "canonical.probe" => Ok(ControlKind::CanonicalProbe),
         "canonical.objects.query" => objects::query(payload),
+        "canonical.objects.nearest" => objects::nearest(payload),
         "canonical.terrain.height" => terrain::height(payload),
         "canonical.terrain.contact" => terrain::contact(payload),
         "actor.spawn" => terrain::actor_spawn(payload),

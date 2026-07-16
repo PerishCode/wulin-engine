@@ -22,7 +22,8 @@ mod simulation_actor;
 use actor::ActorSlot;
 pub use actor::{ActorHandle, RuntimeActor};
 pub use object_query::{
-    CANONICAL_OBJECTS_PER_REGION, CanonicalObject, CanonicalObjectPresentation,
+    CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CANONICAL_OBJECTS_PER_REGION, CanonicalObject,
+    CanonicalObjectNearest, CanonicalObjectNearestQuery, CanonicalObjectPresentation,
 };
 pub use region_format::PresentationRecord as ActorPresentation;
 use simulation_actor::prepare_simulation_actor;
@@ -221,6 +222,15 @@ impl Runtime {
     ) -> Result<CanonicalObject> {
         self.renderer
             .query_canonical_object(region, authored_local_id)
+    }
+
+    pub fn query_nearest_canonical_object(
+        &self,
+        origin: TerrainPosition,
+        max_distance_q9: u32,
+    ) -> Result<CanonicalObjectNearestQuery> {
+        self.renderer
+            .query_nearest_canonical_object(origin, max_distance_q9)
     }
 
     pub fn resolve_terrain_contact(&self, body: TerrainBody) -> Result<TerrainBodyContact> {

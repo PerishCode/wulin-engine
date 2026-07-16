@@ -15,7 +15,8 @@ pub use rendering::{CapturedFrame, RenderOutcome};
 pub use runtime::{
     ActorHandle, ActorPresentation, ActorSimulationAdvance, ActorSimulationCommand,
     ActorSimulationOutcome, ActorSimulationRenderBlock, ActorStateTransition,
-    CANONICAL_OBJECTS_PER_REGION, CanonicalObject, CanonicalObjectPresentation, FrameRequest,
+    CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CANONICAL_OBJECTS_PER_REGION, CanonicalObject,
+    CanonicalObjectNearest, CanonicalObjectNearestQuery, CanonicalObjectPresentation, FrameRequest,
     Runtime, RuntimeActor,
 };
 pub use streaming::address::GlobalRegionConfig;

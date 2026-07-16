@@ -110,6 +110,20 @@ pub(crate) fn handle_commands(
                 region_z,
                 authored_local_id,
             } => objects::query(runtime, region_x, region_z, authored_local_id),
+            ControlKind::CanonicalObjectNearest {
+                region_x,
+                region_z,
+                local_x_q9,
+                local_z_q9,
+                max_distance_q9,
+            } => objects::nearest(
+                runtime,
+                region_x,
+                region_z,
+                local_x_q9,
+                local_z_q9,
+                max_distance_q9,
+            ),
             ControlKind::CanonicalTerrainHeight {
                 region_x,
                 region_z,

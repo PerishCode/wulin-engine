@@ -8,6 +8,8 @@ use crate::terrain_query::{
 };
 
 pub const CANONICAL_OBJECTS_PER_REGION: u32 = region_format::RECORDS_PER_REGION;
+pub const CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY: u32 =
+    crate::resident::ACTIVE_REGION_CAPACITY as u32 * CANONICAL_OBJECTS_PER_REGION;
 
 pub use region_format::PresentationRecord as CanonicalObjectPresentation;
 
@@ -23,6 +25,25 @@ pub struct CanonicalObject {
     pub position: [f32; 3],
     pub height: f32,
     pub presentation: CanonicalObjectPresentation,
+}
+
+/// One exact nearest-object candidate from the current committed snapshot.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalObjectNearest {
+    pub object: CanonicalObject,
+    pub terrain_position: TerrainPosition,
+    pub delta_x_q9: i64,
+    pub delta_z_q9: i64,
+    pub distance_squared_q18: u64,
+}
+
+/// Bounded nearest-object query output over every committed active CPU object page.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalObjectNearestQuery {
+    pub candidate_count: u32,
+    pub nearest: Option<CanonicalObjectNearest>,
 }
 
 impl CanonicalObject {

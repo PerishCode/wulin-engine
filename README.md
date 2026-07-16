@@ -523,6 +523,17 @@ coarse/nominal、rollback、pending admission、GPU/epoch；268.804 秒 `canonic
 traversal、8 publication resource checkpoint 与 2 lifecycle 全部通过。故意回填旧 method 名在一秒内
 被 guard 拒绝；最终零 Flavor deny。没有 alias、replacement status、product、renderer/GPU/resource/
 source/format/asset、networking 或 Wulin 变化。
+Experiment 0096 在既有 committed 25-page CPU object snapshot 上加入唯一有界 nearest query：输入
+active-window 内的精确 `TerrainPosition` 与 inclusive `u32` Q9 radius，一次验证并扫描最多 25,600
+triples，只返回一个 optional raw object、归一化位置、signed delta 与 squared Q18 distance；等距严格按
+owner X/Z/local ID 决定，不受 physical order、spatial seam 或 GPU visibility 影响。13.639 秒
+`canonical-frame-v4` 以独立 `.wlr` 全页 oracle 证明 zero-radius seam、inclusive/no-result、center 和
+`u32::MAX` radius，全部 query-side work 为零且 GPU hashes 不变；251.987 秒
+`canonical-runtime-v5` 的 28 次成功/3 次严格失败进一步保持 A/B、revisit、adjacent、两类 rollback、
+restart、32+32 traversal、资源 checkpoint 与 2 lifecycle。资源基线改为同 workload 4..8 次
+state-driven warm，正式容差未放宽；最终工作树在第 5 次收敛后保持 492 handles/21 threads，最终
+private bytes 比基线低 503,808。没有 enumeration/index、selection/interaction、persistent ID、renderer/GPU
+resource、format/asset、networking 或 Wulin 变化。
 
 ## Project model
 
@@ -616,16 +627,17 @@ signed terrain and schema-3 object sources directly, validates explicit presenta
 deterministic presentation time, fixed camera-visible directional object shadows, canonical
 runtime and timeline ownership, successful-frame transactions, fixed normalized host input state,
 strict configured canonical readiness, shared reference-host ownership, plain prototype
-startup/restart/cleanup, exact committed-snapshot CPU object lookup and checked Q9 position
-conversion, exact published-snapshot CPU terrain queries,
+startup/restart/cleanup, exact committed-snapshot CPU object lookup, checked Q9 position conversion,
+and bounded nearest selection, exact published-snapshot CPU terrain queries,
 exact caller-owned vertical terrain contact and bounded transition witnesses, the explicit bounded
 60 Hz simulation schedule and its frame/presentation independence, private fixed terrain-body
 motion/translation/planar-first/batch contracts, one retained terrain-body generation lifecycle
 with exact failure rollback and process reset, the sole explicit elapsed schedule/body dual commit
 with coarse/nominal partition equality and complete rollback,
 clear-only idle behavior and retired-control rejection, composition, fault rollback, and
-traversal/prefetch/rollover without invoking an older experiment workflow. The v3 operator keeps an
-8-publication active-resource checkpoint and two complete lifecycle checkpoints in this full path;
+traversal/prefetch/rollover without invoking an older experiment workflow. The v5 operator keeps a
+4..8 publication state-driven warm, an 8-publication active-resource checkpoint, and two complete
+lifecycle checkpoints in this full path;
 the focused resource owner retains the 64-publication/60-second/16-cycle deep soak. Full acceptance
 persists only representative captures, uses readback-only color/object-ID observations for repeated
 hash assertions, and reports stage timings, operation counts, and artifact bytes.
