@@ -56,6 +56,7 @@ import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 import { actorGates } from "../support/actor/lifecycle.ts";
 import { simulationActorGates } from "../support/actor/simulation.ts";
 import {
+    OBJECT_QUERY_SAMPLE_IDS,
     objectQueryGates,
     queryObject,
     queryObjectSamples,
@@ -64,7 +65,7 @@ import {
     unavailableObjectQueryGate,
 } from "../support/object-query.ts";
 
-const REVISION = "canonical-runtime-v2";
+const REVISION = "canonical-runtime-v3";
 const COLLECTION = "canonical-runtime";
 const FAR = 2 ** 40;
 const BASE: Coord = [FAR, -FAR];
@@ -204,7 +205,7 @@ try {
     const orderBObjectQueries = await queryObjectSamples(
         OBJECTS_B,
         BASE,
-        [0, 511, 1_023],
+        OBJECT_QUERY_SAMPLE_IDS,
     );
     sameObjectQueries(orderBObjectQueries, orderAObjectQueries, "physical object order A/B query");
     const orderB = await frame("order-b", COLLECTION, false, false);
@@ -216,7 +217,7 @@ try {
     const revisitObjectQueries = await queryObjectSamples(
         OBJECTS_A,
         BASE,
-        [0, 511, 1_023],
+        OBJECT_QUERY_SAMPLE_IDS,
     );
     sameObjectQueries(revisitObjectQueries, orderAObjectQueries, "object source revisit query");
     const revisit = await frame("order-a-revisit", COLLECTION, false, false);
@@ -232,7 +233,7 @@ try {
         0,
         "retired adjacent-window object query",
     );
-    const adjacentNew = await queryObject(OBJECTS_A, admittedAdjacentRegion, 0);
+    const adjacentNew = await queryObject(OBJECTS_A, admittedAdjacentRegion, 1_023);
     const adjacentObjectQuery = { adjacentOldBefore, adjacentOldAfter, adjacentNew };
     const adjacent = await frame("adjacent", COLLECTION, false, false);
     const diagonalBasePublication = await publish(target([BASE[0] + 40, BASE[1]]));
@@ -280,7 +281,7 @@ try {
     }
     const beforeFailure = await frame("failure-before", COLLECTION, false, false);
     const failurePublishedRegion: Coord = [BASE[0] + 5, BASE[1]];
-    const failureObjectBefore = await queryObject(OBJECTS_A, failurePublishedRegion, 511);
+    const failureObjectBefore = await queryObject(OBJECTS_A, failurePublishedRegion, 1_023);
     await event("source.objects.open", { path: OBJECTS_CORRUPT });
     const objectFailure = await failedPair(
         target([BASE[0] + 70, BASE[1]]),
@@ -289,7 +290,7 @@ try {
         "object-corrupt",
         false,
     );
-    const failureObjectAfterObject = await queryObject(OBJECTS_A, failurePublishedRegion, 511);
+    const failureObjectAfterObject = await queryObject(OBJECTS_A, failurePublishedRegion, 1_023);
     sameObjectQueries(
         [failureObjectAfterObject],
         [failureObjectBefore],
@@ -304,7 +305,7 @@ try {
         "terrain-corrupt",
         false,
     );
-    const failureObjectAfterTerrain = await queryObject(OBJECTS_A, failurePublishedRegion, 511);
+    const failureObjectAfterTerrain = await queryObject(OBJECTS_A, failurePublishedRegion, 1_023);
     sameObjectQueries(
         [failureObjectAfterTerrain],
         [failureObjectBefore],
@@ -326,7 +327,7 @@ try {
     const restartObjectQueries = await queryObjectSamples(
         OBJECTS_A,
         BASE,
-        [0, 511, 1_023],
+        OBJECT_QUERY_SAMPLE_IDS,
     );
     sameObjectQueries(restartObjectQueries, orderAObjectQueries, "canonical restart object query");
     const restarted = await frame("restart", COLLECTION, false, false);

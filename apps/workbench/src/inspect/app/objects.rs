@@ -11,17 +11,19 @@ pub(super) fn query(
 ) -> ControlResult {
     runtime
         .query_canonical_object(RegionCoord::new(region_x, region_z), authored_local_id)
-        .map(|object| {
-            json!({
-                "revision": "exact-canonical-object-query-v1",
+        .and_then(|object| {
+            let terrain_position = object.terrain_position()?;
+            Ok(json!({
+                "revision": "exact-canonical-object-position-v1",
                 "object": object,
+                "terrainPosition": terrain_position,
                 "perQueryAllocationBytes": 0,
                 "sourceReadCount": 0,
                 "gpuCopyCount": 0,
                 "gpuReadbackCount": 0,
                 "fenceWaitCount": 0,
                 "synchronizationCount": 0,
-            })
+            }))
         })
         .map_err(|error| protocol_error("canonical_object_query_failed", error))
 }

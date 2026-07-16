@@ -7,6 +7,7 @@ const PRESENTATION_BYTES = 16;
 const HEADER_BYTES = 96;
 const INDEX_ENTRY_BYTES = 64;
 const REGION_BYTES = RECORD_COUNT * (RECORD_BYTES + IDENTITY_BYTES + PRESENTATION_BYTES);
+export const OBJECT_QUERY_SAMPLE_IDS = [0, 31, 511, 992, 1_023];
 
 function requireQueryRejection(value: Json, label: string): void {
     if (
@@ -58,7 +59,7 @@ export async function objectQueryGates(
     });
     requireQueryRejection(invalidLocalId, "out-of-range authored local ID");
     requireQueryRejection(outside, "outside-window object query");
-    const samples = await queryObjectSamples(source, base, [0, 511, 1_023]);
+    const samples = await queryObjectSamples(source, base, OBJECT_QUERY_SAMPLE_IDS);
     return { unavailable, invalidLocalId, outside, samples };
 }
 
@@ -84,12 +85,21 @@ export async function queryObject(
         region_z: region[1],
         authored_local_id: localId,
     });
-    if (value.revision !== "exact-canonical-object-query-v1") {
+    if (value.revision !== "exact-canonical-object-position-v1") {
         fail(`object query ${region[0]},${region[1]}:${localId} revision diverged`);
     }
     requireZeroRuntimeWork(value, `object query ${region[0]},${region[1]}:${localId}`);
     const expected = await readObjectOracle(source, region, localId);
-    same(object(value, "object"), expected, `object query ${region[0]},${region[1]}:${localId}`);
+    same(
+        object(value, "object"),
+        object(expected, "object"),
+        `object query ${region[0]},${region[1]}:${localId}`,
+    );
+    same(
+        object(value, "terrainPosition"),
+        object(expected, "terrainPosition"),
+        `object terrain position ${region[0]},${region[1]}:${localId}`,
+    );
     return value;
 }
 
@@ -147,7 +157,7 @@ async function readObjectOracle(
     const record = payloadOffset + physicalIndex * RECORD_BYTES;
     const presentation = identityOffset + RECORD_COUNT * IDENTITY_BYTES +
         physicalIndex * PRESENTATION_BYTES;
-    return {
+    const authored = {
         authoredLocalId: localId,
         height: view.getFloat32(record + 12, true),
         position: [
@@ -162,5 +172,31 @@ async function readObjectOracle(
             yawQ16: view.getUint32(presentation + 8, true),
         },
         region: { x: region[0], z: region[1] },
+    };
+    return {
+        object: authored,
+        terrainPosition: exactTerrainPosition(region, authored.position),
+    };
+}
+
+function exactTerrainPosition(region: [number, number], position: number[]): Json {
+    const axis = (value: number, name: string): { regionDelta: number; localQ9: number } => {
+        const scaled = value * 512;
+        if (!Number.isFinite(scaled) || !Number.isInteger(scaled)) {
+            fail(`independent object position oracle rejected non-Q9 ${name}`);
+        }
+        if (scaled < -4_096 || scaled > 4_096) {
+            fail(`independent object position oracle rejected out-of-region ${name}`);
+        }
+        return scaled === 4_096
+            ? { regionDelta: 1, localQ9: -4_096 }
+            : { regionDelta: 0, localQ9: scaled };
+    };
+    const x = axis(position[0], "X");
+    const z = axis(position[2], "Z");
+    return {
+        localXQ9: x.localQ9,
+        localZQ9: z.localQ9,
+        region: { x: region[0] + x.regionDelta, z: region[1] + z.regionDelta },
     };
 }
