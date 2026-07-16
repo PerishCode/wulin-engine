@@ -21,7 +21,7 @@ const HALF_HEIGHT_Q16 = 65_536;
 const SHORT_STEP_NANOSECONDS = 16_666_666;
 const LONG_STEP_NANOSECONDS = 16_666_667;
 const I32_MAX = 2_147_483_647;
-const REVISION = "runtime-actor-simulation-v5";
+const REVISION = "runtime-actor-simulation-v6";
 const SURVEY = { archetype: 7, material: 63, yaw_q16: 0, animation: 0 };
 const WALK = { ...SURVEY, animation: 1 };
 const ADMITTED_VELOCITY_DELTA_Q16 = 16_384;
@@ -72,7 +72,12 @@ async function groundedActor(center: Coord): Promise<Json> {
     );
 }
 
-function requireAdvance(value: Json, presentationMutations: number, label: string): Json {
+function requireAdvance(
+    value: Json,
+    presentationMutations: number,
+    expectedGrounded: boolean,
+    label: string,
+): Json {
     if (
         value.revision !== REVISION || value.outcome !== "advanced" ||
         number(value, "preparedStepCount") !== 1 || number(value, "terrainQueryCount") !== 1 ||
@@ -80,7 +85,11 @@ function requireAdvance(value: Json, presentationMutations: number, label: strin
         number(value, "presentationMutationCount") !== presentationMutations ||
         number(value, "frameCount") !== 0 || number(value, "rendererWorkCount") !== 0
     ) fail(`${label} dual-commit evidence diverged`);
-    return object(value, "actorSimulationAdvance");
+    const advance = object(value, "actorSimulationAdvance");
+    if (object(advance, "actor").lastStepGrounded !== expectedGrounded) {
+        fail(`${label} committed grounded witness diverged`);
+    }
+    return advance;
 }
 
 function pendingInvariant(value: Json): Json {
@@ -158,6 +167,9 @@ async function prepublication(center: Coord): Promise<Json> {
         number(response, "actorCommitCount") !== 1 ||
         number(response, "presentationMutationCount") !== 0
     ) fail("prepublication actor admission changed the fractional commit");
+    if (
+        object(object(response, "actorSimulationAdvance"), "actor").lastStepGrounded !== null
+    ) fail("fractional actor admission published a grounded witness");
     same(
         object(object(response, "actorSimulationAdvance"), "actor").input,
         stored,
@@ -214,6 +226,7 @@ async function heldPending(
             ),
         ),
         1,
+        false,
         "shared-window actor",
     );
     const committed = object(object(admitted, "actor"), "output");
@@ -269,7 +282,8 @@ async function heldPending(
         number(blocked, "terrainQueryCount") !== 1 ||
         number(blocked, "scheduleCommitCount") !== 0 ||
         number(blocked, "actorCommitCount") !== 0 ||
-        number(blocked, "presentationMutationCount") !== 0 || "actorSimulationAdvance" in blocked
+        number(blocked, "presentationMutationCount") !== 0 || "actorSimulationAdvance" in blocked ||
+        "lastStepGrounded" in blocked
     ) fail(`pending-window actor returned the wrong backpressure: ${JSON.stringify(blocked)}`);
     same(
         object(await event("actor.read", { generation: 2 }), "actor"),

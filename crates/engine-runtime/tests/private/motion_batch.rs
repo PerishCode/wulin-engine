@@ -40,11 +40,13 @@ fn zero_and_maximum_batches_are_exact() {
     let zero = advance_motion_batch(input, 0, command(1, -1, 0, 7_777, 0), flat).unwrap();
     assert_eq!(zero.output, input);
     assert_eq!(zero.terrain_query_count, 0);
+    assert_eq!(zero.last_step_grounded, None);
 
     let maximum = advance_motion_batch(input, 8, command(1, -1, 0, 0, 0), flat).unwrap();
     assert_eq!(maximum.output.body().position().local_x_q9(), 8);
     assert_eq!(maximum.output.body().position().local_z_q9(), -8);
     assert_eq!(maximum.terrain_query_count, 8);
+    assert_eq!(maximum.last_step_grounded, Some(true));
 }
 
 #[test]
@@ -69,6 +71,7 @@ fn initial_velocity_delta_precedes_acceleration_and_applies_once() {
     assert_eq!(one.output.step_velocity_q16(), 900);
     assert_eq!(one.output.body().center_height_numerator(), 66_436);
     assert_eq!(one.terrain_query_count, 1);
+    assert_eq!(one.last_step_grounded, Some(false));
 
     let batch = advance_motion_batch(input, 3, command(0, 0, 0, 1_000, -100), flat).unwrap();
     let first = advance_motion_batch(input, 1, command(0, 0, 0, 1_000, -100), flat).unwrap();
@@ -78,6 +81,20 @@ fn initial_velocity_delta_precedes_acceleration_and_applies_once() {
     assert_eq!(batch.output.step_velocity_q16(), 700);
     assert_eq!(batch.output.body().center_height_numerator(), 67_936);
     assert_eq!(batch.terrain_query_count, 3);
+    assert_eq!(batch.last_step_grounded, Some(false));
+    assert_eq!(continuation.last_step_grounded, Some(false));
+}
+
+#[test]
+fn final_grounded_witness_replaces_earlier_step_state() {
+    let input = motion();
+    let departure = advance_motion_batch(input, 1, command(0, 0, 0, 200, -100), flat).unwrap();
+    assert_eq!(departure.last_step_grounded, Some(false));
+
+    let landed = advance_motion_batch(input, 3, command(0, 0, 0, 200, -100), flat).unwrap();
+    assert_eq!(landed.output, input);
+    assert_eq!(landed.terrain_query_count, 3);
+    assert_eq!(landed.last_step_grounded, Some(true));
 }
 
 #[test]

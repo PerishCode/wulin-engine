@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0087 and the current ADR set through 0090 define one live content runtime
+Experiments 0031-0088 and the current ADR set through 0091 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -142,8 +142,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
   resource and consumed by the existing skeletal, surface, shadow, and occlusion path without a GPU
   copy or additional synchronization;
 - one private 0..=8 terrain-body motion batch that executes only local motion, applies one checked
-  caller-supplied vertical velocity delta before its first emitted step, and preserves exact
-  zero-step/single-tick/rollback tests without an independent live mutation route;
+  caller-supplied vertical velocity delta before its first emitted step, retains only the final
+  existing step's exact optional grounded witness, and preserves exact zero-step/single-tick/
+  rollback tests without an independent live mutation route;
 - one sole caller-supplied typed motion/presentation simulation command and actor transaction that
   validates presentation before work, prepares a schedule copy and local motion batch, preserves
   the complete actor and consumes no initial velocity delta on zero emitted steps, applies that
@@ -153,8 +154,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
   preserves published-window failure,
   and returns typed advanced or pending render-blocked outcomes; only advanced commits actor and
   schedule together while preserving the handle, a block reports prepared step/query work
-  without mutation, Runtime owns no wall clock, and prototype is its first live bounded-elapsed
-  caller;
+  without mutation or a speculative contact witness, the transition reports `None` for zero steps
+  or the final committed step's exact grounded result, Runtime owns no wall clock, and prototype is
+  its first live bounded-elapsed caller;
 - one signed-region/half-open-local-Q9 `TerrainPosition` shared by query/contact/motion, with exact
   checked positive, negative, and multi-region planar translation and no compatibility alias;
 - one bounded 225-body contact transition witness in the generic canonical probe; the historical
@@ -204,6 +206,10 @@ geometry/material/rig source, and one deterministic object-shadow path:
   velocity delta once at nonzero fixed-step batch entry, consumes nothing on zero steps, preserves
   schedule/actor/render-admission rollback, and introduces no jump verb, retained intent, default,
   alias, independent mutation route, or prototype behavior;
+- one accepted post-v0 actor contact witness that reports no value for zero fixed steps and the
+  final existing planar-first step's exact grounded result only for a committed nonzero transition;
+  failures and render-blocked candidates expose no witness, RuntimeActor stores no contact flag,
+  and prototype acceptance consumes the exact value without adding action policy or another query;
 - one accepted plain Prototype v0 stage boundary over that exact self-contained finite single-actor
   loop; it does not claim sustained product traversal, a source service, finite-edge behavior,
   gameplay interaction, multiple actors, networking, or Wulin content;
@@ -298,6 +304,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0088-retired-diagnostic-host-input-journal.md` | Accepted fixed normalized input state and diagnostic journal retirement decision. |
 | `docs/adr/0089-committed-prototype-camera-orbit.md` | Accepted application-owned candidate/commit policy for discrete actor-relative camera orbit. |
 | `docs/adr/0090-transactional-actor-vertical-impulse.md` | Accepted batch-entry vertical velocity delta in the sole actor transaction. |
+| `docs/adr/0091-committed-actor-grounded-witness.md` | Accepted exact final fixed-step grounded witness on committed actor transitions. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -356,6 +363,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0085-mandatory-host-input-journal-cleanup/README.md` | Accepted diagnostic journal/native-post/operator deletion and product-input preservation proof. |
 | `experiments/0086-committed-prototype-camera-orbit/README.md` | Accepted Q/E edge, exact rig, commit ordering, and real-process camera-orbit evidence. |
 | `experiments/0087-transactional-actor-vertical-impulse/README.md` | Accepted exactly-once batch-entry velocity delta and transaction rollback proof. |
+| `experiments/0088-committed-actor-grounded-witness/README.md` | Accepted exact committed last-step grounded witness and blocked-candidate isolation proof. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -363,8 +371,8 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/runtime/mod.rs` | Sole renderer/scene facade, frame coordinator, schedule/actor owner, typed canonical render-admitted advance, and actor-relative camera mutation. |
 | `crates/engine-runtime/src/scene/mod.rs` | Canonical camera state plus validated atomic absolute and actor-anchored candidate publication. |
 | `crates/engine-runtime/src/runtime/actor.rs` | Capacity-one actor slot, nonzero generation, exact motion/presentation/animation-epoch lifetime, transition identity, and checked complete-state replacement. |
-| `crates/engine-runtime/src/runtime/motion_batch.rs` | Private bounded local multi-tick motion, one checked batch-entry velocity delta, query accumulation, and failing-step context. |
-| `crates/engine-runtime/src/runtime/simulation_actor.rs` | Typed motion/presentation/initial-velocity command, prepared schedule/motion composition, complete actor transition, blocked evidence, and rollback tests. |
+| `crates/engine-runtime/src/runtime/motion_batch.rs` | Private bounded local multi-tick motion, checked batch-entry velocity delta, final grounded witness, query accumulation, and failure context. |
+| `crates/engine-runtime/src/runtime/simulation_actor.rs` | Typed motion/presentation/initial-velocity command, prepared schedule/motion composition, complete actor transition with optional final grounded witness, blocked evidence, and rollback tests. |
 | `crates/engine-runtime/src/region.rs` | Signed global region value and checked offset owner. |
 | `crates/engine-runtime/src/timeline/mod.rs` | Presentation and simulation timeline ownership boundary. |
 | `crates/engine-runtime/src/timeline/presentation.rs` | Deterministic presentation state, controls, counters, and successful-frame commit. |

@@ -55,6 +55,7 @@ fn fractional_elapsed_commits_no_actor_step() {
     assert_eq!(prepared.simulation.remainder_numerator, 60);
     assert_eq!(prepared.motion.output, input);
     assert_eq!(prepared.motion.terrain_query_count, 0);
+    assert_eq!(prepared.motion.last_step_grounded, None);
 }
 
 #[test]
@@ -73,6 +74,21 @@ fn emitted_step_applies_initial_velocity_delta_before_acceleration() {
         66_436
     );
     assert_eq!(prepared.motion.terrain_query_count, 1);
+    assert_eq!(prepared.motion.last_step_grounded, Some(false));
+}
+
+#[test]
+fn multi_step_simulation_reports_final_grounded_state() {
+    let input = motion();
+    let mut impulse = command(0, 0);
+    impulse.initial_step_velocity_delta_q16 = 200;
+    impulse.step_acceleration_q16 = -100;
+    let prepared =
+        prepare_simulation_actor(SimulationSchedule::new(), input, 50_000_000, impulse, flat)
+            .unwrap();
+    assert_eq!(prepared.simulation.step_count, 3);
+    assert_eq!(prepared.motion.output, input);
+    assert_eq!(prepared.motion.last_step_grounded, Some(true));
 }
 
 #[test]

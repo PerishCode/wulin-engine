@@ -155,7 +155,7 @@ const FORWARD_COMMAND: ExpectedCommand = {
 function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "simulation_driver");
-    if (driver.revision !== "live-prototype-locomotion-driver-v5") {
+    if (driver.revision !== "live-prototype-locomotion-driver-v6") {
         fail("prototype simulation driver revision diverged");
     }
     if (number(driver, "renderBlockCount") !== 0) {
@@ -202,7 +202,7 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
     const actor = object(advance, "actor");
     if (
         number(actor, "stepCount") !== stepCount ||
-        number(actor, "terrainQueryCount") !== stepCount
+        number(actor, "terrainQueryCount") !== stepCount || actor.lastStepGrounded !== true
     ) fail("prototype live actor batch diverged");
     const initial = object(actor, "input");
     const output = object(actor, "output");
@@ -276,7 +276,7 @@ function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Jso
         renderBlockCount: 0,
         tickStartsAtZero: true,
         exactHorizontalDisplacement: true,
-        groundedAfterBatch: true,
+        groundedAfterBatch: actor.lastStepGrounded,
         queryPerStep: true,
         readinessAfterFrame: true,
     };

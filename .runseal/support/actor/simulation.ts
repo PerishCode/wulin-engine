@@ -15,7 +15,7 @@ import {
     target,
 } from "../canonical-runtime.ts";
 
-const REVISION = "runtime-actor-simulation-v5";
+const REVISION = "runtime-actor-simulation-v6";
 const HALF_HEIGHT = 65_536;
 const MAX_ELAPSED = 125_000_000;
 const I32_MAX = 2_147_483_647;
@@ -138,6 +138,10 @@ function requireAdvance(
         number(object(object(actor, "input"), "handle"), "generation") !==
             number(object(object(actor, "output"), "handle"), "generation")
     ) fail(`${label} schedule/actor evidence diverged`);
+    if (
+        (stepCount === 0 && actor.lastStepGrounded !== null) ||
+        (stepCount !== 0 && typeof actor.lastStepGrounded !== "boolean")
+    ) fail(`${label} last-step grounded witness diverged`);
     same(
         object(object(actor, "input"), "presentation"),
         object(object(actor, "output"), "presentation"),

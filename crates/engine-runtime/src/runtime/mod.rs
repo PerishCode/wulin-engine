@@ -286,6 +286,7 @@ impl Runtime {
                 output,
                 step_count: prepared.simulation.step_count,
                 terrain_query_count: prepared.motion.terrain_query_count,
+                last_step_grounded: prepared.motion.last_step_grounded,
             },
         }))
     }

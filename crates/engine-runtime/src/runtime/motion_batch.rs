@@ -8,6 +8,7 @@ use crate::timeline::SIMULATION_MAX_STEPS_PER_ADVANCE;
 pub(crate) struct MotionBatch {
     pub output: TerrainBodyMotion,
     pub terrain_query_count: u32,
+    pub last_step_grounded: Option<bool>,
 }
 
 pub(crate) struct MotionBatchCommand {
@@ -30,6 +31,7 @@ pub(crate) fn advance_motion_batch(
     );
     let mut output = input;
     let mut terrain_query_count = 0_u32;
+    let mut last_step_grounded = None;
     for index in 0..step_count {
         if index == 0 {
             let step_velocity_q16 = output
@@ -57,6 +59,7 @@ pub(crate) fn advance_motion_batch(
             )
         })?;
         output = advance.output;
+        last_step_grounded = Some(advance.grounded);
         terrain_query_count = terrain_query_count
             .checked_add(advance.terrain_query_count)
             .context("terrain-body motion batch query count overflowed")?;
@@ -64,6 +67,7 @@ pub(crate) fn advance_motion_batch(
     Ok(MotionBatch {
         output,
         terrain_query_count,
+        last_step_grounded,
     })
 }
 
