@@ -13,6 +13,10 @@
 imported-Fox actor、Ready-only 60 Hz gravity/W/A/S/D transaction、Survey/Walk 与精确八向 facing、
 actor-local clip phase、actor-relative camera 和启用一次的 engine traversal。它明确不是无限世界、
 持续 product traversal、gameplay interaction、multi-actor、networking 或 Wulin content 承诺。
+首个 post-v0 依赖现由 Experiment 0083 接受：strict bootstrap schema 2 显式声明包含式 signed
+playable-region rectangle，prototype 在既有 runtime transaction 前按最多八 step 独立裁减可能越界的
+轴。维护型 operator 在 cooked `[-8,8]²` center 内声明 `[-6,6]²` 可玩范围；runtime 对缺失 source、
+published window 和 terrain query 的严格失败语义不变。
 
 **Canonical runtime 收敛已完成**：signed terrain、固定 50 槽
 GPU residency、terrain-first composition、Sidecar 生命周期和项目自有 inspect 协议已经形成
@@ -409,6 +413,13 @@ restart 替换全部 product PID 且三份生成物哈希不变，stop 达到零
 `canonical-prototype-v8` 和阶段唯一一次 744.8 秒 `canonical-runtime-v1` 均通过。后者覆盖 32+32
 traversal、64-publication resource plateau 与 16 lifecycle cycles。该实验只改 stage 文档及其
 registration/index，不增加 product code、operator behavior、diagnostic、format、GPU 或 Wulin 面。
+Experiment 0083 将该有限 sandbox 的 edge 从隐含 source failure 提升为显式 product policy。
+bootstrap schema 2 唯一声明 inclusive signed region rectangle；prototype 读取当前 actor，并在原
+transaction 前按最大八 step 独立将不安全轴归零。`canonical-prototype-v9` 在 71.271 秒内通过 77
+runtime、16 prototype、23 reference-host tests；显式激活并 held W 的真实进程持续 15,002.745 ms
+仍存活且 stderr 为空。`prototype-operator-v2` 生成 `[-6,6]²` bounds、完成 live start/zero-process
+stop。没有 schema-1 fallback、engine boundary mode、source-index inference、product telemetry、
+renderer/GPU/source-format/asset 或 Wulin 变化。
 
 ## Project model
 
@@ -460,7 +471,8 @@ waits for renderer and inspect readiness, discovers stamped processes, and close
 entire local runtime through one manifest.
 
 `runseal :prototype start` is the self-contained manual prototype entry. It deterministically cooks
-the zero-origin `[-8,8]²` finite sandbox, writes strict bootstrap, and then uses
+the zero-origin `[-8,8]²` finite sandbox, declares inclusive `[-6,6]²` playable bounds in strict
+bootstrap schema 2, and then uses
 `sidecar.prototype.toml` to launch the application without an inspect endpoint. It becomes visible
 and ready only after canonical content has rendered; close the window, press Escape, or use
 `runseal :prototype stop` to end it. No prior canonical acceptance output is required.
@@ -471,8 +483,8 @@ strict bootstrap failure, grounded gravity admission, exact stationary and nativ
 locomotion with transactional Survey/Walk selection and exact committed eight-way facing, one
 committed current actor authority, actor-relative camera/frame ordering, typed render-block
 consumption with zero normal-path blocks,
-one exact camera-derived traversal schedule with prefetch disabled, direct restart equality, and
-Sidecar cleanup.
+one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-W
+finite-edge survival, direct restart equality, and Sidecar cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
 minimal signed pair, checks the exact accepted canonical frame, immediately replays it, and owns

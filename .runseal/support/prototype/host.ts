@@ -13,7 +13,9 @@ import {
 } from "../canonical-runtime.ts";
 import { holdPrototypeForwardKey } from "./input.ts";
 import { actorInvariant } from "./actor.ts";
+import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
 import { presentationInvariant } from "./presentation.ts";
+import { readinessLine } from "./process.ts";
 import { traversalInvariant } from "./traversal.ts";
 
 const CONFIG = "out/cooked/bootstrap/runtime.json";
@@ -23,12 +25,16 @@ const decoder = new TextDecoder();
 
 function document(terrain: string, objects: string, center: Coord): Json {
     return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         terrain,
         objects,
         globalOrigin: { x: center[0], z: center[1] },
         globalCenter: { x: center[0], z: center[1] },
         activeRadius: 2,
+        playableRegionBounds: {
+            minimum: { x: center[0], z: center[1] },
+            maximum: { x: center[0], z: center[1] },
+        },
     };
 }
 
@@ -59,28 +65,6 @@ async function failedStart(label: string): Promise<Json> {
         stderr: stderr.slice(-4_096),
         readinessEmitted: false,
     };
-}
-
-async function readinessLine(reader: ReadableStreamDefaultReader<string>): Promise<string> {
-    const deadline = performance.now() + 30_000;
-    let buffered = "";
-    while (performance.now() < deadline) {
-        const remaining = Math.max(1, deadline - performance.now());
-        const result = await Promise.race([
-            reader.read(),
-            new Promise<{ done: true; value: undefined }>((resolve) =>
-                setTimeout(() => resolve({ done: true, value: undefined }), remaining)
-            ),
-        ]);
-        if (result.done) {
-            if (buffered.trim()) return buffered.trim();
-            fail("prototype exited or timed out before readiness");
-        }
-        buffered += result.value;
-        const newline = buffered.indexOf("\n");
-        if (newline >= 0) return buffered.slice(0, newline).trim();
-    }
-    fail("prototype readiness timeout expired");
 }
 
 async function capturedReady(label: string, holdForward = false): Promise<Json> {
@@ -135,6 +119,7 @@ function startupInvariant(launch: Json): Json {
         terrainPath: startup.terrainPath,
         objectPath: startup.objectPath,
         globalConfig: startup.globalConfig,
+        playableRegionBounds: startup.playableRegionBounds,
     };
 }
 
@@ -164,7 +149,7 @@ const FORWARD_COMMAND: ExpectedCommand = {
 function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "simulation_driver");
-    if (driver.revision !== "live-prototype-locomotion-driver-v3") {
+    if (driver.revision !== "live-prototype-locomotion-driver-v4") {
         fail("prototype simulation driver revision diverged");
     }
     if (number(driver, "renderBlockCount") !== 0) {
@@ -397,6 +382,7 @@ export async function prototypeHostGates(
     const first = await capturedReady("prototype first process");
     const restarted = await capturedReady("prototype restarted process");
     const forward = await capturedReady("prototype forward locomotion", true);
+    const boundary = await boundarySurvival(EXECUTABLE, CONFIG);
     if (number(first, "processId") === number(restarted, "processId")) {
         fail("prototype evidence restart reused the process identity");
     }
@@ -435,6 +421,19 @@ export async function prototypeHostGates(
         camera: cameraDriverInvariant(forward),
         traversal: forwardTraversal,
     };
+    same(startupInvariant(boundary), startupInvariant(first), "prototype boundary configuration");
+    same(
+        actorInvariant(boundary, base),
+        actorInvariant(first, base),
+        "prototype boundary initial actor authority",
+    );
+    const boundaryInvariant = {
+        simulation: simulationDriverInvariant(boundary, FORWARD_COMMAND),
+        camera: cameraDriverInvariant(boundary),
+        traversal: traversalInvariant(boundary, base),
+        minimumHoldMilliseconds: BOUNDARY_HOLD_MILLISECONDS,
+        processRemainedLive: boundary.processRemainedLive,
+    };
 
     await lifecycle("start");
     const firstSidecar = await sidecarStatus();
@@ -463,6 +462,8 @@ export async function prototypeHostGates(
         restarted,
         forward,
         forwardInvariant,
+        boundary,
+        boundaryInvariant,
         sidecar: { first: firstSidecar, restarted: restartedSidecar, stopped },
     };
 }

@@ -1,12 +1,13 @@
 type Json = Record<string, unknown>;
 
-const REVISION = "prototype-operator-v1";
+const REVISION = "prototype-operator-v2";
 const SIDECAR = "sidecar.prototype.toml";
 const DIRECTORY = "out/cooked/prototype";
 const TERRAIN = `${DIRECTORY}/terrain.wlt`;
 const OBJECTS = `${DIRECTORY}/objects.wlr`;
 const CONFIG = "out/cooked/bootstrap/runtime.json";
 const HALF_EXTENT = 8;
+const PLAYABLE_HALF_EXTENT = 6;
 const ACTIVE_RADIUS = 2;
 const EXPECTED_CENTER_COUNT = (HALF_EXTENT * 2 + 1) ** 2;
 const EXPECTED_REGION_COUNT = (HALF_EXTENT * 2 + ACTIVE_RADIUS * 2 + 1) ** 2;
@@ -147,12 +148,16 @@ async function prepare(): Promise<Json> {
     ) fail("prototype: cooked sandbox shape diverged");
 
     const document = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         terrain: TERRAIN,
         objects: OBJECTS,
         globalOrigin: { x: 0, z: 0 },
         globalCenter: { x: 0, z: 0 },
         activeRadius: ACTIVE_RADIUS,
+        playableRegionBounds: {
+            minimum: { x: -PLAYABLE_HALF_EXTENT, z: -PLAYABLE_HALF_EXTENT },
+            maximum: { x: PLAYABLE_HALF_EXTENT, z: PLAYABLE_HALF_EXTENT },
+        },
     };
     const encoded = new TextEncoder().encode(`${JSON.stringify(document, null, 2)}\n`);
     await Deno.writeFile(`${root}/${CONFIG}`, encoded);
@@ -169,6 +174,10 @@ async function prepare(): Promise<Json> {
             activeRadius: ACTIVE_RADIUS,
             globalOrigin: { x: 0, z: 0 },
             globalCenter: { x: 0, z: 0 },
+            playableRegionBounds: {
+                minimum: { x: -PLAYABLE_HALF_EXTENT, z: -PLAYABLE_HALF_EXTENT },
+                maximum: { x: PLAYABLE_HALF_EXTENT, z: PLAYABLE_HALF_EXTENT },
+            },
         },
         terrain: {
             path: TERRAIN,

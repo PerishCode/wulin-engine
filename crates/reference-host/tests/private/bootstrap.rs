@@ -2,12 +2,16 @@ use super::*;
 
 fn valid_document() -> Vec<u8> {
     br#"{
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "terrain": "out/cooked/test/terrain.wlt",
         "objects": "out/cooked/test/objects.wlr",
         "globalOrigin": {"x": 1099511627776, "z": -1099511627776},
         "globalCenter": {"x": 1099511627776, "z": -1099511627776},
-        "activeRadius": 2
+        "activeRadius": 2,
+        "playableRegionBounds": {
+            "minimum": {"x": 1099511627775, "z": -1099511627777},
+            "maximum": {"x": 1099511627777, "z": -1099511627775}
+        }
     }"#
     .to_vec()
 }
@@ -39,7 +43,7 @@ fn arguments_are_strict_and_single_use() {
 }
 
 #[test]
-fn schema_one_document_decodes_exact_paths_and_signed_config() {
+fn schema_two_document_decodes_exact_paths_signed_config_and_bounds() {
     let bytes = valid_document();
     let plan = Plan::decode(PathBuf::from("out/cooked/test/bootstrap.json"), &bytes).unwrap();
     assert_eq!(
@@ -49,11 +53,23 @@ fn schema_one_document_decodes_exact_paths_and_signed_config() {
     assert_eq!(plan.object_path(), Path::new("out/cooked/test/objects.wlr"));
     assert_eq!(plan.global_config().global_origin.x, 1_i64 << 40);
     assert_eq!(plan.global_config().global_center.z, -(1_i64 << 40));
+    assert_eq!(
+        plan.playable_region_bounds().minimum(),
+        RegionCoord::new((1_i64 << 40) - 1, -(1_i64 << 40) - 1)
+    );
+    assert_eq!(
+        plan.playable_region_bounds().maximum(),
+        RegionCoord::new((1_i64 << 40) + 1, -(1_i64 << 40) + 1)
+    );
     assert_eq!(plan.pending_json()["configBytes"], bytes.len());
+    assert_eq!(
+        plan.pending_json()["playableRegionBounds"]["minimum"]["x"],
+        (1_i64 << 40) - 1
+    );
 }
 
 #[test]
-fn document_rejects_unknown_schema_path_and_projection() {
+fn document_rejects_unknown_old_schema_path_and_projection() {
     let path = PathBuf::from("out/cooked/test/bootstrap.json");
     let unknown = String::from_utf8(valid_document()).unwrap().replace(
         "\"activeRadius\": 2",
@@ -63,7 +79,7 @@ fn document_rejects_unknown_schema_path_and_projection() {
 
     let schema = String::from_utf8(valid_document())
         .unwrap()
-        .replace("\"schemaVersion\": 1", "\"schemaVersion\": 2");
+        .replace("\"schemaVersion\": 2", "\"schemaVersion\": 1");
     assert!(Plan::decode(path.clone(), schema.as_bytes()).is_err());
 
     let escaping = String::from_utf8(valid_document())
@@ -76,6 +92,40 @@ fn document_rejects_unknown_schema_path_and_projection() {
         "\"globalCenter\": {\"x\": 9223372036854775807",
     );
     assert!(Plan::decode(path, projection.as_bytes()).is_err());
+}
+
+#[test]
+fn playable_region_bounds_are_ordered_and_contain_the_initial_center() {
+    let path = PathBuf::from("out/cooked/test/bootstrap.json");
+    let reversed_x = String::from_utf8(valid_document()).unwrap().replace(
+        "\"minimum\": {\"x\": 1099511627775",
+        "\"minimum\": {\"x\": 1099511627778",
+    );
+    assert!(Plan::decode(path.clone(), reversed_x.as_bytes()).is_err());
+
+    let reversed_z = String::from_utf8(valid_document()).unwrap().replace(
+        "\"minimum\": {\"x\": 1099511627775, \"z\": -1099511627777}",
+        "\"minimum\": {\"x\": 1099511627775, \"z\": -1099511627774}",
+    );
+    assert!(Plan::decode(path.clone(), reversed_z.as_bytes()).is_err());
+
+    let outside = String::from_utf8(valid_document()).unwrap().replace(
+        "\"maximum\": {\"x\": 1099511627777",
+        "\"maximum\": {\"x\": 1099511627775",
+    );
+    assert!(Plan::decode(path, outside.as_bytes()).is_err());
+}
+
+#[test]
+fn playable_region_bounds_accept_signed_extremes() {
+    let bounds = PlayableRegionBounds::new(
+        RegionCoord::new(i64::MIN, -7),
+        RegionCoord::new(i64::MAX, 11),
+    )
+    .unwrap();
+    assert!(bounds.contains(RegionCoord::new(i64::MIN, -7)));
+    assert!(bounds.contains(RegionCoord::new(i64::MAX, 11)));
+    assert!(!bounds.contains(RegionCoord::new(0, 12)));
 }
 
 #[test]

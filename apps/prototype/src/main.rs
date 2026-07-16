@@ -1,4 +1,5 @@
 mod actor;
+mod boundary;
 mod camera;
 mod locomotion;
 mod presentation;
@@ -40,6 +41,7 @@ unsafe fn run() -> Result<()> {
     let mut input = HostInput::new();
     let ready = unsafe { bootstrap::drive(&mut runtime, &mut input, &plan, CLEAR_COLOR)? };
     let runtime_actor = spawn_initial_actor(&mut runtime, plan.global_config())?;
+    let playable_region_bounds = plan.playable_region_bounds();
     runtime
         .enable_composition_traversal()
         .context("prototype composition traversal activation failed")?;
@@ -61,7 +63,16 @@ unsafe fn run() -> Result<()> {
             window::request_close(hwnd)?;
             continue;
         }
-        let locomotion = locomotion::command(&input);
+        let requested_locomotion = locomotion::command(&input);
+        let actor = runtime
+            .read_actor(runtime_actor.handle)
+            .context("prototype current actor read failed")?;
+        let locomotion = boundary::admit(
+            actor.motion.body().position(),
+            playable_region_bounds,
+            requested_locomotion,
+        )
+        .context("prototype playable boundary admission failed")?;
         let command = ActorSimulationCommand {
             delta_x_q9: locomotion.delta_x_q9,
             delta_z_q9: locomotion.delta_z_q9,
@@ -165,7 +176,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "state": evidence.advance.actor.output,
             },
             "simulation_driver": {
-                "revision": "live-prototype-locomotion-driver-v3",
+                "revision": "live-prototype-locomotion-driver-v4",
                 "sample": evidence.sample,
                 "clock": evidence.clock,
                 "command": evidence.command,
