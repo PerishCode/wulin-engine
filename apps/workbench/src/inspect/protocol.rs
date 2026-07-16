@@ -38,7 +38,6 @@ pub enum ControlKind {
     SetClearColor([f32; 4]),
     Pause,
     Resume,
-    SimulationStatus,
     Capture {
         id: String,
         collection: String,
@@ -189,7 +188,6 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "workbench.status" => Ok(ControlKind::Status),
         "workbench.pause" => Ok(ControlKind::Pause),
         "workbench.resume" => Ok(ControlKind::Resume),
-        "simulation.status" => Ok(ControlKind::SimulationStatus),
         "workbench.capture" => parse_capture(payload),
         "workbench.set_clear_color" => parse_color(payload),
         "perception.capture" => parse_perception(payload),

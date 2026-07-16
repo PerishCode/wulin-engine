@@ -32,14 +32,14 @@ export async function requireSimulationHistoryRemoved(
     }
 
     const livePattern = [
-        "SimulationProbe",
+        "SimulationProbe|SimulationStatus",
         "SimulationAdvancePayload",
         "CanonicalTerrainBodyRetained(Advance|Batch)",
         "RetainedTerrainBodyAdvance",
-        "pub fn (advance_simulation|simulation_schedule_probe|advance_retained_terrain_body|advance_retained_body_batch)\\(",
+        "pub fn (advance_simulation|simulation_status|simulation_schedule_probe|advance_retained_terrain_body|advance_retained_body_batch)\\(",
         "(^|[^a-z_])simulation_(advance|probe)_failed",
         "retained_terrain_(advance|batch)_failed",
-        "simulation\\.(advance|probe)",
+        "simulation\\.(advance|probe|status)",
         "canonical\\.terrain\\.body\\.retained\\.(advance|batch)",
         "TerrainBodyHandle|TerrainBodySlot|RetainedTerrainBody(Batch)?|RetainedSimulationAdvance",
         "(spawn|read|despawn)_terrain_body|advance_simulation_body",
@@ -65,17 +65,17 @@ export async function requireSimulationHistoryRemoved(
         "retainedBatchGates",
         "retainedBodyGates",
         "simulationBodyGates",
+        "retiredControlGate",
+        "retiredControls",
+        "simulation\\.(advance|probe)",
+        "canonical\\.terrain\\.body\\.(spawn|read|despawn|retained\\.(advance|batch))",
+        "simulation\\.terrain\\.body\\.advance",
     ].join("|");
     await requireAbsent(
         root,
         fail,
         gatePattern,
-        [
-            ".runseal/wrappers",
-            ".runseal/support/actor/lifecycle.ts",
-            ".runseal/support/actor/simulation.ts",
-            ".runseal/support/prototype/host.ts",
-        ],
+        [".runseal/wrappers", ".runseal/support/actor", ".runseal/support/prototype/host.ts"],
         "independent simulation gate",
     );
 }

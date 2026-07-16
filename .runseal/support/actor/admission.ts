@@ -112,9 +112,23 @@ async function stopProcess(): Promise<number> {
     return pid;
 }
 
+async function scheduleStatus(): Promise<Json> {
+    return object(await event("canonical.status"), "simulationSchedule");
+}
+
+async function retiredStatusGate(): Promise<Json> {
+    const verb = "simulation.status";
+    const rejected = await rejectedEvent(verb, {});
+    if (typeof rejected.error !== "string" || !rejected.error.startsWith("unknown_event: ")) {
+        fail(`${verb} did not fail through the retired-status contract`);
+    }
+    return { verb, rejected };
+}
+
 async function prepublication(center: Coord): Promise<Json> {
     await event("workbench.pause");
-    const before = await event("simulation.status");
+    const retiredStatus = await retiredStatusGate();
+    const before = await scheduleStatus();
     const stored = object(
         await event("actor.spawn", actorPayload(center, HALF_HEIGHT_Q16)),
         "actor",
@@ -143,7 +157,7 @@ async function prepublication(center: Coord): Promise<Json> {
         typeof invalidPresentation.error !== "string" ||
         !invalidPresentation.error.includes("presentation archetype 8 exceeds catalog capacity")
     ) fail("invalid simulation presentation returned the wrong rejection");
-    same(await event("simulation.status"), before, "invalid presentation schedule rollback");
+    same(await scheduleStatus(), before, "invalid presentation schedule rollback");
     same(
         object(await event("actor.read", { generation: 1 }), "actor"),
         stored,
@@ -180,13 +194,21 @@ async function prepublication(center: Coord): Promise<Json> {
         stored,
         "prepublication actor output",
     );
-    const after = await event("simulation.status");
+    const after = await scheduleStatus();
     if (
         number(after, "tick") !== 0 || number(after, "remainderNumerator") !== 60 ||
         number(after, "successfulAdvanceCount") !== number(before, "successfulAdvanceCount") + 1
     ) fail("prepublication schedule commit diverged");
     await event("actor.despawn", { generation: 1 });
-    return { before, retiredPayload, aliasPayload, invalidPresentation, response, after };
+    return {
+        retiredStatus,
+        before,
+        retiredPayload,
+        aliasPayload,
+        invalidPresentation,
+        response,
+        after,
+    };
 }
 
 async function heldPending(
@@ -264,7 +286,7 @@ async function heldPending(
     }
 
     const actorBeforeBlock = object(await event("actor.read", { generation: 2 }), "actor");
-    const simulationBeforeBlock = await event("simulation.status");
+    const simulationBeforeBlock = await scheduleStatus();
     const pendingBeforeBlock = await event("canonical.status");
     const blocked = await event(
         "simulation.actor.advance",
@@ -291,7 +313,7 @@ async function heldPending(
         "pending-window actor rollback",
     );
     same(
-        await event("simulation.status"),
+        await scheduleStatus(),
         simulationBeforeBlock,
         "pending-window schedule rollback",
     );

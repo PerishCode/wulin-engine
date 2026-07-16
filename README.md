@@ -468,6 +468,15 @@ delta `4369`，并以 Experiment 0088 的最终 grounded witness 更新 eligibil
 pending false，同时保持 XZ、Survey、actor identity、camera/traversal 与零 render block。没有 engine
 action/input state、queue、额外 query、jump animation、config/compatibility、renderer/GPU/resource/
 sync/source/format/asset 或 Wulin 变化。
+Experiment 0090 完成逢五清理：删除重复的 `Runtime::simulation_status`、`simulation.status`
+protocol/dispatch 全链，以及每次 actor gate 仍执行的 8 个历史 retired-control 请求和 report 字段。
+16 个维护型断言直接消费既有 `canonical.status.simulationSchedule`；actor transaction 自身继续携带
+exact `SimulationAdvance`，frame/probe 与私有 schedule 状态不变。扩展后的 79.793 秒
+`canonical-actor-v7` 直接覆盖 lifecycle/restart、fractional、coarse/nominal partition、query/arithmetic
+rollback、pending block、GPU/epoch；旧 verb 返回 generic `unknown_event`，两种一秒分区均收敛到
+tick/remainder `60/0`，blocked 前后 canonical/probe 状态保持 `1/20`。guard 的故意 method 回填在
+编译前被拒绝；最终 init/guard 为零 deny。没有 alias、replacement status、product、renderer/GPU/
+resource/sync/source/format/asset 或 Wulin 变化。
 
 ## Project model
 
@@ -538,7 +547,9 @@ minimal signed pair, checks the exact accepted canonical frame, immediately repl
 complete process cleanup. It does not replace end-to-end acceptance.
 
 `runseal :canonical-actor` is the focused frame-safe actor GPU workflow. It proves typed
-advanced/render-blocked motion/presentation candidate admission against published and non-prefetch
+actor lifecycle/restart, fractional and coarse/nominal schedule/actor partition equality, complete
+failure rollback through the canonical aggregate, advanced/render-blocked motion/presentation
+candidate admission against published and non-prefetch
 pending windows, one checked batch-entry vertical velocity delta with exact success/block rollback,
 the final committed fixed-step grounded witness with blocked-candidate isolation, retained
 rendering, dynamic candidate identity, alternating frame-slot
