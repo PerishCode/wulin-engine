@@ -56,7 +56,13 @@ function requireControlledEvidence(record: Json, label: string): void {
         number(record, "focusLossCount") !== 1 ||
         number(record, "focusReleaseCount") !== 3 ||
         JSON.stringify(record.initialHeldKeys) !== "[]" ||
-        JSON.stringify(record.finalHeldKeys) !== "[]"
+        JSON.stringify(record.finalHeldKeys) !== "[]" ||
+        record.initialHeldStateSha256 !==
+            "a539733efed454375e712ba689ac99049afb144efbbe7f9c60256c11860e2861" ||
+        record.finalHeldStateSha256 !==
+            "a539733efed454375e712ba689ac99049afb144efbbe7f9c60256c11860e2861" ||
+        record.streamSha256 !==
+            "ec86601874cb60a8c592b9caf500da94111b6a7360647d316ce1e858b55de435"
     ) fail(`${label} normalized input evidence diverged: ${JSON.stringify(record)}`);
 }
 

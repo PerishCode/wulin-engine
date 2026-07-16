@@ -15,7 +15,7 @@ import { holdPrototypeForwardKey } from "./input.ts";
 import { actorInvariant } from "./actor.ts";
 import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
 import { presentationInvariant } from "./presentation.ts";
-import { readinessLine } from "./process.ts";
+import { escapeExit, readinessLine } from "./process.ts";
 import { traversalInvariant } from "./traversal.ts";
 
 const CONFIG = "out/cooked/bootstrap/runtime.json";
@@ -382,6 +382,7 @@ export async function prototypeHostGates(
     const first = await capturedReady("prototype first process");
     const restarted = await capturedReady("prototype restarted process");
     const forward = await capturedReady("prototype forward locomotion", true);
+    const escape = await escapeExit(EXECUTABLE, CONFIG, "prototype Escape press exit");
     const boundary = await boundarySurvival(EXECUTABLE, CONFIG);
     if (number(first, "processId") === number(restarted, "processId")) {
         fail("prototype evidence restart reused the process identity");
@@ -409,6 +410,7 @@ export async function prototypeHostGates(
         "prototype restart traversal activation",
     );
     same(startupInvariant(forward), startupInvariant(first), "prototype locomotion configuration");
+    same(startupInvariant(escape), startupInvariant(first), "prototype Escape configuration");
     same(
         actorInvariant(forward, base),
         actorInvariant(first, base),
@@ -461,6 +463,7 @@ export async function prototypeHostGates(
         first,
         restarted,
         forward,
+        escape,
         forwardInvariant,
         boundary,
         boundaryInvariant,

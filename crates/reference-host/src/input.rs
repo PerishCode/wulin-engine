@@ -7,7 +7,7 @@ const KEY_WORD_COUNT: usize = 4;
 const MAX_RECORD_TRANSACTIONS: usize = 4_096;
 const MAX_RECORD_TRANSITIONS: usize = 16_384;
 
-type HeldKeys = [u64; KEY_WORD_COUNT];
+type KeyBits = [u64; KEY_WORD_COUNT];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NativeMessage {
@@ -53,21 +53,21 @@ impl InputTransaction {
 }
 
 struct ActiveRecording {
-    initial_held: HeldKeys,
+    initial_held: KeyBits,
     transactions: Vec<InputTransaction>,
     transition_count: usize,
 }
 
 #[derive(Clone)]
 struct CompletedRecording {
-    initial_held: HeldKeys,
-    final_held: HeldKeys,
+    initial_held: KeyBits,
+    final_held: KeyBits,
     transactions: Vec<InputTransaction>,
     stream_sha256: String,
 }
 
 impl CompletedRecording {
-    fn new(active: ActiveRecording, final_held: HeldKeys) -> Self {
+    fn new(active: ActiveRecording, final_held: KeyBits) -> Self {
         let stream_sha256 = stream_sha256(&active.initial_held, &active.transactions);
         Self {
             initial_held: active.initial_held,
@@ -89,8 +89,8 @@ impl CompletedRecording {
             "unmatchedUpCount": counters.unmatched_ups,
             "focusLossCount": counters.focus_losses,
             "focusReleaseCount": counters.focus_releases,
-            "initialHeldKeys": held_key_list(&self.initial_held),
-            "finalHeldKeys": held_key_list(&self.final_held),
+            "initialHeldKeys": key_list(&self.initial_held),
+            "finalHeldKeys": key_list(&self.final_held),
             "initialHeldStateSha256": held_state_sha256(&self.initial_held),
             "finalHeldStateSha256": held_state_sha256(&self.final_held),
             "streamSha256": self.stream_sha256,
@@ -132,7 +132,9 @@ impl TransactionCounters {
 }
 
 pub struct HostInput {
-    held: HeldKeys,
+    held: KeyBits,
+    pressed: KeyBits,
+    released: KeyBits,
     counters: TransactionCounters,
     active_recording: Option<ActiveRecording>,
     completed_recording: Option<CompletedRecording>,
@@ -149,6 +151,8 @@ impl HostInput {
     fn with_limits(transaction_capacity: usize, transition_capacity: usize) -> Self {
         Self {
             held: [0; KEY_WORD_COUNT],
+            pressed: [0; KEY_WORD_COUNT],
+            released: [0; KEY_WORD_COUNT],
             counters: TransactionCounters::default(),
             active_recording: None,
             completed_recording: None,
@@ -159,10 +163,20 @@ impl HostInput {
     }
 
     pub fn ingest(&mut self, messages: Vec<NativeMessage>) {
+        self.pressed = [0; KEY_WORD_COUNT];
+        self.released = [0; KEY_WORD_COUNT];
         if messages.is_empty() {
             return;
         }
         let transaction = normalize(&mut self.held, messages);
+        for transition in &transaction.transitions {
+            let edges = if transition.down {
+                &mut self.pressed
+            } else {
+                &mut self.released
+            };
+            set_key(edges, transition.key, true);
+        }
         self.counters.add(&transaction);
 
         let Some(recording) = self.active_recording.as_mut() else {
@@ -256,7 +270,7 @@ impl HostInput {
         let active = self.active_recording.as_ref();
         json!({
             "revision": REVISION,
-            "heldKeys": held_key_list(&self.held),
+            "heldKeys": key_list(&self.held),
             "heldStateSha256": held_state_sha256(&self.held),
             "rawMessageCount": self.counters.raw_messages,
             "transactionCount": self.counters.transactions,
@@ -284,6 +298,14 @@ impl HostInput {
     pub fn is_held(&self, key: u8) -> bool {
         key != 0 && key_is_held(&self.held, key)
     }
+
+    pub fn was_pressed(&self, key: u8) -> bool {
+        key != 0 && key_is_held(&self.pressed, key)
+    }
+
+    pub fn was_released(&self, key: u8) -> bool {
+        key != 0 && key_is_held(&self.released, key)
+    }
 }
 
 impl Default for HostInput {
@@ -292,7 +314,7 @@ impl Default for HostInput {
     }
 }
 
-fn normalize(held: &mut HeldKeys, messages: Vec<NativeMessage>) -> InputTransaction {
+fn normalize(held: &mut KeyBits, messages: Vec<NativeMessage>) -> InputTransaction {
     let mut transaction = InputTransaction::new(messages.len());
     for message in messages {
         match message {
@@ -334,12 +356,12 @@ fn normalize(held: &mut HeldKeys, messages: Vec<NativeMessage>) -> InputTransact
     transaction
 }
 
-fn key_is_held(held: &HeldKeys, key: u8) -> bool {
+fn key_is_held(held: &KeyBits, key: u8) -> bool {
     let index = usize::from(key);
     held[index / 64] & (1_u64 << (index % 64)) != 0
 }
 
-fn set_key(held: &mut HeldKeys, key: u8, down: bool) {
+fn set_key(held: &mut KeyBits, key: u8, down: bool) {
     let index = usize::from(key);
     let mask = 1_u64 << (index % 64);
     if down {
@@ -349,13 +371,13 @@ fn set_key(held: &mut HeldKeys, key: u8, down: bool) {
     }
 }
 
-fn held_key_list(held: &HeldKeys) -> Vec<u8> {
+fn key_list(held: &KeyBits) -> Vec<u8> {
     (1..=u8::MAX)
         .filter(|key| key_is_held(held, *key))
         .collect()
 }
 
-fn held_state_sha256(held: &HeldKeys) -> String {
+fn held_state_sha256(held: &KeyBits) -> String {
     let mut digest = Sha256::new();
     digest.update(b"wulin-host-input-held-v1\0");
     for word in held {
@@ -364,7 +386,7 @@ fn held_state_sha256(held: &HeldKeys) -> String {
     format!("{:x}", digest.finalize())
 }
 
-fn stream_sha256(initial_held: &HeldKeys, transactions: &[InputTransaction]) -> String {
+fn stream_sha256(initial_held: &KeyBits, transactions: &[InputTransaction]) -> String {
     let mut digest = Sha256::new();
     digest.update(b"wulin-host-input-stream-v1\0");
     for word in initial_held {

@@ -59,7 +59,7 @@ unsafe fn run() -> Result<()> {
             break 'running;
         }
         input.ingest(window::drain_input());
-        if input.is_held(ESCAPE) {
+        if input.was_pressed(ESCAPE) {
             window::request_close(hwnd)?;
             continue;
         }

@@ -420,6 +420,13 @@ runtime、16 prototype、23 reference-host tests；显式激活并 held W 的真
 仍存活且 stderr 为空。`prototype-operator-v2` 生成 `[-6,6]²` bounds、完成 live start/zero-process
 stop。没有 schema-1 fallback、engine boundary mode、source-index inference、product telemetry、
 renderer/GPU/source-format/asset 或 Wulin 变化。
+Experiment 0084 将 host 已归一化却只用于 journal 的 transition 提升为最近一次 ingest 的
+`was_pressed` / `was_released` facts；每次 ingest（包括空 drain）先让旧 edge 失效，连续 W/A/S/D
+仍只读取 `is_held`。journal/status 继续保持 v1，原生两进程记录仍为 2 transactions、11 messages、
+10 transitions 和 `ec8660…435` stream hash。`canonical-prototype-v10` 在 75.608 秒内通过；ready
+后的真实 Escape/VK 27 进程在 4.316 秒内 exit 0 且 stderr 为空，held-W finite-edge 仍持续
+15.008 秒。没有 latched inspect edge、action queue、frame/simulation binding、engine input API、
+renderer/GPU/source/asset 或 Wulin 变化。
 
 ## Project model
 
@@ -484,7 +491,8 @@ locomotion with transactional Survey/Walk selection and exact committed eight-wa
 committed current actor authority, actor-relative camera/frame ordering, typed render-block
 consumption with zero normal-path blocks,
 one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-W
-finite-edge survival, direct restart equality, and Sidecar cleanup.
+finite-edge survival, one native Escape press-edge clean exit, direct restart equality, and Sidecar
+cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
 minimal signed pair, checks the exact accepted canonical frame, immediately replays it, and owns

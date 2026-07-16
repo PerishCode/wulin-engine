@@ -23,7 +23,7 @@ fn normalization_suppresses_duplicates_and_releases_focus_in_key_order() {
     let recording = input.completed_recording.as_ref().unwrap();
     let transitions = &recording.transactions[0].transitions;
 
-    assert_eq!(held_key_list(&input.held), Vec::<u8>::new());
+    assert_eq!(key_list(&input.held), Vec::<u8>::new());
     assert_eq!(summary["transactionCount"], 1);
     assert_eq!(summary["rawMessageCount"], 9);
     assert_eq!(summary["transitionCount"], 6);
@@ -71,10 +71,14 @@ fn replay_starts_from_recorded_state_and_never_mutates_live_state() {
     let completed = input.stop_recording().unwrap();
     input.ingest(vec![key(66, true)]);
     let live_before = input.held;
+    let pressed_before = input.pressed;
+    let released_before = input.released;
 
     let replay = input.replay().unwrap();
 
     assert_eq!(input.held, live_before);
+    assert_eq!(input.pressed, pressed_before);
+    assert_eq!(input.released, released_before);
     assert_eq!(replay["matchesRecord"], true);
     assert_eq!(replay["liveStateUnchanged"], true);
     assert_eq!(replay["initialHeldKeys"], json!([32]));
@@ -123,7 +127,7 @@ fn record_overflow_is_explicit_and_preserves_last_completed_record() {
     );
     let replay = input.replay().unwrap();
     assert_eq!(replay["streamSha256"], first["streamSha256"]);
-    assert_eq!(held_key_list(&input.held), Vec::<u8>::new());
+    assert_eq!(key_list(&input.held), Vec::<u8>::new());
 }
 
 #[test]
@@ -139,12 +143,57 @@ fn invalid_record_lifecycle_operations_do_not_change_state() {
 }
 
 #[test]
-fn held_query_exposes_only_normalized_live_state() {
+fn sample_edges_expose_only_normalized_transitions() {
     let mut input = HostInput::new();
     assert!(!input.is_held(0));
+    assert!(!input.was_pressed(0));
+    assert!(!input.was_released(0));
     assert!(!input.is_held(27));
-    input.ingest(vec![key(27, true), key(27, true)]);
+    input.ingest(vec![
+        key(27, true),
+        key(27, true),
+        key(65, false),
+        key(0, true),
+        key(256, true),
+    ]);
     assert!(input.is_held(27));
+    assert!(input.was_pressed(27));
+    assert!(!input.was_released(27));
+    assert!(!input.was_pressed(65));
+    assert!(!input.was_released(65));
+
+    input.ingest(vec![key(27, false), key(27, true)]);
+    assert!(input.is_held(27));
+    assert!(input.was_pressed(27));
+    assert!(input.was_released(27));
+
     input.ingest(vec![NativeMessage::FocusLost]);
     assert!(!input.is_held(27));
+    assert!(!input.was_pressed(27));
+    assert!(input.was_released(27));
+}
+
+#[test]
+fn empty_ingest_expires_edges_without_creating_a_transaction() {
+    let mut input = HostInput::new();
+    input.start_recording().unwrap();
+    input.ingest(vec![key(32, true), key(32, false)]);
+    assert!(input.was_pressed(32));
+    assert!(input.was_released(32));
+    assert!(!input.is_held(32));
+    let before = input.status_json();
+
+    input.ingest(Vec::new());
+
+    assert!(!input.was_pressed(32));
+    assert!(!input.was_released(32));
+    assert!(!input.is_held(32));
+    let after = input.status_json();
+    assert_eq!(after["transactionCount"], before["transactionCount"]);
+    assert_eq!(after["rawMessageCount"], before["rawMessageCount"]);
+    assert_eq!(after["transitionCount"], before["transitionCount"]);
+    assert_eq!(
+        after["recording"]["transactionCount"],
+        before["recording"]["transactionCount"]
+    );
 }
