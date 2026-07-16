@@ -140,6 +140,10 @@ fn projected_candidate_commits_twelve_frames() {
     assert_eq!(policy.nearest_exclusion(), Some(identity(7)));
     assert_eq!(policy.frame_suppression(), None);
     assert_eq!(
+        policy.status().acknowledgement.unwrap().kind,
+        ObjectTargetFeedbackKind::Activated
+    );
+    assert_eq!(
         policy.status().acknowledgement.unwrap().remaining_frames,
         interaction::ACKNOWLEDGEMENT_FRAME_COUNT - 1
     );
@@ -269,17 +273,7 @@ fn all_eight_committed_directions_admit_their_front_half_plane() {
 
 #[test]
 fn side_back_and_zero_distance_are_exact() {
-    for (object, expected) in [
-        (
-            object_at(7, 0, 256),
-            Some(interaction::Ineligible::OutsideFacing),
-        ),
-        (
-            object_at(7, -256, 0),
-            Some(interaction::Ineligible::OutsideFacing),
-        ),
-        (object_at(7, 0, 0), None),
-    ] {
+    for object in [object_at(7, 0, 256), object_at(7, -256, 0)] {
         let mut policy = interaction::Policy::new();
         policy.ingest(true);
         let attempt = policy
@@ -291,16 +285,99 @@ fn side_back_and_zero_distance_are_exact() {
                 Some(CanonicalObjectResolution::Resolved(object)),
             )
             .unwrap();
-        match expected {
-            Some(reason) => assert_eq!(attempt, Some(interaction::Attempt::Ineligible(reason))),
-            None => {
-                let Some(interaction::Attempt::Eligible(eligible)) = attempt else {
-                    panic!("coincident target was not eligible");
-                };
-                assert_eq!(eligible.facing.dot_q9, 0);
-            }
-        }
+        let Some(interaction::Attempt::Rejected(rejected)) = attempt else {
+            panic!("side/rear target did not produce exact rejection feedback");
+        };
+        assert_eq!(rejected.reason, interaction::Ineligible::OutsideFacing);
+        assert_eq!(rejected.feedback.kind, ObjectTargetFeedbackKind::Rejected);
+        assert!(rejected.facing.dot_q9 <= 0);
+        assert_eq!(policy.status().ineligible_count, 1);
     }
+
+    let mut policy = interaction::Policy::new();
+    policy.ingest(true);
+    let attempt = policy
+        .prepare_after_advance(
+            1,
+            origin(),
+            0,
+            Some(target(7, true)),
+            Some(CanonicalObjectResolution::Resolved(object_at(7, 0, 0))),
+        )
+        .unwrap();
+    let Some(interaction::Attempt::Eligible(eligible)) = attempt else {
+        panic!("coincident target was not eligible");
+    };
+    assert_eq!(eligible.facing.dot_q9, 0);
+}
+
+#[test]
+fn projected_rejection_reuses_acknowledgement_without_consumption() {
+    let mut policy = interaction::Policy::new();
+    policy.ingest(true);
+    let attempt = policy
+        .prepare_after_advance(
+            1,
+            origin(),
+            0,
+            Some(target(7, true)),
+            Some(CanonicalObjectResolution::Resolved(object_at(7, 0, 256))),
+        )
+        .unwrap();
+    let submitted = policy.frame_feedback(Some(identity(7)), attempt);
+    assert_eq!(submitted.unwrap().kind, ObjectTargetFeedbackKind::Rejected);
+    let attempt_report = interaction::report::attempt(attempt.unwrap());
+    assert_eq!(attempt_report["outcome"], "ineligible");
+    assert_eq!(attempt_report["reason"], "outside-facing");
+    assert_eq!(attempt_report["feedback"]["kind"], "rejected");
+    assert_eq!(attempt_report["facing"]["dotQ9"], 0);
+    let completion = policy
+        .complete_frame(attempt, submitted, submitted)
+        .unwrap()
+        .unwrap();
+    assert!(!completion.applied);
+    assert_eq!(completion.feedback.kind, ObjectTargetFeedbackKind::Rejected);
+    let acknowledgement = policy.status().acknowledgement.unwrap();
+    assert_eq!(acknowledgement.kind, ObjectTargetFeedbackKind::Rejected);
+    let acknowledgement_report = interaction::report::acknowledgement(acknowledgement);
+    assert_eq!(acknowledgement_report["kind"], "rejected");
+    assert_eq!(
+        acknowledgement_report["remainingFrames"],
+        interaction::ACKNOWLEDGEMENT_FRAME_COUNT - 1
+    );
+    assert_eq!(
+        acknowledgement.remaining_frames,
+        interaction::ACKNOWLEDGEMENT_FRAME_COUNT - 1
+    );
+    assert_eq!(policy.status().committed_count, 0);
+    assert_eq!(policy.status().consumed, None);
+    assert_eq!(policy.nearest_exclusion(), None);
+    assert_eq!(policy.frame_suppression(), None);
+    for _ in 1..interaction::ACKNOWLEDGEMENT_FRAME_COUNT {
+        let submitted = policy.frame_feedback(Some(identity(7)), None);
+        assert_eq!(submitted.unwrap().kind, ObjectTargetFeedbackKind::Rejected);
+        policy.complete_frame(None, submitted, submitted).unwrap();
+    }
+    assert_eq!(policy.status().acknowledgement, None);
+
+    let mut unprojected = interaction::Policy::new();
+    unprojected.ingest(true);
+    let attempt = unprojected
+        .prepare_after_advance(
+            1,
+            origin(),
+            0,
+            Some(target(7, true)),
+            Some(CanonicalObjectResolution::Resolved(object_at(7, 0, 256))),
+        )
+        .unwrap();
+    let submitted = unprojected.frame_feedback(Some(identity(7)), attempt);
+    let completion = unprojected
+        .complete_frame(attempt, submitted, None)
+        .unwrap()
+        .unwrap();
+    assert!(!completion.applied);
+    assert_eq!(unprojected.status().acknowledgement, None);
 }
 
 #[test]

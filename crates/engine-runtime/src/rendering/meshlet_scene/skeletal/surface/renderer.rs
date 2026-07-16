@@ -445,6 +445,7 @@ impl SurfaceRenderer {
             constants[25] = match target.kind {
                 crate::runtime::ObjectTargetFeedbackKind::Selected => 1,
                 crate::runtime::ObjectTargetFeedbackKind::Activated => 2,
+                crate::runtime::ObjectTargetFeedbackKind::Rejected => 3,
             };
             constants[26] = target.semantic_region;
             constants[27] = target.authored_local_id;

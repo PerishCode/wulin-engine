@@ -59,6 +59,7 @@ unsafe fn run() -> Result<()> {
     let mut render_block_count = 0_u64;
     let mut object_target_frame_count = 0_u64;
     let mut object_action_frame_count = 0_u64;
+    let mut object_rejection_frame_count = 0_u64;
     let mut object_suppression_frame_count = 0_u64;
     let mut presentation_policy = presentation::Policy::new();
     let mut camera_policy = camera::Policy::new();
@@ -234,6 +235,14 @@ unsafe fn run() -> Result<()> {
                 .checked_add(1)
                 .context("prototype object action frame count overflowed")?;
         }
+        if render_outcome
+            .object_target_feedback
+            .is_some_and(|feedback| feedback.kind == ObjectTargetFeedbackKind::Rejected)
+        {
+            object_rejection_frame_count = object_rejection_frame_count
+                .checked_add(1)
+                .context("prototype object rejection frame count overflowed")?;
+        }
         if render_outcome.object_suppression.is_some() {
             object_suppression_frame_count = object_suppression_frame_count
                 .checked_add(1)
@@ -281,6 +290,7 @@ unsafe fn run() -> Result<()> {
                 render_block_count,
                 object_target_frame_count,
                 object_action_frame_count,
+                object_rejection_frame_count,
                 object_suppression_frame_count,
                 submitted_object_feedback: object_target_feedback,
                 rendered_object_feedback: render_outcome.object_target_feedback,
@@ -316,6 +326,7 @@ struct ReadinessEvidence {
     render_block_count: u64,
     object_target_frame_count: u64,
     object_action_frame_count: u64,
+    object_rejection_frame_count: u64,
     object_suppression_frame_count: u64,
     submitted_object_feedback: Option<ObjectTargetFeedback>,
     rendered_object_feedback: Option<ObjectTargetFeedback>,
@@ -351,40 +362,13 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
             },
         })
     });
-    let object_action_attempt = evidence.interaction_attempt.map(|attempt| match attempt {
-        interaction::Attempt::Eligible(eligible) => json!({
-            "outcome": "eligible",
-            "feedback": eligible.feedback,
-            "proximity": eligible.proximity,
-            "facing": {
-                "yawQ16": eligible.facing.yaw_q16,
-                "directionX": eligible.facing.direction_x,
-                "directionZ": eligible.facing.direction_z,
-                "dotQ9": eligible.facing.dot_q9,
-            },
-        }),
-        interaction::Attempt::Ineligible(reason) => json!({
-            "outcome": "ineligible",
-            "reason": match reason {
-                interaction::Ineligible::MissingTarget => "missing-target",
-                interaction::Ineligible::UnavailableTarget => "unavailable-target",
-                interaction::Ineligible::SourceReplaced => "source-replaced",
-                interaction::Ineligible::OutsidePublishedWindow => "outside-published-window",
-                interaction::Ineligible::OutsideRadius => "outside-radius",
-                interaction::Ineligible::OutsideFacing => "outside-facing",
-                interaction::Ineligible::CapacityExhausted => "capacity-exhausted",
-            },
-        }),
-    });
+    let object_action_attempt = evidence
+        .interaction_attempt
+        .map(interaction::report::attempt);
     let acknowledgement = evidence
         .interaction_status
         .acknowledgement
-        .map(|acknowledgement| {
-            json!({
-                "identity": acknowledgement.identity,
-                "remainingFrames": acknowledgement.remaining_frames,
-            })
-        });
+        .map(interaction::report::acknowledgement);
     println!(
         "{}",
         json!({
@@ -446,7 +430,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 },
             },
             "object_interaction_driver": {
-                "revision": "live-prototype-object-facing-v1",
+                "revision": "live-prototype-object-rejected-feedback-v1",
                 "input": "Enter",
                 "maxDistanceQ9": interaction::OBJECT_ACTION_RADIUS_Q9,
                 "facingRule": {
@@ -468,6 +452,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                     "consumed": evidence.interaction_status.consumed,
                 },
                 "activatedFrameCount": evidence.object_action_frame_count,
+                "rejectedFrameCount": evidence.object_rejection_frame_count,
                 "suppression": {
                     "submitted": evidence.submitted_object_suppression,
                     "projected": evidence.rendered_object_suppression,

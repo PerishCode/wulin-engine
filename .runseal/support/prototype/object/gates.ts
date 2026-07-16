@@ -51,7 +51,7 @@ export async function facingRejectionGates(
     );
     return {
         simulation: simulationInvariant(launch),
-        observation: await observationInvariant(launch, objects, base, true, "selected"),
+        observation: await observationInvariant(launch, objects, base, true, "rejected"),
         interaction: sideFacingInteractionInvariant(launch),
         jump: jumpPolicyInvariant(launch, true),
         camera: cameraDriverInvariant(launch),

@@ -21,7 +21,7 @@ export type VisibleObjectTarget = {
     semanticRegion: number;
 };
 
-export type ObjectFeedbackKind = "activated" | "selected";
+export type ObjectFeedbackKind = "activated" | "rejected" | "selected";
 
 export function visibleObjectTarget(
     value: Json,

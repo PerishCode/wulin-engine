@@ -21,6 +21,7 @@ export async function requireTypedObjectResolution(
         !contract.includes("pub enum ObjectTargetFeedbackKind") ||
         !contract.includes("Selected") ||
         !contract.includes("Activated") ||
+        !contract.includes("Rejected") ||
         !contract.includes("SourceReplaced") ||
         !contract.includes("OutsidePublishedWindow") ||
         contract.includes("pub struct CanonicalObject {\n    pub region:")
@@ -63,7 +64,7 @@ export async function requireTypedObjectResolution(
         !routing.includes('"canonical.objects.suppression.clear" =>') ||
         !feedback.includes("targetedPixels") ||
         !feedback.includes("visibleObjectTarget") ||
-        !feedback.includes('"activated" | "selected"') ||
+        !feedback.includes('"activated" | "rejected" | "selected"') ||
         !feedback.includes("invalidObjectFeedbackGate") ||
         !feedback.includes("objectSuppressionLifecycle") ||
         !feedback.includes("assertUnprojectedSuppression") ||

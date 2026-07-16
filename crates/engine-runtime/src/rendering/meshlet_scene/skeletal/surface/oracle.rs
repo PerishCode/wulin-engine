@@ -253,6 +253,9 @@ fn shade_visible(
             crate::runtime::ObjectTargetFeedbackKind::Activated => {
                 color * 0.30 + Vec3::new(0.12, 1.0, 0.32) * 0.70
             }
+            crate::runtime::ObjectTargetFeedbackKind::Rejected => {
+                color * 0.30 + Vec3::new(1.0, 0.12, 0.08) * 0.70
+            }
         };
     }
     Ok((

@@ -44,7 +44,7 @@ function finite(value: string | undefined, name: string): number {
 async function setObjectTarget(args: string[]): Promise<void> {
     if (args.length !== 5) {
         fail(
-            "workbench: object-target-set requires source-namespace region-x region-z authored-local-id selected|activated",
+            "workbench: object-target-set requires source-namespace region-x region-z authored-local-id selected|activated|rejected",
         );
     }
     if (!/^[0-9a-f]{64}$/.test(args[0])) {
@@ -54,8 +54,8 @@ async function setObjectTarget(args: string[]): Promise<void> {
     if (authoredLocalId < 0 || authoredLocalId >= 1_024) {
         fail("workbench: object target authored local ID must be in 0..1024");
     }
-    if (args[4] !== "selected" && args[4] !== "activated") {
-        fail("workbench: object target feedback must be selected or activated");
+    if (args[4] !== "selected" && args[4] !== "activated" && args[4] !== "rejected") {
+        fail("workbench: object target feedback must be selected, activated, or rejected");
     }
     await event("canonical.objects.target.set", {
         source_namespace: args[0],

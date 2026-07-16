@@ -91,6 +91,7 @@ pub struct CanonicalObjectProximity {
 pub enum ObjectTargetFeedbackKind {
     Selected,
     Activated,
+    Rejected,
 }
 
 /// One source-qualified object target and its immutable feedback for a single frame transaction.

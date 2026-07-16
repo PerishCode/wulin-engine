@@ -5,12 +5,67 @@ use engine_runtime::{
 };
 use reference_host::HostElapsedSample;
 
+pub(crate) mod report {
+    use serde_json::{Value, json};
+
+    pub(crate) fn attempt(attempt: super::Attempt) -> Value {
+        match attempt {
+            super::Attempt::Eligible(eligible) => json!({
+                "outcome": "eligible",
+                "feedback": eligible.feedback,
+                "proximity": eligible.proximity,
+                "facing": facing(eligible.facing),
+            }),
+            super::Attempt::Rejected(rejected) => json!({
+                "outcome": "ineligible",
+                "reason": match rejected.reason {
+                    super::Ineligible::OutsideFacing => "outside-facing",
+                    _ => unreachable!("projectable rejection has an unsupported reason"),
+                },
+                "feedback": rejected.feedback,
+                "proximity": rejected.proximity,
+                "facing": facing(rejected.facing),
+            }),
+            super::Attempt::Ineligible(reason) => json!({
+                "outcome": "ineligible",
+                "reason": match reason {
+                    super::Ineligible::MissingTarget => "missing-target",
+                    super::Ineligible::UnavailableTarget => "unavailable-target",
+                    super::Ineligible::SourceReplaced => "source-replaced",
+                    super::Ineligible::OutsidePublishedWindow => "outside-published-window",
+                    super::Ineligible::OutsideRadius => "outside-radius",
+                    super::Ineligible::OutsideFacing => "outside-facing",
+                    super::Ineligible::CapacityExhausted => "capacity-exhausted",
+                },
+            }),
+        }
+    }
+
+    fn facing(facing: super::Facing) -> Value {
+        json!({
+            "yawQ16": facing.yaw_q16,
+            "directionX": facing.direction_x,
+            "directionZ": facing.direction_z,
+            "dotQ9": facing.dot_q9,
+        })
+    }
+
+    pub(crate) fn acknowledgement(acknowledgement: super::Acknowledgement) -> Value {
+        json!({
+            "identity": acknowledgement.identity,
+            "kind": acknowledgement.kind,
+            "remainingFrames": acknowledgement.remaining_frames,
+        })
+    }
+}
+
 pub(crate) const OBJECT_ACTION_RADIUS_Q9: u32 = 512;
 pub(crate) const ACKNOWLEDGEMENT_FRAME_COUNT: u32 = 12;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Acknowledgement {
     pub identity: engine_runtime::CanonicalObjectIdentity,
+    pub kind: ObjectTargetFeedbackKind,
     pub remaining_frames: u32,
 }
 
@@ -56,8 +111,17 @@ pub(crate) struct Eligible {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Rejected {
+    pub reason: Ineligible,
+    pub feedback: ObjectTargetFeedback,
+    pub proximity: CanonicalObjectProximity,
+    pub facing: Facing,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Attempt {
     Eligible(Eligible),
+    Rejected(Rejected),
     Ineligible(Ineligible),
 }
 
@@ -111,7 +175,15 @@ fn proximity_attempt(
     };
     let facing = facing(proximity, yaw_q16)?;
     if proximity.distance_squared_q18 != 0 && facing.dot_q9 <= 0 {
-        return Ok(Attempt::Ineligible(Ineligible::OutsideFacing));
+        return Ok(Attempt::Rejected(Rejected {
+            reason: Ineligible::OutsideFacing,
+            feedback: ObjectTargetFeedback {
+                identity: target.identity,
+                kind: ObjectTargetFeedbackKind::Rejected,
+            },
+            proximity,
+            facing,
+        }));
     }
     Ok(Attempt::Eligible(Eligible {
         feedback: ObjectTargetFeedback {
@@ -220,7 +292,8 @@ impl Policy {
             }
             Some(target) => resolved_attempt(target, origin, yaw_q16, resolution)?,
         };
-        let next_ineligible_count = if matches!(attempt, Attempt::Ineligible(_)) {
+        let ineligible = !matches!(attempt, Attempt::Eligible(_));
+        let next_ineligible_count = if ineligible {
             self.ineligible_count
                 .checked_add(1)
                 .ok_or_else(|| anyhow::anyhow!("object action ineligible count overflowed"))?
@@ -229,7 +302,7 @@ impl Policy {
         };
         self.pending = false;
         self.ineligible_count = next_ineligible_count;
-        if matches!(attempt, Attempt::Ineligible(_)) {
+        if ineligible {
             self.acknowledgement = None;
         }
         Ok(Some(attempt))
@@ -243,10 +316,13 @@ impl Policy {
         if let Some(Attempt::Eligible(eligible)) = attempt {
             return Some(eligible.feedback);
         }
+        if let Some(Attempt::Rejected(rejected)) = attempt {
+            return Some(rejected.feedback);
+        }
         if let Some(acknowledgement) = self.acknowledgement {
             return Some(ObjectTargetFeedback {
                 identity: acknowledgement.identity,
-                kind: ObjectTargetFeedbackKind::Activated,
+                kind: acknowledgement.kind,
             });
         }
         target.map(|identity| ObjectTargetFeedback {
@@ -282,6 +358,7 @@ impl Policy {
                     .ok_or_else(|| anyhow::anyhow!("object action committed count overflowed"))?;
                 self.acknowledgement = Some(Acknowledgement {
                     identity: eligible.feedback.identity,
+                    kind: eligible.feedback.kind,
                     remaining_frames: ACKNOWLEDGEMENT_FRAME_COUNT - 1,
                 });
                 self.consumed = Some(eligible.feedback.identity);
@@ -294,11 +371,27 @@ impl Policy {
                 feedback: eligible.feedback,
             }));
         }
+        if let Some(Attempt::Rejected(rejected)) = attempt {
+            ensure!(
+                submitted == Some(rejected.feedback),
+                "rejected object action was not submitted as the frame candidate"
+            );
+            let presented = rendered == Some(rejected.feedback);
+            self.acknowledgement = presented.then_some(Acknowledgement {
+                identity: rejected.feedback.identity,
+                kind: rejected.feedback.kind,
+                remaining_frames: ACKNOWLEDGEMENT_FRAME_COUNT - 1,
+            });
+            return Ok(Some(FrameCompletion {
+                applied: false,
+                feedback: rejected.feedback,
+            }));
+        }
         if let Some(mut acknowledgement) = self.acknowledgement
             && rendered
                 == Some(ObjectTargetFeedback {
                     identity: acknowledgement.identity,
-                    kind: ObjectTargetFeedbackKind::Activated,
+                    kind: acknowledgement.kind,
                 })
         {
             acknowledgement.remaining_frames -= 1;

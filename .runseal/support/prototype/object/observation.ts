@@ -9,7 +9,7 @@ export async function observationInvariant(
     source: string,
     windowCenter: [number, number],
     expectedCompleted: boolean,
-    expectedFeedbackKind: "activated" | "selected" = "selected",
+    expectedFeedbackKind: "activated" | "rejected" | "selected" = "selected",
 ): Promise<Json> {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "object_observation_driver");
