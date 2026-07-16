@@ -4,7 +4,7 @@ const decoder = new TextDecoder();
 
 async function postPrototypeKey(
     processId: number,
-    key: "E" | "Escape" | "W",
+    key: "E" | "Escape" | "Space" | "W",
     virtualKey: number,
     requireVisible: boolean,
 ): Promise<Json> {
@@ -126,4 +126,8 @@ export async function pressPrototypeEscape(processId: number): Promise<Json> {
 
 export async function pressPrototypeCameraClockwise(processId: number): Promise<Json> {
     return await postPrototypeKey(processId, "E", 0x45, true);
+}
+
+export async function pressPrototypeJump(processId: number): Promise<Json> {
+    return await postPrototypeKey(processId, "Space", 0x20, true);
 }

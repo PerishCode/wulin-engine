@@ -11,7 +11,8 @@
 **Plain Prototype v0 已完成阶段封版**：`runseal :prototype start` 可从无生成 source/config 的状态
 确定性准备有限 sandbox，并启动唯一 canonical renderer 下的原生窗口。当前边界包含一个 grounded
 imported-Fox actor、Ready-only 60 Hz gravity/W/A/S/D transaction、Survey/Walk 与精确八向 facing、
-actor-local clip phase、四态 Q/E actor-relative camera orbit 和启用一次的 engine traversal。它明确不是无限世界、
+actor-local clip phase、四态 Q/E actor-relative camera orbit、capacity-one grounded Space Jump intent
+和启用一次的 engine traversal。它明确不是无限世界、
 持续 product traversal、gameplay interaction、multi-actor、networking 或 Wulin content 承诺。
 首个 post-v0 依赖现由 Experiment 0083 接受：strict bootstrap schema 2 显式声明包含式 signed
 playable-region rectangle，prototype 在既有 runtime transaction 前按最多八 step 独立裁减可能越界的
@@ -457,6 +458,16 @@ true 与 blocked 无 transition；67.343 秒 `canonical-prototype-v13` 中 83 ru
 20 host tests 及所有真实进程直接消费 committed true，不再从零 velocity 推断
 `groundedAfterBatch`。没有 RuntimeActor contact cache、额外 query、Space/jump policy、renderer/GPU/
 resource/sync/source/format/asset 或 Wulin 变化。
+Experiment 0089 将 Space 接为首个有界 actor action intent：prototype 只在最后一次 exact committed
+grounded witness 为 true 时接收一个 pending intent，fractional work、Stalled 与 typed pending-window
+block 只保留这个 bit 而不保留 elapsed backlog；Reset/Suspended 先清旧 intent，再接收当前 native
+message batch 的新 edge。下一次 nonzero actor commit 通过 Experiment 0087 的既有字段只施加一次
+delta `4369`，并以 Experiment 0088 的最终 grounded witness 更新 eligibility。67.470 秒
+`canonical-prototype-v14` 通过 83 runtime、22 prototype、20 host tests；可见窗口 Space/VK 32 进程
+在一步 gravity `-179` 下精确得到 velocity `0 -> 4190`、center `141824 -> 146014`、grounded false、
+pending false，同时保持 XZ、Survey、actor identity、camera/traversal 与零 render block。没有 engine
+action/input state、queue、额外 query、jump animation、config/compatibility、renderer/GPU/resource/
+sync/source/format/asset 或 Wulin 变化。
 
 ## Project model
 
@@ -508,14 +519,16 @@ the zero-origin `[-8,8]²` finite sandbox, declares inclusive `[-6,6]²` playabl
 bootstrap schema 2, and then uses
 `sidecar.prototype.toml` to launch the application without an inspect endpoint. It becomes visible
 and ready only after canonical content has rendered; close the window, press Escape, or use
-`runseal :prototype stop` to end it. No prior canonical acceptance output is required.
+`runseal :prototype stop` to end it. W/A/S/D moves, Q/E changes the committed camera orbit, and Space
+requests one grounded Jump. No prior canonical acceptance output is required.
 
 `runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
 runtime/prototype/reference-host tests, cooks the four required signed centers, and proves
 strict bootstrap failure, exact committed grounded gravity witness, exact stationary and native-W fixed
 locomotion with transactional Survey/Walk selection and exact committed eight-way facing, one
 committed current actor authority, Q/E committed actor-relative camera orbit/frame ordering, typed render-block
-consumption with zero normal-path blocks,
+consumption with zero normal-path blocks, one visible-window native Space action with exact committed
+vertical trajectory and grounded-policy consumption,
 one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-W
 finite-edge survival, one native Escape press-edge clean exit, direct restart equality, and Sidecar
 cleanup.

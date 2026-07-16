@@ -1,6 +1,7 @@
 mod actor;
 mod boundary;
 mod camera;
+mod jump;
 mod locomotion;
 mod presentation;
 mod time;
@@ -16,6 +17,7 @@ use serde_json::{Value, json};
 const WIDTH: u32 = 1280;
 const HEIGHT: u32 = 720;
 const ESCAPE: u8 = 0x1B;
+const SPACE: u8 = 0x20;
 const CLEAR_COLOR: [f32; 4] = [0.035, 0.105, 0.14, 1.0];
 const WINDOW_CONFIG: window::Config = window::Config {
     class_name: "WulinEnginePrototypeWindow",
@@ -53,6 +55,7 @@ unsafe fn run() -> Result<()> {
     let mut render_block_count = 0_u64;
     let mut presentation_policy = presentation::Policy::new();
     let mut camera_policy = camera::Policy::new();
+    let mut jump_policy = jump::Policy::new();
     unsafe { window::show(hwnd) };
 
     'running: loop {
@@ -64,6 +67,9 @@ unsafe fn run() -> Result<()> {
             window::request_close(hwnd)?;
             continue;
         }
+        let sample = clock.sample(&window::drain_activation())?;
+        jump_policy.observe_sample(sample);
+        jump_policy.ingest(input.was_pressed(SPACE));
         let requested_locomotion = locomotion::command(&input);
         let actor = runtime
             .read_actor(runtime_actor.handle)
@@ -78,16 +84,18 @@ unsafe fn run() -> Result<()> {
             delta_x_q9: locomotion.delta_x_q9,
             delta_z_q9: locomotion.delta_z_q9,
             step_up_limit_q16: locomotion.step_up_limit_q16,
-            initial_step_velocity_delta_q16: 0,
+            initial_step_velocity_delta_q16: jump_policy.initial_velocity_delta_q16(),
             step_acceleration_q16: actor::GRAVITY_STEP_ACCELERATION_Q16,
             presentation: presentation_policy.command(locomotion),
         };
-        let sample = clock.sample(&window::drain_activation())?;
         let outcome = time::admitted_elapsed(sample)
             .map(|elapsed_nanoseconds| {
                 runtime.advance_simulation_actor(runtime_actor.handle, elapsed_nanoseconds, command)
             })
             .transpose()?;
+        if let Some(outcome) = outcome {
+            jump_policy.observe_outcome(outcome)?;
+        }
         let advance = outcome
             .map(|outcome| time::consume_actor_outcome(outcome, &mut render_block_count))
             .transpose()?
@@ -141,6 +149,7 @@ unsafe fn run() -> Result<()> {
                 anchored_camera,
                 camera_anchor_count,
                 render_block_count,
+                jump_status: jump_policy.status(),
             })?;
         }
     }
@@ -163,6 +172,7 @@ struct ReadinessEvidence {
     anchored_camera: Value,
     camera_anchor_count: u64,
     render_block_count: u64,
+    jump_status: jump::Status,
 }
 
 fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
@@ -183,7 +193,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "state": evidence.advance.actor.output,
             },
             "simulation_driver": {
-                "revision": "live-prototype-locomotion-driver-v6",
+                "revision": "live-prototype-locomotion-driver-v7",
                 "sample": evidence.sample,
                 "clock": evidence.clock,
                 "command": evidence.command,
@@ -205,6 +215,14 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 "camera": evidence.anchored_camera,
                 "anchorCount": evidence.camera_anchor_count,
                 "liveFrameCount": evidence.live_frame_count,
+            },
+            "jump_driver": {
+                "revision": "live-prototype-jump-policy-v1",
+                "stepVelocityDeltaQ16": jump::JUMP_VELOCITY_DELTA_Q16,
+                "status": {
+                    "pending": evidence.jump_status.pending,
+                    "grounded": evidence.jump_status.grounded,
+                },
             },
         })
     );
