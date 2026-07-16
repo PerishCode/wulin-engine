@@ -56,6 +56,16 @@ export type CanonicalSetup = {
     storage: Json;
 };
 
+async function resetCaptureCollection(collection: string): Promise<void> {
+    const path = `${root}/out/captures/${collection}`;
+    try {
+        await Deno.remove(path, { recursive: true });
+    } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+    await Deno.mkdir(path, { recursive: true });
+}
+
 export async function prepareCanonicalFrameSetup(
     collection: string,
     centers: Coord[],
@@ -67,7 +77,7 @@ export async function prepareCanonicalFrameSetup(
         report: `out/captures/${collection}/acceptance.json`,
     };
     await Deno.mkdir(`${root}/${directory}`, { recursive: true });
-    await Deno.mkdir(`${root}/out/captures/${collection}`, { recursive: true });
+    await resetCaptureCollection(collection);
     const terrain = await cookTerrain(paths.terrain, centers);
     const objects = await cookObjects(paths.objects, centers, "a");
     return { paths, storage: { terrain, objects } };
@@ -85,7 +95,7 @@ export async function preparePrototypeSetup(
         report: `out/captures/${collection}/acceptance.json`,
     };
     await Deno.mkdir(`${root}/${directory}`, { recursive: true });
-    await Deno.mkdir(`${root}/out/captures/${collection}`, { recursive: true });
+    await resetCaptureCollection(collection);
     const traversalCenter: Coord = [base[0] + 1, base[1] + 1];
     const cameraOrbitCenter: Coord = [base[0] + 1, base[1] - 1];
     const corruptCenter: Coord = [base[0] + 70, base[1]];
@@ -117,7 +127,7 @@ export async function prepareCanonicalSetup(
         report: `out/captures/${collection}/acceptance.json`,
     };
     await Deno.mkdir(`${root}/${directory}`, { recursive: true });
-    await Deno.mkdir(`${root}/out/captures/${collection}`, { recursive: true });
+    await resetCaptureCollection(collection);
     await stopCanonicalProcesses();
 
     await run(
@@ -159,6 +169,7 @@ export async function prepareCanonicalSetup(
         centers.push([base[0] + offset, base[1]]);
     }
     centers.push([base[0] + 1, base[1] + 1]);
+    centers.push([base[0] + 1, base[1] - 1]);
     centers.push([base[0] + 41, base[1] + 1]);
     const terrain = await cookTerrain(paths.terrain, centers);
     const objectsA = await cookObjects(paths.objectsA, centers, "a");

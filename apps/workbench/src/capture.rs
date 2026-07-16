@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::perception::{self, Evidence, Request};
@@ -162,7 +162,7 @@ pub fn write(
 
     let hash_start = Instant::now();
     let pixel_sha256 = sha256(&pixels.bytes);
-    let reference_pixel_rgba = pixels
+    let reference_pixel_rgba: [u8; 4] = pixels
         .bytes
         .get(..4)
         .and_then(|value| value.try_into().ok())
@@ -249,6 +249,87 @@ pub fn write(
     fs::write(&manifest_path, [&json[..], b"\n"].concat())
         .with_context(|| format!("failed to write {}", manifest_path.display()))?;
     serde_json::to_value(manifest).context("failed to encode capture response")
+}
+
+pub fn observe(
+    pixels: CapturedPixels,
+    object_ids: Option<CapturedPixels>,
+    context: FrameContext<'_>,
+) -> Result<Value> {
+    let total_start = Instant::now();
+    let object_ids = object_ids.context("perception observation omitted object-ID pixels")?;
+    let request = context
+        .perception
+        .context("perception observation omitted its request")?;
+
+    let perception_start = Instant::now();
+    let evidence = perception::observe(&object_ids, request)?;
+    let perception_analysis_ms = elapsed_ms(perception_start);
+
+    let hash_start = Instant::now();
+    let pixel_sha256 = sha256(&pixels.bytes);
+    let raw_sha256 = sha256(&object_ids.bytes);
+    let reference_pixel_rgba: [u8; 4] = pixels
+        .bytes
+        .get(..4)
+        .and_then(|value| value.try_into().ok())
+        .context("observed frame does not contain a complete reference pixel")?;
+    let different_pixel_count = pixels
+        .bytes
+        .chunks_exact(4)
+        .filter(|pixel| *pixel != reference_pixel_rgba)
+        .count();
+    let hash_ms = elapsed_ms(hash_start);
+
+    Ok(json!({
+        "schemaVersion": 1,
+        "revision": git_revision(),
+        "processId": std::process::id(),
+        "launchedBySidecar": context.launched_by_sidecar,
+        "frameIndex": context.frame_index,
+        "state": if context.paused { "paused" } else { "running" },
+        "clearColor": context.clear_color,
+        "spatial": context.spatial,
+        "workload": context.workload,
+        "renderer": {
+            "api": "D3D12",
+            "adapter": context.adapter,
+            "featureLevel": "12_1",
+            "format": "R8G8B8A8_UNORM",
+            "debugLayer": context.debug_layer,
+            "deviceRemovedReason": context.device_removed_reason,
+        },
+        "image": {
+            "width": pixels.width,
+            "height": pixels.height,
+            "rawByteCount": pixels.bytes.len(),
+            "rowPitch": pixels.row_pitch,
+            "readbackAllocationBytes": pixels.allocation_bytes,
+            "pixelSha256": pixel_sha256,
+            "referencePixelRgba": reference_pixel_rgba,
+            "differentPixelCount": different_pixel_count,
+        },
+        "perception": {
+            "format": "R32_UINT",
+            "width": object_ids.width,
+            "height": object_ids.height,
+            "rawValueCount": object_ids.bytes.len() / 4,
+            "rawByteCount": object_ids.bytes.len(),
+            "rowPitch": object_ids.row_pitch,
+            "readbackAllocationBytes": object_ids.allocation_bytes,
+            "rawSha256": raw_sha256,
+            "evidence": evidence,
+        },
+        "timing": {
+            "gpuSubmissionAndReadbackMs": context.gpu_readback_ms,
+            "rowCopyMs": pixels.row_copy_ms,
+            "objectIdRowCopyMs": object_ids.row_copy_ms,
+            "perceptionAnalysisMs": perception_analysis_ms,
+            "hashMs": hash_ms,
+            "totalMs": elapsed_ms(total_start),
+        },
+        "lastError": context.last_error,
+    }))
 }
 
 fn write_perception(

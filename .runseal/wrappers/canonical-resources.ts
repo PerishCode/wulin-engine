@@ -1,17 +1,23 @@
 import { prepareCanonicalFrameSetup } from "../support/canonical-setup.ts";
 import {
+    assertStopped,
     fail,
     type Json,
+    lifecycle,
+    lifecycleCycles,
+    number,
     openSources,
+    operationMetrics,
     publish,
     resourcePlateau,
     root,
     startClean,
+    status,
     stopCanonicalProcesses,
     target,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-resources-v1";
+const REVISION = "canonical-resources-v2";
 const COLLECTION = "canonical-resources";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];
@@ -37,12 +43,23 @@ try {
     await openSources(setup.paths.terrain, setup.paths.objects);
     const publication = await publish(target(BASE));
     const resources = await resourcePlateau(BASE);
+    const resourceProcessId = number(await status(), "processId");
+    await lifecycle("stop");
+    await assertStopped(resourceProcessId);
+    const lifecycleEvidence = await lifecycleCycles(
+        setup.paths.terrain,
+        setup.paths.objects,
+        target(BASE),
+        16,
+    );
     acceptance = {
         revision: REVISION,
         outcome: "pass",
         storage: setup.storage,
         publication,
         resources,
+        lifecycle: lifecycleEvidence,
+        operations: operationMetrics(),
         elapsedMilliseconds: performance.now() - started,
     };
 } finally {

@@ -118,6 +118,20 @@ impl Request {
 }
 
 pub fn analyze(pixels: &CapturedPixels, request: &Request) -> Result<Analysis> {
+    let (ids, evidence) = analyze_evidence(pixels, request)?;
+    let diagnostic_rgba = ids.iter().flat_map(|id| diagnostic_color(*id)).collect();
+
+    Ok(Analysis {
+        evidence,
+        diagnostic_rgba,
+    })
+}
+
+pub fn observe(pixels: &CapturedPixels, request: &Request) -> Result<Evidence> {
+    analyze_evidence(pixels, request).map(|(_, evidence)| evidence)
+}
+
+fn analyze_evidence(pixels: &CapturedPixels, request: &Request) -> Result<(Vec<u32>, Evidence)> {
     let expected_bytes = usize::try_from(pixels.width)
         .ok()
         .and_then(|width| width.checked_mul(pixels.height as usize))
@@ -157,10 +171,9 @@ pub fn analyze(pixels: &CapturedPixels, request: &Request) -> Result<Analysis> {
         .iter()
         .map(|point| sample(&ids, pixels.width, *point))
         .collect();
-    let diagnostic_rgba = ids.iter().flat_map(|id| diagnostic_color(*id)).collect();
-
-    Ok(Analysis {
-        evidence: Evidence {
+    Ok((
+        ids,
+        Evidence {
             full_frame,
             region: RegionEvidence {
                 bounds: request.region,
@@ -171,8 +184,7 @@ pub fn analyze(pixels: &CapturedPixels, request: &Request) -> Result<Analysis> {
             samples,
             unknown_ids,
         },
-        diagnostic_rgba,
-    })
+    ))
 }
 
 fn validate_region(region: PixelRegion, width: u32, height: u32) -> Result<()> {

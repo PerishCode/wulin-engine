@@ -13,6 +13,22 @@ import {
     status,
     useSidecar,
 } from "./canonical-runtime.ts";
+import { actorInvariant } from "./prototype/actor.ts";
+import { cameraDriverInvariant } from "./prototype/camera.ts";
+import {
+    capturedReady as capturedPrototypeReady,
+    CONFIG as PROTOTYPE_CONFIG,
+    document as prototypeDocument,
+    failedStart as failedPrototypeStart,
+    SIDECAR as PROTOTYPE_SIDECAR,
+    simulationDriverInvariant,
+    startupInvariant as prototypeStartupInvariant,
+    writeDocument as writePrototypeDocument,
+} from "./prototype/host.ts";
+import { jumpPolicyInvariant } from "./prototype/jump.ts";
+import { prototypePids, sidecarStatus } from "./prototype/process.ts";
+import { STATIONARY_COMMAND } from "./prototype/simulation.ts";
+import { traversalInvariant } from "./prototype/traversal.ts";
 
 const SIDECAR = "sidecar.bootstrap.toml";
 const CONFIG = "out/cooked/bootstrap/runtime.json";
@@ -159,4 +175,84 @@ export async function bootstrapGates(
         restarted: { status: restartedStatus, frame: restartedFrame },
         stopped,
     };
+}
+
+export async function prototypeHostCheckpointGates(
+    terrain: string,
+    objects: string,
+    corruptObjects: string,
+    base: Coord,
+): Promise<Json> {
+    console.log("==> bounded prototype host checkpoint");
+    useSidecar(PROTOTYPE_SIDECAR);
+    try {
+        await lifecycle("stop");
+        const invalid = prototypeDocument(terrain, objects, base);
+        invalid.fallback = true;
+        await writePrototypeDocument(invalid);
+        const invalidDocument = await failedPrototypeStart("invalid document");
+
+        const corruptCenter: Coord = [base[0] + 70, base[1]];
+        await writePrototypeDocument(prototypeDocument(terrain, corruptObjects, corruptCenter));
+        const corruptPayload = await failedPrototypeStart("corrupt payload");
+
+        await writePrototypeDocument(prototypeDocument(terrain, objects, base));
+        const first = await capturedPrototypeReady("prototype checkpoint first process");
+        const restarted = await capturedPrototypeReady("prototype checkpoint restarted process");
+        if (number(first, "processId") === number(restarted, "processId")) {
+            fail("prototype checkpoint restart reused the process identity");
+        }
+        same(
+            prototypeStartupInvariant(restarted),
+            prototypeStartupInvariant(first),
+            "prototype checkpoint config",
+        );
+        same(
+            actorInvariant(restarted, base),
+            actorInvariant(first, base),
+            "prototype checkpoint actor authority",
+        );
+        same(
+            simulationDriverInvariant(restarted, STATIONARY_COMMAND),
+            simulationDriverInvariant(first, STATIONARY_COMMAND),
+            "prototype checkpoint simulation driver",
+        );
+        same(
+            cameraDriverInvariant(restarted),
+            cameraDriverInvariant(first),
+            "prototype checkpoint camera driver",
+        );
+        same(
+            jumpPolicyInvariant(restarted, true),
+            jumpPolicyInvariant(first, true),
+            "prototype checkpoint jump policy",
+        );
+        same(
+            traversalInvariant(restarted, base),
+            traversalInvariant(first, base),
+            "prototype checkpoint traversal",
+        );
+
+        await lifecycle("start");
+        const running = await sidecarStatus(PROTOTYPE_SIDECAR);
+        if (prototypePids(running).length === 0) {
+            fail("prototype checkpoint Sidecar start retained no process");
+        }
+        await lifecycle("stop");
+        const stopped = await sidecarStatus(PROTOTYPE_SIDECAR);
+        if (prototypePids(stopped).length !== 0 || object(stopped, "runtime").running !== false) {
+            fail("prototype checkpoint Sidecar stop left an owned process");
+        }
+        return {
+            profile: "full-checkpoint-v1",
+            configPath: PROTOTYPE_CONFIG,
+            invalidDocument,
+            corruptPayload,
+            first,
+            restarted,
+            sidecar: { running, stopped },
+        };
+    } finally {
+        useSidecar("sidecar.toml");
+    }
 }

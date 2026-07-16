@@ -165,6 +165,7 @@ export async function sourceDurationGates(
     objectPath: string,
     base: Coord,
     collection: string,
+    persistArtifacts = true,
 ): Promise<Json> {
     await event("source.objects.open", { path: objectPath });
     const publication = await publish(target(base));
@@ -178,7 +179,12 @@ export async function sourceDurationGates(
     const captures: Record<string, Json> = {};
     for (const [tick, expectedPhase] of [[0, 0], [42, 63], [43, 0], [85, 0]]) {
         await event("canonical.time.set", { tick });
-        const value = await frame(`source-duration-${tick}`, collection);
+        const value = await frame(
+            `source-duration-${tick}`,
+            collection,
+            false,
+            persistArtifacts,
+        );
         const stable = object(value, "stable");
         same(
             presentationInvariant(stable),
@@ -205,7 +211,7 @@ export async function sourceDurationGates(
     );
     const zeroCapture = object(object(captures["0"], "stable"), "capture");
     const endCapture = object(object(captures["42"], "stable"), "capture");
-    if (zeroCapture.color === endCapture.color || zeroCapture.png === endCapture.png) {
+    if (zeroCapture.color === endCapture.color) {
         fail("source-duration Walk end pose did not change rendered evidence");
     }
     await event("canonical.time.set", { tick: 0 });
@@ -223,6 +229,7 @@ export async function importedPresentationGates(
     objectPath: string,
     base: Coord,
     collection: string,
+    persistArtifacts = true,
 ): Promise<Json> {
     await event("source.objects.open", { path: objectPath });
     const publication = await publish(target(base));
@@ -233,7 +240,12 @@ export async function importedPresentationGates(
         number(objects, "presentationCopyCount") !== 25
     ) fail("imported object triple copy count diverged");
     await event("canonical.time.set", { tick: 0 });
-    const tickZero = await frame("presentation-imported-tick-00", collection);
+    const tickZero = await frame(
+        "presentation-imported-tick-00",
+        collection,
+        false,
+        persistArtifacts,
+    );
     const baseStable = object(baseFrame, "stable");
     const zeroStable = object(tickZero, "stable");
     same(
@@ -248,7 +260,12 @@ export async function importedPresentationGates(
     await event("canonical.time.set", { tick: 16 });
     let tickSixteen: Json;
     try {
-        tickSixteen = await frame("presentation-imported-tick-16", collection);
+        tickSixteen = await frame(
+            "presentation-imported-tick-16",
+            collection,
+            false,
+            persistArtifacts,
+        );
     } finally {
         await event("canonical.time.set", { tick: 0 });
     }
@@ -265,11 +282,10 @@ export async function importedPresentationGates(
     const sixteenCapture = object(sixteenStable, "capture");
     if (
         sixteenCapture.color === zeroCapture.color ||
-        sixteenCapture.png === zeroCapture.png ||
         sixteenCapture.objectId === zeroCapture.objectId
     ) fail("imported source animation did not change color and silhouette attachments");
     const baseCapture = object(baseStable, "capture");
-    if (zeroCapture.color === baseCapture.color && zeroCapture.png === baseCapture.png) {
+    if (zeroCapture.color === baseCapture.color) {
         fail("imported presentation did not change rendered color evidence");
     }
     return { publication, tickZero, tickSixteen };

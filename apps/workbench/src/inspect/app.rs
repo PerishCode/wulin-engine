@@ -183,6 +183,7 @@ pub(crate) fn handle_commands(
                     pending.capture = Some(PendingCapture {
                         id,
                         collection,
+                        persist: true,
                         perception: None,
                         response,
                     });
@@ -203,6 +204,7 @@ pub(crate) fn handle_commands(
                     pending.capture = Some(PendingCapture {
                         id,
                         collection,
+                        persist: true,
                         perception: Some(perception),
                         response,
                     });
@@ -214,6 +216,25 @@ pub(crate) fn handle_commands(
                 }),
                 Err(error) => Err(protocol_error("invalid_region", error)),
             },
+            ControlKind::PerceptionObserve { region, samples } => {
+                match perception::Request::new(region, samples, WINDOW_WIDTH, WINDOW_HEIGHT) {
+                    Ok(perception) if pending.is_idle() => {
+                        pending.capture = Some(PendingCapture {
+                            id: "observation".into(),
+                            collection: "observation".into(),
+                            persist: false,
+                            perception: Some(perception),
+                            response,
+                        });
+                        continue;
+                    }
+                    Ok(_) => Err(ProtocolError {
+                        code: "capture_busy",
+                        message: "a capture or probe request is already pending".into(),
+                    }),
+                    Err(error) => Err(protocol_error("invalid_region", error)),
+                }
+            }
         };
         let _ = response.send(result);
     }

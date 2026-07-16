@@ -590,8 +590,10 @@ rendering, dynamic candidate identity, alternating frame-slot
 writes, cull/surface/shadow/occlusion participation, despawn/respawn clearing, frustum rejection,
 outside-window rollback, and semantic capture.
 
-`runseal :canonical-resources` is the focused same-process resource workflow. It separates the
-bounded active publication plateau from post-workload recovery to the quiescent process baseline.
+`runseal :canonical-resources` is the focused deep resource/lifecycle workflow. It samples the warm
+baseline before the first of 64 measured publications, rejects bounded active growth, requires at
+least 60 seconds of post-workload handle stability and recovery, then proves 16 complete process
+cycles.
 
 `runseal :canonical-runtime` is the only end-to-end engine acceptance workflow. It cooks
 signed terrain and schema-3 object sources directly, validates explicit presentation,
@@ -605,9 +607,12 @@ exact caller-owned vertical terrain contact and bounded transition witnesses, th
 motion/translation/planar-first/batch contracts, one retained terrain-body generation lifecycle
 with exact failure rollback and process reset, the sole explicit elapsed schedule/body dual commit
 with coarse/nominal partition equality and complete rollback,
-clear-only idle behavior and retired-control rejection, composition, fault rollback,
-traversal/prefetch/rollover, the 64-publication
-resource plateau, and 16 complete lifecycle cycles without invoking an older experiment workflow.
+clear-only idle behavior and retired-control rejection, composition, fault rollback, and
+traversal/prefetch/rollover without invoking an older experiment workflow. The v2 operator keeps an
+8-publication active-resource checkpoint and two complete lifecycle checkpoints in this full path;
+the focused resource owner retains the 64-publication/60-second/16-cycle deep soak. Full acceptance
+persists only representative captures, uses readback-only color/object-ID observations for repeated
+hash assertions, and reports stage timings, operation counts, and artifact bytes.
 
 ## Scope
 

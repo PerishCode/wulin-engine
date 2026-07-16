@@ -137,9 +137,9 @@ fn handle_connection(mut stream: TcpStream, commands: &SyncSender<ControlCommand
         }
     };
     let response_timeout = match &kind {
-        ControlKind::Capture { .. } | ControlKind::PerceptionCapture { .. } => {
-            Duration::from_secs(15)
-        }
+        ControlKind::Capture { .. }
+        | ControlKind::PerceptionCapture { .. }
+        | ControlKind::PerceptionObserve { .. } => Duration::from_secs(15),
         ControlKind::CanonicalProbe => Duration::from_secs(10),
         _ => Duration::from_secs(4),
     };

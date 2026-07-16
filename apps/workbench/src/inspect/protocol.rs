@@ -49,6 +49,10 @@ pub enum ControlKind {
         region: Option<PixelRegion>,
         samples: Vec<PixelPoint>,
     },
+    PerceptionObserve {
+        region: Option<PixelRegion>,
+        samples: Vec<PixelPoint>,
+    },
     CameraStatus,
     CameraSetPose {
         position: [f32; 3],
@@ -155,6 +159,14 @@ struct PerceptionPayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct PerceptionObservationPayload {
+    region: Option<PixelRegion>,
+    #[serde(default)]
+    samples: Vec<PixelPoint>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CameraPayload {
     position: [f32; 3],
     target: [f32; 3],
@@ -197,6 +209,7 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "workbench.capture" => parse_capture(payload),
         "workbench.set_clear_color" => parse_color(payload),
         "perception.capture" => parse_perception(payload),
+        "perception.observe" => parse_perception_observation(payload),
         "camera.status" => Ok(ControlKind::CameraStatus),
         "camera.set_pose" => parse_camera(payload),
         "camera.reset" => Ok(ControlKind::CameraReset),
@@ -296,6 +309,14 @@ fn parse_perception(value: Value) -> ParsedControl {
     Ok(ControlKind::PerceptionCapture {
         id: payload.id,
         collection,
+        region: payload.region,
+        samples: payload.samples,
+    })
+}
+
+fn parse_perception_observation(value: Value) -> ParsedControl {
+    let payload: PerceptionObservationPayload = decode(value)?;
+    Ok(ControlKind::PerceptionObserve {
         region: payload.region,
         samples: payload.samples,
     })

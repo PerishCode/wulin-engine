@@ -1,6 +1,7 @@
 import {
     assertObjectCopies,
     assertStopped,
+    collectionInventory,
     type Coord,
     event,
     fail,
@@ -13,9 +14,11 @@ import {
     number,
     object,
     openSources,
+    operationMetrics,
     probe,
     publish,
-    resourcePlateau,
+    recordStage,
+    resourceCheckpoint,
     root,
     same,
     setAliasCamera,
@@ -40,8 +43,10 @@ import {
     importedPresentationGates,
     sourceDurationGates,
 } from "../support/cooked-gltf-presentation.ts";
-import { bootstrapGates as bootstrapGate } from "../support/runtime-bootstrap.ts";
-import { prototypeHostGates } from "../support/prototype/host.ts";
+import {
+    bootstrapGates as bootstrapGate,
+    prototypeHostCheckpointGates,
+} from "../support/runtime-bootstrap.ts";
 import { terrainQueryGates, unavailableTerrainQueryGate } from "../support/terrain/query.ts";
 import {
     terrainContactGates as contactGates,
@@ -59,7 +64,7 @@ import {
     unavailableObjectQueryGate,
 } from "../support/object-query.ts";
 
-const REVISION = "canonical-runtime-v1";
+const REVISION = "canonical-runtime-v2";
 const COLLECTION = "canonical-runtime";
 const FAR = 2 ** 40;
 const BASE: Coord = [FAR, -FAR];
@@ -70,7 +75,11 @@ if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
 }
 if (Deno.args.length !== 0) fail(`canonical-runtime: unexpected argument ${Deno.args[0]}`);
 
+const started = performance.now();
+const stageTimings: Json[] = [];
+const setupStarted = performance.now();
 const setup = await prepareCanonicalSetup(COLLECTION, BASE);
+recordStage(stageTimings, "setup", setupStarted);
 const {
     terrain: TERRAIN,
     objectsA: OBJECTS_A,
@@ -89,10 +98,24 @@ const {
 let acceptance: Json | undefined;
 try {
     console.log("==> canonical correctness and failure gates");
+    const bootstrapStarted = performance.now();
     const bootstrap = await bootstrapGate(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE, COLLECTION);
-    const prototype = await prototypeHostGates(TERRAIN, OBJECTS_A, OBJECTS_CORRUPT, BASE);
+    recordStage(stageTimings, "bootstrap", bootstrapStarted);
+    const prototypeStarted = performance.now();
+    const prototype = await prototypeHostCheckpointGates(
+        TERRAIN,
+        OBJECTS_A,
+        OBJECTS_CORRUPT,
+        BASE,
+    );
+    recordStage(stageTimings, "prototype", prototypeStarted);
+    const actorStarted = performance.now();
     const actor = await actorGates();
+    recordStage(stageTimings, "actor-lifecycle", actorStarted);
+    const simulationActorStarted = performance.now();
     const simulationActor = await simulationActorGates(TERRAIN, OBJECTS_A, BASE);
+    recordStage(stageTimings, "simulation-actor", simulationActorStarted);
+    const correctnessStarted = performance.now();
     await startClean();
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
@@ -110,7 +133,7 @@ try {
     assertCanonicalFrame(orderA, "canonical order A");
 
     console.log("==> deterministic presentation time gates");
-    const temporal = await temporalGates(orderA, COLLECTION);
+    const temporal = await temporalGates(orderA, COLLECTION, false);
 
     const presentationMutations: Json[] = [];
     for (
@@ -124,7 +147,7 @@ try {
         await event("source.objects.open", { path });
         const publication = await publish(target(BASE));
         assertObjectCopies(publication, 25, `${label} source publication`);
-        const mutated = await frame(`presentation-${label}`, COLLECTION);
+        const mutated = await frame(`presentation-${label}`, COLLECTION, false, false);
         const baseStable = object(orderA, "stable");
         const mutatedStable = object(mutated, "stable");
         same(
@@ -146,10 +169,9 @@ try {
         }
         const baseCapture = object(baseStable, "capture");
         const mutatedCapture = object(mutatedStable, "capture");
-        if (
-            label !== "animation" && mutatedCapture.color === baseCapture.color &&
-            mutatedCapture.png === baseCapture.png
-        ) fail(`${label} presentation mutation did not change rendered color evidence`);
+        if (label !== "animation" && mutatedCapture.color === baseCapture.color) {
+            fail(`${label} presentation mutation did not change rendered color evidence`);
+        }
         presentationMutations.push({ label, publication, frame: mutated });
     }
 
@@ -170,6 +192,7 @@ try {
         OBJECTS_IMPORTED_DURATION,
         BASE,
         COLLECTION,
+        false,
     );
 
     await event("source.objects.open", { path: OBJECTS_A });
@@ -184,7 +207,7 @@ try {
         [0, 511, 1_023],
     );
     sameObjectQueries(orderBObjectQueries, orderAObjectQueries, "physical object order A/B query");
-    const orderB = await frame("order-b", COLLECTION);
+    const orderB = await frame("order-b", COLLECTION, false, false);
     same(orderB.stable, orderA.stable, "physical object order A/B behavior");
 
     await event("source.objects.open", { path: OBJECTS_A });
@@ -196,7 +219,7 @@ try {
         [0, 511, 1_023],
     );
     sameObjectQueries(revisitObjectQueries, orderAObjectQueries, "object source revisit query");
-    const revisit = await frame("order-a-revisit", COLLECTION);
+    const revisit = await frame("order-a-revisit", COLLECTION, false, false);
     same(revisit.stable, orderA.stable, "object source revisit");
 
     const retiredAdjacentRegion: Coord = [BASE[0] - 2, BASE[1]];
@@ -211,27 +234,28 @@ try {
     );
     const adjacentNew = await queryObject(OBJECTS_A, admittedAdjacentRegion, 0);
     const adjacentObjectQuery = { adjacentOldBefore, adjacentOldAfter, adjacentNew };
-    const adjacent = await frame("adjacent", COLLECTION);
+    const adjacent = await frame("adjacent", COLLECTION, false, false);
     const diagonalBasePublication = await publish(target([BASE[0] + 40, BASE[1]]));
     assertObjectCopies(diagonalBasePublication, 25, "diagonal cold base");
     const diagonalPublication = await publish(target([BASE[0] + 41, BASE[1] + 1]));
     assertObjectCopies(diagonalPublication, 9, "diagonal publication");
-    const diagonal = await frame("diagonal", COLLECTION);
+    const diagonal = await frame("diagonal", COLLECTION, false, false);
     const returnedPublication = await publish(target(BASE));
-    const returned = await frame("returned", COLLECTION);
+    const returned = await frame("returned", COLLECTION, false, false);
     same(returned.stable, orderA.stable, "movement revisit");
 
     const aliasPublication = await publish(target(BASE, 65));
     await setAliasCamera(65);
-    const alias = await frame("compensated-alias", COLLECTION);
+    const alias = await frame("compensated-alias", COLLECTION, false, false);
     same(alias.stable, orderA.stable, "compensated alias frame");
     await event("camera.reset");
     await publish(target(BASE));
 
     const temporalHeld = await temporalHold(
-        await frame("temporal-hold-before", COLLECTION),
+        await frame("temporal-hold-before", COLLECTION, false, false),
         COLLECTION,
         BASE,
+        false,
     );
 
     const holds: Json[] = [];
@@ -243,17 +267,18 @@ try {
             "canonical.terrain.copy_gate",
         ].entries()
     ) {
-        const before = await frame(`hold-${index}-before`, COLLECTION);
+        const before = await frame(`hold-${index}-before`, COLLECTION, false, false);
         holds.push(
             await holdPair(
                 gate,
                 target([BASE[0] + index + 2, BASE[1]]),
                 before,
                 COLLECTION,
+                false,
             ),
         );
     }
-    const beforeFailure = await frame("failure-before", COLLECTION);
+    const beforeFailure = await frame("failure-before", COLLECTION, false, false);
     const failurePublishedRegion: Coord = [BASE[0] + 5, BASE[1]];
     const failureObjectBefore = await queryObject(OBJECTS_A, failurePublishedRegion, 511);
     await event("source.objects.open", { path: OBJECTS_CORRUPT });
@@ -262,6 +287,7 @@ try {
         beforeFailure,
         COLLECTION,
         "object-corrupt",
+        false,
     );
     const failureObjectAfterObject = await queryObject(OBJECTS_A, failurePublishedRegion, 511);
     sameObjectQueries(
@@ -276,6 +302,7 @@ try {
         beforeFailure,
         COLLECTION,
         "terrain-corrupt",
+        false,
     );
     const failureObjectAfterTerrain = await queryObject(OBJECTS_A, failurePublishedRegion, 511);
     sameObjectQueries(
@@ -302,7 +329,7 @@ try {
         [0, 511, 1_023],
     );
     sameObjectQueries(restartObjectQueries, orderAObjectQueries, "canonical restart object query");
-    const restarted = await frame("restart", COLLECTION);
+    const restarted = await frame("restart", COLLECTION, false, false);
     same(restarted.stable, orderA.stable, "canonical restart frame");
 
     console.log("==> prepared rollover gate");
@@ -341,8 +368,10 @@ try {
     const rolloverProbe = await probe();
     await event("canonical.traversal.disable");
     await lifecycle("stop");
+    recordStage(stageTimings, "canonical-correctness", correctnessStarted);
 
     console.log("==> 32 reactive crossings");
+    const reactiveStarted = performance.now();
     await startClean("sidecar.benchmark.toml");
     await openSources(TERRAIN, OBJECTS_A);
     await publish(target(BASE));
@@ -350,8 +379,10 @@ try {
     const reactiveProcess = number(await status(), "processId");
     await lifecycle("stop");
     await assertStopped(reactiveProcess);
+    recordStage(stageTimings, "reactive-traversal", reactiveStarted);
 
     console.log("==> 32 prepared crossings");
+    const preparedStarted = performance.now();
     await startClean("sidecar.benchmark.toml");
     await openSources(TERRAIN, OBJECTS_A);
     await publish(target(BASE));
@@ -359,18 +390,23 @@ try {
     const preparedProcess = number(await status(), "processId");
     await lifecycle("stop");
     await assertStopped(preparedProcess);
+    recordStage(stageTimings, "prepared-traversal", preparedStarted);
 
-    console.log("==> 64-publication same-process resource plateau");
+    console.log("==> 8-publication same-process resource checkpoint");
+    const resourcesStarted = performance.now();
     await startClean();
     await openSources(TERRAIN, OBJECTS_A);
     await publish(target(BASE));
-    const plateau = await resourcePlateau(BASE);
+    const resources = await resourceCheckpoint(BASE);
     const plateauProcess = number(await status(), "processId");
     await lifecycle("stop");
     await assertStopped(plateauProcess);
+    recordStage(stageTimings, "resource-checkpoint", resourcesStarted);
 
-    console.log("==> 16 complete lifecycle cycles");
-    const lifecycleEvidence = await lifecycleCycles(TERRAIN, OBJECTS_A, target(BASE));
+    console.log("==> 2 complete lifecycle checkpoint cycles");
+    const lifecycleStarted = performance.now();
+    const lifecycleEvidence = await lifecycleCycles(TERRAIN, OBJECTS_A, target(BASE), 2);
+    recordStage(stageTimings, "lifecycle-checkpoint", lifecycleStarted);
 
     acceptance = {
         revision: REVISION,
@@ -423,7 +459,7 @@ try {
             rolloverProbe,
         },
         traversal: { reactive, prepared },
-        resources: plateau,
+        resources,
         lifecycle: lifecycleEvidence,
     };
 } finally {
@@ -431,5 +467,18 @@ try {
 }
 
 if (!acceptance) fail("canonical runtime workflow did not produce acceptance evidence");
+acceptance.metrics = {
+    elapsedMilliseconds: performance.now() - started,
+    stages: stageTimings,
+    operations: operationMetrics(),
+    artifacts: await collectionInventory(COLLECTION),
+    deepResourceAndLifecycleOwner: "runseal :canonical-resources",
+};
 await Deno.writeTextFile(`${root}/${REPORT}`, `${JSON.stringify(acceptance, null, 2)}\n`);
-console.log(JSON.stringify({ outcome: acceptance.outcome, report: REPORT }, null, 2));
+console.log(
+    JSON.stringify(
+        { outcome: acceptance.outcome, report: REPORT, metrics: acceptance.metrics },
+        null,
+        2,
+    ),
+);
