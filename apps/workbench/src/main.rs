@@ -118,6 +118,7 @@ unsafe fn run() -> Result<()> {
 struct PendingCapture {
     id: String,
     collection: String,
+    persist: bool,
     perception: Option<perception::Request>,
     response: SyncSender<inspect::ControlResult>,
 }
@@ -182,26 +183,27 @@ fn complete_frame(
             .capture
             .context("capture request completed without pixels")
             .and_then(|frame| {
-                capture::write(
-                    frame.color,
-                    frame.object_ids,
-                    capture::FrameContext {
-                        capture_id: &request.id,
-                        collection: &request.collection,
-                        frame_index: state.frame_index,
-                        clear_color: state.clear_color,
-                        paused: state.paused,
-                        launched_by_sidecar: state.launched_by_sidecar,
-                        adapter: runtime.adapter_name(),
-                        debug_layer: runtime.debug_layer(),
-                        device_removed_reason: unsafe { runtime.device_removed_reason() },
-                        last_error: state.last_error.as_deref(),
-                        gpu_readback_ms: frame_duration.as_secs_f64() * 1_000.0,
-                        spatial: runtime.spatial_json(),
-                        workload: inspect::workload(runtime),
-                        perception: request.perception.as_ref(),
-                    },
-                )
+                let context = capture::FrameContext {
+                    capture_id: &request.id,
+                    collection: &request.collection,
+                    frame_index: state.frame_index,
+                    clear_color: state.clear_color,
+                    paused: state.paused,
+                    launched_by_sidecar: state.launched_by_sidecar,
+                    adapter: runtime.adapter_name(),
+                    debug_layer: runtime.debug_layer(),
+                    device_removed_reason: unsafe { runtime.device_removed_reason() },
+                    last_error: state.last_error.as_deref(),
+                    gpu_readback_ms: frame_duration.as_secs_f64() * 1_000.0,
+                    spatial: runtime.spatial_json(),
+                    workload: inspect::workload(runtime),
+                    perception: request.perception.as_ref(),
+                };
+                if request.persist {
+                    capture::write(frame.color, frame.object_ids, context)
+                } else {
+                    capture::observe(frame.color, frame.object_ids, context)
+                }
             })
             .map_err(|error| capture_error(state, error));
         let _ = request.response.send(result);

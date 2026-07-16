@@ -66,7 +66,7 @@ const EXPECTED_OCCLUSION = {
 
 export function assertCanonicalFrame(value: Json, label: string): Json {
     const stable = object(value, "stable");
-    const capture = object(stable, "capture");
+    const capture = object(value, "capture");
     same(
         {
             color: string(capture, "color"),

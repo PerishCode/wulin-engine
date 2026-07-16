@@ -43,7 +43,7 @@ function finite(value: string | undefined, name: string): number {
 
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(
-        "Usage: runseal :workbench <start|restart|stop|status|inspect|pause|resume|terrain-open|objects-open|schedule|canonical-status|probe|traversal-enable|traversal-disable|prefetch-enable|prefetch-disable|camera|camera-set|camera-reset|capture|perception|objects-io-arm|objects-io-release|objects-copy-arm|objects-copy-release|terrain-io-arm|terrain-io-release|terrain-copy-arm|terrain-copy-release>",
+        "Usage: runseal :workbench <start|restart|stop|status|inspect|pause|resume|terrain-open|objects-open|schedule|canonical-status|probe|traversal-enable|traversal-disable|prefetch-enable|prefetch-disable|camera|camera-set|camera-reset|capture|perception|observe|objects-io-arm|objects-io-release|objects-copy-arm|objects-copy-release|terrain-io-arm|terrain-io-release|terrain-copy-arm|terrain-copy-release>",
     );
     Deno.exit(0);
 }
@@ -127,6 +127,12 @@ switch (verb) {
         await event("perception.capture", {
             id: args[0],
             collection: "operator",
+            samples: [{ x: 0, y: 0 }, { x: 640, y: 360 }],
+        });
+        break;
+    case "observe":
+        if (args.length !== 0) fail("workbench: observe accepts no arguments");
+        await event("perception.observe", {
             samples: [{ x: 0, y: 0 }, { x: 640, y: 360 }],
         });
         break;

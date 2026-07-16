@@ -70,19 +70,23 @@ function assertTemporalChange(before: Json, after: Json, label: string): void {
     ) fail(`${label} did not change GPU/CPU surface evidence`);
     const beforeCapture = object(beforeStable, "capture");
     const afterCapture = object(afterStable, "capture");
-    if (afterCapture.color === beforeCapture.color && afterCapture.png === beforeCapture.png) {
+    if (afterCapture.color === beforeCapture.color) {
         fail(`${label} did not change rendered color evidence`);
     }
 }
 
-export async function temporalGates(orderA: Json, collection: string): Promise<Json> {
+export async function temporalGates(
+    orderA: Json,
+    collection: string,
+    persistArtifacts = true,
+): Promise<Json> {
     const timeZeroStatus = await event("canonical.status");
     const timeZeroClock = object(timeZeroStatus, "presentationClock");
     assertClock(timeZeroClock, 0, false, "paused tick zero");
     const timeOneClock = await event("canonical.time.step", { ticks: 1 });
     assertClock(timeOneClock, 1, false, "manual tick one");
     if (number(timeOneClock, "manualStepCount") !== 1) fail("manual tick-one count diverged");
-    const timeOne = await frame("time-one", collection);
+    const timeOne = await frame("time-one", collection, false, persistArtifacts);
     assertTemporalChange(orderA, timeOne, "tick one");
     const timeOneStatus = await event("canonical.status");
     same(
@@ -97,7 +101,7 @@ export async function temporalGates(orderA: Json, collection: string): Promise<J
         number(timeSixtyFourClock, "manualStepCount") !== 64 ||
         number(timeSixtyFourClock, "wrapCount") !== 0
     ) fail("manual 64-tick duration counters diverged");
-    const timeSixtyFour = await frame("time-sixty-four", collection);
+    const timeSixtyFour = await frame("time-sixty-four", collection, false, persistArtifacts);
     assertTemporalChange(orderA, timeSixtyFour, "duration-aware tick 64");
 
     await event("canonical.time.set", { tick: CLOCK_FRAME_PERIOD - 1 });
@@ -107,7 +111,12 @@ export async function temporalGates(orderA: Json, collection: string): Promise<J
         number(timeWrappedClock, "manualStepCount") !== 65 ||
         number(timeWrappedClock, "wrapCount") !== 1
     ) fail("common-period wrap counters diverged");
-    const timeWrapped = await frame("time-common-period-wrapped-zero", collection);
+    const timeWrapped = await frame(
+        "time-common-period-wrapped-zero",
+        collection,
+        false,
+        persistArtifacts,
+    );
     same(timeWrapped.stable, orderA.stable, "common-period presentation wrap");
 
     const invalidSet = await rejectedEvent("canonical.time.set", { tick: CLOCK_FRAME_PERIOD });
@@ -137,7 +146,7 @@ export async function temporalGates(orderA: Json, collection: string): Promise<J
         object(timeZeroStatus, "published"),
         "automatic time content movement",
     );
-    const automaticFrame = await frame("time-automatic", collection);
+    const automaticFrame = await frame("time-automatic", collection, false, persistArtifacts);
     const automaticTick = number(automaticClock, "tick");
     if (
         number(
@@ -169,6 +178,7 @@ export async function temporalHold(
     before: Json,
     collection: string,
     base: Coord,
+    persistArtifacts = true,
 ): Promise<Json> {
     const beforeStatus = await event("canonical.status");
     const beforePublished = object(beforeStatus, "published");
@@ -197,7 +207,12 @@ export async function temporalHold(
     }
     const heldStatus = await event("canonical.status");
     same(object(heldStatus, "published"), beforePublished, "temporal hold old publication");
-    const heldFrame = await frame("temporal-object-copy-held", collection, true);
+    const heldFrame = await frame(
+        "temporal-object-copy-held",
+        collection,
+        true,
+        persistArtifacts,
+    );
     assertTemporalChange(before, heldFrame, "temporal hold old frame");
 
     await event(`${gate}.release`);

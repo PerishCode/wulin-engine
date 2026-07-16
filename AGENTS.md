@@ -250,12 +250,16 @@ geometry/material/rig source, and one deterministic object-shadow path:
   mutation, gravity, or locomotion policy;
 - one clear-only diagnostic idle shell with neutral reverse-Z depth and semantic frame targets,
   no calibration scene, and no split-world control surface;
+- one readback-only `perception.observe` path for acceptance hashes and semantic evidence that
+  performs no PNG encoding or artifact writes; persistent captures remain explicit representative
+  assets rather than a side effect of every frame assertion;
 - one compact `actor.*` / `simulation.actor.advance` / `camera.*` / `source.*` / `canonical.*`
   inspect vocabulary with no standalone simulation-schedule status alias;
 - one non-recursive `runseal :canonical-prototype` host/application workflow, one non-recursive
   `runseal :canonical-actor` actor GPU workflow, one `runseal :canonical-frame`
-  focused GPU regression workflow, one `runseal :canonical-resources` same-process plateau
-  workflow, and one non-recursive `runseal :canonical-runtime` end-to-end acceptance workflow;
+  focused GPU regression workflow, one `runseal :canonical-resources` deep same-process plateau and
+  16-cycle lifecycle workflow, and one non-recursive `runseal :canonical-runtime` end-to-end
+  acceptance workflow with bounded resource/lifecycle checkpoints;
 - one self-contained `runseal :prototype` manual operator that deterministically cooks a finite
   zero-origin 289-center/441-region sandbox, writes strict bootstrap, and delegates the existing
   non-diagnostic Sidecar lifecycle without an acceptance-artifact prerequisite.
@@ -276,6 +280,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `sidecar.benchmark.toml` | Release workbench lifecycle. |
 | `sidecar.bootstrap.toml` | Configured canonical-readiness workbench lifecycle. |
 | `sidecar.prototype.toml` | Underlying non-diagnostic configured prototype lifecycle. |
+| `docs/architecture/canonical-acceptance.md` | Risk ownership, full/checkpoint/deep-soak boundaries, and acceptance cost policy. |
 | `docs/architecture/repository-model.md` | Stable ownership/dependency rules and current-boundary authority pointer. |
 | `docs/adr/README.md` | ADR naming, status, and maintenance rules. |
 | `docs/adr/0034-canonical-runtime-convergence.md` | Accepted single-runtime, operator-surface, and attachment contract. |
@@ -458,6 +463,8 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `apps/workbench/src/inspect/app.rs` | Main-thread control dispatch. |
 | `apps/workbench/src/inspect/app/actor.rs` | Strict actor lifecycle/typed simulation dispatch and schema-2 prepared-work/commit evidence response. |
 | `apps/workbench/src/inspect/app/objects.rs` | Exact committed object query dispatch and zero-query-work evidence response. |
+| `apps/workbench/src/capture.rs` | Persistent capture encoding plus readback-only observation response. |
+| `apps/workbench/src/perception.rs` | Shared semantic analysis with explicit diagnostic-image materialization. |
 | `crates/engine-runtime/src/streaming/address.rs` | Signed global window and bounded projection. |
 | `crates/engine-runtime/src/streaming/objects/mod.rs` | Bounded schema-3 object I/O transactions. |
 | `crates/engine-runtime/src/streaming/terrain/mod.rs` | Bounded signed terrain I/O transactions. |
@@ -482,11 +489,13 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype input-edge/boundary/gravity/camera-relative Walk/Run/Jump/presentation/traversal/backpressure, restart, failure, and lifecycle entry point. |
 | `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source actor lifecycle, schedule/actor partition and rollback, render admission, animation epoch, and GPU phase entry point. |
 | `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source committed object query, canonical GPU frame, and immediate replay entry point. |
-| `.runseal/wrappers/canonical-resources.ts` | Focused active/quiescent same-process GPU resource plateau entry point. |
-| `.runseal/wrappers/canonical-runtime.ts` | Direct canonical acceptance entry point over the converged runtime. |
+| `.runseal/wrappers/canonical-resources.ts` | Focused deep active/recovery GPU resource plateau and 16-cycle lifecycle entry point. |
+| `.runseal/wrappers/canonical-runtime.ts` | Timed direct canonical acceptance with bounded resource/lifecycle checkpoints. |
 | `.runseal/support/canonical-frame.ts` | Shared exact canonical frame, shadow, occlusion, and capture baseline. |
-| `.runseal/support/canonical-runtime.ts` | Non-recursive canonical acceptance support. |
+| `.runseal/support/canonical-runtime.ts` | Non-recursive acceptance, operation metrics, observation, and checkpoint/soak support. |
 | `.runseal/support/canonical-setup.ts` | Typed deterministic test/build, source-cooking, identity, and corruption setup owner. |
+| `.runseal/support/resource-acceptance.ts` | Pure active/recovery resource threshold policy used by checkpoints and deep soak. |
+| `.runseal/support/resource-acceptance_test.ts` | Injected early/delayed handle and private-byte growth rejection evidence. |
 | `.runseal/support/object-query.ts` | Independent schema-3 pack-byte oracle, strict query rejection, order, movement, rollback, and restart evidence. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
 | `.runseal/support/terrain/contact.ts` | Exact contact rejection, direct classification, and bounded-witness acceptance support. |
@@ -501,7 +510,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |
 | `.runseal/support/actor/animation.ts` | Fixed-tick spawn/transition actor epoch, GPU local-phase, same-clip retention, and fractional rollback support. |
 | `.runseal/support/actor/simulation.ts` | Canonical-aggregate schedule assertions plus schema-2 fractional, partition, rollback, and sole actor advance support. |
-| `.runseal/support/runtime-bootstrap.ts` | Configured failure, canonical-ready, exact restart, and cleanup acceptance support. |
+| `.runseal/support/runtime-bootstrap.ts` | Configured canonical-ready/restart plus bounded full-runtime prototype failure, invariant, and cleanup checkpoints. |
 | `.runseal/support/prototype/host.ts` | Prototype startup/failure, exact Walk/Run/Jump simulation, camera-orbit/zero-block readiness, held-input boundary survival, Escape clean exit, restart, and no-inspect lifecycle orchestration. |
 | `.runseal/support/prototype/boundary.ts` | Real activated held-input finite-edge process survival and cleanup evidence owner. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
@@ -562,9 +571,11 @@ the sole runtime, and checks the exact accepted GPU frame plus an immediate dete
 Use it for focused renderer iteration; it is not an end-to-end acceptance substitute. Generated
 evidence belongs under `out/captures/canonical-frame/` and remains ignored.
 
-The resource workflow cooks only the three centers required by the established 32-warm/64-sampled
-publication workload. It separately proves a bounded active plateau and recovery to the quiescent
-process baseline. Its ignored evidence belongs under `out/captures/canonical-resources/`.
+The resource workflow is the deep resource/lifecycle owner. It cooks only the three centers required
+by the established 32-warm/64-sampled publication workload, samples the active baseline before the
+first measured publication, proves bounded active growth and at least 60 seconds of post-workload
+handle stability, then runs 16 complete start/publish/probe/stop cycles. Its ignored evidence belongs
+under `out/captures/canonical-resources/`.
 
 ### 6.3 Canonical runtime acceptance
 
@@ -575,17 +586,20 @@ runseal :canonical-runtime
 This workflow cooks fresh signed sources and directly validates canonical correctness,
 source reordering, movement, aliasing, failure rollback, all four fault gates, reactive
 and prepared traversal, rollover, the runtime-owned frame transaction and deterministic
-presentation time, deterministic host input and process-restart replay, configured canonical
-readiness, shared reference-host ownership, prototype startup/restart/cleanup, fixed camera-visible
+presentation time, deterministic host-input CPU proofs, configured canonical readiness, shared
+reference-host ownership, a bounded invalid/corrupt/stationary prototype startup/restart/cleanup
+checkpoint, fixed camera-visible
 directional object shadows, exact committed CPU authored-object lookup, exact CPU terrain-height
 query/body contact and oracle evidence, a
 bounded contact transition witness, private simulation-schedule partition/rollback/one-hour proofs,
 private fixed-step/translation/batch contracts, retained runtime-actor lifecycle, and the sole
 explicit elapsed schedule/actor dual gate with partition equality, mid-batch rollback, retired-route
 rejection, frame/presentation independence, private frame actor projection/preflight, frame-safe actor
-presentation in prototype lifecycle, a same-process
-clear-only idle attachment capture, retired-control rejection, 64-publication resource plateau,
-and 16 complete lifecycle cycles. It must not invoke an older experiment wrapper.
+presentation in a bounded prototype startup/restart checkpoint, a same-process clear-only idle
+attachment capture, retired-control rejection, an 8-publication active-resource checkpoint, and two
+complete lifecycle checkpoint cycles. The maintained `canonical-resources` workflow owns the longer
+64-publication, 60-second recovery, and 16-cycle soak. Runtime acceptance records per-stage time,
+operation counts, and generated artifact bytes and must not invoke an older experiment wrapper.
 
 Generated evidence belongs under
 `out/captures/canonical-runtime/` and remains ignored.
@@ -598,12 +612,15 @@ runseal :workbench terrain-open out/cooked/example/terrain.wlt
 runseal :workbench objects-open out/cooked/example/objects.wlr
 runseal :workbench schedule 0 0 0 0 2
 runseal :workbench probe
+runseal :workbench observe
 runseal :workbench stop
 ```
 
 The only frame outcomes are clear-only `idle-shell` before a pair is published and
 `canonical-runtime` afterward. The idle shell has no scene or semantic object. Manual controls do
-not select renderer modes, fixture variants, pass order, or local schedules.
+not select renderer modes, fixture variants, pass order, or local schedules. `observe` returns exact
+color/object-ID hashes and semantic evidence without creating capture files; `perception <id>` is the
+explicit persistent artifact path.
 
 ### 6.5 Plain prototype
 

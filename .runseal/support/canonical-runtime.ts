@@ -1,3 +1,9 @@
+import {
+    type ProcessSample,
+    requireActivePlateau,
+    requireRecoveredBaseline,
+} from "./resource-acceptance.ts";
+
 export type Json = Record<string, unknown>;
 export type Coord = [number, number];
 export type GlobalConfig = {
@@ -13,6 +19,48 @@ if (!profilePath) throw new Error("RUNSEAL_PROFILE_PATH is not set");
 export const root = profilePath.replace(/[\\/][^\\/]+$/, "");
 const decoder = new TextDecoder();
 let sidecarConfig = "sidecar.toml";
+const operationState = {
+    sidecarInvocations: 0,
+    sidecarMilliseconds: 0,
+    lifecycleCounts: {} as Record<string, number>,
+    lifecycleMilliseconds: 0,
+    externalCommandCounts: {} as Record<string, number>,
+    externalCommandMilliseconds: 0,
+    eventCounts: {} as Record<string, number>,
+};
+
+export function operationMetrics(): Json {
+    return structuredClone(operationState) as unknown as Json;
+}
+
+export function recordStage(stages: Json[], name: string, startedAt: number): void {
+    stages.push({ name, elapsedMilliseconds: performance.now() - startedAt });
+}
+
+export async function collectionInventory(collection: string): Promise<Json> {
+    const path = `${root}/out/captures/${collection}`;
+    const extensions: Record<string, { fileCount: number; bytes: number }> = {};
+    let fileCount = 0;
+    let bytes = 0;
+    for await (const entry of Deno.readDir(path)) {
+        if (!entry.isFile || entry.name === "acceptance.json") continue;
+        const size = (await Deno.stat(`${path}/${entry.name}`)).size;
+        const extension = entry.name.includes(".")
+            ? entry.name.slice(entry.name.lastIndexOf("."))
+            : "";
+        const summary = extensions[extension] ?? { fileCount: 0, bytes: 0 };
+        summary.fileCount += 1;
+        summary.bytes += size;
+        extensions[extension] = summary;
+        fileCount += 1;
+        bytes += size;
+    }
+    return { fileCount, bytes, extensions };
+}
+
+function increment(counts: Record<string, number>, key: string): void {
+    counts[key] = (counts[key] ?? 0) + 1;
+}
 
 export function fail(message: string): never {
     throw new Error(message);
@@ -125,6 +173,8 @@ export async function stopCanonicalProcesses(): Promise<void> {
 
 export async function run(command: string, args: string[], label: string): Promise<void> {
     console.log(`==> ${label}`);
+    const started = performance.now();
+    increment(operationState.externalCommandCounts, `${command} ${args[0] ?? ""}`.trim());
     const status = await new Deno.Command(command, {
         args,
         cwd: root,
@@ -132,17 +182,21 @@ export async function run(command: string, args: string[], label: string): Promi
         stdout: "inherit",
         stderr: "inherit",
     }).spawn().status;
+    operationState.externalCommandMilliseconds += performance.now() - started;
     if (!status.success) fail(`${label} failed with exit code ${status.code}`);
 }
 
 async function invoke(args: string[], allowFailure = false): Promise<Json> {
     for (let attempt = 0; attempt < 3; attempt += 1) {
+        const started = performance.now();
+        operationState.sidecarInvocations += 1;
         const output = await new Deno.Command("sidecar", {
             args: [...args, "--config", sidecarConfig, "--format", "json"],
             cwd: root,
             stdout: "piped",
             stderr: "piped",
         }).output();
+        operationState.sidecarMilliseconds += performance.now() - started;
         const text = decoder.decode(output.stdout).trim();
         if (!text) {
             if (attempt < 2) {
@@ -170,7 +224,13 @@ async function invoke(args: string[], allowFailure = false): Promise<Json> {
 }
 
 export async function lifecycle(verb: "start" | "stop" | "restart"): Promise<void> {
-    await run("sidecar", [verb, "--config", sidecarConfig], `sidecar ${sidecarConfig} ${verb}`);
+    const started = performance.now();
+    increment(operationState.lifecycleCounts, `${sidecarConfig}:${verb}`);
+    try {
+        await run("sidecar", [verb, "--config", sidecarConfig], `sidecar ${sidecarConfig} ${verb}`);
+    } finally {
+        operationState.lifecycleMilliseconds += performance.now() - started;
+    }
 }
 
 export async function startClean(config = "sidecar.toml"): Promise<void> {
@@ -180,6 +240,7 @@ export async function startClean(config = "sidecar.toml"): Promise<void> {
 }
 
 export async function event(verb: string, payload: unknown = {}): Promise<Json> {
+    increment(operationState.eventCounts, verb);
     const response = await invoke([
         "inspect",
         "workbench",
@@ -190,6 +251,7 @@ export async function event(verb: string, payload: unknown = {}): Promise<Json> 
 }
 
 export async function rejectedEvent(verb: string, payload: unknown = {}): Promise<Json> {
+    increment(operationState.eventCounts, `${verb}:rejected`);
     const response = await invoke([
         "inspect",
         "workbench",
@@ -214,12 +276,15 @@ export async function openSources(terrain: string, objects: string): Promise<voi
 export async function cookTerrain(path: string, centers: Coord[]): Promise<Json> {
     const args = ["run", "--locked", "--release", "-p", "terrain-cooker", "--", path];
     for (const [x, z] of centers) args.push("--global-center", String(x), String(z));
+    const started = performance.now();
+    increment(operationState.externalCommandCounts, "cargo terrain-cooker");
     const output = await new Deno.Command("cargo", {
         args,
         cwd: root,
         stdout: "piped",
         stderr: "inherit",
     }).output();
+    operationState.externalCommandMilliseconds += performance.now() - started;
     if (!output.success) fail("canonical terrain cooker failed");
     return JSON.parse(decoder.decode(output.stdout).trim()) as Json;
 }
@@ -251,12 +316,15 @@ export async function cookObjects(
         presentation,
     ];
     for (const [x, z] of centers) args.push("--global-center", String(x), String(z));
+    const started = performance.now();
+    increment(operationState.externalCommandCounts, `cargo region-cooker:${presentation}:${order}`);
     const output = await new Deno.Command("cargo", {
         args,
         cwd: root,
         stdout: "piped",
         stderr: "inherit",
     }).output();
+    operationState.externalCommandMilliseconds += performance.now() - started;
     if (!output.success) fail("canonical object cooker failed");
     return JSON.parse(decoder.decode(output.stdout).trim()) as Json;
 }
@@ -376,6 +444,29 @@ export async function capture(id: string, collection: string): Promise<Json> {
         png: string(object(value, "image"), "pngSha256"),
         objectId: string(object(value, "perception"), "rawSha256"),
         diagnostic: string(object(value, "perception"), "diagnosticPngSha256"),
+        visible,
+    };
+}
+
+export async function observe(): Promise<Json> {
+    const value = await event("perception.observe", {
+        samples: [{ x: 0, y: 0 }, { x: 640, y: 360 }],
+    });
+    if (value.lastError !== null || object(value, "renderer").deviceRemovedReason !== null) {
+        fail("canonical observation reported a renderer failure");
+    }
+    const evidence = object(object(value, "perception"), "evidence");
+    if (array(evidence, "unknownIds").length !== 0) {
+        fail("canonical observation contained unknown semantic IDs");
+    }
+    const visible = array(object(evidence, "fullFrame"), "objects") as Json[];
+    const kinds = new Set(visible.map((entry) => entry.kind));
+    if (!kinds.has("terrain-region") || !kinds.has("region-proxy")) {
+        fail("canonical observation omitted a semantic class");
+    }
+    return {
+        color: string(object(value, "image"), "pixelSha256"),
+        objectId: string(object(value, "perception"), "rawSha256"),
         visible,
     };
 }
@@ -613,13 +704,21 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
                 sampleMismatchCount: shadow.sampleMismatchCount,
             },
         },
-        capture: captureValue,
+        capture: {
+            color: string(captureValue, "color"),
+            objectId: string(captureValue, "objectId"),
+        },
     };
 }
 
-export async function frame(id: string, collection: string, allowPending = false): Promise<Json> {
-    const probeValue = await warmProbe(allowPending);
-    const captureValue = await capture(id, collection);
+export async function frame(
+    id: string,
+    collection: string,
+    allowPending = false,
+    persistArtifacts = true,
+): Promise<Json> {
+    const probeValue = await probe(allowPending);
+    const captureValue = persistArtifacts ? await capture(id, collection) : await observe();
     return {
         probe: probeValue,
         capture: captureValue,
@@ -650,6 +749,7 @@ export async function holdPair(
     config: GlobalConfig,
     before: Json,
     collection: string,
+    persistArtifacts = true,
 ): Promise<Json> {
     await event(`${gate}.arm`);
     const scheduled = await event("canonical.schedule", config);
@@ -664,7 +764,12 @@ export async function holdPair(
             : pending.instanceStage === "staged" && pending.terrainStage === "in-flight";
     });
     await event("workbench.pause");
-    const heldFrame = await frame(`${gate.replaceAll(".", "-")}-held`, collection, true);
+    const heldFrame = await frame(
+        `${gate.replaceAll(".", "-")}-held`,
+        collection,
+        true,
+        persistArtifacts,
+    );
     same(heldFrame.stable, before.stable, `${gate} old frame`);
     await event(`${gate}.release`);
     await event("workbench.resume");
@@ -683,6 +788,7 @@ export async function failedPair(
     before: Json,
     collection: string,
     label: string,
+    persistArtifacts = true,
 ): Promise<Json> {
     const current = await event("canonical.status");
     const publishedToken = number(object(current, "published"), "token");
@@ -699,7 +805,7 @@ export async function failedPair(
         fail(`${label} replaced the published pair`);
     }
     await event("workbench.pause");
-    const heldFrame = await frame(`${label}-rollback`, collection);
+    const heldFrame = await frame(`${label}-rollback`, collection, false, persistArtifacts);
     same(heldFrame.stable, before.stable, `${label} rollback frame`);
     return { scheduled, failed, heldFrame };
 }
@@ -767,12 +873,6 @@ function stableProbeSummary(value: Json): Json {
     };
 }
 
-export type ProcessSample = {
-    handleCount: number;
-    privateBytes: number;
-    threadCount: number;
-};
-
 export async function sampleProcess(processId: number): Promise<ProcessSample> {
     const script =
         `$p=Get-Process -Id ${processId} -ErrorAction Stop; @{handleCount=$p.HandleCount;privateBytes=$p.PrivateMemorySize64;threadCount=$p.Threads.Count}|ConvertTo-Json -Compress`;
@@ -819,58 +919,65 @@ export async function resourcePlateau(base: Coord): Promise<Json> {
         await probe();
     }
     await warmProbe();
-    const quiescentBefore = await settleProcess(processId, "warm-up");
+    const activeBaseline = await sampleProcess(processId);
     const samples: Json[] = [];
+    const processSamples: ProcessSample[] = [];
     for (let index = 1; index <= 64; index += 1) {
         const center: Coord = [base[0] + 40 + (index % 2), base[1]];
         await publish(target(center));
         await probe();
         if (index % 8 === 0) {
             const sample = await sampleProcess(processId);
+            processSamples.push(sample);
             samples.push({ publication: index, ...sample });
         }
     }
-    const handleCounts = samples.map((value) => number(value, "handleCount"));
-    const minimumActiveHandleCount = Math.min(...handleCounts);
-    const peakHandleCount = Math.max(...handleCounts);
-    const activeBaseline = samples[0];
-    const final = samples.at(-1) as Json;
-    const activeHandleLimit = number(activeBaseline, "handleCount") + 1;
-    const activeHandleOverflow = peakHandleCount > activeHandleLimit;
-    if (number(final, "privateBytes") > number(activeBaseline, "privateBytes") + 16 * 1024 * 1024) {
-        fail("active private bytes exceeded the 16 MiB plateau allowance");
-    }
+    const active = requireActivePlateau(activeBaseline, processSamples, {
+        handleAllowance: 1,
+        privateByteAllowance: 16 * 1024 * 1024,
+    });
     const quiescentAfter = await settleProcess(processId, "post-workload");
-    if (activeHandleOverflow) {
-        fail(
-            `active handles exceeded the initial checkpoint allowance: ${
-                JSON.stringify({ activeBaseline, activeHandleLimit, peakHandleCount, samples })
-            }`,
-        );
-    }
-    if (quiescentAfter.sample.handleCount > quiescentBefore.sample.handleCount) {
-        fail(
-            `post-workload handles exceeded the quiescent baseline: ${
-                JSON.stringify({ quiescentBefore, quiescentAfter })
-            }`,
-        );
-    }
-    if (
-        quiescentAfter.sample.privateBytes >
-            quiescentBefore.sample.privateBytes + 16 * 1024 * 1024
-    ) {
-        fail("post-workload private bytes exceeded the 16 MiB recovery allowance");
-    }
+    requireRecoveredBaseline(activeBaseline, quiescentAfter.sample, 16 * 1024 * 1024);
     return {
+        profile: "deep-soak-v2",
         processId,
         warmPublications,
-        quiescentBefore,
         activeBaseline,
-        activeHandleLimit,
-        minimumActiveHandleCount,
-        peakHandleCount,
+        active,
         samples,
         quiescentAfter,
+    };
+}
+
+export async function resourceCheckpoint(base: Coord): Promise<Json> {
+    const workbench = await status();
+    const processId = number(workbench, "processId");
+    await probe();
+    const activeBaseline = await sampleProcess(processId);
+    const publicationCount = 8;
+    const samples: Json[] = [];
+    const processSamples: ProcessSample[] = [];
+    for (let index = 1; index <= publicationCount; index += 1) {
+        const center: Coord = [base[0] + 40 + (index % 2), base[1]];
+        await publish(target(center));
+        await probe();
+        if (index % 2 === 0) {
+            const sample = await sampleProcess(processId);
+            processSamples.push(sample);
+            samples.push({ publication: index, ...sample });
+        }
+    }
+    const active = requireActivePlateau(activeBaseline, processSamples, {
+        handleAllowance: 1,
+        privateByteAllowance: 16 * 1024 * 1024,
+    });
+    return {
+        profile: "full-checkpoint-v1",
+        processId,
+        publicationCount,
+        activeBaseline,
+        active,
+        samples,
     };
 }
 
@@ -905,9 +1012,10 @@ export async function lifecycleCycles(
     terrain: string,
     objects: string,
     config: GlobalConfig,
+    cycleCount = 16,
 ): Promise<Json> {
     const cycles: Json[] = [];
-    for (let cycle = 1; cycle <= 16; cycle += 1) {
+    for (let cycle = 1; cycle <= cycleCount; cycle += 1) {
         await lifecycle("start");
         const idle = await status();
         if (object(idle, "workload").mode !== "idle-shell") {
@@ -927,5 +1035,5 @@ export async function lifecycleCycles(
             stopped,
         });
     }
-    return { cycleCount: cycles.length, cycles };
+    return { requestedCycleCount: cycleCount, cycleCount: cycles.length, cycles };
 }

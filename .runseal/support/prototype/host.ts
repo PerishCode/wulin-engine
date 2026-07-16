@@ -33,12 +33,12 @@ import {
 } from "./simulation.ts";
 import { cameraOrbitTraversalInvariant, traversalInvariant } from "./traversal.ts";
 
-const CONFIG = "out/cooked/bootstrap/runtime.json";
-const SIDECAR = "sidecar.prototype.toml";
+export const CONFIG = "out/cooked/bootstrap/runtime.json";
+export const SIDECAR = "sidecar.prototype.toml";
 const EXECUTABLE = "target/debug/prototype.exe";
 const decoder = new TextDecoder();
 
-function document(terrain: string, objects: string, center: Coord): Json {
+export function document(terrain: string, objects: string, center: Coord): Json {
     return {
         schemaVersion: 2,
         terrain,
@@ -53,12 +53,12 @@ function document(terrain: string, objects: string, center: Coord): Json {
     };
 }
 
-async function writeDocument(value: Json): Promise<void> {
+export async function writeDocument(value: Json): Promise<void> {
     await Deno.mkdir(`${root}/out/cooked/bootstrap`, { recursive: true });
     await Deno.writeTextFile(`${root}/${CONFIG}`, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-async function failedStart(label: string): Promise<Json> {
+export async function failedStart(label: string): Promise<Json> {
     const started = performance.now();
     const output = await new Deno.Command(EXECUTABLE, {
         args: [`--bootstrap=${CONFIG}`],
@@ -84,7 +84,7 @@ async function failedStart(label: string): Promise<Json> {
 
 type StartupInput = "camera-clockwise" | "camera-forward" | "forward" | "jump" | "run-forward";
 
-async function capturedReady(label: string, startupInput?: StartupInput): Promise<Json> {
+export async function capturedReady(label: string, startupInput?: StartupInput): Promise<Json> {
     const started = performance.now();
     const child = new Deno.Command(EXECUTABLE, {
         args: [`--bootstrap=${CONFIG}`],
@@ -135,7 +135,7 @@ async function capturedReady(label: string, startupInput?: StartupInput): Promis
     };
 }
 
-function startupInvariant(launch: Json): Json {
+export function startupInvariant(launch: Json): Json {
     const startup = object(object(launch, "readiness"), "startup");
     return {
         revision: startup.revision,
@@ -150,7 +150,7 @@ function startupInvariant(launch: Json): Json {
     };
 }
 
-function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Json {
+export function simulationDriverInvariant(launch: Json, expected: ExpectedCommand): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "simulation_driver");
     if (driver.revision !== "live-prototype-locomotion-driver-v8") {
