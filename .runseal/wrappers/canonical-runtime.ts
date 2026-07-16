@@ -5,7 +5,6 @@ import {
     type Coord,
     event,
     fail,
-    failedPair,
     frame,
     holdPair,
     type Json,
@@ -58,14 +57,20 @@ import { simulationActorGates } from "../support/actor/simulation.ts";
 import {
     OBJECT_QUERY_SAMPLE_IDS,
     objectQueryGates,
-    queryObject,
     queryObjectSamples,
-    rejectedObjectQuery,
     sameObjectQueries,
     unavailableObjectQueryGate,
-} from "../support/object-query.ts";
+} from "../support/object/query.ts";
+import {
+    objectNearestGates,
+    objectNearestSamples,
+    queryObjectNearestSamples,
+    sameObjectNearestQueries,
+    unavailableObjectNearestGate,
+} from "../support/object/nearest.ts";
+import { adjacentObjectGates, objectFailureGates } from "../support/object/integration.ts";
 
-const REVISION = "canonical-runtime-v4";
+const REVISION = "canonical-runtime-v5";
 const COLLECTION = "canonical-runtime";
 const FAR = 2 ** 40;
 const BASE: Coord = [FAR, -FAR];
@@ -121,6 +126,7 @@ try {
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
     const unavailableObjectQuery = await unavailableObjectQueryGate(BASE);
+    const unavailableObjectNearest = await unavailableObjectNearestGate(BASE);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
     const unavailableTerrainContact = await unavailableContact(BASE);
     await openSources(TERRAIN, OBJECTS_A);
@@ -128,6 +134,13 @@ try {
     assertObjectCopies(basePublication, 25, "cold publication");
     const objectQuery = await objectQueryGates(OBJECTS_A, BASE, unavailableObjectQuery);
     const orderAObjectQueries = objectQuery.samples as Json[];
+    const nearestSamples = objectNearestSamples(BASE);
+    const objectNearest = await objectNearestGates(
+        OBJECTS_A,
+        BASE,
+        unavailableObjectNearest,
+    );
+    const orderAObjectNearest = objectNearest.samples as Json[];
     const orderA = await frame("order-a", COLLECTION);
     const terrainQuery = await terrainQueryGates(BASE, orderA, unavailableTerrainQuery);
     const terrainContact = await contactGates(BASE, orderA, unavailableTerrainContact);
@@ -208,6 +221,12 @@ try {
         OBJECT_QUERY_SAMPLE_IDS,
     );
     sameObjectQueries(orderBObjectQueries, orderAObjectQueries, "physical object order A/B query");
+    const orderBObjectNearest = await queryObjectNearestSamples(OBJECTS_B, nearestSamples);
+    sameObjectNearestQueries(
+        orderBObjectNearest,
+        orderAObjectNearest,
+        "physical object order A/B nearest query",
+    );
     const orderB = await frame("order-b", COLLECTION, false, false);
     same(orderB.stable, orderA.stable, "physical object order A/B behavior");
 
@@ -220,21 +239,21 @@ try {
         OBJECT_QUERY_SAMPLE_IDS,
     );
     sameObjectQueries(revisitObjectQueries, orderAObjectQueries, "object source revisit query");
+    const revisitObjectNearest = await queryObjectNearestSamples(OBJECTS_A, nearestSamples);
+    sameObjectNearestQueries(
+        revisitObjectNearest,
+        orderAObjectNearest,
+        "object source revisit nearest query",
+    );
     const revisit = await frame("order-a-revisit", COLLECTION, false, false);
     same(revisit.stable, orderA.stable, "object source revisit");
 
-    const retiredAdjacentRegion: Coord = [BASE[0] - 2, BASE[1]];
-    const admittedAdjacentRegion: Coord = [BASE[0] + 3, BASE[1]];
-    const adjacentOldBefore = await queryObject(OBJECTS_A, retiredAdjacentRegion, 0);
-    const adjacentPublication = await publish(target([BASE[0] + 1, BASE[1]]));
-    assertObjectCopies(adjacentPublication, 5, "adjacent publication");
-    const adjacentOldAfter = await rejectedObjectQuery(
-        retiredAdjacentRegion,
-        0,
-        "retired adjacent-window object query",
+    const adjacentObjects = await adjacentObjectGates(
+        OBJECTS_A,
+        BASE,
+        nearestSamples,
+        orderAObjectNearest,
     );
-    const adjacentNew = await queryObject(OBJECTS_A, admittedAdjacentRegion, 1_023);
-    const adjacentObjectQuery = { adjacentOldBefore, adjacentOldAfter, adjacentNew };
     const adjacent = await frame("adjacent", COLLECTION, false, false);
     const diagonalBasePublication = await publish(target([BASE[0] + 40, BASE[1]]));
     assertObjectCopies(diagonalBasePublication, 25, "diagonal cold base");
@@ -279,44 +298,14 @@ try {
             ),
         );
     }
-    const beforeFailure = await frame("failure-before", COLLECTION, false, false);
-    const failurePublishedRegion: Coord = [BASE[0] + 5, BASE[1]];
-    const failureObjectBefore = await queryObject(OBJECTS_A, failurePublishedRegion, 1_023);
-    await event("source.objects.open", { path: OBJECTS_CORRUPT });
-    const objectFailure = await failedPair(
-        target([BASE[0] + 70, BASE[1]]),
-        beforeFailure,
+    const failures = await objectFailureGates(
         COLLECTION,
-        "object-corrupt",
-        false,
+        TERRAIN,
+        OBJECTS_A,
+        OBJECTS_CORRUPT,
+        TERRAIN_CORRUPT,
+        BASE,
     );
-    const failureObjectAfterObject = await queryObject(OBJECTS_A, failurePublishedRegion, 1_023);
-    sameObjectQueries(
-        [failureObjectAfterObject],
-        [failureObjectBefore],
-        "object-corrupt rollback query",
-    );
-    await event("source.objects.open", { path: OBJECTS_A });
-    await event("source.terrain.open", { path: TERRAIN_CORRUPT });
-    const terrainFailure = await failedPair(
-        target([BASE[0] + 75, BASE[1]]),
-        beforeFailure,
-        COLLECTION,
-        "terrain-corrupt",
-        false,
-    );
-    const failureObjectAfterTerrain = await queryObject(OBJECTS_A, failurePublishedRegion, 1_023);
-    sameObjectQueries(
-        [failureObjectAfterTerrain],
-        [failureObjectBefore],
-        "terrain-corrupt rollback object query",
-    );
-    const failureObjectQuery = {
-        before: failureObjectBefore,
-        afterObjectFailure: failureObjectAfterObject,
-        afterTerrainFailure: failureObjectAfterTerrain,
-    };
-    await event("source.terrain.open", { path: TERRAIN });
 
     const firstProcessId = number(await status(), "processId");
     await lifecycle("stop");
@@ -330,6 +319,12 @@ try {
         OBJECT_QUERY_SAMPLE_IDS,
     );
     sameObjectQueries(restartObjectQueries, orderAObjectQueries, "canonical restart object query");
+    const restartObjectNearest = await queryObjectNearestSamples(OBJECTS_A, nearestSamples);
+    sameObjectNearestQueries(
+        restartObjectNearest,
+        orderAObjectNearest,
+        "canonical restart nearest query",
+    );
     const restarted = await frame("restart", COLLECTION, false, false);
     same(restarted.stable, orderA.stable, "canonical restart frame");
 
@@ -420,6 +415,7 @@ try {
             simulationActor,
             compatibilityRemoval,
             objectQuery,
+            objectNearest,
             terrainQuery,
             terrainContact,
             basePublication,
@@ -432,12 +428,15 @@ try {
             sourceDuration,
             orderBPublication,
             orderBObjectQueries,
+            orderBObjectNearest,
             orderB,
             revisitPublication,
             revisitObjectQueries,
+            revisitObjectNearest,
             revisit,
-            adjacentPublication,
-            adjacentObjectQuery,
+            adjacentPublication: adjacentObjects.publication,
+            adjacentObjectQuery: adjacentObjects.query,
+            adjacentObjectNearest: adjacentObjects.nearest,
             adjacent,
             diagonalBasePublication,
             diagonalPublication,
@@ -448,11 +447,13 @@ try {
             alias,
             temporalHeld,
             holds,
-            objectFailure,
-            terrainFailure,
-            failureObjectQuery,
+            objectFailure: failures.objectFailure,
+            terrainFailure: failures.terrainFailure,
+            failureObjectQuery: failures.objectQuery,
+            failureObjectNearest: failures.objectNearest,
             restartPublication,
             restartObjectQueries,
+            restartObjectNearest,
             restarted,
             rolloverBase,
             rolloverPrepared,

@@ -2,6 +2,7 @@ import {
     type ProcessSample,
     requireActivePlateau,
     requireRecoveredBaseline,
+    resourceWarmSettled,
 } from "./resource-acceptance.ts";
 
 export type Json = Record<string, unknown>;
@@ -952,8 +953,8 @@ export async function resourcePlateau(base: Coord): Promise<Json> {
 export async function resourceCheckpoint(base: Coord): Promise<Json> {
     const workbench = await status();
     const processId = number(workbench, "processId");
-    await probe();
-    const activeBaseline = await sampleProcess(processId);
+    const warm = await warmResourceCheckpoint(base, processId);
+    const activeBaseline = warm.activeBaseline;
     const publicationCount = 8;
     const samples: Json[] = [];
     const processSamples: ProcessSample[] = [];
@@ -974,11 +975,39 @@ export async function resourceCheckpoint(base: Coord): Promise<Json> {
     return {
         profile: "full-checkpoint-v1",
         processId,
+        warmPublicationCount: warm.publicationCount,
+        warmSamples: warm.samples,
         publicationCount,
         activeBaseline,
         active,
         samples,
     };
+}
+
+async function warmResourceCheckpoint(
+    base: Coord,
+    processId: number,
+): Promise<{ publicationCount: number; activeBaseline: ProcessSample; samples: Json[] }> {
+    const samples: Json[] = [];
+    const processSamples: ProcessSample[] = [];
+    for (let index = 1; index <= 8; index += 1) {
+        const center: Coord = [base[0] + 40 + (index % 2), base[1]];
+        await publish(target(center));
+        await probe();
+        const sample = await sampleProcess(processId);
+        samples.push({ publication: index, ...sample });
+        processSamples.push(sample);
+        if (
+            resourceWarmSettled(processSamples, {
+                minimumSampleCount: 4,
+                stableTransitionCount: 2,
+                privateByteAllowance: 1024 * 1024,
+            })
+        ) {
+            return { publicationCount: index, activeBaseline: sample, samples };
+        }
+    }
+    fail(`resource checkpoint warm shape did not settle: ${JSON.stringify(samples)}`);
 }
 
 export async function assertStopped(processId?: number): Promise<Json> {

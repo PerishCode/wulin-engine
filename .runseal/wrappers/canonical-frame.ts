@@ -1,6 +1,7 @@
 import { assertCanonicalFrameReplay } from "../support/canonical-frame.ts";
 import { prepareCanonicalFrameSetup } from "../support/canonical-setup.ts";
-import { objectQueryGates, unavailableObjectQueryGate } from "../support/object-query.ts";
+import { objectQueryGates, unavailableObjectQueryGate } from "../support/object/query.ts";
+import { objectNearestGates, unavailableObjectNearestGate } from "../support/object/nearest.ts";
 import {
     assertObjectCopies,
     fail,
@@ -14,7 +15,7 @@ import {
     target,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-frame-v3";
+const REVISION = "canonical-frame-v4";
 const COLLECTION = "canonical-frame";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];
@@ -34,6 +35,7 @@ try {
     report = setup.paths.report;
     await startClean();
     const unavailableObjectQuery = await unavailableObjectQueryGate(BASE);
+    const unavailableObjectNearest = await unavailableObjectNearestGate(BASE);
     await openSources(setup.paths.terrain, setup.paths.objects);
     const publication = await publish(target(BASE));
     assertObjectCopies(publication, 25, "canonical frame publication");
@@ -41,6 +43,11 @@ try {
         setup.paths.objects,
         BASE,
         unavailableObjectQuery,
+    );
+    const objectNearest = await objectNearestGates(
+        setup.paths.objects,
+        BASE,
+        unavailableObjectNearest,
     );
     const first = await frame("baseline", COLLECTION);
     const replay = await frame("replay", COLLECTION);
@@ -51,6 +58,7 @@ try {
         storage: setup.storage,
         publication,
         objectQuery,
+        objectNearest,
         first,
         replay,
         elapsedMilliseconds: performance.now() - started,

@@ -2,9 +2,14 @@ use anyhow::{Context, Result, ensure};
 
 use crate::async_resident::canonical_stable_seed;
 use crate::region::RegionCoord;
-use crate::runtime::{CANONICAL_OBJECTS_PER_REGION, CanonicalObject};
+use crate::runtime::{
+    CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CANONICAL_OBJECTS_PER_REGION, CanonicalObject,
+    CanonicalObjectNearest, CanonicalObjectNearestQuery,
+};
+use crate::terrain_query::{TERRAIN_POSITION_REGION_SIDE_Q9, TerrainPosition};
 
 use super::{AsyncResidentRenderer, PublishedSnapshot};
+use crate::rendering::async_resident::transfer::CpuObjectPage;
 
 impl AsyncResidentRenderer {
     pub(in crate::rendering) fn query_canonical_object(
@@ -18,6 +23,18 @@ impl AsyncResidentRenderer {
             .context("canonical object query requires a published snapshot")?;
         query_snapshot(snapshot, region, authored_local_id)
     }
+
+    pub(in crate::rendering) fn query_nearest_canonical_object(
+        &self,
+        origin: TerrainPosition,
+        max_distance_q9: u32,
+    ) -> Result<CanonicalObjectNearestQuery> {
+        let snapshot = self
+            .published
+            .as_ref()
+            .context("canonical object nearest query requires a published snapshot")?;
+        query_nearest_snapshot(snapshot, origin, max_distance_q9)
+    }
 }
 
 fn query_snapshot(
@@ -25,30 +42,17 @@ fn query_snapshot(
     region: RegionCoord,
     authored_local_id: u32,
 ) -> Result<CanonicalObject> {
+    require_snapshot_shape(snapshot)?;
     ensure!(
         authored_local_id < CANONICAL_OBJECTS_PER_REGION,
         "canonical object authored local ID is outside the fixed region capacity"
-    );
-    let expected_count = snapshot.global_config.local_config()?.active_region_count() as usize;
-    ensure!(
-        snapshot.active_cpu_pages.len() == expected_count,
-        "published canonical object CPU snapshot has an inconsistent active count"
     );
     let active_index = snapshot
         .global_config
         .active_index(region)
         .context("canonical object query region is outside the published active window")?;
     let page = &snapshot.active_cpu_pages[active_index];
-    ensure!(
-        page.global_region == region,
-        "published canonical object CPU page has the wrong signed region"
-    );
-    ensure!(
-        page.records.len() == CANONICAL_OBJECTS_PER_REGION as usize
-            && page.local_ids.len() == page.records.len()
-            && page.presentations.len() == page.records.len(),
-        "published canonical object CPU page has inconsistent triple planes"
-    );
+    require_page_shape(snapshot, page, active_index)?;
     let mut matched_index = None;
     for (index, local_id) in page.local_ids.iter().copied().enumerate() {
         if local_id == authored_local_id {
@@ -59,18 +63,150 @@ fn query_snapshot(
         }
     }
     let index = matched_index.context("published canonical object CPU page is missing local ID")?;
+    object_at(snapshot, page, index, authored_local_id)
+}
+
+fn query_nearest_snapshot(
+    snapshot: &PublishedSnapshot,
+    origin: TerrainPosition,
+    max_distance_q9: u32,
+) -> Result<CanonicalObjectNearestQuery> {
+    require_snapshot_shape(snapshot)?;
+    ensure!(
+        snapshot
+            .global_config
+            .active_index(origin.region())
+            .is_some(),
+        "canonical object nearest origin is outside the published active window"
+    );
+    let radius = i128::from(max_distance_q9);
+    let radius_squared = u128::from(max_distance_q9) * u128::from(max_distance_q9);
+    let mut candidate_count = 0_u32;
+    let mut nearest: Option<((u64, i64, i64, u32), CanonicalObjectNearest)> = None;
+
+    for (active_index, page) in snapshot.active_cpu_pages.iter().enumerate() {
+        require_page_shape(snapshot, page, active_index)?;
+        let mut seen_local_ids = [0_u64; CANONICAL_OBJECTS_PER_REGION as usize / 64];
+        for (index, authored_local_id) in page.local_ids.iter().copied().enumerate() {
+            ensure!(
+                authored_local_id < CANONICAL_OBJECTS_PER_REGION,
+                "published canonical object CPU page contains an out-of-range authored local ID"
+            );
+            let word = authored_local_id as usize / 64;
+            let bit = 1_u64 << (authored_local_id % 64);
+            ensure!(
+                seen_local_ids[word] & bit == 0,
+                "published canonical object CPU page contains duplicate authored local IDs"
+            );
+            seen_local_ids[word] |= bit;
+
+            let object = object_at(snapshot, page, index, authored_local_id)?;
+            candidate_count = candidate_count
+                .checked_add(1)
+                .context("canonical object nearest candidate count overflowed")?;
+            let terrain_position = object.terrain_position()?;
+            let (delta_x_q9, delta_z_q9) = planar_delta_q9(origin, terrain_position);
+            if !(-radius..=radius).contains(&delta_x_q9)
+                || !(-radius..=radius).contains(&delta_z_q9)
+            {
+                continue;
+            }
+            let distance_squared =
+                u128::try_from(delta_x_q9 * delta_x_q9 + delta_z_q9 * delta_z_q9)
+                    .expect("radius-bounded squared distance must be nonnegative");
+            if distance_squared > radius_squared {
+                continue;
+            }
+            let candidate = CanonicalObjectNearest {
+                object,
+                terrain_position,
+                delta_x_q9: i64::try_from(delta_x_q9)
+                    .expect("radius-bounded X delta must fit signed 64-bit"),
+                delta_z_q9: i64::try_from(delta_z_q9)
+                    .expect("radius-bounded Z delta must fit signed 64-bit"),
+                distance_squared_q18: u64::try_from(distance_squared)
+                    .expect("radius-bounded squared distance must fit unsigned 64-bit"),
+            };
+            let key = (
+                candidate.distance_squared_q18,
+                object.region.x,
+                object.region.z,
+                object.authored_local_id,
+            );
+            if nearest
+                .as_ref()
+                .is_none_or(|(nearest_key, _)| key < *nearest_key)
+            {
+                nearest = Some((key, candidate));
+            }
+        }
+    }
+
+    ensure!(
+        candidate_count <= CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY,
+        "published canonical object CPU snapshot exceeds the nearest-query candidate capacity"
+    );
+    Ok(CanonicalObjectNearestQuery {
+        candidate_count,
+        nearest: nearest.map(|(_, candidate)| candidate),
+    })
+}
+
+fn require_snapshot_shape(snapshot: &PublishedSnapshot) -> Result<()> {
+    let expected_count = snapshot.global_config.local_config()?.active_region_count() as usize;
+    ensure!(
+        snapshot.active_cpu_pages.len() == expected_count,
+        "published canonical object CPU snapshot has an inconsistent active count"
+    );
+    Ok(())
+}
+
+fn require_page_shape(
+    snapshot: &PublishedSnapshot,
+    page: &CpuObjectPage,
+    active_index: usize,
+) -> Result<()> {
+    ensure!(
+        snapshot.global_config.active_index(page.global_region) == Some(active_index),
+        "published canonical object CPU page has the wrong signed region"
+    );
+    ensure!(
+        page.records.len() == CANONICAL_OBJECTS_PER_REGION as usize
+            && page.local_ids.len() == page.records.len()
+            && page.presentations.len() == page.records.len(),
+        "published canonical object CPU page has inconsistent triple planes"
+    );
+    Ok(())
+}
+
+fn object_at(
+    snapshot: &PublishedSnapshot,
+    page: &CpuObjectPage,
+    index: usize,
+    authored_local_id: u32,
+) -> Result<CanonicalObject> {
     let record = page.records[index];
     ensure!(
-        record.region_id == canonical_stable_seed(snapshot.object_stable_seed_namespace, region),
+        record.region_id
+            == canonical_stable_seed(snapshot.object_stable_seed_namespace, page.global_region),
         "published canonical object CPU record has the wrong stable seed"
     );
     Ok(CanonicalObject {
-        region,
+        region: page.global_region,
         authored_local_id,
         position: record.position,
         height: record.height,
         presentation: page.presentations[index],
     })
+}
+
+fn planar_delta_q9(origin: TerrainPosition, candidate: TerrainPosition) -> (i128, i128) {
+    let region_side = i128::from(TERRAIN_POSITION_REGION_SIDE_Q9);
+    let delta_x = (i128::from(candidate.region().x) - i128::from(origin.region().x)) * region_side
+        + i128::from(candidate.local_x_q9() - origin.local_x_q9());
+    let delta_z = (i128::from(candidate.region().z) - i128::from(origin.region().z)) * region_side
+        + i128::from(candidate.local_z_q9() - origin.local_z_q9());
+    (delta_x, delta_z)
 }
 
 #[cfg(test)]
@@ -85,44 +221,81 @@ mod tests {
     use crate::resident::{InstanceRecord, PresentationRecord};
 
     fn snapshot(order_multiplier: u32, order_offset: u32) -> PublishedSnapshot {
+        snapshot_with_radius(order_multiplier, order_offset, 0)
+    }
+
+    fn snapshot_with_radius(
+        order_multiplier: u32,
+        order_offset: u32,
+        active_radius: u32,
+    ) -> PublishedSnapshot {
         let far = 1_i64 << 40;
-        let global_config = GlobalRegionConfig::new(far, -far, far, -far, 0).unwrap();
-        let region = global_config.global_center;
+        snapshot_at(
+            order_multiplier,
+            order_offset,
+            active_radius,
+            RegionCoord::new(far, -far),
+        )
+    }
+
+    fn snapshot_at(
+        order_multiplier: u32,
+        order_offset: u32,
+        active_radius: u32,
+        center: RegionCoord,
+    ) -> PublishedSnapshot {
+        let global_config =
+            GlobalRegionConfig::new(center.x, center.z, center.x, center.z, active_radius).unwrap();
         let stable_seed_namespace = ObjectSourceNamespace::from_bytes([7; 32]);
-        let stable_seed = canonical_stable_seed(stable_seed_namespace, region);
-        let mut records = Vec::with_capacity(INSTANCES_PER_REGION as usize);
-        let mut local_ids = Vec::with_capacity(INSTANCES_PER_REGION as usize);
-        let mut presentations = Vec::with_capacity(INSTANCES_PER_REGION as usize);
-        for physical in 0..INSTANCES_PER_REGION {
-            let local_id = physical
-                .wrapping_mul(order_multiplier)
-                .wrapping_add(order_offset)
-                % INSTANCES_PER_REGION;
-            records.push(InstanceRecord {
-                position: [local_id as f32 / 8.0, -2.0, -(local_id as f32) / 16.0],
-                height: local_id as f32 / 32.0,
-                region_id: stable_seed,
-            });
-            local_ids.push(local_id);
-            presentations.push(PresentationRecord::static_object(
-                local_id % 8,
-                local_id % 64,
-                local_id & 0xffff,
-            ));
+        let mut active_cpu_pages = Vec::new();
+        for addressed in global_config.addressed_regions().unwrap() {
+            let stable_seed = canonical_stable_seed(stable_seed_namespace, addressed.global_region);
+            let mut records = Vec::with_capacity(INSTANCES_PER_REGION as usize);
+            let mut local_ids = Vec::with_capacity(INSTANCES_PER_REGION as usize);
+            let mut presentations = Vec::with_capacity(INSTANCES_PER_REGION as usize);
+            for physical in 0..INSTANCES_PER_REGION {
+                let local_id = physical
+                    .wrapping_mul(order_multiplier)
+                    .wrapping_add(order_offset)
+                    % INSTANCES_PER_REGION;
+                let local_x = local_id % 32;
+                let local_z = local_id / 32;
+                let local_q9 = |axis| match axis {
+                    31 => 4096,
+                    value => -4096 + i32::try_from(value * 256).unwrap(),
+                };
+                records.push(InstanceRecord {
+                    position: [
+                        local_q9(local_x) as f32 / 512.0,
+                        -2.0,
+                        local_q9(local_z) as f32 / 512.0,
+                    ],
+                    height: local_id as f32 / 32.0,
+                    region_id: stable_seed,
+                });
+                local_ids.push(local_id);
+                presentations.push(PresentationRecord::static_object(
+                    local_id % 8,
+                    local_id % 64,
+                    local_id & 0xffff,
+                ));
+            }
+            active_cpu_pages.push(Arc::new(CpuObjectPage {
+                global_region: addressed.global_region,
+                records,
+                local_ids,
+                presentations,
+            }));
         }
+        let active_count = global_config.local_config().unwrap().active_region_count() as usize;
         PublishedSnapshot {
             config: global_config.local_config().unwrap(),
             global_config,
             object_source_namespace: ObjectSourceNamespace::from_bytes([3; 32]),
             object_stable_seed_namespace: stable_seed_namespace,
-            object_page_checksums: vec![[0; 32]],
-            active_slots: vec![17],
-            active_cpu_pages: vec![Arc::new(CpuObjectPage {
-                global_region: region,
-                records,
-                local_ids,
-                presentations,
-            })],
+            object_page_checksums: vec![[0; 32]; active_count],
+            active_slots: (0..u32::try_from(active_count).unwrap()).collect(),
+            active_cpu_pages,
         }
     }
 
@@ -163,5 +336,98 @@ mod tests {
             .presentations
             .pop();
         assert!(query_snapshot(&malformed, region, 0).is_err());
+    }
+
+    #[test]
+    fn nearest_order_and_seam() {
+        let first = snapshot_with_radius(769, 73, 1);
+        let second = snapshot_with_radius(641, 419, 1);
+        let center = first.global_config.global_center;
+        let origin = TerrainPosition::new(center, -4096, -4096).unwrap();
+        let expected = query_nearest_snapshot(&first, origin, 0).unwrap();
+        let reordered = query_nearest_snapshot(&second, origin, 0).unwrap();
+        assert_eq!(reordered, expected);
+        assert_eq!(expected.candidate_count, 9 * CANONICAL_OBJECTS_PER_REGION);
+        let nearest = expected.nearest.unwrap();
+        assert_eq!(nearest.distance_squared_q18, 0);
+        assert_eq!((nearest.delta_x_q9, nearest.delta_z_q9), (0, 0));
+        assert_eq!(
+            nearest.object.region,
+            center.checked_offset(-1, -1).unwrap()
+        );
+        assert_eq!(nearest.object.authored_local_id, 1023);
+        assert_eq!(nearest.terrain_position, origin);
+    }
+
+    #[test]
+    fn nearest_radius_and_none() {
+        let snapshot = snapshot(769, 73);
+        let region = snapshot.global_config.global_center;
+        let exact = TerrainPosition::new(region, -4096, -4096).unwrap();
+        let exact_query = query_nearest_snapshot(&snapshot, exact, 0).unwrap();
+        assert_eq!(exact_query.nearest.unwrap().object.authored_local_id, 0);
+
+        let displaced = exact.translated_q9(1, 0).unwrap();
+        assert_eq!(
+            query_nearest_snapshot(&snapshot, displaced, 0)
+                .unwrap()
+                .nearest,
+            None
+        );
+        let inclusive = query_nearest_snapshot(&snapshot, displaced, 1)
+            .unwrap()
+            .nearest
+            .unwrap();
+        assert_eq!(inclusive.object.authored_local_id, 0);
+        assert_eq!((inclusive.delta_x_q9, inclusive.delta_z_q9), (-1, 0));
+        assert_eq!(inclusive.distance_squared_q18, 1);
+    }
+
+    #[test]
+    fn nearest_capacity_and_origin() {
+        let snapshot = snapshot_with_radius(769, 73, 2);
+        let center = snapshot.global_config.global_center;
+        let local_origin = TerrainPosition::new(center, 0, 0).unwrap();
+        assert_eq!(
+            query_nearest_snapshot(&snapshot, local_origin, 4096)
+                .unwrap()
+                .candidate_count,
+            CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY
+        );
+
+        let outside = TerrainPosition::new(RegionCoord::new(i64::MIN, i64::MAX), 0, 0).unwrap();
+        assert!(query_nearest_snapshot(&snapshot, outside, u32::MAX).is_err());
+
+        let edge_center = RegionCoord::new(i64::MIN + 2, i64::MAX - 3);
+        let signed_edge = snapshot_at(769, 73, 2, edge_center);
+        let edge_origin = TerrainPosition::new(edge_center, 0, 0).unwrap();
+        let edge_query = query_nearest_snapshot(&signed_edge, edge_origin, u32::MAX).unwrap();
+        assert_eq!(
+            edge_query.candidate_count,
+            CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY
+        );
+        assert!(edge_query.nearest.is_some());
+    }
+
+    #[test]
+    fn nearest_malformed_snapshot_rejection() {
+        let origin =
+            TerrainPosition::new(RegionCoord::new(1_i64 << 40, -(1_i64 << 40)), 0, 0).unwrap();
+
+        let mut incomplete = snapshot_with_radius(769, 73, 1);
+        incomplete.active_cpu_pages.pop();
+        assert!(query_nearest_snapshot(&incomplete, origin, 4096).is_err());
+
+        let mut duplicate = snapshot(769, 73);
+        let page = Arc::get_mut(&mut duplicate.active_cpu_pages[0]).unwrap();
+        page.local_ids[1] = page.local_ids[0];
+        assert!(query_nearest_snapshot(&duplicate, origin, 4096).is_err());
+
+        let mut non_lattice = snapshot(769, 73);
+        Arc::get_mut(&mut non_lattice.active_cpu_pages[0])
+            .unwrap()
+            .records[0]
+            .position[0] += 1.0 / 1024.0;
+        assert!(query_nearest_snapshot(&non_lattice, origin, 4096).is_err());
     }
 }

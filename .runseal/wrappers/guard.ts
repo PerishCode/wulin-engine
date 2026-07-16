@@ -435,6 +435,7 @@ await run("deno check", "deno", [
     ".runseal/wrappers/canonical-prototype.ts",
     ".runseal/wrappers/canonical-runtime.ts",
     ".runseal/support/canonical-runtime.ts",
+    ".runseal/support/object/nearest.ts",
     ".runseal/support/runtime-bootstrap.ts",
     ".runseal/support/prototype/host.ts",
     ".runseal/support/prototype/input.ts",
@@ -446,6 +447,10 @@ await run("deno check", "deno", [
     ".runseal/support/terrain/query.ts",
     ".runseal/support/cooked-gltf-presentation.ts",
     ".runseal/support/temporal-presentation.ts",
+]);
+await run("resource acceptance tests", "deno", [
+    "test",
+    ".runseal/support/resource-acceptance_test.ts",
 ]);
 await run("flavor", "flavor", ["check", "--root", ".", "--config", "flavor.toml"]);
 await run("sidecar doctor", "sidecar", ["doctor", "--config", "sidecar.toml"]);

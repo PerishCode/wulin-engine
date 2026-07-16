@@ -11,14 +11,17 @@ the relevant ownership change.
 | Correctness, failure rollback, presentation, restart, rollover | Complete                                                                   | Frame, actor, or prototype workflow during iteration              |
 | Prototype process behavior                                     | Invalid/corrupt startup, stationary restart, and cleanup checkpoint        | `canonical-prototype`: native input and complete product behavior |
 | Reactive and prepared traversal                                | 32 + 32 crossings                                                          | Full runtime                                                      |
-| Same-process resources                                         | 8-publication active checkpoint                                            | `canonical-resources`: 32 warm + 64 measured + 60-second recovery |
+| Same-process resources                                         | 4..8 state-driven warm + 8-publication active checkpoint                   | `canonical-resources`: 32 warm + 64 measured + 60-second recovery |
 | Process lifecycle                                              | 2 complete checkpoint cycles                                               | `canonical-resources`: 16 complete cycles                         |
 | Rendered pixels and semantic attachments                       | Raw color/ID hashes for every assertion; representative persisted captures | Focused workflows persist their owned representative captures     |
 
-The resource checkpoint is not described as a plateau or recovery soak. It samples its baseline
-before the first measured publication and rejects more than one transient handle or 16 MiB of final
-private-byte growth. The deep owner uses the same active policy, then requires six consecutive equal
-handle samples over 60 seconds and recovery no higher than the warmed handle baseline.
+The resource checkpoint is not described as a plateau or recovery soak. It first alternates the same
+two measured windows for 4..8 publications and takes its baseline after two consecutive samples keep
+handle/thread counts equal and add at most 1 MiB of private bytes. This excludes one-time workload
+initialization without a fixed wait. It then rejects more than one measured transient handle or 16
+MiB of final private-byte growth across eight publications. The deep owner uses 32 fixed warm
+publications before the same active policy, then requires six consecutive equal handle samples over
+60 seconds and recovery no higher than the warmed handle baseline.
 
 ## Cost invariants
 
@@ -64,3 +67,12 @@ measured publications, handles remained within the 531 + 1 active allowance and 
 private bytes recovered from the 413,630,464-byte warm baseline to 412,565,504. Sixteen of sixteen
 lifecycle cycles left all Sidecar namespaces empty. The deep duration is intentionally excluded from
 routine full acceptance and selected only for resource/lifecycle ownership or an explicit soak.
+
+The 0096 integration first exercised the routine checkpoint from a process that had not yet used its
+alternating measured windows. Sampling before that lazy workload initialization produced mutually
+inconsistent handle/thread and private-byte failures. The v5 checkpoint now uses the bounded
+state-driven warm policy above without widening either measured allowance. The final worktree passed
+after five warm publications and eight measured publications in a 251.987-second full run:
+handles/threads remained 492/21 and final private bytes were 503,808 below baseline. Nine pure
+injected tests maintain the warm,
+active, and recovery decisions in the repository guard.

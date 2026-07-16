@@ -17,6 +17,43 @@ export type ResourcePlateauEvidence = {
     limits: ResourceLimits;
 };
 
+export type ResourceWarmPolicy = {
+    minimumSampleCount: number;
+    stableTransitionCount: number;
+    privateByteAllowance: number;
+};
+
+export function resourceWarmSettled(
+    samples: ProcessSample[],
+    policy: ResourceWarmPolicy,
+): boolean {
+    if (
+        policy.minimumSampleCount < 1 || policy.stableTransitionCount < 1 ||
+        policy.privateByteAllowance < 0
+    ) {
+        throw new Error(`invalid resource warm policy: ${JSON.stringify(policy)}`);
+    }
+    if (
+        samples.length < policy.minimumSampleCount ||
+        samples.length <= policy.stableTransitionCount
+    ) {
+        return false;
+    }
+    const firstTransition = samples.length - policy.stableTransitionCount;
+    for (let index = firstTransition; index < samples.length; index += 1) {
+        const previous = samples[index - 1];
+        const current = samples[index];
+        if (
+            current.handleCount !== previous.handleCount ||
+            current.threadCount !== previous.threadCount ||
+            current.privateBytes > previous.privateBytes + policy.privateByteAllowance
+        ) {
+            return false;
+        }
+    }
+    return true;
+}
+
 export function requireActivePlateau(
     baseline: ProcessSample,
     samples: ProcessSample[],

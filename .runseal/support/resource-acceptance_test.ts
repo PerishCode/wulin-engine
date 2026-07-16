@@ -2,11 +2,67 @@ import {
     type ProcessSample,
     requireActivePlateau,
     requireRecoveredBaseline,
+    resourceWarmSettled,
 } from "./resource-acceptance.ts";
 
 const MIB = 1024 * 1024;
 const BASELINE: ProcessSample = { handleCount: 500, privateBytes: 400 * MIB, threadCount: 18 };
 const LIMITS = { handleAllowance: 1, privateByteAllowance: 16 * MIB };
+const WARM_POLICY = {
+    minimumSampleCount: 4,
+    stableTransitionCount: 2,
+    privateByteAllowance: MIB,
+};
+
+Deno.test("resource warm settles after lazy allocation drains", () => {
+    const settled = resourceWarmSettled(
+        [
+            { handleCount: 500, privateBytes: 400 * MIB, threadCount: 18 },
+            { handleCount: 500, privateBytes: 420 * MIB, threadCount: 18 },
+            { handleCount: 500, privateBytes: 414 * MIB, threadCount: 18 },
+            { handleCount: 500, privateBytes: 414.5 * MIB, threadCount: 18 },
+        ],
+        WARM_POLICY,
+    );
+    if (!settled) throw new Error("settled workload shape was rejected");
+});
+
+Deno.test("resource warm requires the complete bounded evidence tail", () => {
+    const samples = [
+        { handleCount: 500, privateBytes: 400 * MIB, threadCount: 18 },
+        { handleCount: 500, privateBytes: 400 * MIB, threadCount: 18 },
+        { handleCount: 500, privateBytes: 400 * MIB, threadCount: 18 },
+    ];
+    if (resourceWarmSettled(samples, WARM_POLICY)) {
+        throw new Error("short warm evidence unexpectedly settled");
+    }
+});
+
+Deno.test("resource warm rejects a late worker initialization", () => {
+    const settled = resourceWarmSettled(
+        [
+            { handleCount: 500, privateBytes: 400 * MIB, threadCount: 18 },
+            { handleCount: 500, privateBytes: 400 * MIB, threadCount: 18 },
+            { handleCount: 500, privateBytes: 400 * MIB, threadCount: 18 },
+            { handleCount: 504, privateBytes: 400 * MIB, threadCount: 19 },
+        ],
+        WARM_POLICY,
+    );
+    if (settled) throw new Error("late worker initialization unexpectedly settled");
+});
+
+Deno.test("resource warm rejects late private growth above its sentinel", () => {
+    const settled = resourceWarmSettled(
+        [
+            { handleCount: 500, privateBytes: 400 * MIB, threadCount: 18 },
+            { handleCount: 500, privateBytes: 400 * MIB, threadCount: 18 },
+            { handleCount: 500, privateBytes: 400 * MIB, threadCount: 18 },
+            { handleCount: 500, privateBytes: 402 * MIB, threadCount: 18 },
+        ],
+        WARM_POLICY,
+    );
+    if (settled) throw new Error("late private growth unexpectedly settled");
+});
 
 Deno.test("active resource plateau accepts bounded noise", () => {
     const evidence = requireActivePlateau(
