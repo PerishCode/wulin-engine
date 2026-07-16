@@ -8,5 +8,8 @@ mod renderer;
 mod resident;
 mod terrain;
 
-pub(crate) use renderer::{ActorRenderProjection, ProjectedObjectTarget, RenderFrame};
+pub(crate) use renderer::{
+    ActorRenderProjection, ProjectedObjectSuppression, ProjectedObjectTarget, RenderFrame,
+    pack_object_suppression,
+};
 pub use renderer::{CapturedFrame, RenderOutcome, Renderer};

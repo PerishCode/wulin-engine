@@ -163,6 +163,7 @@ pub struct QueryInput<'a> {
     pub history_queried: bool,
     pub actor: Option<ActorRenderProjection>,
     pub presentation_tick: u32,
+    pub object_suppression: Option<crate::rendering::ProjectedObjectSuppression>,
 }
 
 pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
@@ -189,6 +190,12 @@ pub fn evaluate(input: QueryInput<'_>) -> Result<(OcclusionOracle, Vec<u32>)> {
             "occlusion canonical triple counts differ"
         );
         for (local_index, instance) in instances.iter().copied().enumerate() {
+            if input.object_suppression.is_some_and(|suppression| {
+                suppression.active_index as usize == region_ordinal
+                    && suppression.authored_local_id == input.local_ids[region_ordinal][local_index]
+            }) {
+                continue;
+            }
             let candidate = region_ordinal as u32 * 1024 + local_index as u32;
             let logical_index = candidate as usize;
             let ground =

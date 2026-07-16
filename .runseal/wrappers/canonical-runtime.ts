@@ -66,10 +66,11 @@ import {
     assertUntargetedFrame,
     beginTargetLifecycle,
     confirmTargetRevisit,
+    objectSuppressionLifecycle,
     targetDepartureReturn,
     visibleObjectTarget,
 } from "../support/object/feedback.ts";
-const REVISION = "canonical-runtime-v11";
+const REVISION = "canonical-runtime-v12";
 const COLLECTION = "canonical-runtime";
 const BASE: Coord = [2 ** 40, -(2 ** 40)];
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
@@ -77,7 +78,6 @@ if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     Deno.exit(0);
 }
 if (Deno.args.length !== 0) fail(`canonical-runtime: unexpected argument ${Deno.args[0]}`);
-
 const started = performance.now();
 const stageTimings: Json[] = [];
 const setupStarted = performance.now();
@@ -287,6 +287,14 @@ try {
         BASE,
         COLLECTION,
     );
+    const suppressionLifecycle = await objectSuppressionLifecycle(
+        feedbackTarget,
+        orderA,
+        OBJECTS_A,
+        OBJECTS_B,
+        BASE,
+        COLLECTION,
+    );
 
     const aliasPublication = await publish(target(BASE, 65));
     await setAliasCamera(65);
@@ -426,6 +434,7 @@ try {
                 returnedTargetedPixels: departureTargetFeedback.pixels,
                 targetClearedAfterReturn: departureTargetFeedback.cleared,
             },
+            objectSuppression: suppressionLifecycle,
             basePublication,
             orderA,
             temporal,
@@ -448,11 +457,6 @@ try {
             adjacentObjectResolution: adjacentObjects.resolution,
             adjacentObjectNearest: adjacentObjects.nearest,
             adjacent,
-            diagonalBasePublication: departureTargetFeedback.departureBase,
-            diagonalPublication: departureTargetFeedback.departure,
-            diagonal: departureTargetFeedback.departed,
-            returnedPublication: departureTargetFeedback.returnedPublication,
-            returned: departureTargetFeedback.returned,
             aliasPublication,
             alias,
             temporalHeld,

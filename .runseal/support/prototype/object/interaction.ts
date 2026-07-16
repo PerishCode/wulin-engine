@@ -7,13 +7,17 @@ export function idleInteractionInvariant(launch: Json): Json {
     const driver = object(object(launch, "readiness"), "object_interaction_driver");
     const status = object(driver, "status");
     if (
-        driver.revision !== "live-prototype-object-action-v1" ||
+        driver.revision !== "live-prototype-object-consumption-v1" ||
         driver.input !== "Enter" ||
         number(driver, "maxDistanceQ9") !== ACTION_RADIUS_Q9 ||
         number(driver, "acknowledgementFrameCount") !== ACKNOWLEDGEMENT_FRAME_COUNT ||
         driver.attempt !== null || driver.completion !== null || status.pending !== false ||
         status.acknowledgement !== null || number(status, "committedCount") !== 0 ||
         number(status, "ineligibleCount") !== 0 || number(driver, "activatedFrameCount") !== 0 ||
+        status.consumed !== null || driver.nearestExclusion !== null ||
+        object(driver, "suppression").submitted !== null ||
+        object(driver, "suppression").projected !== null ||
+        number(object(driver, "suppression"), "projectedFrameCount") !== 0 ||
         driver.copiedObjectState !== false
     ) fail("prototype idle object interaction driver diverged");
     return {
@@ -26,6 +30,8 @@ export function idleInteractionInvariant(launch: Json): Json {
         committedCount: 0,
         ineligibleCount: 0,
         activatedFrameCount: 0,
+        consumed: null,
+        suppressionProjectedFrameCount: 0,
         copiedObjectState: false,
     };
 }
@@ -44,7 +50,7 @@ export function interactionInvariant(launch: Json): Json {
     const acknowledgement = object(status, "acknowledgement");
 
     if (
-        driver.revision !== "live-prototype-object-action-v1" ||
+        driver.revision !== "live-prototype-object-consumption-v1" ||
         driver.input !== "Enter" ||
         number(driver, "maxDistanceQ9") !== ACTION_RADIUS_Q9 ||
         number(driver, "acknowledgementFrameCount") !== ACKNOWLEDGEMENT_FRAME_COUNT ||
@@ -56,6 +62,9 @@ export function interactionInvariant(launch: Json): Json {
         number(status, "ineligibleCount") !== 0 ||
         number(acknowledgement, "remainingFrames") !== ACKNOWLEDGEMENT_FRAME_COUNT - 1 ||
         number(driver, "activatedFrameCount") !== 1 ||
+        object(driver, "suppression").submitted !== null ||
+        object(driver, "suppression").projected !== null ||
+        number(object(driver, "suppression"), "projectedFrameCount") !== 0 ||
         driver.copiedObjectState !== false
     ) fail("prototype object interaction driver diverged");
 
@@ -66,6 +75,8 @@ export function interactionInvariant(launch: Json): Json {
         identity,
         "prototype object action acknowledgement identity",
     );
+    same(object(status, "consumed"), identity, "prototype consumed object identity");
+    same(driver.nearestExclusion, identity, "prototype nearest exclusion identity");
     same(
         proximity,
         {
@@ -86,6 +97,9 @@ export function interactionInvariant(launch: Json): Json {
         completion,
         status,
         activatedFrameCount: 1,
+        exactConsumedIdentity: true,
+        nearestExclusionCommitted: true,
+        suppressionDeferredUntilAcknowledged: true,
         exactRetainedIdentity: true,
         exactCommittedOriginProximity: true,
         projectedFrameCommit: true,

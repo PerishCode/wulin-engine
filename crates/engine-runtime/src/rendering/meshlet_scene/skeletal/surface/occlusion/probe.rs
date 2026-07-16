@@ -181,6 +181,7 @@ pub(in crate::rendering::meshlet_scene::skeletal::surface) unsafe fn read(
         history_queried: input.history_queried,
         actor: input.actor,
         presentation_tick: input.skeletal_settings.time_tick,
+        object_suppression: input.object_suppression,
     })?;
     let first_mask_mismatch = mask
         .iter()

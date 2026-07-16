@@ -4,7 +4,7 @@ export async function requireTypedObjectResolution(
     root: string,
     fail: Fail,
 ): Promise<void> {
-    console.log("==> typed source-qualified canonical object resolution");
+    console.log("==> typed source-qualified canonical object lifecycle");
     const contract = await Deno.readTextFile(
         `${root}/crates/engine-runtime/src/runtime/object_query.rs`,
     );
@@ -56,13 +56,19 @@ export async function requireTypedObjectResolution(
         !acceptance.includes("unqualified canonical object resolution") ||
         !acceptance.includes("retired canonical.objects.query verb remains live") ||
         !dispatch.includes("versioned-canonical-object-resolution-v2") ||
-        !dispatch.includes("versioned-canonical-object-nearest-v2") ||
+        !dispatch.includes("versioned-canonical-object-nearest-v3") ||
         !routing.includes('"canonical.objects.target.set" => objects::target(payload)') ||
         !routing.includes('"canonical.objects.target.clear" =>') ||
+        !routing.includes('"canonical.objects.suppression.set" => objects::suppression(payload)') ||
+        !routing.includes('"canonical.objects.suppression.clear" =>') ||
         !feedback.includes("targetedPixels") ||
         !feedback.includes("visibleObjectTarget") ||
         !feedback.includes('"activated" | "selected"') ||
         !feedback.includes("invalidObjectFeedbackGate") ||
+        !feedback.includes("objectSuppressionLifecycle") ||
+        !feedback.includes("assertUnprojectedSuppression") ||
+        !nearest.includes("excluded_identity: Option<CanonicalObjectIdentity>") ||
+        !nearest.includes("if Some(object.identity) == excluded_identity") ||
         !nearest.includes("object.proximity_from(origin, max_distance_q9)?") ||
         dispatch.includes("exact-canonical-object-position-v1") ||
         dispatch.includes("exact-canonical-object-nearest-v1")
@@ -115,12 +121,26 @@ export async function requireTypedObjectResolution(
         !interaction.includes("pub(crate) const ACKNOWLEDGEMENT_FRAME_COUNT: u32 = 12") ||
         !interaction.includes("object.proximity_from(origin, OBJECT_ACTION_RADIUS_Q9)?") ||
         !interaction.includes("kind: ObjectTargetFeedbackKind::Activated") ||
+        !interaction.includes("CapacityExhausted") ||
+        !interaction.includes("pub(crate) const fn nearest_exclusion") ||
+        !interaction.includes("pub(crate) const fn frame_suppression") ||
+        !interaction.includes("pub(crate) fn observe_source") ||
         !runtime.includes("pub object_target_feedback: Option<ObjectTargetFeedback>") ||
+        !runtime.includes("pub object_suppression: Option<CanonicalObjectIdentity>") ||
         !renderer.includes("pub object_target_feedback: Option<ObjectTargetFeedback>") ||
+        !renderer.includes("pub object_suppression: Option<CanonicalObjectIdentity>") ||
         !prototypeMain.includes("resolve_canonical_object(identity)") ||
+        !prototypeMain.includes("interaction_policy.nearest_exclusion()") ||
+        !prototypeMain.includes("interaction_policy.frame_suppression()") ||
+        !prototypeMain.includes("observation_policy.clear_target(identity)") ||
         !runtimeFrame.includes("projected_object_target_feedback") ||
         !runtimeFrame.includes("object_target_feedback") ||
+        !runtimeFrame.includes("project_suppression(") ||
+        !runtimeFrame.includes("projected_object_suppression") ||
         !skeletalShader.includes("stable_identity_high = local_id;") ||
+        !skeletalShader.includes("(suppression & 0x80000000u) != 0u") ||
+        !skeletalShader.includes("group_id.x == ((suppression >> 10u) & 31u)") ||
+        !skeletalShader.includes("local_id == (suppression & 1023u)") ||
         !surfaceShader.includes("visible.semantic_region == surface_animation.z") ||
         !surfaceShader.includes("visible.stable_identity_high == surface_animation.w") ||
         !surfaceShader.includes("surface_animation.y == 1u") ||

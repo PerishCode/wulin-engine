@@ -1,7 +1,7 @@
 use anyhow::{Result, ensure};
 use engine_runtime::{
-    CanonicalObjectProximity, CanonicalObjectResolution, ObjectTargetFeedback,
-    ObjectTargetFeedbackKind, TerrainPosition,
+    CanonicalObjectProximity, CanonicalObjectResolution, ObjectSourceNamespace,
+    ObjectTargetFeedback, ObjectTargetFeedbackKind, TerrainPosition,
 };
 use reference_host::HostElapsedSample;
 
@@ -26,6 +26,7 @@ pub(crate) struct Status {
     pub acknowledgement: Option<Acknowledgement>,
     pub committed_count: u64,
     pub ineligible_count: u64,
+    pub consumed: Option<engine_runtime::CanonicalObjectIdentity>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -35,6 +36,7 @@ pub(crate) enum Ineligible {
     SourceReplaced,
     OutsidePublishedWindow,
     OutsideRadius,
+    CapacityExhausted,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -60,6 +62,7 @@ pub(crate) struct Policy {
     acknowledgement: Option<Acknowledgement>,
     committed_count: u64,
     ineligible_count: u64,
+    consumed: Option<engine_runtime::CanonicalObjectIdentity>,
 }
 
 fn resolved_attempt(
@@ -104,6 +107,7 @@ impl Policy {
             acknowledgement: None,
             committed_count: 0,
             ineligible_count: 0,
+            consumed: None,
         }
     }
 
@@ -135,6 +139,13 @@ impl Policy {
             return Ok(None);
         }
         let attempt = match target {
+            _ if self.consumed.is_some() => {
+                ensure!(
+                    resolution.is_none(),
+                    "exhausted object consumption capacity must not resolve another target"
+                );
+                Attempt::Ineligible(Ineligible::CapacityExhausted)
+            }
             None => {
                 ensure!(
                     resolution.is_none(),
@@ -174,16 +185,15 @@ impl Policy {
         if let Some(Attempt::Eligible(eligible)) = attempt {
             return Some(eligible.feedback);
         }
+        if let Some(acknowledgement) = self.acknowledgement {
+            return Some(ObjectTargetFeedback {
+                identity: acknowledgement.identity,
+                kind: ObjectTargetFeedbackKind::Activated,
+            });
+        }
         target.map(|identity| ObjectTargetFeedback {
             identity,
-            kind: if self
-                .acknowledgement
-                .is_some_and(|acknowledgement| acknowledgement.identity == identity)
-            {
-                ObjectTargetFeedbackKind::Activated
-            } else {
-                ObjectTargetFeedbackKind::Selected
-            },
+            kind: ObjectTargetFeedbackKind::Selected,
         })
     }
 
@@ -204,6 +214,10 @@ impl Policy {
             );
             let applied = rendered == Some(eligible.feedback);
             if applied {
+                ensure!(
+                    self.consumed.is_none(),
+                    "object consumption capacity changed after eligibility"
+                );
                 let committed_count = self
                     .committed_count
                     .checked_add(1)
@@ -212,6 +226,7 @@ impl Policy {
                     identity: eligible.feedback.identity,
                     remaining_frames: ACKNOWLEDGEMENT_FRAME_COUNT - 1,
                 });
+                self.consumed = Some(eligible.feedback.identity);
                 self.committed_count = committed_count;
             } else {
                 self.acknowledgement = None;
@@ -247,12 +262,39 @@ impl Policy {
         }
     }
 
+    pub(crate) fn observe_source(&mut self, source_namespace: ObjectSourceNamespace) {
+        if self
+            .consumed
+            .is_some_and(|identity| identity.source_namespace != source_namespace)
+        {
+            self.consumed = None;
+            self.acknowledgement = None;
+        }
+    }
+
+    pub(crate) const fn nearest_exclusion(
+        &self,
+    ) -> Option<engine_runtime::CanonicalObjectIdentity> {
+        self.consumed
+    }
+
+    pub(crate) const fn frame_suppression(
+        &self,
+    ) -> Option<engine_runtime::CanonicalObjectIdentity> {
+        if self.acknowledgement.is_none() {
+            self.consumed
+        } else {
+            None
+        }
+    }
+
     pub(crate) const fn status(&self) -> Status {
         Status {
             pending: self.pending,
             acknowledgement: self.acknowledgement,
             committed_count: self.committed_count,
             ineligible_count: self.ineligible_count,
+            consumed: self.consumed,
         }
     }
 }

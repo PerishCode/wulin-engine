@@ -132,6 +132,181 @@ export async function clearObjectTarget(): Promise<Json> {
     return value;
 }
 
+export async function setObjectSuppression(identity: Json): Promise<Json> {
+    const region = object(identity, "region");
+    const value = await event("canonical.objects.suppression.set", {
+        source_namespace: string(identity, "sourceNamespace"),
+        region_x: number(region, "x"),
+        region_z: number(region, "z"),
+        authored_local_id: number(identity, "authoredLocalId"),
+    });
+    same(value.objectSuppression, identity, "workbench object suppression input");
+    return value;
+}
+
+export async function clearObjectSuppression(): Promise<Json> {
+    const value = await event("canonical.objects.suppression.clear");
+    if (value.objectSuppression !== null) fail("workbench object suppression did not clear");
+    return value;
+}
+
+export async function invalidObjectSuppressionGate(identity: Json): Promise<Json> {
+    const region = object(identity, "region");
+    const value = await rejectedEvent("canonical.objects.suppression.set", {
+        source_namespace: string(identity, "sourceNamespace"),
+        region_x: number(region, "x"),
+        region_z: number(region, "z"),
+        authored_local_id: 1_024,
+    });
+    if (
+        typeof value.error !== "string" ||
+        !value.error.startsWith("invalid_object_suppression: ")
+    ) fail("out-of-range workbench object suppression was not rejected");
+    return value;
+}
+
+export function assertSuppressedFrame(
+    value: Json,
+    identity: Json,
+    activeIndex: number,
+    baseline: Json,
+    label: string,
+): void {
+    const surface = object(object(value, "probe"), "surface");
+    const skeletal = object(surface, "skeletal");
+    same(
+        skeletal.objectSuppression,
+        {
+            activeIndex,
+            authoredLocalId: number(identity, "authoredLocalId"),
+        },
+        `${label} projected suppression`,
+    );
+    const baselineSurface = object(object(baseline, "probe"), "surface");
+    const baselineSkeletal = object(baselineSurface, "skeletal");
+    const gpu = object(skeletal, "gpu");
+    const baselineGpu = object(baselineSkeletal, "gpu");
+    if (
+        number(gpu, "visible") !== number(baselineGpu, "visible") - 1 ||
+        number(gpu, "rejected") !== number(baselineGpu, "rejected") + 1
+    ) fail(`${label} did not cull exactly one streamed object`);
+    same(object(skeletal, "cpuOracle"), gpu, `${label} skeletal CPU/GPU suppression oracle`);
+
+    const shadow = object(surface, "shadow");
+    const baselineShadow = object(baselineSurface, "shadow");
+    if (number(shadow, "casterCount") !== number(baselineShadow, "casterCount") - 1) {
+        fail(`${label} shadow path did not consume the suppressed cull result`);
+    }
+    const occlusion = object(surface, "occlusion");
+    const baselineOcclusion = object(baselineSurface, "occlusion");
+    const sourceVisible = number(occlusion, "sourceVisible");
+    if (sourceVisible !== number(baselineOcclusion, "sourceVisible") - 1) {
+        fail(`${label} occlusion source did not consume the suppressed cull result`);
+    }
+    if (occlusion.historyQueried === true) {
+        if (
+            number(occlusion, "tested") !== sourceVisible ||
+            number(occlusion, "bypassed") !== 0
+        ) fail(`${label} compatible occlusion history did not test the suppressed source exactly`);
+    } else if (
+        occlusion.historyQueried !== false || number(occlusion, "tested") !== 0 ||
+        number(occlusion, "bypassed") !== sourceVisible
+    ) fail(`${label} suppression transition did not bypass invalid occlusion history exactly`);
+
+    const capture = object(value, "capture");
+    const baselineCapture = object(baseline, "capture");
+    if (string(capture, "color") === string(baselineCapture, "color")) {
+        fail(`${label} did not remove the exact object from resolved color`);
+    }
+    same(capture.objectId, baselineCapture.objectId, `${label} semantic attachment`);
+}
+
+export function assertUnprojectedSuppression(value: Json, label: string): void {
+    const skeletal = object(object(object(value, "probe"), "surface"), "skeletal");
+    if (skeletal.objectSuppression !== null) {
+        fail(`${label} projected an unavailable object suppression`);
+    }
+}
+
+export async function objectSuppressionLifecycle(
+    selected: VisibleObjectTarget,
+    baseline: Json,
+    objectPath: string,
+    replacementObjectPath: string,
+    center: Coord,
+    collection: string,
+): Promise<Json> {
+    const suppressionSet = await setObjectSuppression(selected.identity);
+    const suppressed = await frame(
+        "suppression-before-source-replacement",
+        collection,
+        false,
+        false,
+    );
+    assertSuppressedFrame(
+        suppressed,
+        selected.identity,
+        selected.activeIndex,
+        baseline,
+        "suppression before source replacement",
+    );
+
+    await event("source.objects.open", { path: replacementObjectPath });
+    const replacementPublication = await publish(target(center));
+    const sourceReplaced = await frame("suppression-source-replaced", collection, false, false);
+    assertUnprojectedSuppression(sourceReplaced, "source-replaced suppression frame");
+    same(sourceReplaced.stable, baseline.stable, "source-replaced suppression baseline");
+
+    await event("source.objects.open", { path: objectPath });
+    const revisitPublication = await publish(target(center));
+    const sourceRevisited = await frame("suppression-source-revisited", collection, false, false);
+    assertSuppressedFrame(
+        sourceRevisited,
+        selected.identity,
+        selected.activeIndex,
+        baseline,
+        "source-revisited suppression frame",
+    );
+    same(sourceRevisited.stable, suppressed.stable, "source-revisited suppression replay");
+
+    const departureBase = await publish(target([center[0] + 40, center[1]]));
+    const departure = await publish(target([center[0] + 41, center[1] + 1]));
+    const departed = await frame("suppression-departed", collection, false, false);
+    assertUnprojectedSuppression(departed, "same-source departed suppression frame");
+
+    const returnedPublication = await publish(target(center));
+    const returned = await frame("suppression-returned", collection, false, false);
+    assertSuppressedFrame(
+        returned,
+        selected.identity,
+        selected.activeIndex,
+        baseline,
+        "same-source returned suppression frame",
+    );
+    same(returned.stable, suppressed.stable, "same-source returned suppression replay");
+
+    const suppressionCleared = await clearObjectSuppression();
+    const clearWarm = await frame("suppression-lifecycle-clear-warm", collection, false, false);
+    const restored = await frame("suppression-lifecycle-restored", collection, false, false);
+    same(restored.stable, baseline.stable, "suppression lifecycle baseline restoration");
+    return {
+        suppressionSet,
+        suppressed,
+        replacementPublication,
+        sourceReplaced,
+        revisitPublication,
+        sourceRevisited,
+        departureBase,
+        departure,
+        departed,
+        returnedPublication,
+        returned,
+        suppressionCleared,
+        clearWarm,
+        restored,
+    };
+}
+
 export function assertTargetedFrame(
     value: Json,
     identity: Json,

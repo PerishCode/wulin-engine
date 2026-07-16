@@ -1,6 +1,9 @@
 use crate::load::LoadConfig;
 use crate::region::RegionCoord;
-use crate::rendering::renderer::object_target::{ProjectedObjectTarget, project, validate};
+use crate::rendering::pack_object_suppression;
+use crate::rendering::renderer::object_target::{
+    ProjectedObjectSuppression, ProjectedObjectTarget, project, project_suppression, validate,
+};
 use crate::rendering::terrain::TerrainProjection;
 use crate::runtime::{
     CANONICAL_OBJECTS_PER_REGION, CanonicalObjectIdentity, ObjectTargetFeedback,
@@ -132,5 +135,47 @@ fn rejects_invalid_id() {
         error
             .to_string()
             .contains("outside the canonical region capacity")
+    );
+}
+
+#[test]
+fn suppression_projects_and_packs_exact_identity() {
+    let center = RegionCoord::new(-700, 900);
+    let exact = identity(source(), center.checked_offset(-2, 2).unwrap(), 987);
+    let projected = project_suppression(Some(exact), source(), config(center))
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        projected,
+        ProjectedObjectSuppression {
+            active_index: 20,
+            authored_local_id: 987,
+        }
+    );
+    assert_eq!(
+        pack_object_suppression(Some(projected)).unwrap(),
+        1 << 31 | 20 << 10 | 987
+    );
+    assert_eq!(pack_object_suppression(None).unwrap(), 0);
+    assert_eq!(
+        project_suppression(
+            Some(identity(
+                ObjectSourceNamespace::from_bytes([8; 32]),
+                exact.region,
+                exact.authored_local_id,
+            )),
+            source(),
+            config(center),
+        )
+        .unwrap(),
+        None
+    );
+    assert!(
+        project_suppression(
+            Some(identity(source(), center, CANONICAL_OBJECTS_PER_REGION,)),
+            source(),
+            config(center),
+        )
+        .is_err()
     );
 }

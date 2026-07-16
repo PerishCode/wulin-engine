@@ -122,6 +122,7 @@ pub(in crate::rendering) struct CompositionFrameProbeInput<'a> {
     pub simulation_status: &'a serde_json::Value,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
     pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
+    pub object_suppression: Option<crate::rendering::ProjectedObjectSuppression>,
 }
 
 impl Renderer {
@@ -137,6 +138,7 @@ impl Renderer {
             simulation_status,
             actor,
             object_target,
+            object_suppression,
         } = input;
         let snapshot = self
             .async_resident_renderer
@@ -302,6 +304,7 @@ impl Renderer {
                     local_ids: &payload_readback.local_ids,
                     presentations: &payload_readback.presentations,
                     actor,
+                    object_suppression,
                 },
             )
         }?;
@@ -333,6 +336,7 @@ impl Renderer {
                     ground_denominator: authority::GROUND_DENOMINATOR,
                     actor,
                     object_target,
+                    object_suppression,
                 },
             )
         }?;

@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0103 and the current ADR set through 0106 define one live content runtime
+Experiments 0031-0104 and the current ADR set through 0107 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -283,6 +283,14 @@ geometry/material/rig source, and one deterministic object-shadow path:
   applies an inclusive 512-Q9 gate, and commits a 12-successful-projected-frame acknowledgement with
   reset/suspend cancellation, ineligible consumption, malformed rollback, and no canonical object
   mutation, engine-owned action state, persistent gameplay identity, networking, or Wulin semantics;
+- one prototype-owned runtime-session consumption slot committed only with the exact projected
+  Activated frame; its qualified identity immediately excludes only itself from nearest selection
+  while preserving full 25,600-candidate validation/counting, becomes immutable frame suppression
+  after the existing 12-frame acknowledgement, projects only for the matching source/window, and
+  rejects the exact active-index/local-ID after grounding but before frustum/visibility in the sole
+  skeletal cull, so same-source departure/revisit, source replacement, restart, and every downstream
+  render path retain one deterministic lifetime without canonical mutation, registry, inventory,
+  persistence, networking, or Wulin semantics;
 - one mandatory post-v0 cleanup that deletes the duplicate standalone presentation-timeline Runtime
   forwarder and inspect verb; exact presentation state remains readable only through
   `canonical.status.presentationClock`, pause/resume/set/step keep their direct exact responses, and
@@ -403,6 +411,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0104-version-gated-prototype-object-target.md` | Accepted live snapshot stamp and version-gated identity-only prototype target policy. |
 | `docs/adr/0105-frame-bound-object-target-feedback.md` | Accepted immutable frame target projection and exact existing-surface visual feedback. |
 | `docs/adr/0106-committed-prototype-object-action.md` | Accepted exact committed target proximity, projected action commit, and bounded acknowledgement. |
+| `docs/adr/0107-capacity-one-prototype-object-consumption.md` | Accepted capacity-one consumed identity, nearest exclusion, deferred exact GPU suppression, and source/window lifetime. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -477,6 +486,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0101-version-gated-prototype-object-target/README.md` | Accepted typed snapshot, native retained-target revalidation, A/B/window/rollback, resource, and lifecycle evidence. |
 | `experiments/0102-frame-bound-object-target-feedback/README.md` | Accepted frame-bound target projection, exact surface feedback, product forwarding, and source/window lifecycle evidence. |
 | `experiments/0103-committed-prototype-object-action/README.md` | Accepted native committed Enter action, exact proximity, activated frame commit, and bounded acknowledgement evidence. |
+| `experiments/0104-capacity-one-prototype-object-consumption/README.md` | Accepted exact nearest exclusion, native capacity-one consumption, GPU suppression, and source/window lifecycle evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -516,16 +526,16 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/canonical-object-fixture/src/lib.rs` | Deterministic arbitrary-Q8 authored object fixture. |
 | `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
-| `apps/prototype/src/main.rs` | Non-diagnostic composition root, camera-relative boundary/traversal, Ready-only simulation/frame ordering, committed Run/Jump/object-target/action composition, block accounting, current-actor readiness, and Escape host exit. |
+| `apps/prototype/src/main.rs` | Non-diagnostic composition root, camera-relative boundary/traversal, Ready-only simulation/frame ordering, committed Run/Jump/object-target/action/consumption composition, block accounting, current-actor readiness, and Escape host exit. |
 | `apps/prototype/src/actor.rs` | Prototype-owned grounded spawn motion and fixed gravity policy. |
 | `apps/prototype/src/boundary.rs` | Prototype-owned independent maximum-batch per-axis playable-region admission policy. |
 | `apps/prototype/src/camera.rs` | Prototype-owned committed four-state Q/E actor-relative camera-orbit policy. |
 | `apps/prototype/src/jump.rs` | Prototype-owned capacity-one grounded Space intent, discontinuity, and committed-consumption policy. |
 | `apps/prototype/src/locomotion.rs` | Prototype-owned fixed W/A/S/D Walk/Run plus exact current-camera quarter rotation and bounded step-up policy. |
-| `apps/prototype/src/observation.rs` | Prototype-owned F intent plus identity-only target admission, snapshot-gated resolution, window/source lifetime, and rollback policy. |
-| `apps/prototype/tests/object_observation_policy.rs` | Admission/empty-clear/rollback, stamp work-elimination, window revisit, source replacement, and discontinuity evidence. |
-| `apps/prototype/src/interaction.rs` | Prototype-owned capacity-one Enter intent, exact committed proximity admission, projected-frame commit, and bounded acknowledgement policy. |
-| `apps/prototype/tests/object_interaction_policy.rs` | Intent lifetime, ineligible consumption, malformed rollback, projection miss, target change, and 12-frame acknowledgement evidence. |
+| `apps/prototype/src/observation.rs` | Prototype-owned F intent plus identity-only target admission, consumed-target clearing, snapshot-gated resolution, window/source lifetime, and rollback policy. |
+| `apps/prototype/tests/object_observation_policy.rs` | Admission/consumed-clear/empty-clear/rollback, stamp work-elimination, window revisit, source replacement, and discontinuity evidence. |
+| `apps/prototype/src/interaction.rs` | Prototype-owned capacity-one Enter intent, exact committed proximity admission, projected-frame consumption commit, nearest exclusion, deferred suppression, and bounded acknowledgement policy. |
+| `apps/prototype/tests/object_interaction_policy.rs` | Intent/consumption/source lifetime, capacity exhaustion, ineligible consumption, malformed rollback, projection miss, target change, and 12-frame acknowledgement evidence. |
 | `apps/prototype/src/presentation.rs` | Prototype-owned imported Survey/Walk/Run and committed eight-way locomotion-facing policy. |
 | `apps/prototype/src/time.rs` | Prototype-only HostClock admission plus no-retry/no-backlog render-block consumption policy. |
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
@@ -541,14 +551,15 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/src/streaming/objects/mod.rs` | Bounded schema-3 object I/O transactions. |
 | `crates/engine-runtime/src/streaming/terrain/mod.rs` | Bounded signed terrain I/O transactions. |
 | `crates/engine-runtime/src/rendering/async_resident/transfer.rs` | Source-addressed object CPU/GPU page residency, copy, and slot lifetime. |
-| `crates/engine-runtime/src/rendering/async_resident/renderer/query.rs` | Typed source-qualified committed active-page object resolution/nearest scan, consuming the pure exact proximity authority, with lifetime/order/radius/error tests. |
+| `crates/engine-runtime/src/rendering/async_resident/renderer/query.rs` | Typed source-qualified committed active-page object resolution/nearest scan with exact optional exclusion after full validation/counting, consuming the pure proximity authority, with lifetime/order/radius/error tests. |
 | `crates/engine-runtime/src/rendering/async_resident/renderer/query_fixture.rs` | Deterministic committed CPU object snapshot fixture shared only by resolver/nearest unit tests. |
 | `crates/engine-runtime/src/rendering/terrain/transfer.rs` | Terrain GPU copy and slot lifecycle. |
 | `crates/engine-runtime/src/rendering/composition/mod.rs` | Atomic pair publication and fixed composition. |
 | `crates/engine-runtime/src/rendering/renderer/actor_projection.rs` | Private actor projection, active/pending typed admission, required failure conversion, and bounded scene-center derivation. |
-| `crates/engine-runtime/src/rendering/renderer/object_target.rs` | Immutable source/window-qualified Selected/Activated frame feedback projection and focused lifetime tests. |
+| `crates/engine-runtime/src/rendering/renderer/object_target.rs` | Immutable source/window-qualified Selected/Activated feedback and exact suppression projection plus bounded skeletal packing. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/surface/target_probe.rs` | Independent visibility/authored-ID target pixel oracle. |
-| `crates/engine-runtime/tests/private/object_target.rs` | Private invalid/source/window/traversal target projection evidence. |
+| `crates/engine-runtime/tests/private/object_target.rs` | Private invalid/source/window/traversal target and exact suppression projection/packing evidence. |
+| `crates/engine-runtime/shaders/skeletal_scene.hlsl` | Sole streamed/actor skeletal cull, grounding, exact object suppression, compaction, animation admission, and visible-record emission. |
 | `crates/engine-runtime/tests/private/surface_target.rs` | Private authored-ID permutation and neighbor-exclusion target evidence. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/mod.rs` | Fixed visible-record layout, capacity, descriptors, and skeletal GPU resource ownership. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/actor.rs` | Exact frame-resolved actor-local phase encoding and two-frame GPU upload-resource ownership. |
@@ -563,9 +574,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/prototype.ts` | Self-contained finite-sandbox cook, conservative playable bounds, strict bootstrap, and manual prototype lifecycle entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype input-edge/boundary/gravity/camera-relative Walk/Run/Jump/object-target/action/presentation/traversal/backpressure, restart, failure, and lifecycle entry point. |
+| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype input-edge/boundary/gravity/camera-relative Walk/Run/Jump/object-target/action/consumption/presentation/traversal/backpressure, restart, failure, and lifecycle entry point. |
 | `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source actor lifecycle, schedule/actor partition and rollback, render admission, animation epoch, and GPU phase entry point. |
-| `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source typed object snapshot/resolution/position/nearest, canonical GPU frame, and immediate replay entry point. |
+| `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source typed object snapshot/resolution/position/nearest/exclusion, exact GPU feedback/suppression, clear, and replay entry point. |
 | `.runseal/wrappers/canonical-resources.ts` | Focused deep active/recovery GPU resource plateau and 16-cycle lifecycle entry point. |
 | `.runseal/wrappers/canonical-runtime.ts` | Timed direct canonical acceptance with bounded resource/lifecycle checkpoints. |
 | `.runseal/support/canonical-frame.ts` | Shared exact canonical frame, shadow, occlusion, and capture baseline. |
@@ -575,12 +586,12 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/resource-acceptance.ts` | Pure warm-convergence, active, and recovery resource threshold policy used by checkpoints and deep soak. |
 | `.runseal/support/resource-acceptance_test.ts` | Injected warm, early/delayed handle, and private-byte growth rejection evidence. |
 | `.runseal/support/object/query.ts` | Independent schema-3 namespace/raw/Q9 oracle plus snapshot/published-pair, typed resolution, strict payload, rollback, and restart evidence. |
-| `.runseal/support/object/nearest.ts` | Independent versioned source-qualified bounded nearest oracle, strict origin/radius/tie, order, movement, rollback, and restart evidence. |
-| `.runseal/support/object/feedback.ts` | Exact visible Selected/Activated target feedback, invalid-kind/ID rejection, surface replay, and source/window projection gates. |
+| `.runseal/support/object/nearest.ts` | Independent versioned source-qualified bounded nearest/exclusion oracle, strict origin/radius/tie, order, movement, rollback, and restart evidence. |
+| `.runseal/support/object/feedback.ts` | Exact Selected/Activated feedback and suppression, invalid input, replay/clear, and source/window projection lifecycle gates. |
 | `.runseal/support/prototype/object/observation.ts` | Committed-origin observation, identity-only retained target, snapshot revalidation, and independent source-oracle gate. |
 | `.runseal/support/prototype/object/observation_order.ts` | Zero-dependency valid asynchronous traversal/observation token-order contract. |
 | `.runseal/support/prototype/object/observation_test.ts` | Equivalent pre/post asynchronous traversal observation order and impossible-token rejection evidence. |
-| `.runseal/support/prototype/object/interaction.ts` | Native exact-proximity, activated-frame commit, acknowledgement, and copied-state-absence gate. |
+| `.runseal/support/prototype/object/interaction.ts` | Native exact-proximity, activated-frame consumption/exclusion commit, deferred suppression, acknowledgement, restart, and copied-state-absence gate. |
 | `.runseal/support/prototype/object/gates.ts` | Prototype observation/action process, restart, and unchanged-subsystem gate composition. |
 | `.runseal/support/object/integration.ts` | Object resolution/nearest source, window, movement, and corrupt-pair preservation integration gates. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
@@ -591,7 +602,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/canonical-operator.ts` | Exact neutral canonical revision/collection and current evidence-path guard. |
 | `.runseal/support/guard/live-operator-surface.ts` | Exact wrapper set, single current-boundary authority, and maintained prototype-operator documentation gate. |
 | `.runseal/support/guard/input-journal-removal.ts` | Forbidden-file/symbol/verb/command gate for the retired diagnostic input journal surface. |
-| `.runseal/support/guard/object-identity.ts` | Required typed source-qualified resolver and forbidden old API/protocol/product-retention gate. |
+| `.runseal/support/guard/object-identity.ts` | Required typed source-qualified resolver, nearest exclusion, frame suppression, prototype consumption, and forbidden old-surface gate. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/actor/admission.ts` | Retired standalone-status rejection, canonical-aggregate schedule evidence, schema-2 advance, typed pending block, zero-commit rollback, and retained-frame support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |

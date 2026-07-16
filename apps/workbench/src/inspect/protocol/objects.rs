@@ -20,6 +20,16 @@ struct ObjectNearestPayload {
     local_x_q9: i32,
     local_z_q9: i32,
     max_distance_q9: u32,
+    excluded_identity: Option<ObjectIdentityPayload>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ObjectIdentityPayload {
+    source_namespace: String,
+    region_x: i64,
+    region_z: i64,
+    authored_local_id: u32,
 }
 
 #[derive(Deserialize)]
@@ -67,6 +77,16 @@ pub(super) fn target(value: Value) -> ParsedControl {
     })
 }
 
+pub(super) fn suppression(value: Value) -> ParsedControl {
+    let payload: ObjectResolvePayload = decode(value)?;
+    Ok(ControlKind::CanonicalObjectSuppressionSet {
+        source_namespace: decode_source_namespace(&payload.source_namespace)?,
+        region_x: payload.region_x,
+        region_z: payload.region_z,
+        authored_local_id: payload.authored_local_id,
+    })
+}
+
 fn decode_source_namespace(value: &str) -> Result<[u8; 32], ProtocolError> {
     if value.len() != 64
         || !value
@@ -95,5 +115,17 @@ pub(super) fn nearest(value: Value) -> ParsedControl {
         local_x_q9: payload.local_x_q9,
         local_z_q9: payload.local_z_q9,
         max_distance_q9: payload.max_distance_q9,
+        excluded_identity: payload
+            .excluded_identity
+            .map(|identity| {
+                Ok(engine_runtime::CanonicalObjectIdentity {
+                    source_namespace: engine_runtime::ObjectSourceNamespace::from_bytes(
+                        decode_source_namespace(&identity.source_namespace)?,
+                    ),
+                    region: engine_runtime::RegionCoord::new(identity.region_x, identity.region_z),
+                    authored_local_id: identity.authored_local_id,
+                })
+            })
+            .transpose()?,
     })
 }

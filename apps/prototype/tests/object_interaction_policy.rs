@@ -130,6 +130,9 @@ fn projected_candidate_commits_twelve_frames() {
         .unwrap();
     assert!(completion.applied);
     assert_eq!(policy.status().committed_count, 1);
+    assert_eq!(policy.status().consumed, Some(identity(7)));
+    assert_eq!(policy.nearest_exclusion(), Some(identity(7)));
+    assert_eq!(policy.frame_suppression(), None);
     assert_eq!(
         policy.status().acknowledgement.unwrap().remaining_frames,
         interaction::ACKNOWLEDGEMENT_FRAME_COUNT - 1
@@ -139,6 +142,7 @@ fn projected_candidate_commits_twelve_frames() {
         policy.complete_frame(None, submitted, submitted).unwrap();
     }
     assert_eq!(policy.status().acknowledgement, None);
+    assert_eq!(policy.frame_suppression(), Some(identity(7)));
 }
 
 #[test]
@@ -177,4 +181,42 @@ fn projection_and_target_change() {
         .unwrap();
     policy.observe_target(Some(target(8, true)));
     assert_eq!(policy.status().acknowledgement, None);
+    assert_eq!(policy.status().consumed, Some(identity(7)));
+    assert_eq!(policy.frame_suppression(), Some(identity(7)));
+}
+
+#[test]
+fn consumption_capacity_and_source_lifetime_are_exact() {
+    let mut policy = interaction::Policy::new();
+    policy.ingest(true);
+    let attempt = policy
+        .prepare_after_advance(
+            1,
+            origin(),
+            Some(target(7, true)),
+            Some(CanonicalObjectResolution::Resolved(object(7, 0))),
+        )
+        .unwrap();
+    let submitted = policy.frame_feedback(Some(identity(7)), attempt);
+    policy
+        .complete_frame(attempt, submitted, submitted)
+        .unwrap();
+
+    policy.ingest(true);
+    assert_eq!(
+        policy
+            .prepare_after_advance(1, origin(), Some(target(8, true)), None)
+            .unwrap(),
+        Some(interaction::Attempt::Ineligible(
+            interaction::Ineligible::CapacityExhausted
+        ))
+    );
+    assert_eq!(policy.status().consumed, Some(identity(7)));
+
+    policy.observe_source(identity(7).source_namespace);
+    assert_eq!(policy.status().consumed, Some(identity(7)));
+    policy.observe_source(ObjectSourceNamespace::from_bytes([4; 32]));
+    assert_eq!(policy.status().consumed, None);
+    assert_eq!(policy.status().acknowledgement, None);
+    assert_eq!(policy.nearest_exclusion(), None);
 }

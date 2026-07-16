@@ -33,7 +33,9 @@ mod frame;
 mod object_target;
 
 pub(crate) use actor_projection::ActorRenderProjection;
-pub(crate) use object_target::ProjectedObjectTarget;
+pub(crate) use object_target::{
+    ProjectedObjectSuppression, ProjectedObjectTarget, pack_object_suppression,
+};
 
 const BUFFER_COUNT: usize = 2;
 
@@ -77,6 +79,7 @@ pub struct RenderOutcome {
     pub capture: Option<CapturedFrame>,
     pub composition_probe: Option<CompositionProbe>,
     pub object_target_feedback: Option<ObjectTargetFeedback>,
+    pub object_suppression: Option<CanonicalObjectIdentity>,
 }
 
 pub(crate) struct RenderFrame<'a> {
@@ -89,6 +92,7 @@ pub(crate) struct RenderFrame<'a> {
     pub simulation_status: Option<&'a Value>,
     pub actor: Option<crate::runtime::RuntimeActor>,
     pub object_target_feedback: Option<ObjectTargetFeedback>,
+    pub object_suppression: Option<CanonicalObjectIdentity>,
     pub scene: &'a mut crate::scene::SceneState,
 }
 
@@ -289,9 +293,13 @@ impl Renderer {
         &self,
         origin: TerrainPosition,
         max_distance_q9: u32,
+        excluded_identity: Option<CanonicalObjectIdentity>,
     ) -> Result<CanonicalObjectNearestQuery> {
-        self.async_resident_renderer
-            .query_nearest_canonical_object(origin, max_distance_q9)
+        self.async_resident_renderer.query_nearest_canonical_object(
+            origin,
+            max_distance_q9,
+            excluded_identity,
+        )
     }
 
     pub fn arm_async_copy_gate(&mut self) -> Result<u64> {

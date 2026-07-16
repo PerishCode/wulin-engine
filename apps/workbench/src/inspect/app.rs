@@ -126,6 +126,7 @@ pub(crate) fn handle_commands(
                 local_x_q9,
                 local_z_q9,
                 max_distance_q9,
+                excluded_identity,
             } => objects::nearest(
                 runtime,
                 region_x,
@@ -133,6 +134,7 @@ pub(crate) fn handle_commands(
                 local_x_q9,
                 local_z_q9,
                 max_distance_q9,
+                excluded_identity,
             ),
             ControlKind::CanonicalObjectTargetSet {
                 source_namespace,
@@ -163,6 +165,31 @@ pub(crate) fn handle_commands(
             ControlKind::CanonicalObjectTargetClear => {
                 state.object_target_feedback = None;
                 Ok(json!({"objectTargetFeedback": null}))
+            }
+            ControlKind::CanonicalObjectSuppressionSet {
+                source_namespace,
+                region_x,
+                region_z,
+                authored_local_id,
+            } => {
+                if authored_local_id >= CANONICAL_OBJECTS_PER_REGION {
+                    Err(ProtocolError {
+                        code: "invalid_object_suppression",
+                        message: "object suppression authored local ID is outside the canonical region capacity".into(),
+                    })
+                } else {
+                    let identity = CanonicalObjectIdentity {
+                        source_namespace: ObjectSourceNamespace::from_bytes(source_namespace),
+                        region: RegionCoord::new(region_x, region_z),
+                        authored_local_id,
+                    };
+                    state.object_suppression = Some(identity);
+                    Ok(json!({"objectSuppression": identity}))
+                }
+            }
+            ControlKind::CanonicalObjectSuppressionClear => {
+                state.object_suppression = None;
+                Ok(json!({"objectSuppression": null}))
             }
             ControlKind::CanonicalTerrainHeight {
                 region_x,

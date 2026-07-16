@@ -45,6 +45,7 @@ pub struct EvaluationInput<'a> {
     pub projection: TerrainProjection,
     pub grounding: GroundingInput<'a>,
     pub actor: Option<ActorRenderProjection>,
+    pub object_suppression: Option<crate::rendering::ProjectedObjectSuppression>,
 }
 
 pub fn evaluate(
@@ -58,6 +59,7 @@ pub fn evaluate(
         projection,
         grounding,
         actor,
+        object_suppression,
     } = input;
     ensure!(
         grounding.instance_records.len() == grounding.local_ids.len()
@@ -90,6 +92,14 @@ pub fn evaluate(
             "skeletal canonical triple counts differ"
         );
         for (local_index, instance) in records.iter().enumerate() {
+            if object_suppression.is_some_and(|suppression| {
+                suppression.active_index as usize == active_index
+                    && suppression.authored_local_id
+                        == grounding.local_ids[active_index][local_index]
+            }) {
+                counts.rejected += 1;
+                continue;
+            }
             let presentation = grounding.presentations[active_index][local_index];
             let logical_index =
                 active_index * crate::load::INSTANCES_PER_REGION as usize + local_index;

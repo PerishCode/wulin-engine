@@ -3,11 +3,15 @@ import { prepareCanonicalFrameSetup } from "../support/canonical-setup.ts";
 import { objectResolutionGates, unavailableObjectResolutionGate } from "../support/object/query.ts";
 import { objectNearestGates, unavailableObjectNearestGate } from "../support/object/nearest.ts";
 import {
+    assertSuppressedFrame,
     assertTargetedFrame,
     assertUntargetedFrame,
+    clearObjectSuppression,
     clearObjectTarget,
     invalidObjectFeedbackGate,
+    invalidObjectSuppressionGate,
     invalidObjectTargetGate,
+    setObjectSuppression,
     setObjectTarget,
     visibleObjectTarget,
 } from "../support/object/feedback.ts";
@@ -27,7 +31,7 @@ import {
     target,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-frame-v9";
+const REVISION = "canonical-frame-v10";
 const COLLECTION = "canonical-frame";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];
@@ -125,6 +129,29 @@ try {
     const cleared = await frame("target-cleared", COLLECTION);
     assertUntargetedFrame(cleared, "canonical target-cleared frame");
     same(cleared.stable, first.stable, "canonical target-cleared baseline replay");
+    const invalidSuppression = await invalidObjectSuppressionGate(identity);
+    const suppressionSet = await setObjectSuppression(identity);
+    const suppressed = await frame("object-suppressed", COLLECTION);
+    const suppressedReplay = await frame("object-suppressed-replay", COLLECTION);
+    assertSuppressedFrame(
+        suppressed,
+        identity,
+        selected.activeIndex,
+        first,
+        "canonical suppressed frame",
+    );
+    assertSuppressedFrame(
+        suppressedReplay,
+        identity,
+        selected.activeIndex,
+        first,
+        "canonical suppressed replay",
+    );
+    same(suppressedReplay.stable, suppressed.stable, "canonical suppression immediate replay");
+    const suppressionCleared = await clearObjectSuppression();
+    const suppressionClearWarm = await frame("suppression-clear-warm", COLLECTION, false, false);
+    const suppressionRestored = await frame("suppression-cleared", COLLECTION);
+    same(suppressionRestored.stable, first.stable, "canonical suppression clear replay");
     acceptance = {
         revision: REVISION,
         outcome: "pass",
@@ -148,6 +175,15 @@ try {
             activatedReplay,
             targetCleared,
             cleared,
+        },
+        objectSuppression: {
+            invalidSuppression,
+            suppressionSet,
+            suppressed,
+            suppressedReplay,
+            suppressionCleared,
+            suppressionClearWarm,
+            suppressionRestored,
         },
         elapsedMilliseconds: performance.now() - started,
     };

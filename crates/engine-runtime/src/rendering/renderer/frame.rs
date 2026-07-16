@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use windows::Win32::Graphics::Direct3D12::{
     D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT,
     D3D12_RESOURCE_STATE_RENDER_TARGET, ID3D12CommandList,
@@ -23,12 +23,19 @@ impl Renderer {
             simulation_status,
             actor,
             object_target_feedback,
+            object_suppression,
             scene,
         } = frame;
         debug_assert!(!capture_object_ids || capture);
         debug_assert!(!probe || self.composition_enabled());
         debug_assert!(!probe || presentation_status.is_some());
         super::object_target::validate(object_target_feedback)?;
+        if let Some(identity) = object_suppression {
+            ensure!(
+                identity.authored_local_id < crate::runtime::CANONICAL_OBJECTS_PER_REGION,
+                "object suppression authored local ID is outside the canonical region capacity"
+            );
+        }
         if self.composition_enabled()
             && let Some(actor) = actor
         {
@@ -61,6 +68,7 @@ impl Renderer {
             None
         };
         let mut rendered_object_target = None;
+        let mut rendered_object_suppression = None;
 
         unsafe {
             transition(
@@ -95,6 +103,11 @@ impl Renderer {
                     snapshot.global_config,
                     projection,
                 )?;
+                rendered_object_suppression = super::object_target::project_suppression(
+                    object_suppression,
+                    snapshot.object_source_namespace,
+                    snapshot.global_config,
+                )?;
                 self.terrain_renderer.record(
                     &self.command_list,
                     TerrainFrame {
@@ -121,6 +134,7 @@ impl Renderer {
                         presentation_tick,
                         actor: actor_projection,
                         object_target: rendered_object_target,
+                        object_suppression: rendered_object_suppression,
                         frame_slot: index as u32,
                     },
                 )?;
@@ -189,6 +203,9 @@ impl Renderer {
             object_target_feedback
                 .expect("projected object target must preserve its validated frame feedback")
         });
+        let projected_object_suppression = rendered_object_suppression.map(|_| {
+            object_suppression.expect("projected object suppression must preserve its frame input")
+        });
         let outcome = if capture || probe {
             unsafe { self.wait_for_value(signal)? };
             let captured_frame = if capture {
@@ -217,6 +234,7 @@ impl Renderer {
                             )?,
                             actor: actor_projection,
                             object_target: rendered_object_target,
+                            object_suppression: rendered_object_suppression,
                         },
                     )
                 }?)
@@ -227,12 +245,14 @@ impl Renderer {
                 capture: captured_frame,
                 composition_probe,
                 object_target_feedback: projected_object_target_feedback,
+                object_suppression: projected_object_suppression,
             }
         } else {
             RenderOutcome {
                 capture: None,
                 composition_probe: None,
                 object_target_feedback: projected_object_target_feedback,
+                object_suppression: projected_object_suppression,
             }
         };
         Ok(outcome)

@@ -27,12 +27,13 @@ impl AsyncResidentRenderer {
         &self,
         origin: TerrainPosition,
         max_distance_q9: u32,
+        excluded_identity: Option<CanonicalObjectIdentity>,
     ) -> Result<CanonicalObjectNearestQuery> {
         let snapshot = self
             .published
             .as_ref()
             .context("canonical object nearest query requires a published snapshot")?;
-        query_nearest_snapshot(snapshot, origin, max_distance_q9)
+        query_nearest_snapshot(snapshot, origin, max_distance_q9, excluded_identity)
     }
 }
 
@@ -75,8 +76,19 @@ fn query_nearest_snapshot(
     snapshot: &PublishedSnapshot,
     origin: TerrainPosition,
     max_distance_q9: u32,
+    excluded_identity: Option<CanonicalObjectIdentity>,
 ) -> Result<CanonicalObjectNearestQuery> {
     require_snapshot_shape(snapshot)?;
+    if let Some(identity) = excluded_identity {
+        ensure!(
+            identity.source_namespace == snapshot.object_source_namespace,
+            "canonical object nearest exclusion belongs to a replaced source"
+        );
+        ensure!(
+            identity.authored_local_id < CANONICAL_OBJECTS_PER_REGION,
+            "canonical object nearest exclusion local ID is outside the fixed region capacity"
+        );
+    }
     ensure!(
         snapshot
             .global_config
@@ -107,6 +119,9 @@ fn query_nearest_snapshot(
             candidate_count = candidate_count
                 .checked_add(1)
                 .context("canonical object nearest candidate count overflowed")?;
+            if Some(object.identity) == excluded_identity {
+                continue;
+            }
             let Some(proximity) = object.proximity_from(origin, max_distance_q9)? else {
                 continue;
             };
@@ -324,8 +339,8 @@ mod tests {
         let second = snapshot_with_radius(641, 419, 1);
         let center = first.global_config.global_center;
         let origin = TerrainPosition::new(center, -4096, -4096).unwrap();
-        let expected = query_nearest_snapshot(&first, origin, 0).unwrap();
-        let reordered = query_nearest_snapshot(&second, origin, 0).unwrap();
+        let expected = query_nearest_snapshot(&first, origin, 0, None).unwrap();
+        let reordered = query_nearest_snapshot(&second, origin, 0, None).unwrap();
         assert_eq!(reordered, expected);
         assert_eq!(expected.candidate_count, 9 * CANONICAL_OBJECTS_PER_REGION);
         let nearest = expected.nearest.unwrap();
@@ -348,7 +363,7 @@ mod tests {
         let snapshot = snapshot(769, 73);
         let region = snapshot.global_config.global_center;
         let exact = TerrainPosition::new(region, -4096, -4096).unwrap();
-        let exact_query = query_nearest_snapshot(&snapshot, exact, 0).unwrap();
+        let exact_query = query_nearest_snapshot(&snapshot, exact, 0, None).unwrap();
         assert_eq!(
             exact_query
                 .nearest
@@ -361,12 +376,12 @@ mod tests {
 
         let displaced = exact.translated_q9(1, 0).unwrap();
         assert_eq!(
-            query_nearest_snapshot(&snapshot, displaced, 0)
+            query_nearest_snapshot(&snapshot, displaced, 0, None)
                 .unwrap()
                 .nearest,
             None
         );
-        let inclusive = query_nearest_snapshot(&snapshot, displaced, 1)
+        let inclusive = query_nearest_snapshot(&snapshot, displaced, 1, None)
             .unwrap()
             .nearest
             .unwrap();
@@ -393,19 +408,19 @@ mod tests {
         let center = snapshot.global_config.global_center;
         let local_origin = TerrainPosition::new(center, 0, 0).unwrap();
         assert_eq!(
-            query_nearest_snapshot(&snapshot, local_origin, 4096)
+            query_nearest_snapshot(&snapshot, local_origin, 4096, None)
                 .unwrap()
                 .candidate_count,
             CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY
         );
 
         let outside = TerrainPosition::new(RegionCoord::new(i64::MIN, i64::MAX), 0, 0).unwrap();
-        assert!(query_nearest_snapshot(&snapshot, outside, u32::MAX).is_err());
+        assert!(query_nearest_snapshot(&snapshot, outside, u32::MAX, None).is_err());
 
         let edge_center = RegionCoord::new(i64::MIN + 2, i64::MAX - 3);
         let signed_edge = snapshot_at(769, 73, 2, edge_center);
         let edge_origin = TerrainPosition::new(edge_center, 0, 0).unwrap();
-        let edge_query = query_nearest_snapshot(&signed_edge, edge_origin, u32::MAX).unwrap();
+        let edge_query = query_nearest_snapshot(&signed_edge, edge_origin, u32::MAX, None).unwrap();
         assert_eq!(
             edge_query.candidate_count,
             CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY
@@ -420,18 +435,51 @@ mod tests {
 
         let mut incomplete = snapshot_with_radius(769, 73, 1);
         incomplete.active_cpu_pages.pop();
-        assert!(query_nearest_snapshot(&incomplete, origin, 4096).is_err());
+        assert!(query_nearest_snapshot(&incomplete, origin, 4096, None).is_err());
 
         let mut duplicate = snapshot(769, 73);
         let page = Arc::get_mut(&mut duplicate.active_cpu_pages[0]).unwrap();
         page.local_ids[1] = page.local_ids[0];
-        assert!(query_nearest_snapshot(&duplicate, origin, 4096).is_err());
+        assert!(query_nearest_snapshot(&duplicate, origin, 4096, None).is_err());
 
         let mut non_lattice = snapshot(769, 73);
         Arc::get_mut(&mut non_lattice.active_cpu_pages[0])
             .unwrap()
             .records[0]
             .position[0] += 1.0 / 1024.0;
-        assert!(query_nearest_snapshot(&non_lattice, origin, 4096).is_err());
+        assert!(query_nearest_snapshot(&non_lattice, origin, 4096, None).is_err());
+    }
+
+    #[test]
+    fn nearest_exact_exclusion() {
+        let snapshot = snapshot_with_radius(769, 73, 2);
+        let region = snapshot.global_config.global_center;
+        let origin = TerrainPosition::new(region, -4096, -4096).unwrap();
+        let first = query_nearest_snapshot(&snapshot, origin, u32::MAX, None)
+            .unwrap()
+            .nearest
+            .unwrap();
+        let excluded =
+            query_nearest_snapshot(&snapshot, origin, u32::MAX, Some(first.object.identity))
+                .unwrap();
+        assert_eq!(
+            excluded.candidate_count,
+            CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY
+        );
+        assert_ne!(
+            excluded.nearest.unwrap().object.identity,
+            first.object.identity
+        );
+
+        let stale = CanonicalObjectIdentity {
+            source_namespace: ObjectSourceNamespace::from_bytes([4; 32]),
+            ..first.object.identity
+        };
+        assert!(query_nearest_snapshot(&snapshot, origin, u32::MAX, Some(stale)).is_err());
+        let invalid = CanonicalObjectIdentity {
+            authored_local_id: CANONICAL_OBJECTS_PER_REGION,
+            ..first.object.identity
+        };
+        assert!(query_nearest_snapshot(&snapshot, origin, u32::MAX, Some(invalid)).is_err());
     }
 }

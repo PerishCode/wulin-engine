@@ -608,6 +608,17 @@ descriptor/copy/readback/synchronization。32.302 秒 `canonical-frame-v9` 对 I
 replacement/departure 禁用与 revisit/return 精确恢复 3,472 pixels，并通过 rollback、restart、32+32
 traversal、4 warm/8 measured resource checkpoint 与 2 lifecycle；active baseline/final 均为 492
 handles/21 threads，private +487,424 bytes，报告 24 files/25,346,259 bytes。
+Experiment 0104 将一次成功 Activated action 提升为 prototype 进程期 capacity-one consumption：
+完整 qualified identity 立即成为 nearest exclusion，既有 12-frame 绿色确认结束后才作为 immutable
+frame suppression；唯一 skeletal cull 在完成 grounding 写入后、frustum/visibility 前淘汰 exact
+active-index/local-ID，因此后续 animation/shadow/occlusion/surface 共用同一减一结果。40.920 秒
+`canonical-frame-v10` 对 ID 987 得到 visible 10,538→10,537、rejected 15,062→15,063、shadow 与
+occlusion source 同步减一，CPU/GPU、replay、clear 全精确；75.750 秒 `canonical-prototype-v22`
+中 native F+Enter+W 把 ID 496 同帧提交为 consumed/exclusion，并将 suppression 正确延迟到确认结束。
+265.079 秒 `canonical-runtime-v12` 证明 A source 抑制、B replacement 失效、A revisit 恢复、同源离窗
+失效与返回恢复；5 warm/8 measured 保持 492 handles/21 threads，private 427,048,960→426,463,232，
+报告 24 files/25,346,262 bytes。没有 canonical source mutation、registry、inventory、dispatcher、
+respawn、persistence、networking 或 Wulin 语义。
 
 ## Project model
 
