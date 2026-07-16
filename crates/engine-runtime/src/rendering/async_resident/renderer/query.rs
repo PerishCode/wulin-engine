@@ -4,6 +4,7 @@ use crate::async_resident::canonical_stable_seed;
 use crate::runtime::{
     CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CANONICAL_OBJECTS_PER_REGION, CanonicalObject,
     CanonicalObjectIdentity, CanonicalObjectNearest, CanonicalObjectNearestQuery,
+    CanonicalObjectResolution,
 };
 use crate::terrain_query::{TERRAIN_POSITION_REGION_SIDE_Q9, TerrainPosition};
 
@@ -11,15 +12,15 @@ use super::{AsyncResidentRenderer, PublishedSnapshot};
 use crate::rendering::async_resident::transfer::CpuObjectPage;
 
 impl AsyncResidentRenderer {
-    pub(in crate::rendering) fn query_canonical_object(
+    pub(in crate::rendering) fn resolve_canonical_object(
         &self,
         identity: CanonicalObjectIdentity,
-    ) -> Result<CanonicalObject> {
+    ) -> Result<CanonicalObjectResolution> {
         let snapshot = self
             .published
             .as_ref()
-            .context("canonical object query requires a published snapshot")?;
-        query_snapshot(snapshot, identity)
+            .context("canonical object resolution requires a published snapshot")?;
+        resolve_snapshot(snapshot, identity)
     }
 
     pub(in crate::rendering) fn query_nearest_canonical_object(
@@ -35,23 +36,21 @@ impl AsyncResidentRenderer {
     }
 }
 
-fn query_snapshot(
+fn resolve_snapshot(
     snapshot: &PublishedSnapshot,
     identity: CanonicalObjectIdentity,
-) -> Result<CanonicalObject> {
-    ensure!(
-        identity.source_namespace == snapshot.object_source_namespace,
-        "canonical object identity source does not match the published snapshot"
-    );
-    require_snapshot_shape(snapshot)?;
+) -> Result<CanonicalObjectResolution> {
     ensure!(
         identity.authored_local_id < CANONICAL_OBJECTS_PER_REGION,
         "canonical object authored local ID is outside the fixed region capacity"
     );
-    let active_index = snapshot
-        .global_config
-        .active_index(identity.region)
-        .context("canonical object query region is outside the published active window")?;
+    require_snapshot_shape(snapshot)?;
+    if identity.source_namespace != snapshot.object_source_namespace {
+        return Ok(CanonicalObjectResolution::SourceReplaced);
+    }
+    let Some(active_index) = snapshot.global_config.active_index(identity.region) else {
+        return Ok(CanonicalObjectResolution::OutsidePublishedWindow);
+    };
     let page = &snapshot.active_cpu_pages[active_index];
     require_page_shape(snapshot, page, active_index)?;
     let mut matched_index = None;
@@ -69,7 +68,7 @@ fn query_snapshot(
         object.identity == identity,
         "published canonical object identity diverged from the requested address"
     );
-    Ok(object)
+    Ok(CanonicalObjectResolution::Resolved(object))
 }
 
 fn query_nearest_snapshot(
@@ -219,98 +218,20 @@ fn planar_delta_q9(origin: TerrainPosition, candidate: TerrainPosition) -> (i128
 }
 
 #[cfg(test)]
+#[path = "query_fixture.rs"]
+mod test_fixture;
+
+#[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
+    use super::test_fixture::{snapshot, snapshot_at, snapshot_with_radius};
     use super::*;
-    use crate::address::GlobalRegionConfig;
     use crate::async_resident::ObjectSourceNamespace;
-    use crate::load::INSTANCES_PER_REGION;
     use crate::region::RegionCoord;
-    use crate::rendering::async_resident::transfer::CpuObjectPage;
-    use crate::resident::{InstanceRecord, PresentationRecord};
-
-    fn snapshot(order_multiplier: u32, order_offset: u32) -> PublishedSnapshot {
-        snapshot_with_radius(order_multiplier, order_offset, 0)
-    }
-
-    fn snapshot_with_radius(
-        order_multiplier: u32,
-        order_offset: u32,
-        active_radius: u32,
-    ) -> PublishedSnapshot {
-        let far = 1_i64 << 40;
-        snapshot_at(
-            order_multiplier,
-            order_offset,
-            active_radius,
-            RegionCoord::new(far, -far),
-        )
-    }
-
-    fn snapshot_at(
-        order_multiplier: u32,
-        order_offset: u32,
-        active_radius: u32,
-        center: RegionCoord,
-    ) -> PublishedSnapshot {
-        let global_config =
-            GlobalRegionConfig::new(center.x, center.z, center.x, center.z, active_radius).unwrap();
-        let stable_seed_namespace = ObjectSourceNamespace::from_bytes([7; 32]);
-        let mut active_cpu_pages = Vec::new();
-        for addressed in global_config.addressed_regions().unwrap() {
-            let stable_seed = canonical_stable_seed(stable_seed_namespace, addressed.global_region);
-            let mut records = Vec::with_capacity(INSTANCES_PER_REGION as usize);
-            let mut local_ids = Vec::with_capacity(INSTANCES_PER_REGION as usize);
-            let mut presentations = Vec::with_capacity(INSTANCES_PER_REGION as usize);
-            for physical in 0..INSTANCES_PER_REGION {
-                let local_id = physical
-                    .wrapping_mul(order_multiplier)
-                    .wrapping_add(order_offset)
-                    % INSTANCES_PER_REGION;
-                let local_x = local_id % 32;
-                let local_z = local_id / 32;
-                let local_q9 = |axis| match axis {
-                    31 => 4096,
-                    value => -4096 + i32::try_from(value * 256).unwrap(),
-                };
-                records.push(InstanceRecord {
-                    position: [
-                        local_q9(local_x) as f32 / 512.0,
-                        -2.0,
-                        local_q9(local_z) as f32 / 512.0,
-                    ],
-                    height: local_id as f32 / 32.0,
-                    region_id: stable_seed,
-                });
-                local_ids.push(local_id);
-                presentations.push(PresentationRecord::static_object(
-                    local_id % 8,
-                    local_id % 64,
-                    local_id & 0xffff,
-                ));
-            }
-            active_cpu_pages.push(Arc::new(CpuObjectPage {
-                global_region: addressed.global_region,
-                records,
-                local_ids,
-                presentations,
-            }));
-        }
-        let active_count = global_config.local_config().unwrap().active_region_count() as usize;
-        PublishedSnapshot {
-            config: global_config.local_config().unwrap(),
-            global_config,
-            object_source_namespace: ObjectSourceNamespace::from_bytes([3; 32]),
-            object_stable_seed_namespace: stable_seed_namespace,
-            object_page_checksums: vec![[0; 32]; active_count],
-            active_slots: (0..u32::try_from(active_count).unwrap()).collect(),
-            active_cpu_pages,
-        }
-    }
 
     #[test]
-    fn lookup_ignores_physical_order() {
+    fn resolution_ignores_physical_order() {
         let first = snapshot(769, 73);
         let second = snapshot(641, 419);
         for local_id in [0, 511, 1023] {
@@ -319,15 +240,18 @@ mod tests {
                 region: first.global_config.global_center,
                 authored_local_id: local_id,
             };
-            let expected = query_snapshot(&first, identity).unwrap();
-            let reordered = query_snapshot(&second, identity).unwrap();
+            let expected = resolve_snapshot(&first, identity).unwrap();
+            let reordered = resolve_snapshot(&second, identity).unwrap();
             assert_eq!(reordered, expected);
-            assert_eq!(expected.identity, identity);
+            let CanonicalObjectResolution::Resolved(object) = expected else {
+                panic!("current in-window identity did not resolve");
+            };
+            assert_eq!(object.identity, identity);
         }
     }
 
     #[test]
-    fn invalid_inputs_fail() {
+    fn typed_lifetime_outcomes() {
         let snapshot = snapshot(769, 73);
         let region = snapshot.global_config.global_center;
         let identity = |source_namespace, region, authored_local_id| CanonicalObjectIdentity {
@@ -336,7 +260,7 @@ mod tests {
             authored_local_id,
         };
         assert!(
-            query_snapshot(
+            resolve_snapshot(
                 &snapshot,
                 identity(
                     snapshot.object_source_namespace,
@@ -346,8 +270,8 @@ mod tests {
             )
             .is_err()
         );
-        assert!(
-            query_snapshot(
+        assert_eq!(
+            resolve_snapshot(
                 &snapshot,
                 identity(
                     snapshot.object_source_namespace,
@@ -355,14 +279,16 @@ mod tests {
                     0,
                 ),
             )
-            .is_err()
+            .unwrap(),
+            CanonicalObjectResolution::OutsidePublishedWindow,
         );
-        assert!(
-            query_snapshot(
+        assert_eq!(
+            resolve_snapshot(
                 &snapshot,
                 identity(ObjectSourceNamespace::from_bytes([4; 32]), region, 0),
             )
-            .is_err()
+            .unwrap(),
+            CanonicalObjectResolution::SourceReplaced,
         );
     }
 
@@ -378,14 +304,42 @@ mod tests {
             region,
             authored_local_id: 0,
         };
-        assert!(query_snapshot(&mismatched, identity).is_err());
+        assert!(resolve_snapshot(&mismatched, identity).is_err());
 
         let mut malformed = snapshot(769, 73);
         Arc::get_mut(&mut malformed.active_cpu_pages[0])
             .unwrap()
             .presentations
             .pop();
-        assert!(query_snapshot(&malformed, identity).is_err());
+        assert!(resolve_snapshot(&malformed, identity).is_err());
+
+        let mut missing = snapshot(769, 73);
+        let missing_ids = &mut Arc::get_mut(&mut missing.active_cpu_pages[0])
+            .unwrap()
+            .local_ids;
+        *missing_ids
+            .iter_mut()
+            .find(|local_id| **local_id == 0)
+            .unwrap() = 1;
+        assert!(resolve_snapshot(&missing, identity).is_err());
+
+        let mut duplicate = snapshot(769, 73);
+        let duplicate_ids = &mut Arc::get_mut(&mut duplicate.active_cpu_pages[0])
+            .unwrap()
+            .local_ids;
+        *duplicate_ids
+            .iter_mut()
+            .find(|local_id| **local_id == 1)
+            .unwrap() = 0;
+        assert!(resolve_snapshot(&duplicate, identity).is_err());
+
+        let mut malformed_snapshot = snapshot(769, 73);
+        malformed_snapshot.active_cpu_pages.pop();
+        let stale = CanonicalObjectIdentity {
+            source_namespace: ObjectSourceNamespace::from_bytes([4; 32]),
+            ..identity
+        };
+        assert!(resolve_snapshot(&malformed_snapshot, stale).is_err());
     }
 
     #[test]

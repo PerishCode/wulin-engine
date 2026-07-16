@@ -1,12 +1,12 @@
 use engine_runtime::{
-    CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CanonicalObjectIdentity, ObjectSourceNamespace,
-    RegionCoord, Runtime, TerrainPosition,
+    CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CanonicalObjectIdentity,
+    CanonicalObjectResolution, ObjectSourceNamespace, RegionCoord, Runtime, TerrainPosition,
 };
 use serde_json::json;
 
 use super::{ControlResult, protocol_error};
 
-pub(super) fn query(
+pub(super) fn resolve(
     runtime: &Runtime,
     source_namespace: [u8; 32],
     region_x: i64,
@@ -14,18 +14,22 @@ pub(super) fn query(
     authored_local_id: u32,
 ) -> ControlResult {
     runtime
-        .query_canonical_object(CanonicalObjectIdentity {
+        .resolve_canonical_object(CanonicalObjectIdentity {
             source_namespace: ObjectSourceNamespace::from_bytes(source_namespace),
             region: RegionCoord::new(region_x, region_z),
             authored_local_id,
         })
-        .and_then(|object| {
-            let terrain_position = object.terrain_position()?;
+        .and_then(|resolution| {
+            let terrain_position = match resolution {
+                CanonicalObjectResolution::Resolved(object) => Some(object.terrain_position()?),
+                CanonicalObjectResolution::SourceReplaced
+                | CanonicalObjectResolution::OutsidePublishedWindow => None,
+            };
             Ok(json!({
-                "revision": "source-qualified-canonical-object-v1",
-                "object": object,
+                "revision": "typed-canonical-object-resolution-v1",
+                "resolution": resolution,
                 "terrainPosition": terrain_position,
-                "perQueryAllocationBytes": 0,
+                "perResolutionAllocationBytes": 0,
                 "sourceReadCount": 0,
                 "gpuCopyCount": 0,
                 "gpuReadbackCount": 0,
@@ -33,7 +37,7 @@ pub(super) fn query(
                 "synchronizationCount": 0,
             }))
         })
-        .map_err(|error| protocol_error("canonical_object_query_failed", error))
+        .map_err(|error| protocol_error("canonical_object_resolution_failed", error))
 }
 
 pub(super) fn nearest(

@@ -87,7 +87,7 @@ pub enum ControlKind {
     CanonicalPrefetchEnable,
     CanonicalPrefetchDisable,
     CanonicalProbe,
-    CanonicalObjectQuery {
+    CanonicalObjectResolve {
         source_namespace: [u8; 32],
         region_x: i64,
         region_z: i64,
@@ -233,7 +233,7 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "canonical.prefetch.enable" => Ok(ControlKind::CanonicalPrefetchEnable),
         "canonical.prefetch.disable" => Ok(ControlKind::CanonicalPrefetchDisable),
         "canonical.probe" => Ok(ControlKind::CanonicalProbe),
-        "canonical.objects.query" => objects::query(payload),
+        "canonical.objects.resolve" => objects::resolve(payload),
         "canonical.objects.nearest" => objects::nearest(payload),
         "canonical.terrain.height" => terrain::height(payload),
         "canonical.terrain.contact" => terrain::contact(payload),

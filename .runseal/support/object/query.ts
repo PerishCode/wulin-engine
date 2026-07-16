@@ -8,7 +8,7 @@ const HEADER_BYTES = 96;
 const INDEX_ENTRY_BYTES = 64;
 const REGION_BYTES = RECORD_COUNT * (RECORD_BYTES + IDENTITY_BYTES + PRESENTATION_BYTES);
 const ZERO_SOURCE_NAMESPACE = "00".repeat(32);
-export const OBJECT_QUERY_SAMPLE_IDS = [0, 31, 511, 992, 1_023];
+export const OBJECT_RESOLUTION_SAMPLE_IDS = [0, 31, 511, 992, 1_023];
 
 type SourceIndex = {
     bytes: Uint8Array;
@@ -18,73 +18,108 @@ type SourceIndex = {
 
 const sourceIndexes = new Map<string, SourceIndex>();
 
-function requireQueryRejection(value: Json, label: string): void {
+function requireResolutionFailure(value: Json, label: string): void {
     if (
         typeof value.error !== "string" ||
-        !value.error.startsWith("canonical_object_query_failed: ")
-    ) fail(`${label} returned the wrong canonical-object-query rejection`);
+        !value.error.startsWith("canonical_object_resolution_failed: ")
+    ) fail(`${label} returned the wrong canonical-object-resolution failure`);
 }
 
-function requireZeroRuntimeWork(value: Json, label: string): void {
+function requireZeroResolutionWork(value: Json, label: string): void {
     if (
-        value.perQueryAllocationBytes !== 0 || value.sourceReadCount !== 0 ||
+        value.perResolutionAllocationBytes !== 0 || value.sourceReadCount !== 0 ||
         value.gpuCopyCount !== 0 || value.gpuReadbackCount !== 0 ||
         value.fenceWaitCount !== 0 || value.synchronizationCount !== 0
     ) fail(`${label} performed work outside the committed CPU object snapshot`);
 }
 
-export async function unavailableObjectQueryGate(base: [number, number]): Promise<Json> {
-    return await rejectedObjectQuery(
+function requireResolutionOutcome(value: Json, expected: string, label: string): void {
+    const resolution = object(value, "resolution");
+    if (resolution.outcome !== expected) {
+        fail(`${label} returned resolution outcome ${JSON.stringify(resolution.outcome)}`);
+    }
+    if (expected !== "resolved" && value.terrainPosition !== null) {
+        fail(`${label} exposed a terrain position for a non-resolved identity`);
+    }
+}
+
+export function resolvedObject(value: Json): Json {
+    requireResolutionOutcome(value, "resolved", "resolved canonical object");
+    return object(object(value, "resolution"), "object");
+}
+
+export async function unavailableObjectResolutionGate(base: [number, number]): Promise<Json> {
+    return await failedObjectResolution(
         ZERO_SOURCE_NAMESPACE,
         base,
         0,
-        "pre-publication object query",
+        "pre-publication object resolution",
     );
 }
 
-export async function rejectedObjectQuery(
+export async function failedObjectResolution(
     sourceNamespace: string,
     region: [number, number],
     localId: number,
     label: string,
 ): Promise<Json> {
-    const rejected = await rejectedEvent("canonical.objects.query", {
+    const rejected = await rejectedEvent("canonical.objects.resolve", {
         source_namespace: sourceNamespace,
         region_x: region[0],
         region_z: region[1],
         authored_local_id: localId,
     });
-    requireQueryRejection(rejected, label);
+    requireResolutionFailure(rejected, label);
     return rejected;
 }
 
-export async function objectQueryGates(
+export async function resolveObjectIdentity(
+    sourceNamespace: string,
+    region: [number, number],
+    localId: number,
+): Promise<Json> {
+    const value = await event("canonical.objects.resolve", {
+        source_namespace: sourceNamespace,
+        region_x: region[0],
+        region_z: region[1],
+        authored_local_id: localId,
+    });
+    if (value.revision !== "typed-canonical-object-resolution-v1") {
+        fail(`object identity resolution ${region[0]},${region[1]}:${localId} revision diverged`);
+    }
+    requireZeroResolutionWork(
+        value,
+        `object identity resolution ${region[0]},${region[1]}:${localId}`,
+    );
+    return value;
+}
+
+export async function objectResolutionGates(
     source: string,
     base: [number, number],
     unavailable: Json,
 ): Promise<Json> {
     const sourceNamespace = await objectSourceNamespace(source);
-    const invalidLocalId = await rejectedEvent("canonical.objects.query", {
+    const invalidLocalId = await rejectedEvent("canonical.objects.resolve", {
         source_namespace: sourceNamespace,
         region_x: base[0],
         region_z: base[1],
         authored_local_id: RECORD_COUNT,
     });
-    const outside = await rejectedEvent("canonical.objects.query", {
-        source_namespace: sourceNamespace,
-        region_x: base[0] + 3,
-        region_z: base[1],
-        authored_local_id: 0,
-    });
-    requireQueryRejection(invalidLocalId, "out-of-range authored local ID");
-    requireQueryRejection(outside, "outside-window object query");
-    const sourceMismatch = await rejectedObjectQuery(
+    const outside = await resolveObjectIdentity(sourceNamespace, [base[0] + 3, base[1]], 0);
+    requireResolutionFailure(invalidLocalId, "out-of-range authored local ID");
+    requireResolutionOutcome(
+        outside,
+        "outside-published-window",
+        "outside-window object resolution",
+    );
+    const sourceMismatch = await resolveObjectIdentity(
         ZERO_SOURCE_NAMESPACE,
         base,
         0,
-        "object source mismatch",
     );
-    const unqualified = await rejectedEvent("canonical.objects.query", {
+    requireResolutionOutcome(sourceMismatch, "source-replaced", "object source replacement");
+    const unqualified = await rejectedEvent("canonical.objects.resolve", {
         region_x: base[0],
         region_z: base[1],
         authored_local_id: 0,
@@ -93,45 +128,58 @@ export async function objectQueryGates(
         typeof unqualified.error !== "string" ||
         !unqualified.error.startsWith("invalid_payload: ")
     ) {
-        fail("unqualified canonical object query was not rejected at the current schema");
+        fail("unqualified canonical object resolution was not rejected at the current schema");
     }
-    const samples = await queryObjectSamples(source, base, OBJECT_QUERY_SAMPLE_IDS);
-    return { unavailable, invalidLocalId, outside, sourceMismatch, unqualified, samples };
+    const retiredVerb = await rejectedEvent("canonical.objects.query", {
+        source_namespace: sourceNamespace,
+        region_x: base[0],
+        region_z: base[1],
+        authored_local_id: 0,
+    });
+    if (typeof retiredVerb.error !== "string" || !retiredVerb.error.startsWith("unknown_event: ")) {
+        fail("retired canonical.objects.query verb remains live");
+    }
+    const samples = await resolveObjectSamples(source, base, OBJECT_RESOLUTION_SAMPLE_IDS);
+    return {
+        unavailable,
+        invalidLocalId,
+        outside,
+        sourceMismatch,
+        unqualified,
+        retiredVerb,
+        samples,
+    };
 }
 
-export async function queryObjectSamples(
+export async function resolveObjectSamples(
     source: string,
     region: [number, number],
     localIds: number[],
 ): Promise<Json[]> {
     const samples: Json[] = [];
     for (const localId of localIds) {
-        samples.push(await queryObject(source, region, localId));
+        samples.push(await resolveObject(source, region, localId));
     }
     return samples;
 }
 
-export async function queryObject(
+export async function resolveObject(
     source: string,
     region: [number, number],
     localId: number,
 ): Promise<Json> {
     const sourceNamespace = await objectSourceNamespace(source);
-    const value = await event("canonical.objects.query", {
-        source_namespace: sourceNamespace,
-        region_x: region[0],
-        region_z: region[1],
-        authored_local_id: localId,
-    });
-    if (value.revision !== "source-qualified-canonical-object-v1") {
-        fail(`object query ${region[0]},${region[1]}:${localId} revision diverged`);
-    }
-    requireZeroRuntimeWork(value, `object query ${region[0]},${region[1]}:${localId}`);
+    const value = await resolveObjectIdentity(sourceNamespace, region, localId);
+    requireResolutionOutcome(
+        value,
+        "resolved",
+        `object resolution ${region[0]},${region[1]}:${localId}`,
+    );
     const expected = await readObjectOracle(source, region, localId);
     same(
-        object(value, "object"),
+        resolvedObject(value),
         object(expected, "object"),
-        `object query ${region[0]},${region[1]}:${localId}`,
+        `object resolution ${region[0]},${region[1]}:${localId}`,
     );
     same(
         object(value, "terrainPosition"),
@@ -141,26 +189,26 @@ export async function queryObject(
     return value;
 }
 
-export function sameObjectQueries(actual: Json[], expected: Json[], label: string): void {
+export function sameObjectResolutions(actual: Json[], expected: Json[], label: string): void {
     same(
-        actual.map((value) => object(value, "object")),
-        expected.map((value) => object(value, "object")),
+        actual.map(resolvedObject),
+        expected.map(resolvedObject),
         label,
     );
 }
 
-export function sameObjectQueryContent(
+export function sameObjectResolutionContent(
     actual: Json[],
     expected: Json[],
     label: string,
 ): void {
     same(
-        actual.map((value) => canonicalObjectContent(object(value, "object"))),
-        expected.map((value) => canonicalObjectContent(object(value, "object"))),
+        actual.map((value) => canonicalObjectContent(resolvedObject(value))),
+        expected.map((value) => canonicalObjectContent(resolvedObject(value))),
         label,
     );
-    const actualSources = actual.map((value) => canonicalObjectSource(object(value, "object")));
-    const expectedSources = expected.map((value) => canonicalObjectSource(object(value, "object")));
+    const actualSources = actual.map((value) => canonicalObjectSource(resolvedObject(value)));
+    const expectedSources = expected.map((value) => canonicalObjectSource(resolvedObject(value)));
     if (actualSources.some((source, index) => source === expectedSources[index])) {
         fail(`${label} did not change every source-qualified identity`);
     }

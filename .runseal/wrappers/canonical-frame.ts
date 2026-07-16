@@ -1,6 +1,6 @@
 import { assertCanonicalFrameReplay } from "../support/canonical-frame.ts";
 import { prepareCanonicalFrameSetup } from "../support/canonical-setup.ts";
-import { objectQueryGates, unavailableObjectQueryGate } from "../support/object/query.ts";
+import { objectResolutionGates, unavailableObjectResolutionGate } from "../support/object/query.ts";
 import { objectNearestGates, unavailableObjectNearestGate } from "../support/object/nearest.ts";
 import {
     assertObjectCopies,
@@ -15,7 +15,7 @@ import {
     target,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-frame-v5";
+const REVISION = "canonical-frame-v6";
 const COLLECTION = "canonical-frame";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];
@@ -34,15 +34,15 @@ try {
     const setup = await prepareCanonicalFrameSetup(COLLECTION, [BASE]);
     report = setup.paths.report;
     await startClean();
-    const unavailableObjectQuery = await unavailableObjectQueryGate(BASE);
+    const unavailableObjectResolution = await unavailableObjectResolutionGate(BASE);
     const unavailableObjectNearest = await unavailableObjectNearestGate(BASE);
     await openSources(setup.paths.terrain, setup.paths.objects);
     const publication = await publish(target(BASE));
     assertObjectCopies(publication, 25, "canonical frame publication");
-    const objectQuery = await objectQueryGates(
+    const objectResolution = await objectResolutionGates(
         setup.paths.objects,
         BASE,
-        unavailableObjectQuery,
+        unavailableObjectResolution,
     );
     const objectNearest = await objectNearestGates(
         setup.paths.objects,
@@ -57,7 +57,7 @@ try {
         outcome: "pass",
         storage: setup.storage,
         publication,
-        objectQuery,
+        objectResolution,
         objectNearest,
         first,
         replay,

@@ -23,7 +23,7 @@ pub use actor::{ActorHandle, RuntimeActor};
 pub use object_query::{
     CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY, CANONICAL_OBJECTS_PER_REGION, CanonicalObject,
     CanonicalObjectIdentity, CanonicalObjectNearest, CanonicalObjectNearestQuery,
-    CanonicalObjectPresentation,
+    CanonicalObjectPresentation, CanonicalObjectResolution,
 };
 pub use region_format::PresentationRecord as ActorPresentation;
 use simulation_actor::prepare_simulation_actor;
@@ -215,11 +215,11 @@ impl Runtime {
         self.renderer.query_terrain_height(position)
     }
 
-    pub fn query_canonical_object(
+    pub fn resolve_canonical_object(
         &self,
         identity: CanonicalObjectIdentity,
-    ) -> Result<CanonicalObject> {
-        self.renderer.query_canonical_object(identity)
+    ) -> Result<CanonicalObjectResolution> {
+        self.renderer.resolve_canonical_object(identity)
     }
 
     pub fn query_nearest_canonical_object(
