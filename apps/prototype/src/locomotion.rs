@@ -20,7 +20,7 @@ pub(crate) struct Command {
     pub(crate) running: bool,
 }
 
-pub(crate) fn command(input: &HostInput) -> Command {
+pub(crate) fn command(input: &HostInput, orbit_index: u8) -> Command {
     let x = i32::from(input.is_held(D)) - i32::from(input.is_held(A));
     let z = i32::from(input.is_held(S)) - i32::from(input.is_held(W));
     let moving = x != 0 || z != 0;
@@ -36,9 +36,18 @@ pub(crate) fn command(input: &HostInput) -> Command {
     } else {
         WALK_CARDINAL_DELTA_Q9
     };
+    let local_x_q9 = x * component;
+    let local_z_q9 = z * component;
+    let (delta_x_q9, delta_z_q9) = match orbit_index {
+        0 => (local_x_q9, local_z_q9),
+        1 => (local_z_q9, -local_x_q9),
+        2 => (-local_x_q9, -local_z_q9),
+        3 => (-local_z_q9, local_x_q9),
+        _ => unreachable!(),
+    };
     Command {
-        delta_x_q9: x * component,
-        delta_z_q9: z * component,
+        delta_x_q9,
+        delta_z_q9,
         step_up_limit_q16: STEP_UP_LIMIT_Q16,
         running,
     }

@@ -70,7 +70,8 @@ unsafe fn run() -> Result<()> {
         let sample = clock.sample(&window::drain_activation())?;
         jump_policy.observe_sample(sample);
         jump_policy.ingest(input.was_pressed(SPACE));
-        let requested_locomotion = locomotion::command(&input);
+        let camera_candidate = camera_policy.candidate(&input);
+        let requested_locomotion = locomotion::command(&input, camera_candidate.rig().orbit_index);
         let actor = runtime
             .read_actor(runtime_actor.handle)
             .context("prototype current actor read failed")?;
@@ -109,7 +110,6 @@ unsafe fn run() -> Result<()> {
         let completed = advance
             .filter(|advance| advance.simulation.step_count != 0)
             .map(|advance| (sample, clock.status(), advance, command));
-        let camera_candidate = camera_policy.candidate(&input);
         let anchored_rig = camera_candidate.rig();
         runtime.set_actor_relative_camera(
             runtime_actor.handle,
