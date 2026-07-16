@@ -3,11 +3,20 @@ import { fail, type Json, number, object, same } from "../../canonical-runtime.t
 const ACTION_RADIUS_Q9 = 512;
 const ACKNOWLEDGEMENT_FRAME_COUNT = 12;
 
+function facingRule(driver: Json): Json {
+    const rule = object(driver, "facingRule");
+    if (
+        rule.domain !== "committed-eight-way-yaw" ||
+        rule.nonCoincidentDot !== "positive" || rule.coincidentEligible !== true
+    ) fail("prototype object interaction facing rule diverged");
+    return rule;
+}
+
 export function idleInteractionInvariant(launch: Json): Json {
     const driver = object(object(launch, "readiness"), "object_interaction_driver");
     const status = object(driver, "status");
     if (
-        driver.revision !== "live-prototype-object-consumption-v1" ||
+        driver.revision !== "live-prototype-object-facing-v1" ||
         driver.input !== "Enter" ||
         number(driver, "maxDistanceQ9") !== ACTION_RADIUS_Q9 ||
         number(driver, "acknowledgementFrameCount") !== ACKNOWLEDGEMENT_FRAME_COUNT ||
@@ -20,10 +29,12 @@ export function idleInteractionInvariant(launch: Json): Json {
         number(object(driver, "suppression"), "projectedFrameCount") !== 0 ||
         driver.copiedObjectState !== false
     ) fail("prototype idle object interaction driver diverged");
+    facingRule(driver);
     return {
         revision: driver.revision,
         input: driver.input,
         maxDistanceQ9: ACTION_RADIUS_Q9,
+        facingRule: facingRule(driver),
         acknowledgementFrameCount: ACKNOWLEDGEMENT_FRAME_COUNT,
         pending: false,
         acknowledgement: null,
@@ -44,13 +55,14 @@ export function interactionInvariant(launch: Json): Json {
     const status = object(driver, "status");
     const feedback = object(attempt, "feedback");
     const proximity = object(attempt, "proximity");
+    const facing = object(attempt, "facing");
     const observation = object(object(readiness, "object_observation_driver"), "observation");
     const nearest = object(object(observation, "query"), "nearest");
     const identity = object(object(nearest, "object"), "identity");
     const acknowledgement = object(status, "acknowledgement");
 
     if (
-        driver.revision !== "live-prototype-object-consumption-v1" ||
+        driver.revision !== "live-prototype-object-facing-v1" ||
         driver.input !== "Enter" ||
         number(driver, "maxDistanceQ9") !== ACTION_RADIUS_Q9 ||
         number(driver, "acknowledgementFrameCount") !== ACKNOWLEDGEMENT_FRAME_COUNT ||
@@ -67,6 +79,7 @@ export function interactionInvariant(launch: Json): Json {
         number(object(driver, "suppression"), "projectedFrameCount") !== 0 ||
         driver.copiedObjectState !== false
     ) fail("prototype object interaction driver diverged");
+    facingRule(driver);
 
     same(object(feedback, "identity"), identity, "prototype object action retained identity");
     same(object(completion, "feedback"), feedback, "prototype object action frame completion");
@@ -87,11 +100,25 @@ export function interactionInvariant(launch: Json): Json {
         },
         "prototype object action exact proximity",
     );
+    const actorPresentation = object(
+        object(
+            object(object(object(readiness, "simulation_driver"), "advance"), "actor"),
+            "output",
+        ),
+        "presentation",
+    );
+    if (
+        number(facing, "yawQ16") !== number(actorPresentation, "yawQ16") ||
+        number(facing, "directionX") !== 1 || number(facing, "directionZ") !== 0 ||
+        number(facing, "dotQ9") !== number(proximity, "deltaXQ9") ||
+        number(facing, "dotQ9") <= 0
+    ) fail("prototype object action exact committed facing diverged");
 
     return {
         revision: driver.revision,
         input: driver.input,
         maxDistanceQ9: ACTION_RADIUS_Q9,
+        facingRule: facingRule(driver),
         acknowledgementFrameCount: ACKNOWLEDGEMENT_FRAME_COUNT,
         attempt,
         completion,
@@ -102,7 +129,43 @@ export function interactionInvariant(launch: Json): Json {
         suppressionDeferredUntilAcknowledged: true,
         exactRetainedIdentity: true,
         exactCommittedOriginProximity: true,
+        exactCommittedFacing: true,
         projectedFrameCommit: true,
+        copiedObjectState: false,
+    };
+}
+
+export function sideFacingInteractionInvariant(launch: Json): Json {
+    const driver = object(object(launch, "readiness"), "object_interaction_driver");
+    const attempt = object(driver, "attempt");
+    const status = object(driver, "status");
+    const suppression = object(driver, "suppression");
+    if (
+        driver.revision !== "live-prototype-object-facing-v1" ||
+        driver.input !== "Enter" ||
+        number(driver, "maxDistanceQ9") !== ACTION_RADIUS_Q9 ||
+        number(driver, "acknowledgementFrameCount") !== ACKNOWLEDGEMENT_FRAME_COUNT ||
+        attempt.outcome !== "ineligible" || attempt.reason !== "outside-facing" ||
+        driver.completion !== null || status.pending !== false ||
+        status.acknowledgement !== null || number(status, "committedCount") !== 0 ||
+        number(status, "ineligibleCount") !== 1 || status.consumed !== null ||
+        number(driver, "activatedFrameCount") !== 0 || driver.nearestExclusion !== null ||
+        suppression.submitted !== null || suppression.projected !== null ||
+        number(suppression, "projectedFrameCount") !== 0 || driver.copiedObjectState !== false
+    ) fail("prototype side-facing object interaction driver diverged");
+    return {
+        revision: driver.revision,
+        input: driver.input,
+        maxDistanceQ9: ACTION_RADIUS_Q9,
+        facingRule: facingRule(driver),
+        attempt,
+        pending: false,
+        committedCount: 0,
+        ineligibleCount: 1,
+        consumed: null,
+        activatedFrameCount: 0,
+        nearestExclusion: null,
+        exactSideRejection: true,
         copiedObjectState: false,
     };
 }

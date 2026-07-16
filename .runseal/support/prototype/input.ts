@@ -3,7 +3,7 @@ import { fail, type Json, root } from "../canonical-runtime.ts";
 const decoder = new TextDecoder();
 
 type PrototypeKey = {
-    key: "E" | "Enter" | "Escape" | "F" | "Shift" | "Space" | "W";
+    key: "D" | "E" | "Enter" | "Escape" | "F" | "Shift" | "Space" | "W";
     virtualKey: number;
 };
 
@@ -144,7 +144,19 @@ export async function holdOrbitForwardKeys(processId: number): Promise<Json> {
     );
 }
 
-export async function postObserveActionForward(processId: number): Promise<Json> {
+export async function postObserveActionFacing(processId: number): Promise<Json> {
+    return await postPrototypeKeys(
+        processId,
+        [
+            { key: "F", virtualKey: 0x46 },
+            { key: "Enter", virtualKey: 0x0D },
+            { key: "D", virtualKey: 0x44 },
+        ],
+        true,
+    );
+}
+
+export async function postObserveActionSide(processId: number): Promise<Json> {
     return await postPrototypeKeys(
         processId,
         [
@@ -173,7 +185,8 @@ export type StartupInput =
     | "camera-forward"
     | "forward"
     | "jump"
-    | "observe-action-forward"
+    | "observe-action-facing"
+    | "observe-action-side"
     | "run-forward";
 
 export async function applyStartupInput(
@@ -189,8 +202,10 @@ export async function applyStartupInput(
             return await holdPrototypeForwardKey(processId);
         case "jump":
             return await pressPrototypeJump(processId);
-        case "observe-action-forward":
-            return await postObserveActionForward(processId);
+        case "observe-action-facing":
+            return await postObserveActionFacing(processId);
+        case "observe-action-side":
+            return await postObserveActionSide(processId);
         case "run-forward":
             return await holdRunForwardKeys(processId);
         case undefined:
