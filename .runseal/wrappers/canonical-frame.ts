@@ -1,5 +1,6 @@
 import { assertCanonicalFrameReplay } from "../support/canonical-frame.ts";
 import { prepareCanonicalFrameSetup } from "../support/canonical-setup.ts";
+import { objectQueryGates, unavailableObjectQueryGate } from "../support/object-query.ts";
 import {
     assertObjectCopies,
     fail,
@@ -13,7 +14,7 @@ import {
     target,
 } from "../support/canonical-runtime.ts";
 
-const REVISION = "canonical-frame-v1";
+const REVISION = "canonical-frame-v2";
 const COLLECTION = "canonical-frame";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];
@@ -32,9 +33,15 @@ try {
     const setup = await prepareCanonicalFrameSetup(COLLECTION, [BASE]);
     report = setup.paths.report;
     await startClean();
+    const unavailableObjectQuery = await unavailableObjectQueryGate(BASE);
     await openSources(setup.paths.terrain, setup.paths.objects);
     const publication = await publish(target(BASE));
     assertObjectCopies(publication, 25, "canonical frame publication");
+    const objectQuery = await objectQueryGates(
+        setup.paths.objects,
+        BASE,
+        unavailableObjectQuery,
+    );
     const first = await frame("baseline", COLLECTION);
     const replay = await frame("replay", COLLECTION);
     assertCanonicalFrameReplay(first, replay);
@@ -43,6 +50,7 @@ try {
         outcome: "pass",
         storage: setup.storage,
         publication,
+        objectQuery,
         first,
         replay,
         elapsedMilliseconds: performance.now() - started,

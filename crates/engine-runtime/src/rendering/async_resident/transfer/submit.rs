@@ -1,4 +1,5 @@
 use std::ptr;
+use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
 use windows::Win32::Graphics::Direct3D12::*;
@@ -12,7 +13,7 @@ use crate::resident::{
     REGION_IDENTITY_BYTES, REGION_INSTANCE_BYTES, REGION_PRESENTATION_BYTES, RegionUpload, as_bytes,
 };
 
-use super::{AsyncTransfer, PendingTransfer, ensure_transaction};
+use super::{AsyncTransfer, CpuObjectPage, PendingTransfer, ensure_transaction};
 
 impl AsyncTransfer {
     pub unsafe fn submit(
@@ -134,6 +135,22 @@ impl AsyncTransfer {
         }
         unsafe { self.copy_list.Close() }.context("async copy list close failed")?;
 
+        let mut next_cpu_pages = self.cpu_pages.clone();
+        for (assignment, upload) in plan.layout.assignments.iter().zip(plan.uploads) {
+            next_cpu_pages[upload.slot as usize] = Some(Arc::new(CpuObjectPage {
+                global_region: assignment.global_region,
+                records: upload.records,
+                local_ids: upload.local_ids,
+                presentations: upload.presentations,
+            }));
+        }
+        for slot in &plan.layout.active_slots {
+            anyhow::ensure!(
+                next_cpu_pages[*slot as usize].is_some(),
+                "async active object slot has no CPU payload"
+            );
+        }
+
         let gate_fence = self.armed_gate;
         if let Some(value) = gate_fence {
             unsafe { self.copy_queue.Wait(&self.gate_fence, value) }
@@ -171,18 +188,17 @@ impl AsyncTransfer {
         };
         self.pending = Some(PendingTransfer {
             next_cache: plan.layout.next_cache,
+            next_cpu_pages,
             active_slots: plan.layout.active_slots,
-            uploaded_slots: plan.uploads.iter().map(|upload| upload.slot).collect(),
-            identity_transition_slots: plan
-                .uploads
+            uploaded_slots: plane_copy_slots.clone(),
+            identity_transition_slots: plane_copy_slots
                 .iter()
-                .map(|upload| upload.slot)
+                .copied()
                 .filter(|slot| !self.identity_shader_slots[*slot as usize])
                 .collect(),
-            presentation_transition_slots: plan
-                .uploads
+            presentation_transition_slots: plane_copy_slots
                 .iter()
-                .map(|upload| upload.slot)
+                .copied()
                 .filter(|slot| !self.presentation_shader_slots[*slot as usize])
                 .collect(),
             report: report.clone(),

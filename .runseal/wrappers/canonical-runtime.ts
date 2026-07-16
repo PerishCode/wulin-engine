@@ -50,6 +50,14 @@ import {
 import { compatibilityRemovalGates } from "../support/compatibility-removal.ts";
 import { actorGates } from "../support/actor/lifecycle.ts";
 import { simulationActorGates } from "../support/actor/simulation.ts";
+import {
+    objectQueryGates,
+    queryObject,
+    queryObjectSamples,
+    rejectedObjectQuery,
+    sameObjectQueries,
+    unavailableObjectQueryGate,
+} from "../support/object-query.ts";
 
 const REVISION = "canonical-runtime-v1";
 const COLLECTION = "canonical-runtime";
@@ -88,11 +96,14 @@ try {
     await startClean();
     const idle = await status();
     const compatibilityRemoval = await compatibilityRemovalGates(COLLECTION, idle);
+    const unavailableObjectQuery = await unavailableObjectQueryGate(BASE);
     const unavailableTerrainQuery = await unavailableTerrainQueryGate(BASE);
     const unavailableTerrainContact = await unavailableContact(BASE);
     await openSources(TERRAIN, OBJECTS_A);
     const basePublication = await publish(target(BASE));
     assertObjectCopies(basePublication, 25, "cold publication");
+    const objectQuery = await objectQueryGates(OBJECTS_A, BASE, unavailableObjectQuery);
+    const orderAObjectQueries = objectQuery.samples as Json[];
     const orderA = await frame("order-a", COLLECTION);
     const terrainQuery = await terrainQueryGates(BASE, orderA, unavailableTerrainQuery);
     const terrainContact = await contactGates(BASE, orderA, unavailableTerrainContact);
@@ -167,17 +178,39 @@ try {
     await event("source.objects.open", { path: OBJECTS_B });
     const orderBPublication = await publish(target(BASE));
     assertObjectCopies(orderBPublication, 25, "order B source publication");
+    const orderBObjectQueries = await queryObjectSamples(
+        OBJECTS_B,
+        BASE,
+        [0, 511, 1_023],
+    );
+    sameObjectQueries(orderBObjectQueries, orderAObjectQueries, "physical object order A/B query");
     const orderB = await frame("order-b", COLLECTION);
     same(orderB.stable, orderA.stable, "physical object order A/B behavior");
 
     await event("source.objects.open", { path: OBJECTS_A });
     const revisitPublication = await publish(target(BASE));
     assertObjectCopies(revisitPublication, 0, "order A source revisit");
+    const revisitObjectQueries = await queryObjectSamples(
+        OBJECTS_A,
+        BASE,
+        [0, 511, 1_023],
+    );
+    sameObjectQueries(revisitObjectQueries, orderAObjectQueries, "object source revisit query");
     const revisit = await frame("order-a-revisit", COLLECTION);
     same(revisit.stable, orderA.stable, "object source revisit");
 
+    const retiredAdjacentRegion: Coord = [BASE[0] - 2, BASE[1]];
+    const admittedAdjacentRegion: Coord = [BASE[0] + 3, BASE[1]];
+    const adjacentOldBefore = await queryObject(OBJECTS_A, retiredAdjacentRegion, 0);
     const adjacentPublication = await publish(target([BASE[0] + 1, BASE[1]]));
     assertObjectCopies(adjacentPublication, 5, "adjacent publication");
+    const adjacentOldAfter = await rejectedObjectQuery(
+        retiredAdjacentRegion,
+        0,
+        "retired adjacent-window object query",
+    );
+    const adjacentNew = await queryObject(OBJECTS_A, admittedAdjacentRegion, 0);
+    const adjacentObjectQuery = { adjacentOldBefore, adjacentOldAfter, adjacentNew };
     const adjacent = await frame("adjacent", COLLECTION);
     const diagonalBasePublication = await publish(target([BASE[0] + 40, BASE[1]]));
     assertObjectCopies(diagonalBasePublication, 25, "diagonal cold base");
@@ -221,12 +254,20 @@ try {
         );
     }
     const beforeFailure = await frame("failure-before", COLLECTION);
+    const failurePublishedRegion: Coord = [BASE[0] + 5, BASE[1]];
+    const failureObjectBefore = await queryObject(OBJECTS_A, failurePublishedRegion, 511);
     await event("source.objects.open", { path: OBJECTS_CORRUPT });
     const objectFailure = await failedPair(
         target([BASE[0] + 70, BASE[1]]),
         beforeFailure,
         COLLECTION,
         "object-corrupt",
+    );
+    const failureObjectAfterObject = await queryObject(OBJECTS_A, failurePublishedRegion, 511);
+    sameObjectQueries(
+        [failureObjectAfterObject],
+        [failureObjectBefore],
+        "object-corrupt rollback query",
     );
     await event("source.objects.open", { path: OBJECTS_A });
     await event("source.terrain.open", { path: TERRAIN_CORRUPT });
@@ -236,6 +277,17 @@ try {
         COLLECTION,
         "terrain-corrupt",
     );
+    const failureObjectAfterTerrain = await queryObject(OBJECTS_A, failurePublishedRegion, 511);
+    sameObjectQueries(
+        [failureObjectAfterTerrain],
+        [failureObjectBefore],
+        "terrain-corrupt rollback object query",
+    );
+    const failureObjectQuery = {
+        before: failureObjectBefore,
+        afterObjectFailure: failureObjectAfterObject,
+        afterTerrainFailure: failureObjectAfterTerrain,
+    };
     await event("source.terrain.open", { path: TERRAIN });
 
     const firstProcessId = number(await status(), "processId");
@@ -244,6 +296,12 @@ try {
     await lifecycle("start");
     await openSources(TERRAIN, OBJECTS_A);
     const restartPublication = await publish(target(BASE));
+    const restartObjectQueries = await queryObjectSamples(
+        OBJECTS_A,
+        BASE,
+        [0, 511, 1_023],
+    );
+    sameObjectQueries(restartObjectQueries, orderAObjectQueries, "canonical restart object query");
     const restarted = await frame("restart", COLLECTION);
     same(restarted.stable, orderA.stable, "canonical restart frame");
 
@@ -324,6 +382,7 @@ try {
             actor,
             simulationActor,
             compatibilityRemoval,
+            objectQuery,
             terrainQuery,
             terrainContact,
             basePublication,
@@ -335,10 +394,13 @@ try {
             importedTickSixteen,
             sourceDuration,
             orderBPublication,
+            orderBObjectQueries,
             orderB,
             revisitPublication,
+            revisitObjectQueries,
             revisit,
             adjacentPublication,
+            adjacentObjectQuery,
             adjacent,
             diagonalBasePublication,
             diagonalPublication,
@@ -351,7 +413,9 @@ try {
             holds,
             objectFailure,
             terrainFailure,
+            failureObjectQuery,
             restartPublication,
+            restartObjectQueries,
             restarted,
             rolloverBase,
             rolloverPrepared,

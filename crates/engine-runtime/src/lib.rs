@@ -14,7 +14,8 @@ pub use rendering::gpu_capture::CapturedPixels;
 pub use rendering::{CapturedFrame, RenderOutcome};
 pub use runtime::{
     ActorHandle, ActorPresentation, ActorSimulationAdvance, ActorSimulationCommand,
-    ActorSimulationOutcome, ActorSimulationRenderBlock, ActorStateTransition, FrameRequest,
+    ActorSimulationOutcome, ActorSimulationRenderBlock, ActorStateTransition,
+    CANONICAL_OBJECTS_PER_REGION, CanonicalObject, CanonicalObjectPresentation, FrameRequest,
     Runtime, RuntimeActor,
 };
 pub use streaming::address::GlobalRegionConfig;

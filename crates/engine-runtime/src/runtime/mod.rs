@@ -4,6 +4,7 @@ use anyhow::Result;
 use serde_json::Value;
 use windows::Win32::Foundation::HWND;
 
+use crate::region::RegionCoord;
 use crate::rendering::{RenderFrame, RenderOutcome, Renderer};
 use crate::scene::SceneState;
 use crate::streaming::address::GlobalRegionConfig;
@@ -15,10 +16,14 @@ use crate::timeline::{PresentationTimeline, SimulationSchedule};
 
 mod actor;
 mod motion_batch;
+mod object_query;
 mod simulation_actor;
 
 use actor::ActorSlot;
 pub use actor::{ActorHandle, RuntimeActor};
+pub use object_query::{
+    CANONICAL_OBJECTS_PER_REGION, CanonicalObject, CanonicalObjectPresentation,
+};
 pub use region_format::PresentationRecord as ActorPresentation;
 use simulation_actor::prepare_simulation_actor;
 pub use simulation_actor::{
@@ -207,6 +212,15 @@ impl Runtime {
 
     pub fn query_terrain_height(&self, position: TerrainPosition) -> Result<TerrainHeight> {
         self.renderer.query_terrain_height(position)
+    }
+
+    pub fn query_canonical_object(
+        &self,
+        region: RegionCoord,
+        authored_local_id: u32,
+    ) -> Result<CanonicalObject> {
+        self.renderer
+            .query_canonical_object(region, authored_local_id)
     }
 
     pub fn resolve_terrain_contact(&self, body: TerrainBody) -> Result<TerrainBodyContact> {

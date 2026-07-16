@@ -3,6 +3,7 @@ use serde_json::Value;
 
 use crate::perception::{PixelPoint, PixelRegion};
 
+mod objects;
 mod terrain;
 
 pub(crate) struct ActorSpawnControl {
@@ -83,6 +84,11 @@ pub enum ControlKind {
     CanonicalPrefetchEnable,
     CanonicalPrefetchDisable,
     CanonicalProbe,
+    CanonicalObjectQuery {
+        region_x: i64,
+        region_z: i64,
+        authored_local_id: u32,
+    },
     CanonicalTerrainHeight {
         region_x: i64,
         region_z: i64,
@@ -208,6 +214,7 @@ pub fn parse_control(verb: &str, payload: Value) -> ParsedControl {
         "canonical.prefetch.enable" => Ok(ControlKind::CanonicalPrefetchEnable),
         "canonical.prefetch.disable" => Ok(ControlKind::CanonicalPrefetchDisable),
         "canonical.probe" => Ok(ControlKind::CanonicalProbe),
+        "canonical.objects.query" => objects::query(payload),
         "canonical.terrain.height" => terrain::height(payload),
         "canonical.terrain.contact" => terrain::contact(payload),
         "actor.spawn" => terrain::actor_spawn(payload),
