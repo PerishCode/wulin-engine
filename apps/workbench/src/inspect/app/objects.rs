@@ -53,18 +53,20 @@ pub(super) fn nearest(
     local_x_q9: i32,
     local_z_q9: i32,
     max_distance_q9: u32,
+    excluded_identity: Option<CanonicalObjectIdentity>,
 ) -> ControlResult {
     TerrainPosition::new(RegionCoord::new(region_x, region_z), local_x_q9, local_z_q9)
         .and_then(|origin| {
             runtime.canonical_object_snapshot().and_then(|snapshot| {
                 runtime
-                    .query_nearest_canonical_object(origin, max_distance_q9)
+                    .query_nearest_canonical_object(origin, max_distance_q9, excluded_identity)
                     .map(|query| {
                         json!({
-                            "revision": "versioned-canonical-object-nearest-v2",
+                            "revision": "versioned-canonical-object-nearest-v3",
                             "snapshot": snapshot,
                             "origin": origin,
                             "maxDistanceQ9": max_distance_q9,
+                            "excludedIdentity": excluded_identity,
                             "query": query,
                             "maximumCandidateCount": CANONICAL_OBJECT_NEAREST_CANDIDATE_CAPACITY,
                             "perQueryAllocationBytes": 0,

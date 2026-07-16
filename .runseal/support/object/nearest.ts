@@ -7,6 +7,7 @@ import {
     rejectedEvent,
     root,
     same,
+    string,
 } from "../canonical-runtime.ts";
 import {
     canonicalObjectContent,
@@ -30,6 +31,7 @@ export type ObjectNearestSample = {
     localXQ9: number;
     localZQ9: number;
     maxDistanceQ9: number;
+    excludedIdentity?: Json;
 };
 
 type SourceIndex = {
@@ -41,13 +43,24 @@ type SourceIndex = {
 const sourceIndexes = new Map<string, SourceIndex>();
 
 function request(sample: ObjectNearestSample): Json {
-    return {
+    const value: Json = {
         region_x: sample.region[0],
         region_z: sample.region[1],
         local_x_q9: sample.localXQ9,
         local_z_q9: sample.localZQ9,
         max_distance_q9: sample.maxDistanceQ9,
     };
+    if (sample.excludedIdentity) {
+        const identity = sample.excludedIdentity;
+        const region = object(identity, "region");
+        value.excluded_identity = {
+            source_namespace: string(identity, "sourceNamespace"),
+            region_x: number(region, "x"),
+            region_z: number(region, "z"),
+            authored_local_id: number(identity, "authoredLocalId"),
+        };
+    }
+    return value;
 }
 
 function requireNearestRejection(value: Json, label: string): void {
@@ -113,7 +126,46 @@ export async function objectNearestGates(
     if (object(samples[2], "query").nearest !== null) {
         fail("zero-radius displaced object-nearest query returned a candidate");
     }
-    return { unavailable, malformedOrigin, outsideOrigin, samples };
+    const selectedIdentity = object(
+        object(object(object(samples[3], "query"), "nearest"), "object"),
+        "identity",
+    );
+    const excluded = await queryObjectNearest(source, {
+        ...objectNearestSamples(base)[3],
+        excludedIdentity: selectedIdentity,
+    });
+    const excludedNearest = object(object(excluded, "query"), "nearest");
+    same(
+        excluded.excludedIdentity,
+        selectedIdentity,
+        "object nearest exact exclusion response",
+    );
+    if (
+        number(object(object(excludedNearest, "object"), "identity"), "authoredLocalId") ===
+            number(selectedIdentity, "authoredLocalId") &&
+        sameRegion(
+            object(object(object(excludedNearest, "object"), "identity"), "region"),
+            object(selectedIdentity, "region"),
+        )
+    ) fail("object nearest exact exclusion returned the consumed identity");
+    const staleExclusion = await rejectedEvent("canonical.objects.nearest", {
+        ...request(objectNearestSamples(base)[3]),
+        excluded_identity: {
+            source_namespace: "00".repeat(32),
+            region_x: base[0],
+            region_z: base[1],
+            authored_local_id: 0,
+        },
+    });
+    requireNearestRejection(staleExclusion, "stale object-nearest exclusion");
+    return {
+        unavailable,
+        malformedOrigin,
+        outsideOrigin,
+        samples,
+        excluded,
+        staleExclusion,
+    };
 }
 
 export async function queryObjectNearestSamples(
@@ -134,7 +186,7 @@ export async function queryObjectNearest(
     windowCenter: [number, number] = sample.region,
 ): Promise<Json> {
     const value = await event("canonical.objects.nearest", request(sample));
-    if (value.revision !== "versioned-canonical-object-nearest-v2") {
+    if (value.revision !== "versioned-canonical-object-nearest-v3") {
         fail(`object nearest ${sample.region.join(",")} revision diverged`);
     }
     requireZeroRuntimeWork(value, `object nearest ${sample.region.join(",")}`);
@@ -278,6 +330,13 @@ export async function objectNearestOracle(
                 }
                 seen.add(authoredLocalId);
                 candidateCount += 1;
+                if (
+                    sample.excludedIdentity &&
+                    string(sample.excludedIdentity, "sourceNamespace") === sourceNamespace &&
+                    number(sample.excludedIdentity, "authoredLocalId") === authoredLocalId &&
+                    number(object(sample.excludedIdentity, "region"), "x") === regionX &&
+                    number(object(sample.excludedIdentity, "region"), "z") === regionZ
+                ) continue;
                 const record = payloadOffset + physical * RECORD_BYTES;
                 const presentation = presentationOffset + physical * PRESENTATION_BYTES;
                 const position = [
@@ -348,6 +407,10 @@ export async function objectNearestOracle(
         fail("independent object-nearest oracle scanned the wrong candidate count");
     }
     return { candidateCount, nearest: nearest?.value ?? null };
+}
+
+function sameRegion(left: Json, right: Json): boolean {
+    return number(left, "x") === number(right, "x") && number(left, "z") === number(right, "z");
 }
 
 function axisDelta(

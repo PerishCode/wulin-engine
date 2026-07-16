@@ -37,6 +37,7 @@ pub struct FrameRequest {
     pub capture_object_ids: bool,
     pub probe: bool,
     pub object_target_feedback: Option<ObjectTargetFeedback>,
+    pub object_suppression: Option<CanonicalObjectIdentity>,
 }
 
 pub struct Runtime {
@@ -90,6 +91,7 @@ impl Runtime {
                 simulation_status: simulation_status.as_ref(),
                 actor,
                 object_target_feedback: request.object_target_feedback,
+                object_suppression: request.object_suppression,
                 scene: &mut self.scene,
             })
         }?;
@@ -230,9 +232,10 @@ impl Runtime {
         &self,
         origin: TerrainPosition,
         max_distance_q9: u32,
+        excluded_identity: Option<CanonicalObjectIdentity>,
     ) -> Result<CanonicalObjectNearestQuery> {
         self.renderer
-            .query_nearest_canonical_object(origin, max_distance_q9)
+            .query_nearest_canonical_object(origin, max_distance_q9, excluded_identity)
     }
 
     pub fn spawn_actor(

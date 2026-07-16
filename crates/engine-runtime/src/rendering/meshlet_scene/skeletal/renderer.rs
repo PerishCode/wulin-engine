@@ -76,6 +76,7 @@ pub struct SkeletalFrame<'a> {
     pub presentation_tick: u32,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
     pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
+    pub object_suppression: Option<crate::rendering::ProjectedObjectSuppression>,
     pub frame_slot: u32,
 }
 
@@ -148,14 +149,7 @@ impl SkeletalSceneRenderer {
                 frame.presentation_tick,
             )
         }?;
-        let constants = self.constants(
-            settings,
-            frame.scene,
-            frame.snapshot,
-            frame.terrain_slots,
-            frame.grounding_mode,
-            frame.projection,
-        )?;
+        let constants = self.constants(settings, &frame)?;
         let gpu_start = unsafe { self.resources.heap.GetGPUDescriptorHandleForHeapStart() };
         unsafe {
             command_list.SetDescriptorHeaps(&[Some(self.resources.heap.clone())]);
@@ -330,27 +324,23 @@ impl SkeletalSceneRenderer {
     fn constants(
         &self,
         settings: SkeletalSettings,
-        scene: &SceneState,
-        snapshot: &PublishedSnapshot,
-        terrain_slots: Option<&[u32]>,
-        grounding_mode: u32,
-        projection: TerrainProjection,
+        frame: &SkeletalFrame<'_>,
     ) -> Result<[u32; SKELETAL_CONSTANT_COUNT as usize]> {
         let mut constants = [0u32; SKELETAL_CONSTANT_COUNT as usize];
-        let camera = projection.camera(scene.camera());
+        let camera = frame.projection.camera(frame.scene.camera());
         for (destination, value) in constants[..16].iter_mut().zip(
             crate::scene::view_projection(camera, self.width as f32 / self.height as f32)
                 .to_cols_array(),
         ) {
             *destination = value.to_bits();
         }
-        constants[16] = snapshot.config.active_region_count();
+        constants[16] = frame.snapshot.config.active_region_count();
         constants[17] = SKELETAL_CANDIDATE_CAPACITY;
         constants[18] = (1 << CLIP_COUNT) - 1;
         constants[19] = u32::MAX;
-        for (index, instance_slot) in snapshot.active_slots.iter().copied().enumerate() {
-            let terrain_slot = terrain_slots.map_or(0, |slots| slots[index]);
-            let semantic_region = projection.region_id(index)?;
+        for (index, instance_slot) in frame.snapshot.active_slots.iter().copied().enumerate() {
+            let terrain_slot = frame.terrain_slots.map_or(0, |slots| slots[index]);
+            let semantic_region = frame.projection.region_id(index)?;
             ensure!(
                 semantic_region < 1 << 14,
                 "object semantic region exceeds the packed mapping"
@@ -364,8 +354,9 @@ impl SkeletalSceneRenderer {
         constants[52] = u32::from(settings.unique_poses);
         constants[53] = SKELETAL_CANDIDATE_CAPACITY;
         constants[54] = MAX_SHARED_POSES;
-        constants[55] = grounding_mode;
+        constants[55] = frame.grounding_mode;
         constants[56..59].copy_from_slice(&animation_catalog::IMPORTED_SOURCE_CLIP_DURATION_UNITS);
+        constants[59] = crate::rendering::pack_object_suppression(frame.object_suppression)?;
         Ok(constants)
     }
 }

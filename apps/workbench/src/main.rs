@@ -57,6 +57,7 @@ unsafe fn run() -> Result<()> {
                 capture_object_ids: false,
                 probe: false,
                 object_target_feedback: None,
+                object_suppression: state.object_suppression,
             })?;
         }
         state.record_frame();
@@ -99,6 +100,7 @@ unsafe fn run() -> Result<()> {
                 capture_object_ids: perception_requested,
                 probe: probe_requested,
                 object_target_feedback: state.object_target_feedback,
+                object_suppression: state.object_suppression,
             })
         } {
             Ok(outcome) => complete_frame(
@@ -147,6 +149,7 @@ struct WorkbenchState {
     launched_by_sidecar: bool,
     startup: serde_json::Value,
     object_target_feedback: Option<engine_runtime::ObjectTargetFeedback>,
+    object_suppression: Option<engine_runtime::CanonicalObjectIdentity>,
 }
 
 impl WorkbenchState {
@@ -161,6 +164,7 @@ impl WorkbenchState {
             launched_by_sidecar,
             startup,
             object_target_feedback: None,
+            object_suppression: None,
         }
     }
 

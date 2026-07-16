@@ -21,6 +21,7 @@ pub(in crate::rendering) struct CompositionSurfaceInput<'a> {
     pub ground_denominator: u32,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
     pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
+    pub object_suppression: Option<crate::rendering::ProjectedObjectSuppression>,
 }
 
 pub(super) unsafe fn create_surface(
@@ -75,6 +76,7 @@ impl SkeletalSceneRenderer {
                 timestamp_frequency: self.timestamp_frequency,
                 actor: input.actor,
                 object_target: input.object_target,
+                object_suppression: input.object_suppression,
             })
         }
     }

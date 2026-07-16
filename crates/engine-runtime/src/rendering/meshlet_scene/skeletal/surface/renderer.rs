@@ -73,6 +73,7 @@ pub struct SurfaceProbeContext<'a> {
     pub timestamp_frequency: u64,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
     pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
+    pub object_suppression: Option<crate::rendering::ProjectedObjectSuppression>,
 }
 
 pub struct SurfaceRendererInput<'a> {
@@ -416,6 +417,7 @@ impl SurfaceRenderer {
                 bound_proof: self.bound_proof,
                 actor: context.actor,
                 object_target: context.object_target,
+                object_suppression: context.object_suppression,
             })
         }
     }

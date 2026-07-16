@@ -91,6 +91,7 @@ pub struct SkeletalProbe {
     pub logical_instance_count: u64,
     pub streamed_candidate_count: u32,
     pub dynamic_candidate_count: u32,
+    pub object_suppression: Option<crate::rendering::ProjectedObjectSuppression>,
     pub candidate_capacity: u32,
     pub visible_record_bytes: u32,
     pub visible_storage_bytes: u64,
@@ -157,6 +158,7 @@ pub struct ProbeInput<'a> {
     pub local_ids: &'a [Vec<u32>],
     pub presentations: &'a [Vec<crate::resident::PresentationRecord>],
     pub actor: Option<crate::rendering::ActorRenderProjection>,
+    pub object_suppression: Option<crate::rendering::ProjectedObjectSuppression>,
 }
 
 pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
@@ -196,6 +198,7 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
                 presentations: input.presentations,
             },
             actor: input.actor,
+            object_suppression: input.object_suppression,
         },
     )?;
     if gpu != cpu_oracle {
@@ -216,6 +219,7 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
         logical_instance_count: input.snapshot.config.logical_instance_count(),
         streamed_candidate_count: input.snapshot.config.candidate_instance_count(),
         dynamic_candidate_count: u32::from(input.actor.is_some()),
+        object_suppression: input.object_suppression,
         candidate_capacity: SKELETAL_CANDIDATE_CAPACITY,
         visible_record_bytes: VISIBLE_OBJECT_BYTES,
         visible_storage_bytes: u64::from(SKELETAL_CANDIDATE_CAPACITY)

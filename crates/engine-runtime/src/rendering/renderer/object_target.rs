@@ -18,6 +18,13 @@ pub(crate) struct ProjectedObjectTarget {
     pub kind: ObjectTargetFeedbackKind,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ProjectedObjectSuppression {
+    pub active_index: u32,
+    pub authored_local_id: u32,
+}
+
 pub(crate) fn validate(feedback: Option<ObjectTargetFeedback>) -> Result<()> {
     if let Some(feedback) = feedback {
         ensure!(
@@ -51,4 +58,45 @@ pub(crate) fn project(
         authored_local_id: identity.authored_local_id,
         kind: feedback.kind,
     }))
+}
+
+pub(crate) fn project_suppression(
+    identity: Option<crate::runtime::CanonicalObjectIdentity>,
+    source_namespace: ObjectSourceNamespace,
+    global_config: GlobalRegionConfig,
+) -> Result<Option<ProjectedObjectSuppression>> {
+    let Some(identity) = identity else {
+        return Ok(None);
+    };
+    ensure!(
+        identity.authored_local_id < CANONICAL_OBJECTS_PER_REGION,
+        "object suppression authored local ID is outside the canonical region capacity"
+    );
+    if identity.source_namespace != source_namespace {
+        return Ok(None);
+    }
+    let Some(active_index) = global_config.active_index(identity.region) else {
+        return Ok(None);
+    };
+    Ok(Some(ProjectedObjectSuppression {
+        active_index: active_index as u32,
+        authored_local_id: identity.authored_local_id,
+    }))
+}
+
+pub(crate) fn pack_object_suppression(
+    suppression: Option<ProjectedObjectSuppression>,
+) -> Result<u32> {
+    let Some(suppression) = suppression else {
+        return Ok(0);
+    };
+    ensure!(
+        suppression.active_index < 1 << 5,
+        "object suppression active index exceeds its packed range"
+    );
+    ensure!(
+        suppression.authored_local_id < 1 << 10,
+        "object suppression local ID exceeds its packed range"
+    );
+    Ok(1 << 31 | suppression.active_index << 10 | suppression.authored_local_id)
 }

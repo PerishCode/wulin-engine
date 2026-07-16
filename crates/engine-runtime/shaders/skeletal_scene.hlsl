@@ -277,6 +277,16 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
             ground_numerators_out[logical_index] = ground_value;
         }
         position.y += ground;
+        uint suppression = imported_source_clip_duration_units.w;
+        if (
+            (suppression & 0x80000000u) != 0u &&
+            group_id.x == ((suppression >> 10u) & 31u) &&
+            local_id == (suppression & 1023u)
+        )
+        {
+            indirect_and_counters.InterlockedAdd(16, 1);
+            return;
+        }
     }
     float3 center = position + float3(0.0, instance_height * 0.5, 0.0);
     float4 clip = mul(view_projection, float4(center, 1.0));

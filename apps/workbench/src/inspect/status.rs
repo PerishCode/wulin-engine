@@ -34,6 +34,7 @@ pub(super) fn workbench(hwnd: HWND, runtime: &Runtime, state: &WorkbenchState) -
         "lastFrameMs": state.last_frame_ms,
         "clearColor": state.clear_color,
         "objectTargetFeedback": state.object_target_feedback,
+        "objectSuppression": state.object_suppression,
         "startup": state.startup,
         "spatial": runtime.spatial_json(),
         "workload": workload(runtime),

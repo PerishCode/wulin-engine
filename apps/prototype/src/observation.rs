@@ -107,6 +107,18 @@ impl Policy {
         }
     }
 
+    pub(crate) fn clear_target(&mut self, identity: CanonicalObjectIdentity) -> bool {
+        if self
+            .target
+            .is_some_and(|target| target.identity == identity)
+        {
+            self.target = None;
+            true
+        } else {
+            false
+        }
+    }
+
     pub(crate) fn validation_request(
         &self,
         snapshot: CanonicalObjectSnapshot,

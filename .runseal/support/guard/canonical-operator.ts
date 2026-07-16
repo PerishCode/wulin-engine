@@ -6,7 +6,7 @@ export async function requireCanonicalOperatorIdentity(
 ): Promise<void> {
     console.log("==> neutral canonical operator identity");
     const wrapper = await Deno.readTextFile(`${root}/.runseal/wrappers/canonical-runtime.ts`);
-    requireExactConstant(wrapper, "REVISION", "canonical-runtime-v11", fail);
+    requireExactConstant(wrapper, "REVISION", "canonical-runtime-v12", fail);
     requireExactConstant(wrapper, "COLLECTION", "canonical-runtime", fail);
     if (wrapper.includes("0060-mandatory-simulation-control-cleanup")) {
         fail("guard: canonical wrapper retains the historical Experiment 0060 collection");

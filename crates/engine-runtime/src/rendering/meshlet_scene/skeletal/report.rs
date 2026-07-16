@@ -17,6 +17,7 @@ pub(in crate::rendering) struct CompositionProbeInput<'a> {
     pub local_ids: &'a [Vec<u32>],
     pub presentations: &'a [Vec<crate::resident::PresentationRecord>],
     pub actor: Option<crate::rendering::ActorRenderProjection>,
+    pub object_suppression: Option<crate::rendering::ProjectedObjectSuppression>,
 }
 
 impl SkeletalSceneRenderer {
@@ -45,6 +46,7 @@ impl SkeletalSceneRenderer {
                 local_ids: input.local_ids,
                 presentations: input.presentations,
                 actor: input.actor,
+                object_suppression: input.object_suppression,
             })
         }
     }

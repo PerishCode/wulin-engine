@@ -137,6 +137,7 @@ pub struct ProbeInput<'a> {
     pub bound_proof: BoundProof,
     pub actor: Option<crate::rendering::ActorRenderProjection>,
     pub object_target: Option<crate::rendering::ProjectedObjectTarget>,
+    pub object_suppression: Option<crate::rendering::ProjectedObjectSuppression>,
 }
 
 pub unsafe fn read(input: ProbeInput<'_>) -> Result<SurfaceProbe> {

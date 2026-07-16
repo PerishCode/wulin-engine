@@ -125,6 +125,16 @@ fn successful_empty_scan_clears_previous_target() {
 }
 
 #[test]
+fn exact_consumed_identity_can_clear_the_retained_target() {
+    let mut policy = observation::Policy::new();
+    acquire(&mut policy, 1, 7);
+    assert!(!policy.clear_target(identity(1, 8)));
+    assert_eq!(policy.target_identity(), Some(identity(1, 7)));
+    assert!(policy.clear_target(identity(1, 7)));
+    assert_eq!(policy.target_identity(), None);
+}
+
+#[test]
 fn malformed_acquisition_preserves_pending_and_previous_target() {
     let mut policy = observation::Policy::new();
     acquire(&mut policy, 1, 7);

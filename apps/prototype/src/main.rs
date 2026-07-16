@@ -59,6 +59,7 @@ unsafe fn run() -> Result<()> {
     let mut render_block_count = 0_u64;
     let mut object_target_frame_count = 0_u64;
     let mut object_action_frame_count = 0_u64;
+    let mut object_suppression_frame_count = 0_u64;
     let mut presentation_policy = presentation::Policy::new();
     let mut camera_policy = camera::Policy::new();
     let mut jump_policy = jump::Policy::new();
@@ -127,7 +128,11 @@ unsafe fn run() -> Result<()> {
                 .canonical_object_snapshot()
                 .context("prototype object observation snapshot failed")?;
             let query = runtime
-                .query_nearest_canonical_object(origin, observation::OBJECT_OBSERVATION_RADIUS_Q9)
+                .query_nearest_canonical_object(
+                    origin,
+                    observation::OBJECT_OBSERVATION_RADIUS_Q9,
+                    interaction_policy.nearest_exclusion(),
+                )
                 .context("prototype committed object observation failed")?;
             observation_policy
                 .complete_after_advance(advance.simulation.step_count, origin, snapshot, query)
@@ -143,12 +148,17 @@ unsafe fn run() -> Result<()> {
                 identity: target.identity,
                 available: target.availability == observation::Availability::Resolved,
             });
-            let resolution = match target {
-                Some(target) if target.availability == observation::Availability::Resolved => Some(
-                    runtime
-                        .resolve_canonical_object(target.identity)
-                        .context("prototype object action resolution failed")?,
-                ),
+            let resolution = match (interaction_policy.nearest_exclusion(), target) {
+                (Some(_), _) => None,
+                (None, Some(target))
+                    if target.availability == observation::Availability::Resolved =>
+                {
+                    Some(
+                        runtime
+                            .resolve_canonical_object(target.identity)
+                            .context("prototype object action resolution failed")?,
+                    )
+                }
                 _ => None,
             };
             interaction_policy
@@ -189,6 +199,7 @@ unsafe fn run() -> Result<()> {
         let object_target = observation_policy.target_identity();
         let object_target_feedback =
             interaction_policy.frame_feedback(object_target, interaction_attempt);
+        let object_suppression = interaction_policy.frame_suppression();
         let render_outcome = unsafe {
             runtime.frame(FrameRequest {
                 clear_color: CLEAR_COLOR,
@@ -196,6 +207,7 @@ unsafe fn run() -> Result<()> {
                 capture_object_ids: false,
                 probe: false,
                 object_target_feedback,
+                object_suppression,
             })?
         };
         let interaction_completion = interaction_policy
@@ -205,6 +217,9 @@ unsafe fn run() -> Result<()> {
                 render_outcome.object_target_feedback,
             )
             .context("prototype object action frame commit failed")?;
+        if let Some(identity) = interaction_policy.frame_suppression() {
+            observation_policy.clear_target(identity);
+        }
         if object_target.is_some() {
             object_target_frame_count = object_target_frame_count
                 .checked_add(1)
@@ -218,10 +233,15 @@ unsafe fn run() -> Result<()> {
                 .checked_add(1)
                 .context("prototype object action frame count overflowed")?;
         }
+        if render_outcome.object_suppression.is_some() {
+            object_suppression_frame_count = object_suppression_frame_count
+                .checked_add(1)
+                .context("prototype object suppression frame count overflowed")?;
+        }
         live_frame_count = live_frame_count
             .checked_add(1)
             .context("prototype live frame count overflowed")?;
-        if observation_policy.has_target() {
+        if observation_policy.has_target() || interaction_policy.nearest_exclusion().is_some() {
             let snapshot = runtime
                 .canonical_object_snapshot()
                 .context("prototype object target snapshot check failed")?;
@@ -233,6 +253,7 @@ unsafe fn run() -> Result<()> {
                     .complete_validation(snapshot, resolution)
                     .context("prototype retained object target transition failed")?;
             }
+            interaction_policy.observe_source(snapshot.source_namespace);
         }
         interaction_policy.observe_target(observation_policy.status().target.map(|target| {
             interaction::Target {
@@ -259,8 +280,11 @@ unsafe fn run() -> Result<()> {
                 render_block_count,
                 object_target_frame_count,
                 object_action_frame_count,
+                object_suppression_frame_count,
                 submitted_object_feedback: object_target_feedback,
                 rendered_object_feedback: render_outcome.object_target_feedback,
+                submitted_object_suppression: object_suppression,
+                rendered_object_suppression: render_outcome.object_suppression,
                 jump_status: jump_policy.status(),
                 object_observation,
                 observation_status: observation_policy.status(),
@@ -291,8 +315,11 @@ struct ReadinessEvidence {
     render_block_count: u64,
     object_target_frame_count: u64,
     object_action_frame_count: u64,
+    object_suppression_frame_count: u64,
     submitted_object_feedback: Option<ObjectTargetFeedback>,
     rendered_object_feedback: Option<ObjectTargetFeedback>,
+    submitted_object_suppression: Option<engine_runtime::CanonicalObjectIdentity>,
+    rendered_object_suppression: Option<engine_runtime::CanonicalObjectIdentity>,
     jump_status: jump::Status,
     object_observation: Option<observation::Completed>,
     observation_status: observation::Status,
@@ -337,6 +364,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 interaction::Ineligible::SourceReplaced => "source-replaced",
                 interaction::Ineligible::OutsidePublishedWindow => "outside-published-window",
                 interaction::Ineligible::OutsideRadius => "outside-radius",
+                interaction::Ineligible::CapacityExhausted => "capacity-exhausted",
             },
         }),
     });
@@ -410,7 +438,7 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                 },
             },
             "object_interaction_driver": {
-                "revision": "live-prototype-object-action-v1",
+                "revision": "live-prototype-object-consumption-v1",
                 "input": "Enter",
                 "maxDistanceQ9": interaction::OBJECT_ACTION_RADIUS_Q9,
                 "acknowledgementFrameCount": interaction::ACKNOWLEDGEMENT_FRAME_COUNT,
@@ -424,8 +452,15 @@ fn publish_readiness(evidence: ReadinessEvidence) -> Result<()> {
                     "acknowledgement": acknowledgement,
                     "committedCount": evidence.interaction_status.committed_count,
                     "ineligibleCount": evidence.interaction_status.ineligible_count,
+                    "consumed": evidence.interaction_status.consumed,
                 },
                 "activatedFrameCount": evidence.object_action_frame_count,
+                "suppression": {
+                    "submitted": evidence.submitted_object_suppression,
+                    "projected": evidence.rendered_object_suppression,
+                    "projectedFrameCount": evidence.object_suppression_frame_count,
+                },
+                "nearestExclusion": evidence.interaction_status.consumed,
                 "copiedObjectState": false,
             },
         })
