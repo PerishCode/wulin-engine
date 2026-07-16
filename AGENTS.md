@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0096 and the current ADR set through 0099 define one live content runtime
+Experiments 0031-0097 and the current ADR set through 0100 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -249,6 +249,11 @@ geometry/material/rig source, and one deterministic object-shadow path:
   optional exact object/position/delta/squared-distance result under stable owner-region/local-ID
   ties, and performs no allocation, source/GPU work, visibility filtering, enumeration, retained
   index, interaction policy, or persistent identity;
+- one accepted prototype-owned capacity-one F object-observation intent with a fixed inclusive
+  512-Q9 radius that survives fractional/stalled/render-blocked work, cancels on Reset/Suspended,
+  queries only after a successful nonzero actor commit from its exact output position, clears only
+  after query success, retains no target beyond same-completion evidence, and adds no recurring
+  scan, selection, interaction action, or persistent identity;
 - one mandatory post-v0 cleanup that deletes the duplicate standalone presentation-timeline Runtime
   forwarder and inspect verb; exact presentation state remains readable only through
   `canonical.status.presentationClock`, pause/resume/set/step keep their direct exact responses, and
@@ -362,6 +367,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0097-exact-canonical-object-position.md` | Accepted exact authored-object conversion into the sole terrain-position domain. |
 | `docs/adr/0098-retired-standalone-presentation-status.md` | Accepted retirement of the duplicate presentation status inspect chain. |
 | `docs/adr/0099-bounded-canonical-object-nearest.md` | Accepted bounded committed-snapshot nearest-object scan and stable exact tie contract. |
+| `docs/adr/0100-committed-prototype-object-observation.md` | Accepted capacity-one post-commit prototype object-observation intent. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -429,6 +435,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0094-exact-canonical-object-position/README.md` | Accepted checked Q9 object-position conversion, seam normalization, and integration evidence. |
 | `experiments/0095-mandatory-presentation-status-cleanup/README.md` | Accepted standalone presentation-status removal and canonical aggregate preservation evidence. |
 | `experiments/0096-exact-canonical-object-nearest/README.md` | Accepted bounded exact nearest-object scan, independent source oracle, and integration evidence. |
+| `experiments/0097-committed-prototype-object-observation/README.md` | Accepted native F+W post-commit observation and independent source-oracle evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -468,12 +475,14 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/canonical-object-fixture/src/lib.rs` | Deterministic arbitrary-Q8 authored object fixture. |
 | `tools/region-cooker/src/main.rs` | Signed schema-3 object cooker CLI with physical triple ordering and controlled presentation profiles. |
 | `tools/terrain-cooker/src/main.rs` | Signed terrain cooker CLI. |
-| `apps/prototype/src/main.rs` | Non-diagnostic composition root, camera-relative playable-boundary admission, one-time traversal activation, Ready-only typed simulation/frame ordering, committed Run/Jump composition, block accounting, current-actor readiness, and Escape host-exit consumer. |
+| `apps/prototype/src/main.rs` | Non-diagnostic composition root, camera-relative playable-boundary admission, one-time traversal activation, Ready-only typed simulation/frame ordering, committed Run/Jump/object-observation composition, block accounting, current-actor readiness, and Escape host-exit consumer. |
 | `apps/prototype/src/actor.rs` | Prototype-owned grounded spawn motion and fixed gravity policy. |
 | `apps/prototype/src/boundary.rs` | Prototype-owned independent maximum-batch per-axis playable-region admission policy. |
 | `apps/prototype/src/camera.rs` | Prototype-owned committed four-state Q/E actor-relative camera-orbit policy. |
 | `apps/prototype/src/jump.rs` | Prototype-owned capacity-one grounded Space intent, discontinuity, and committed-consumption policy. |
 | `apps/prototype/src/locomotion.rs` | Prototype-owned fixed W/A/S/D Walk/Run plus exact current-camera quarter rotation and bounded step-up policy. |
+| `apps/prototype/src/observation.rs` | Prototype-owned capacity-one F intent, host-discontinuity cancellation, and post-commit object-observation policy. |
+| `apps/prototype/tests/object_observation_policy.rs` | Capacity-one, commit-order, elapsed-discontinuity, and one-shot observation-policy evidence. |
 | `apps/prototype/src/presentation.rs` | Prototype-owned imported Survey/Walk/Run and committed eight-way locomotion-facing policy. |
 | `apps/prototype/src/time.rs` | Prototype-only HostClock admission plus no-retry/no-backlog render-block consumption policy. |
 | `apps/workbench/src/main.rs` | Diagnostic composition root, frame loop, and pending operator dispatch. |
@@ -506,7 +515,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/prototype.ts` | Self-contained finite-sandbox cook, conservative playable bounds, strict bootstrap, and manual prototype lifecycle entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype input-edge/boundary/gravity/camera-relative Walk/Run/Jump/presentation/traversal/backpressure, restart, failure, and lifecycle entry point. |
+| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype input-edge/boundary/gravity/camera-relative Walk/Run/Jump/object-observation/presentation/traversal/backpressure, restart, failure, and lifecycle entry point. |
 | `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source actor lifecycle, schedule/actor partition and rollback, render admission, animation epoch, and GPU phase entry point. |
 | `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source committed object lookup/position/nearest, canonical GPU frame, and immediate replay entry point. |
 | `.runseal/wrappers/canonical-resources.ts` | Focused deep active/recovery GPU resource plateau and 16-cycle lifecycle entry point. |
@@ -518,6 +527,8 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/resource-acceptance_test.ts` | Injected warm, early/delayed handle, and private-byte growth rejection evidence. |
 | `.runseal/support/object/query.ts` | Independent schema-3 raw/Q9-position oracle, strict rejection, order, movement, rollback, and restart evidence. |
 | `.runseal/support/object/nearest.ts` | Independent schema-3 bounded nearest oracle, strict origin/radius/tie, order, movement, rollback, and restart evidence. |
+| `.runseal/support/prototype/object/observation.ts` | Committed-origin prototype observation validation and independent source-oracle gate. |
+| `.runseal/support/prototype/object/gates.ts` | Prototype observation process, restart, and unchanged-subsystem gate composition. |
 | `.runseal/support/object/integration.ts` | Object lookup/nearest movement and corrupt-pair preservation integration gates. |
 | `.runseal/support/compatibility-removal.ts` | Clear-only idle capture and retired inspect-verb rejection evidence. |
 | `.runseal/support/terrain/contact.ts` | Exact contact rejection, direct classification, and bounded-witness acceptance support. |
@@ -534,11 +545,11 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/actor/animation.ts` | Fixed-tick spawn/transition actor epoch, GPU local-phase, same-clip retention, and fractional rollback support. |
 | `.runseal/support/actor/simulation.ts` | Canonical-aggregate schedule assertions plus schema-2 fractional, partition, rollback, and sole actor advance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured canonical-ready/restart plus bounded full-runtime prototype failure, invariant, and cleanup checkpoints. |
-| `.runseal/support/prototype/host.ts` | Prototype startup/failure, exact Walk/Run/Jump simulation, camera-orbit/zero-block readiness, held-input boundary survival, Escape clean exit, restart, and no-inspect lifecycle orchestration. |
+| `.runseal/support/prototype/host.ts` | Prototype startup/failure, exact Walk/Run/Jump/object-observation simulation, camera-orbit/zero-block readiness, held-input boundary survival, Escape clean exit, restart, and no-inspect lifecycle orchestration. |
 | `.runseal/support/prototype/boundary.ts` | Real activated held-input finite-edge process survival and cleanup evidence owner. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
 | `.runseal/support/prototype/camera.ts` | Exact default/orbit rig, actor anchor, and camera/frame readiness invariant owner. |
-| `.runseal/support/prototype/input.ts` | Process-qualified ordered native prototype-window W/Shift/Escape/E/Space and E+W injection for locomotion and action acceptance. |
+| `.runseal/support/prototype/input.ts` | Process-qualified ordered native prototype-window W/Shift/Escape/E/Space/F and chord injection for locomotion and action acceptance. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk/Run, locomotion yaw, and committed actor presentation invariant owner. |
 | `.runseal/support/prototype/process.ts` | Shared readiness framing, native Escape exit, and prototype Sidecar status/PID process owner. |
 | `.runseal/support/prototype/simulation.ts` | Exact stationary, Walk, Run, camera-relative Walk, and Jump command expectation owner. |

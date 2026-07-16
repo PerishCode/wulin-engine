@@ -10,18 +10,13 @@ import {
     string,
     useSidecar,
 } from "../canonical-runtime.ts";
-import {
-    holdOrbitForwardKeys,
-    holdPrototypeForwardKey,
-    holdRunForwardKeys,
-    pressPrototypeCameraClockwise,
-    pressPrototypeJump,
-} from "./input.ts";
+import { applyStartupInput, type StartupInput } from "./input.ts";
 import { jumpMotionInvariant, jumpPolicyInvariant } from "./jump.ts";
 import { actorInvariant } from "./actor.ts";
 import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
 import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
+import { observationGates, restartObservation } from "./object/gates.ts";
 import { escapeExit, prototypePids, readinessLine, sidecarStatus } from "./process.ts";
 import {
     CAMERA_FORWARD_COMMAND,
@@ -82,8 +77,6 @@ export async function failedStart(label: string): Promise<Json> {
     };
 }
 
-type StartupInput = "camera-clockwise" | "camera-forward" | "forward" | "jump" | "run-forward";
-
 export async function capturedReady(label: string, startupInput?: StartupInput): Promise<Json> {
     const started = performance.now();
     const child = new Deno.Command(EXECUTABLE, {
@@ -97,19 +90,9 @@ export async function capturedReady(label: string, startupInput?: StartupInput):
         .pipeThrough(new TextDecoderStream())
         .getReader();
     let value: Json;
-    let nativeInput: Json | null = null;
+    let nativeInput: Json | null;
     try {
-        if (startupInput === "forward") nativeInput = await holdPrototypeForwardKey(child.pid);
-        if (startupInput === "run-forward") {
-            nativeInput = await holdRunForwardKeys(child.pid);
-        }
-        if (startupInput === "camera-forward") {
-            nativeInput = await holdOrbitForwardKeys(child.pid);
-        }
-        if (startupInput === "camera-clockwise") {
-            nativeInput = await pressPrototypeCameraClockwise(child.pid);
-        }
-        if (startupInput === "jump") nativeInput = await pressPrototypeJump(child.pid);
+        nativeInput = await applyStartupInput(child.pid, startupInput);
         const line = await readinessLine(reader);
         value = JSON.parse(line) as Json;
         if (value.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
@@ -323,6 +306,10 @@ export async function prototypeHostGates(
     );
     const cameraOrbit = await capturedReady("prototype clockwise camera orbit", "camera-clockwise");
     const jump = await capturedReady("prototype committed jump", "jump");
+    const objectObservation = await capturedReady(
+        "prototype committed object observation",
+        "observe-forward",
+    );
     const escape = await escapeExit(EXECUTABLE, CONFIG, "prototype Escape press exit");
     const boundary = await boundarySurvival(EXECUTABLE, CONFIG);
     if (number(first, "processId") === number(restarted, "processId")) {
@@ -349,6 +336,7 @@ export async function prototypeHostGates(
         jumpPolicyInvariant(first, true),
         "prototype restart jump policy",
     );
+    await restartObservation(restarted, first, objects, base);
     const firstTraversal = traversalInvariant(first, base);
     same(
         traversalInvariant(restarted, base),
@@ -433,6 +421,14 @@ export async function prototypeHostGates(
         camera: cameraDriverInvariant(jump),
         traversal: traversalInvariant(jump, base),
     };
+    const objectObservationInvariant = await observationGates(
+        objectObservation,
+        first,
+        objects,
+        base,
+        startupInvariant,
+        (launch) => simulationDriverInvariant(launch, FORWARD_COMMAND),
+    );
     same(startupInvariant(boundary), startupInvariant(first), "prototype boundary configuration");
     same(
         actorInvariant(boundary, base),
@@ -484,6 +480,8 @@ export async function prototypeHostGates(
         cameraOrbitInvariant,
         jump,
         jumpInvariant,
+        objectObservation,
+        objectObservationInvariant,
         boundary,
         boundaryInvariant,
         sidecar: { first: firstSidecar, restarted: restartedSidecar, stopped },

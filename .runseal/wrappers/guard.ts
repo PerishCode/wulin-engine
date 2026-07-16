@@ -439,6 +439,8 @@ await run("deno check", "deno", [
     ".runseal/support/runtime-bootstrap.ts",
     ".runseal/support/prototype/host.ts",
     ".runseal/support/prototype/input.ts",
+    ".runseal/support/prototype/object/observation.ts",
+    ".runseal/support/prototype/object/gates.ts",
     ".runseal/support/prototype/presentation.ts",
     ".runseal/support/prototype/traversal.ts",
     ".runseal/support/actor/lifecycle.ts",

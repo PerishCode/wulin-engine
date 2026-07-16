@@ -137,7 +137,7 @@ export async function queryObjectNearest(
     }
     same(
         query,
-        await readNearestOracle(source, sample, windowCenter),
+        await objectNearestOracle(source, sample, windowCenter),
         `object nearest ${sample.region.join(",")}:${sample.localXQ9},${sample.localZQ9}`,
     );
     return value;
@@ -184,7 +184,7 @@ async function sourceIndex(source: string): Promise<SourceIndex> {
     return parsed;
 }
 
-async function readNearestOracle(
+export async function objectNearestOracle(
     source: string,
     sample: ObjectNearestSample,
     windowCenter: [number, number],
