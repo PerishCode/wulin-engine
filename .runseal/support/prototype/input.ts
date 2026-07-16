@@ -2,7 +2,11 @@ import { fail, type Json, root } from "../canonical-runtime.ts";
 
 const decoder = new TextDecoder();
 
-export async function holdPrototypeForwardKey(processId: number): Promise<Json> {
+async function postPrototypeKey(
+    processId: number,
+    key: "Escape" | "W",
+    virtualKey: number,
+): Promise<Json> {
     if (!Number.isSafeInteger(processId) || processId <= 0) {
         fail(`prototype native input received invalid process id ${processId}`);
     }
@@ -56,9 +60,14 @@ if (-not [PrototypeInputNative]::PostMessage(
     $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
     throw "posting prototype focus activation failed with Win32 error $code"
 }
-if (-not [PrototypeInputNative]::PostMessage($window, 0x0100, [UIntPtr]0x57, [IntPtr]1)) {
+if (-not [PrototypeInputNative]::PostMessage(
+    $window,
+    0x0100,
+    [UIntPtr]${virtualKey},
+    [IntPtr]1
+)) {
     $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-    throw "posting prototype W key down failed with Win32 error $code"
+    throw "posting prototype ${key} key down failed with Win32 error $code"
 }
 
 [Console]::Out.Write((ConvertTo-Json ([ordered]@{
@@ -66,8 +75,8 @@ if (-not [PrototypeInputNative]::PostMessage($window, 0x0100, [UIntPtr]0x57, [In
     processId = [int]$windowProcessId
     windowHandle = $window.ToInt64().ToString()
     activated = $true
-    key = "W"
-    virtualKey = 0x57
+    key = "${key}"
+    virtualKey = ${virtualKey}
     down = $true
 }) -Compress))
 `;
@@ -87,9 +96,17 @@ if (-not [PrototypeInputNative]::PostMessage($window, 0x0100, [UIntPtr]0x57, [In
         evidence.schema !== "prototype-native-key-v2" ||
         evidence.processId !== processId ||
         evidence.activated !== true ||
-        evidence.key !== "W" ||
-        evidence.virtualKey !== 0x57 ||
+        evidence.key !== key ||
+        evidence.virtualKey !== virtualKey ||
         evidence.down !== true
     ) fail("prototype native input evidence diverged");
     return evidence;
+}
+
+export async function holdPrototypeForwardKey(processId: number): Promise<Json> {
+    return await postPrototypeKey(processId, "W", 0x57);
+}
+
+export async function pressPrototypeEscape(processId: number): Promise<Json> {
+    return await postPrototypeKey(processId, "Escape", 0x1B);
 }
