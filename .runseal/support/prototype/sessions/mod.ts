@@ -159,7 +159,7 @@ export async function gracefulExit(
     let status: Deno.CommandStatus;
     let trailingOutput = "";
     try {
-        if (startupInput === "run-release") {
+        if (startupInput === "run-release" || startupInput === "run-repress") {
             const stagedStartupInput = applyStartupInput(child.pid, startupInput);
             readiness = JSON.parse(await readinessLine(reader)) as Json;
             startupNativeInput = await stagedStartupInput;
