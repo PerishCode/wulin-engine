@@ -46,6 +46,8 @@ export async function suspendWithActionBatch(processId: number): Promise<Json> {
         processId,
         [
             { key: "Space", virtualKey: 0x20, down: true },
+            { key: "F", virtualKey: 0x46, down: true },
+            { key: "Enter", virtualKey: 0x0D, down: true },
             { key: "W", virtualKey: 0x57, down: true },
         ],
         true,

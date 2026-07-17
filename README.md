@@ -927,6 +927,16 @@ removal guard 扫描全部八个 owner，禁止历史字段返回。`canonical-p
 frames。report 446,503 bytes；全部 103 engine-runtime、45 Prototype、20 reference-host
 测试通过，Flavor 0 deny / 5 个既有 warning；产品、Runtime、renderer/GPU/source/resource/
 synchronization 均未改变。
+Experiment 0136 把同一 focus-discontinuity 进程的原子批次从 Space/W 扩为
+Space/F/Enter/W/`WM_KILLFOCUS`，没有增加 child 或产品输出。`canonical-prototype-v51`
+首轮在后续独立 invalid-key 进程的既有 clock-continuity oracle 偶发失败；代码与阈值不动的
+原样复跑在 172.935 秒通过，未增加 retry。PID 5004 / thread 25564 依次投递四键，三个 interval
+为 0.0014/0.0013/0.0012ms，完整 batch span 0.0039ms。完成值记录一次 suspend/resume、
+一次 post-resume reset、88 个 suspended samples、156 个 Ready samples 与 246 个 live frames；
+actor 精确等于 readiness，observation pending/target 均空，interaction pending/ack/consumed 均空，
+committed/ineligible 均为 0，零 stall/render block，stdout 恰为两值。report 447,315 bytes；
+全部 103 engine-runtime、45 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有
+warning；产品、Runtime、renderer/GPU/source/resource/synchronization 均未改变。
 
 ## Project model
 

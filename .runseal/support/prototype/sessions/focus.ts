@@ -12,24 +12,28 @@ function nativeFocusInvariant(suspended: Json, resumed: Json, processId: number)
         JSON.stringify(suspended.keys) !==
             JSON.stringify([
                 { key: "Space", virtualKey: 32, down: true },
+                { key: "F", virtualKey: 70, down: true },
+                { key: "Enter", virtualKey: 13, down: true },
                 { key: "W", virtualKey: 87, down: true },
             ]) ||
         JSON.stringify(suspended.messages) !==
             JSON.stringify([
                 "WM_SETFOCUS",
                 "WM_KEYDOWN:Space",
+                "WM_KEYDOWN:F",
+                "WM_KEYDOWN:Enter",
                 "WM_KEYDOWN:W",
                 "WM_KILLFOCUS",
             ]) ||
         JSON.stringify(suspended.delaysBeforeKeysMilliseconds) !==
-            JSON.stringify([0, 0]) ||
+            JSON.stringify([0, 0, 0, 0]) ||
         !Array.isArray(suspended.keyPostIntervalsMilliseconds) ||
-        suspended.keyPostIntervalsMilliseconds.length !== 1 ||
-        typeof suspended.keyPostIntervalsMilliseconds[0] !== "number" ||
-        suspended.keyPostIntervalsMilliseconds[0] < 0 ||
-        suspended.keyPostIntervalsMilliseconds[0] > 50 ||
+        suspended.keyPostIntervalsMilliseconds.length !== 3 ||
+        suspended.keyPostIntervalsMilliseconds.some((interval) =>
+            typeof interval !== "number" || interval < 0 || interval > 50
+        ) ||
         suspended.atomicBatch !== true ||
-        number(suspended, "atomicPrefixLength") !== 2 ||
+        number(suspended, "atomicPrefixLength") !== 4 ||
         number(suspended, "batchThreadId") <= 0 ||
         number(suspended, "batchSpanMilliseconds") < 0 ||
         number(suspended, "batchSpanMilliseconds") > 50 ||
@@ -54,6 +58,8 @@ function nativeFocusInvariant(suspended: Json, resumed: Json, processId: number)
             spanMilliseconds: suspended.batchSpanMilliseconds,
         },
         actionPressBeforeFocusLoss: true,
+        observationPressBeforeFocusLoss: true,
+        activationPressBeforeFocusLoss: true,
         locomotionPressBeforeFocusLoss: true,
         synthesizedFocusState: false,
     };
@@ -69,6 +75,17 @@ export function focusSessionInvariant(launch: Json, session: Json): Json {
     if (jump.pending !== false || jump.grounded !== true) {
         fail("prototype focus-discontinuity did not begin from grounded idle Jump state");
     }
+    const readyObservation = object(object(readiness, "object_observation_driver"), "status");
+    const readyInteraction = object(object(readiness, "object_interaction_driver"), "status");
+    if (
+        readyObservation.pending !== false ||
+        readyObservation.target !== null ||
+        readyInteraction.pending !== false ||
+        readyInteraction.acknowledgement !== null ||
+        number(readyInteraction, "committedCount") !== 0 ||
+        number(readyInteraction, "ineligibleCount") !== 0 ||
+        readyInteraction.consumed !== null
+    ) fail("prototype focus-discontinuity did not begin from idle object policies");
 
     const readyClock = object(object(readiness, "simulation_driver"), "clock");
     const finalClock = object(completion, "clock");
@@ -91,7 +108,10 @@ export function focusSessionInvariant(launch: Json, session: Json): Json {
         ...session,
         actorStateUnchanged: true,
         sameBatchJumpDidNotReachResumedSimulation: true,
+        sameBatchObservationDidNotReachResumedSimulation: true,
+        sameBatchActivationDidNotReachResumedSimulation: true,
         heldLocomotionDidNotReachSimulation: true,
+        objectPoliciesIdleAcrossDiscontinuity: true,
         resumedReadyProgress: true,
         actionAfterReadiness: true,
         clock: {
