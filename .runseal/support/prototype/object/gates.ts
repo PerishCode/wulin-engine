@@ -171,7 +171,6 @@ async function feedbackSessionInvariant(
         exactCommittedFacing: true,
         stationaryActor: true,
         acknowledgementFrameCount: 12,
-        copiedObjectState: false,
     };
 }
 
@@ -289,7 +288,6 @@ export async function sustainedCapacityInvariant(
         postReadinessCapacityRejection: capacityInput,
         independentExclusionOracle: true,
         exactCapacityOneRollback: true,
-        copiedObjectState: false,
     };
 }
 

@@ -961,6 +961,17 @@ camera/HostInput/main-loop 逻辑。`canonical-prototype-v54` 首轮在 175.160 
 session/process 矩阵保持不变，report 447,322 bytes；全部 103 engine-runtime、48 Prototype、
 20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning；Runtime、renderer/GPU/source/
 resource/synchronization 均未改变。
+Experiment 0140 按兼容与资源双重清理节奏删除 Prototype session 中 6 个恒 false 的负向
+`eventStream`/`eventHistory`/`copiedObjectState` 字段，以及 Rust/TypeScript 层 14 个断言、检查和
+summary copy；session schema 从 v1 直接升至 v2，不留 decoder、alias、optional branch 或替代 flag。
+现有 session guard 扫描 6 个当前 owner 并禁止旧字段返回。`canonical-prototype-v55` 首轮在
+170.874 秒通过，439,342-byte report 含 58 个 v2 contract、零旧字段；`canonical-runtime-v19`
+在 317.927 秒通过，7,528,196-byte report 含 2 个 v2 checkpoint、零旧字段，并保持 1,037 次
+Sidecar invocation、4 warm/8 measured publications、499 handles、23 threads、private bytes
+`409,800,704 -> 410,427,392`、2/2 lifecycle 与 24 artifacts / 25,346,264 bytes。全部 103
+engine-runtime、48 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning。
+受控提交后的 workspace-local `target/` 与 `out/` 共 7,740 files / 3,253,478,132 bytes，现
+已删除；`.task/`、共享全局缓存与 tracked state 未改变。
 
 ## Project model
 

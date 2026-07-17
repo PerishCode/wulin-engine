@@ -116,8 +116,6 @@ fn graceful_completion_is_exact_bounded_final_state() {
         value["object_interaction"]["nearestExclusion"],
         serde_json::json!(identity())
     );
-    assert_eq!(value["object_interaction"]["eventHistory"], false);
-    assert_eq!(value["object_interaction"]["copiedObjectState"], false);
 }
 
 #[test]

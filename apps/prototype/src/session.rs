@@ -11,7 +11,7 @@ use crate::{
     object::{interaction, observation},
 };
 
-pub(crate) const REVISION: &str = "live-prototype-session-completion-v1";
+pub(crate) const REVISION: &str = "live-prototype-session-completion-v2";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CompletionReason {
@@ -100,7 +100,6 @@ fn readiness_value(evidence: Readiness) -> Result<Value> {
             "readinessSequence": 1,
             "completionSequence": 2,
             "completion": "graceful-exit-only",
-            "eventStream": false,
         },
         "startup": evidence.startup,
         "traversal": evidence.traversal,
@@ -154,7 +153,6 @@ fn readiness_value(evidence: Readiness) -> Result<Value> {
                 "submitted": evidence.submitted_object_feedback,
                 "projected": evidence.rendered_object_feedback,
                 "submittedFrameCount": evidence.object_target_frame_count,
-                "copiedObjectState": false,
             },
         },
         "object_interaction_driver": {
@@ -176,7 +174,6 @@ fn readiness_value(evidence: Readiness) -> Result<Value> {
                 "projectedFrameCount": evidence.object_suppression_frame_count,
             },
             "nearestExclusion": evidence.interaction_status.consumed,
-            "copiedObjectState": false,
         },
     }))
 }
@@ -211,7 +208,6 @@ pub(crate) fn completion_value(evidence: Completion) -> Result<Value> {
         "object_observation": {
             "pending": evidence.observation_status.pending,
             "target": object_target(evidence.observation_status),
-            "copiedObjectState": false,
         },
         "object_interaction": {
             "capacity": 1,
@@ -224,8 +220,6 @@ pub(crate) fn completion_value(evidence: Completion) -> Result<Value> {
             "ineligibleCount": evidence.interaction_status.ineligible_count,
             "consumed": evidence.interaction_status.consumed,
             "nearestExclusion": evidence.interaction_status.consumed,
-            "eventHistory": false,
-            "copiedObjectState": false,
         },
     }))
 }

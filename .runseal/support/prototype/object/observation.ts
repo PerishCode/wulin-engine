@@ -15,8 +15,7 @@ export function idleObservationInvariant(launch: Json): Json {
         status.target !== null ||
         feedback.submitted !== null ||
         feedback.projected !== null ||
-        number(feedback, "submittedFrameCount") !== 0 ||
-        feedback.copiedObjectState !== false
+        number(feedback, "submittedFrameCount") !== 0
     ) fail("prototype idle object observation driver diverged");
     return {
         revision: driver.revision,
@@ -25,6 +24,5 @@ export function idleObservationInvariant(launch: Json): Json {
         completed: false,
         observation: null,
         target: null,
-        copiedObjectState: false,
     };
 }

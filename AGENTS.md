@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0139 and the current ADR set through 0142 define one live content runtime
+Experiments 0031-0140 and the current ADR set through 0143 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -446,6 +446,13 @@ geometry/material/rig source, and one deterministic object-shadow path:
   and object owner guards become the sole absence authority, current malformed-payload and
   transaction-rollback tests remain live, and no alias, decoder, rejection registry, product
   behavior, or engine/GPU/resource ownership changes;
+- one mandatory negative-session compatibility/resource cleanup that deletes six static
+  false-valued event-stream/history/copied-object report fields plus every downstream assertion
+  and summary copy, advances the sole Prototype session schema directly to v2, and makes the
+  existing session guard the sole return authority across six current owners; current positive
+  session/object/process evidence remains exact, and the scheduled operator removes only resolved
+  workspace-local `target/` and `out/` without a decoder, replacement flag, cleanup wrapper,
+  `.task/` deletion, shared-cache mutation, or product/engine/GPU/resource behavior;
 - one accepted plain Prototype v0 stage boundary over that exact self-contained finite single-actor
   loop; it does not claim sustained product traversal, a source service, finite-edge behavior,
   gameplay interaction, multiple actors, networking, or Wulin content;
@@ -598,6 +605,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0140-focus-cleanup-camera-edge.md` | Accepted sample-scoped camera press/release retention across same-ingest focus cleanup. |
 | `docs/adr/0141-held-camera-focus-cleanup.md` | Accepted duplicate-down suppression and release-only focus cleanup for an already-held camera key. |
 | `docs/adr/0142-camera-focus-readmission.md` | Accepted fresh Q/E press readmission after release-only focus cleanup. |
+| `docs/adr/0143-retired-negative-session-fields-resource-cleanup.md` | Accepted static negative Prototype session-field retirement, schema-v2 replacement, and scheduled workspace resource cleanup. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -708,6 +716,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0137-focus-cleanup-camera-edge/README.md` | Accepted one-step Q/E camera composition across same-ingest focus cleanup with no held repetition. |
 | `experiments/0138-held-camera-focus-cleanup/README.md` | Accepted no-repeat Q/E camera composition when focus cleanup releases an already-held key. |
 | `experiments/0139-camera-focus-readmission/README.md` | Accepted fresh Q/E camera press readmission after focus cleanup ends the prior held-key lifetime. |
+| `experiments/0140-retired-negative-session-fields-resource-cleanup/README.md` | Mandatory static negative session-report compatibility deletion and measured target/out cleanup. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
