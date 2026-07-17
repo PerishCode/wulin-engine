@@ -13,6 +13,9 @@ export async function requireBoundedPrototypeSession(
     const sessionGates = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/sessions/gates.ts`,
     );
+    const focusAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/sessions/focus.ts`,
+    );
     const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input/mod.ts`);
     const inputActions = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/input/actions.ts`,
@@ -28,6 +31,9 @@ export async function requireBoundedPrototypeSession(
     );
     const cameraRepressAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/camera_repress.ts`,
+    );
+    const runReleaseAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/sessions/run_release.ts`,
     );
     const cameraPolicy = await Deno.readTextFile(`${root}/apps/prototype/src/camera.rs`);
     const hostInput = await Deno.readTextFile(`${root}/crates/reference-host/src/input.rs`);
@@ -72,6 +78,7 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("invalidKeySessionInvariant") ||
         !sessionGates.includes("oppositeCameraSessionInvariant") ||
         !sessionGates.includes("counterClockwiseSessionInvariant") ||
+        !sessionGates.includes("runReleaseSessionInvariant") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
         !inputSequences.includes("repressJumpAndExit") ||
@@ -81,6 +88,7 @@ export async function requireBoundedPrototypeSession(
         !inputSequences.includes("postInvalidAliasSequence") ||
         !inputSequences.includes("postOppositeCameraSequence") ||
         !inputSequences.includes("postCounterClockwiseSequence") ||
+        !inputSequences.includes("postRunReleaseSequence") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
         !cameraAcceptance.includes("checkedRangeRejected: true") ||
@@ -96,6 +104,11 @@ export async function requireBoundedPrototypeSession(
         !cameraRepressAcceptance.includes("freshPressEdgeReadmitted: true") ||
         !cameraRepressAcceptance.includes("committedOrbitIndex: 2") ||
         !cameraRepressAcceptance.includes("deltaZQ9 <= 0") ||
+        !runReleaseAcceptance.includes("runModifierReleased: true") ||
+        !runReleaseAcceptance.includes("retainedForwardInput: true") ||
+        !runReleaseAcceptance.includes("transitionedToWalk: true") ||
+        !runReleaseAcceptance.includes("runHoldIntervalMilliseconds") ||
+        !focusAcceptance.includes("atomicWindowThreadBatch") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||
         !hostInput.includes("down == key_is_set(&self.held, key)") ||
@@ -103,6 +116,8 @@ export async function requireBoundedPrototypeSession(
         !input.includes("[Diagnostics.Stopwatch]::StartNew()") ||
         input.includes("prototype-native-window-action-v2") ||
         !input.includes("PostAtomicInputBatch") ||
+        !input.includes("suspendAfterInput") ||
+        !input.includes("0x0008u") ||
         !input.includes("SuspendThread") ||
         !input.includes("ResumeThread") ||
         !inputActions.includes("postInvariantObjectAction") ||

@@ -785,6 +785,16 @@ E-down 未形成 fresh edge，相机会留在 orbit 1 且 W 必产生负 X，因
 已 `1 -> 2`。clock reset/suspend/resume/stall 保持 `1/0/0/0`，Ready/sample
 `2/3 -> 40/41`，object idle、零 render block、两值 clean exit 与全部旧 gate 均成立；产品
 HostInput、camera/locomotion、session schema、Runtime、traversal 与 engine/GPU/resource 结构未改变。
+Experiment 0123 补齐 held Shift 释放后 W 仍保持 Walk 的原生实机证明。验收先暴露并修复了两个
+helper 问题而未改产品：focus-discontinuity 的 W-down/focus-loss 改为在精确窗口线程暂停期间原子
+排队，Run-release 则改为单一并发原生序列，避免第二个 PowerShell 启动开销先把 actor 推到有限边界。
+`canonical-prototype-v39` 在 142.711 秒通过：PID 22072 依次收到 Shift-down、W-down、Shift-up、
+Escape，前三段间隔为 4.6121/505.9149 ms，Escape 再晚 208.2274 ms。readiness 在 local Z
+`-192` 提交 3 个 Run steps、clip 2/yaw 49,152/epoch 3；completion 保持同一 actor/region，在
+local Z `-2304` 提交 Walk clip 1/yaw 49,152/epoch 19，总 Z delta `-2112 Q9`、X delta 0。
+clock Ready/sample `2/3 -> 23/24`，reset/suspend/resume/stall 保持 `1/0/0/0`，object idle、零
+render block、两值 clean exit 与全部旧 gate 均成立；HostInput、gait/presentation、session schema、
+Runtime、traversal 与 engine/GPU/resource 结构未改变。
 
 ## Project model
 
