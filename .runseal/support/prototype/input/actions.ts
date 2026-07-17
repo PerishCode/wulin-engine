@@ -98,7 +98,7 @@ export async function postObjectActionExit(processId: number): Promise<Json> {
         true,
         "input",
         [0, 0],
-        200,
+        250,
         true,
     );
 }

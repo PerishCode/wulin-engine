@@ -328,10 +328,10 @@ function nativeObjectActionInvariant(
         number(evidence, "batchThreadId") <= 0 ||
         number(evidence, "batchSpanMilliseconds") < 0 ||
         number(evidence, "batchSpanMilliseconds") > 50 ||
-        number(evidence, "exitAfterLastMilliseconds") !== (delayedExit ? 200 : 0) ||
+        number(evidence, "exitAfterLastMilliseconds") !== (delayedExit ? 250 : 0) ||
         (delayedExit
-            ? number(evidence, "exitIntervalMilliseconds") < 200 ||
-                number(evidence, "exitIntervalMilliseconds") > 700
+            ? number(evidence, "exitIntervalMilliseconds") < 250 ||
+                number(evidence, "exitIntervalMilliseconds") > 750
             : evidence.exitIntervalMilliseconds !== null)
     ) fail("prototype post-ready native object action evidence diverged");
     return {

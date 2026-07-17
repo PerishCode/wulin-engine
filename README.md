@@ -906,6 +906,17 @@ live frames；actor 仍逐字段等于 readiness，证明同批 Jump 边沿和 h
 447,445 bytes；全部 103 engine-runtime、45 Prototype、20 reference-host 测试通过，Flavor
 0 deny / 5 个既有 warning；产品、Runtime、renderer/GPU/source/resource/synchronization
 均未改变。
+Experiment 0134 修复了 post-ready Activated 验收在 12-frame acknowledgement 边界上的
+实机竞态。最初三个 v49 运行均在 focus sessions 之前失败；临时精确诊断一致显示 action
+`committed=1`、`ineligible=0`、target 已清、Activated 恰为 12、Rejected 为 0，但
+suppression 为 0，证明原 200ms Escape 恰落在绿色反馈结束处，不能保证后续 suppression frame。
+最终只把验收 helper 的请求延长为 250ms，并严格验证观测区间 `[250,750]`ms；产品阈值和
+12-frame 契约未变。`canonical-prototype-v49` 在 174.564 秒通过：PID 28412 / thread 31632
+以 0.0016ms 原子 F/Enter 批次提交 authored ID 496，270.6458ms 后 Escape；完成值保留
+12 Activated frames 并新增 2 suppression frames，committed identity/exclusion 精确、actor
+静止、对象 pending/target/ack 清空、零 render block、stdout 恰为两值。report 446,569 bytes；
+全部 103 engine-runtime、45 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个
+既有 warning；产品、Runtime、renderer/GPU/source/resource/synchronization 均未改变。
 
 ## Project model
 
@@ -977,7 +988,8 @@ second native Space readmission and exact midair re-press rejection with a Walk 
 two exact-window atomic native F+Enter stationary observation/actions whose positive/negative-X
 source fixtures are invariant across every allowed first batch, whose bounded results match an
 independent source oracle, and whose exact Activated/Rejected targets commit only through the
-successful frame, plus sustained post-readiness motion/capacity rejection,
+successful frame, whose 250 ms post-action dwell proves at least one frame of suppression after
+the exact 12-frame acknowledgement, plus sustained post-readiness motion/capacity rejection,
 one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-W
 finite-edge survival, exact native Escape and visible-window WM_CLOSE clean exits, native
 same-batch Space/W focus-loss action and held-input suppression plus no-backlog resume, one exact atomic same-ingest opposite-Q/E

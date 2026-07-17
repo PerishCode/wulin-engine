@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0133 and the current ADR set through 0136 define one live content runtime
+Experiments 0031-0134 and the current ADR set through 0137 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -321,8 +321,10 @@ geometry/material/rig source, and one deterministic object-shadow path:
   while preserving full 25,600-candidate validation/counting, becomes immutable frame suppression
   after the existing 12-frame acknowledgement, projects only for the matching source/window, and
   rejects the exact active-index/local-ID after grounding but before frustum/visibility in the sole
-  skeletal cull, so same-source departure/revisit, source replacement, restart, and every downstream
-  render path retain one deterministic lifetime without canonical mutation, registry, inventory,
+  skeletal cull; the maintained post-readiness gate requests an exact 250 ms action-to-exit dwell,
+  validates an observed 250..=750 ms interval, and requires at least one following suppression
+  frame, so same-source departure/revisit, source replacement, restart, and every downstream render
+  path retain one deterministic lifetime without canonical mutation, registry, inventory,
   persistence, networking, or Wulin semantics;
 - one pure Prototype object-action facing gate that maps only the committed actor output's eight
   exact yaws to integer planar directions, admits a non-coincident in-radius target only for a
@@ -582,6 +584,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0134-post-readiness-finite-boundary-run.md` | Accepted exact-PID post-readiness atomic Shift/W finite-boundary liveness with unchanged single-process/product-output budgets. |
 | `docs/adr/0135-native-forward-release.md` | Accepted normal exact-PID W release, Walk-to-Survey retained-facing completion, and direct idle-Escape report replacement. |
 | `docs/adr/0136-native-focus-jump-suppression.md` | Accepted same-batch native Space/W focus-loss suppression across resumed Ready simulation. |
+| `docs/adr/0137-bounded-object-suppression-dwell.md` | Accepted 250 ms post-action dwell guaranteeing evidence beyond the 12-frame acknowledgement boundary. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -686,6 +689,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0131-post-readiness-finite-boundary-run/README.md` | Accepted atomic post-readiness Shift/W finite-boundary process survival and explicit liveness/state evidence boundary. |
 | `experiments/0132-native-forward-release/README.md` | Accepted normal W-up Walk-to-Survey completion evidence and replacement of the redundant idle Escape process. |
 | `experiments/0133-native-focus-jump-suppression/README.md` | Accepted same-batch Space/W focus-loss action and locomotion suppression evidence. |
+| `experiments/0134-bounded-object-suppression-dwell/README.md` | Accepted bounded post-action exit timing with a deterministic suppression-frame witness. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -794,7 +798,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/object/observation_order.ts` | Zero-dependency valid asynchronous traversal/observation token-order contract. |
 | `.runseal/support/prototype/object/observation_test.ts` | Equivalent pre/post asynchronous traversal observation order and impossible-token rejection evidence. |
 | `.runseal/support/prototype/object/interaction.ts` | Idle readiness action/facing/acknowledgement/consumption/suppression invariant owner. |
-| `.runseal/support/prototype/object/gates.ts` | Post-readiness exact-PID Activated/Rejected/capacity completion, independent source identity, restart, and unchanged-subsystem gate composition. |
+| `.runseal/support/prototype/object/gates.ts` | Post-readiness exact-PID Activated/Rejected/capacity completion, bounded suppression dwell, independent source identity, restart, and unchanged-subsystem gate composition. |
 | `.runseal/support/object/integration.ts` | Object resolution/nearest source, window, movement, and corrupt-pair preservation integration gates. |
 | `.runseal/support/idle-shell.ts` | Current clear-only status, renderer-health, image, and uniformly background semantic evidence. |
 | `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for retired dense/standalone contact surfaces and required private witness authority. |
@@ -821,7 +825,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/camera_repress.ts` | Exact native held-E release/re-press, orbit-two Walk, clock, and bounded session oracle owner. |
 | `.runseal/support/prototype/input/mod.ts` | Explicit-PID native request/script owner, monotonic delayed keys/exits, bounded exact-window-thread atomic input/focus-loss batches, suspend/resume/close actions, and schema-4 timing evidence. |
 | `.runseal/support/prototype/input/prepared.ts` | PowerShell helper-ready handshake, bounded process completion, and exact-PID schema-4 native-window/prefix evidence validation owner. |
-| `.runseal/support/prototype/input/actions.ts` | Named Prototype boundary locomotion, post-readiness object/capacity action, atomic focus-loss action/locomotion batch, Escape, resume, and window-close native actions. |
+| `.runseal/support/prototype/input/actions.ts` | Named Prototype boundary locomotion, bounded post-readiness object/capacity action, atomic focus-loss action/locomotion batch, Escape, resume, and window-close native actions. |
 | `.runseal/support/prototype/input/sequences.ts` | Exact-PID post-readiness forward release, diagonal Walk/Run, Run transitions, Jump, opposed-locomotion, camera, invalid-key, and delayed-exit native input sequences. |
 | `.runseal/support/prototype/jump.ts` | Exact native Jump policy, first/second/single-flight arithmetic, landing/readmission, and midair-rejection oracles. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk/Run, locomotion yaw, and committed actor presentation invariant owner. |

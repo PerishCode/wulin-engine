@@ -313,6 +313,8 @@ export async function requireBoundedPrototypeSession(
         !inputActions.includes('{ key: "D", virtualKey: 0x44, down: true }') ||
         !inputActions.includes('{ key: "D", virtualKey: 0x44, down: false }') ||
         !inputActions.includes('"prototype-capacity-rejection-input-v1"') ||
+        !objectGates.includes("(delayedExit ? 250 : 0)") ||
+        !objectGates.includes('number(evidence, "exitIntervalMilliseconds") < 250') ||
         !inputActions.includes('{ key: "F", virtualKey: 0x46, down: false }') ||
         !inputActions.includes('{ key: "Enter", virtualKey: 0x0D, down: false }')
     ) fail("guard: bounded Prototype session contract diverged");
