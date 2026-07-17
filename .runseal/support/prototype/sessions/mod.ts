@@ -7,13 +7,13 @@ import {
     suspendWithForward,
 } from "../input/actions.ts";
 import {
-    applyStartupInput,
     postCameraRepeatSequence,
     postCameraRepressSequence,
     postCounterClockwiseSequence,
     postInvalidAliasSequence,
     postMidairSequence,
     postOppositeCameraSequence,
+    prepareStartupInput,
     pressPrototypeJump,
     releaseOpposedRun,
     repressJumpAndExit,
@@ -64,7 +64,7 @@ export async function capturedReady(
     startupInput?: StartupInput,
 ): Promise<Json> {
     const started = performance.now();
-    const preparedNativeInput = applyStartupInput(null, startupInput);
+    const preparedNativeInput = await prepareStartupInput(startupInput);
     const child = new Deno.Command(executable, {
         args: [`--bootstrap=${config}`],
         cwd: root,
@@ -79,7 +79,7 @@ export async function capturedReady(
     let nativeInput: Json | null;
     let trailingOutput = "";
     try {
-        nativeInput = await preparedNativeInput;
+        nativeInput = preparedNativeInput === null ? null : await preparedNativeInput.evidence;
         if (nativeInput !== null && number(nativeInput, "processId") !== child.pid) {
             fail(`${label} startup input selected the wrong process`);
         }
@@ -147,7 +147,7 @@ export async function gracefulExit(
     exitReason: "escape" | "window-close" = "escape",
 ): Promise<Json> {
     const started = performance.now();
-    const preparedStartupInput = applyStartupInput(null, startupInput);
+    const preparedStartupInput = await prepareStartupInput(startupInput);
     const child = new Deno.Command(executable, {
         args: [`--bootstrap=${config}`],
         cwd: root,
@@ -166,12 +166,20 @@ export async function gracefulExit(
     let status: Deno.CommandStatus;
     let trailingOutput = "";
     try {
-        if (startupInput === "run-release" || startupInput === "run-repress") {
+        if (
+            startupInput === "diagonal-walk" ||
+            startupInput === "run-release" ||
+            startupInput === "run-repress"
+        ) {
             readiness = JSON.parse(await readinessLine(reader)) as Json;
-            startupNativeInput = await preparedStartupInput;
+            startupNativeInput = preparedStartupInput === null
+                ? null
+                : await preparedStartupInput.evidence;
             exitInput = startupNativeInput;
         } else {
-            startupNativeInput = await preparedStartupInput;
+            startupNativeInput = preparedStartupInput === null
+                ? null
+                : await preparedStartupInput.evidence;
             readiness = JSON.parse(await readinessLine(reader)) as Json;
         }
         if (

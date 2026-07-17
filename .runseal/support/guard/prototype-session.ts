@@ -17,6 +17,9 @@ export async function requireBoundedPrototypeSession(
         `${root}/.runseal/support/prototype/sessions/focus.ts`,
     );
     const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input/mod.ts`);
+    const preparedInput = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/input/prepared.ts`,
+    );
     const inputActions = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/input/actions.ts`,
     );
@@ -41,6 +44,9 @@ export async function requireBoundedPrototypeSession(
     const locomotionOppositionAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/sessions/locomotion_opposition.ts`,
     );
+    const diagonalWalkAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/sessions/diagonal_walk.ts`,
+    );
     const cameraPolicy = await Deno.readTextFile(`${root}/apps/prototype/src/camera.rs`);
     const hostInput = await Deno.readTextFile(`${root}/crates/reference-host/src/input.rs`);
     const objectGates = await Deno.readTextFile(
@@ -54,6 +60,29 @@ export async function requireBoundedPrototypeSession(
     );
     const canonicalSetup = await Deno.readTextFile(
         `${root}/.runseal/support/canonical-setup.ts`,
+    );
+    const nativeTypeIndex = input.indexOf("Add-Type -TypeDefinition");
+    const helperReadyIndex = input.indexOf(
+        '[Console]::Out.WriteLine("prototype-native-helper-ready-v1")',
+    );
+    const windowSearchIndex = input.indexOf("do {", helperReadyIndex);
+    const capturedReadyIndex = acceptance.indexOf("export async function capturedReady");
+    const capturedPreparationIndex = acceptance.indexOf(
+        "await prepareStartupInput(startupInput)",
+        capturedReadyIndex,
+    );
+    const capturedSpawnIndex = acceptance.indexOf(
+        "new Deno.Command(executable",
+        capturedPreparationIndex,
+    );
+    const gracefulExitIndex = acceptance.indexOf("export async function gracefulExit");
+    const gracefulPreparationIndex = acceptance.indexOf(
+        "await prepareStartupInput(startupInput)",
+        gracefulExitIndex,
+    );
+    const gracefulSpawnIndex = acceptance.indexOf(
+        "new Deno.Command(executable",
+        gracefulPreparationIndex,
     );
     if (
         !main.includes("mod session;") ||
@@ -87,6 +116,7 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("runReleaseSessionInvariant") ||
         !sessionGates.includes("runRepressSessionInvariant") ||
         !sessionGates.includes("locomotionOppositionSessionInvariant") ||
+        !sessionGates.includes("diagonalWalkSessionInvariant") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
         !inputSequences.includes("repressJumpAndExit") ||
@@ -96,10 +126,22 @@ export async function requireBoundedPrototypeSession(
         !inputSequences.includes("postInvalidAliasSequence") ||
         !inputSequences.includes("postOppositeCameraSequence") ||
         !inputSequences.includes("postCounterClockwiseSequence") ||
-        !inputSequences.includes("postRunReleaseSequence") ||
-        !inputSequences.includes("postRunRepressSequence") ||
+        !inputSequences.includes('case "run-release"') ||
+        !inputSequences.includes('case "run-repress"') ||
         !inputSequences.includes("releaseOpposedRun") ||
-        !acceptance.includes("applyStartupInput(null, startupInput)") ||
+        !inputSequences.includes('case "diagonal-walk"') ||
+        !inputSequences.includes('{ key: "A", virtualKey: 0x41, down: true }') ||
+        acceptance.includes("applyStartupInput(") ||
+        (acceptance.match(/await prepareStartupInput\(startupInput\)/g)?.length ?? 0) !== 2 ||
+        nativeTypeIndex < 0 ||
+        helperReadyIndex <= nativeTypeIndex ||
+        windowSearchIndex <= helperReadyIndex ||
+        capturedReadyIndex < 0 ||
+        capturedPreparationIndex <= capturedReadyIndex ||
+        capturedSpawnIndex <= capturedPreparationIndex ||
+        gracefulExitIndex < 0 ||
+        gracefulPreparationIndex <= gracefulExitIndex ||
+        gracefulSpawnIndex <= gracefulPreparationIndex ||
         !acceptance.includes("startup input selected the wrong process") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
@@ -129,6 +171,10 @@ export async function requireBoundedPrototypeSession(
         !locomotionOppositionAcceptance.includes("releasedBackwardInput: true") ||
         !locomotionOppositionAcceptance.includes("retainedForwardRunReadmitted: true") ||
         !locomotionOppositionAcceptance.includes("runStepCount") ||
+        !diagonalWalkAcceptance.includes("atomicDiagonalInput: true") ||
+        !diagonalWalkAcceptance.includes("nativeLeftInput: true") ||
+        !diagonalWalkAcceptance.includes("exactWalkNormalization: true") ||
+        !diagonalWalkAcceptance.includes("diagonalStepCount") ||
         !focusAcceptance.includes("atomicWindowThreadBatch") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||
@@ -136,12 +182,15 @@ export async function requireBoundedPrototypeSession(
         !hostInput.includes("u8::try_from(key)") ||
         !input.includes("[Diagnostics.Stopwatch]::StartNew()") ||
         input.includes("prototype-native-window-action-v2") ||
+        !input.includes("startPreparedWindowAction") ||
+        !preparedInput.includes('"prototype-native-helper-ready-v1"') ||
+        !preparedInput.includes("completePrototypeWindowAction") ||
         !input.includes("PostAtomicInputBatch") ||
         !input.includes("suspendAfterInput") ||
         !input.includes("0x0008u") ||
         !input.includes("SuspendThread") ||
         !input.includes("ResumeThread") ||
-        !inputActions.includes("postInvariantObjectAction") ||
+        !inputSequences.includes('case "object-action"') ||
         !objectObservation.includes("maximumBatchGeometryInvariant: true") ||
         !objectObservation.includes("stepCount > 8") ||
         !prototypeHost.includes("objectActionCenter: Coord = [base[0] + 4, base[1]]") ||

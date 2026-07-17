@@ -1,49 +1,8 @@
 import { fail, type Json } from "../../canonical-runtime.ts";
 import { postPrototypeKeys, postPrototypeWindowAction } from "./mod.ts";
 
-export async function holdPrototypeForwardKey(processId: number | null): Promise<Json> {
+export async function holdPrototypeForwardKey(processId: number): Promise<Json> {
     return await postPrototypeKeys(processId, [{ key: "W", virtualKey: 0x57 }], false);
-}
-
-export async function holdRunForwardKeys(processId: number | null): Promise<Json> {
-    return await postPrototypeKeys(
-        processId,
-        [{ key: "Shift", virtualKey: 0x10 }, { key: "W", virtualKey: 0x57 }],
-        true,
-    );
-}
-
-export async function holdOpposedRunKeys(processId: number | null): Promise<Json> {
-    return await postPrototypeKeys(
-        processId,
-        [
-            { key: "Shift", virtualKey: 0x10 },
-            { key: "W", virtualKey: 0x57 },
-            { key: "S", virtualKey: 0x53 },
-        ],
-        true,
-        true,
-    );
-}
-
-export async function holdOrbitForwardKeys(processId: number | null): Promise<Json> {
-    return await postPrototypeKeys(
-        processId,
-        [{ key: "E", virtualKey: 0x45 }, { key: "W", virtualKey: 0x57 }],
-        true,
-    );
-}
-
-export async function postInvariantObjectAction(processId: number | null): Promise<Json> {
-    return await postPrototypeKeys(
-        processId,
-        [
-            { key: "F", virtualKey: 0x46 },
-            { key: "Enter", virtualKey: 0x0D },
-        ],
-        true,
-        true,
-    );
 }
 
 export async function pressPrototypeEscape(processId: number): Promise<Json> {

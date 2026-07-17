@@ -1,9 +1,9 @@
-import { fail, type Json, root } from "../../canonical-runtime.ts";
-
-const decoder = new TextDecoder();
+import { fail, type Json } from "../../canonical-runtime.ts";
+import { startPreparedWindowAction } from "./prepared.ts";
 
 export type PrototypeKey = {
     key:
+        | "A"
         | "D"
         | "E"
         | "Enter"
@@ -24,7 +24,11 @@ export type PrototypeKeyTransition = PrototypeKey & {
 
 export type PrototypeWindowAction = "close" | "input" | "resume" | "suspend";
 
-export async function postPrototypeWindowAction(
+export type PreparedPrototypeWindowAction = {
+    evidence: Promise<Json>;
+};
+
+export async function preparePrototypeWindowAction(
     processId: number | null,
     keys: PrototypeKeyTransition[],
     requireVisible: boolean,
@@ -32,7 +36,7 @@ export async function postPrototypeWindowAction(
     delaysBeforeKeysMilliseconds: number[] = [],
     exitAfterLastMilliseconds = 0,
     atomicBatch = false,
-): Promise<Json> {
+): Promise<PreparedPrototypeWindowAction> {
     if (
         processId !== null &&
         (!Number.isSafeInteger(processId) || processId <= 0)
@@ -216,6 +220,8 @@ $batchSpanMilliseconds = $null
 $deadline = [DateTime]::UtcNow.AddSeconds(20)
 $window = [IntPtr]::Zero
 $windowProcessId = [uint32]0
+[Console]::Out.WriteLine("prototype-native-helper-ready-v1")
+[Console]::Out.Flush()
 do {
     $candidate = [PrototypeInputNative]::FindWindow(
         "WulinEnginePrototypeWindow",
@@ -397,68 +403,40 @@ if ($action -eq "suspend" -and -not $atomicBatch) {
     batchSpanMilliseconds = $batchSpanMilliseconds
 }) -Depth 4 -Compress))
 `;
-    const output = await new Deno.Command("pwsh", {
-        args: ["-NoProfile", "-NonInteractive", "-Command", script],
-        cwd: root,
-        stdout: "piped",
-        stderr: "piped",
-    }).output();
-    const stdout = decoder.decode(output.stdout).trim();
-    const stderr = decoder.decode(output.stderr).trim();
-    if (!output.success) {
-        fail(`prototype native input failed with ${output.code}: ${stderr.slice(-4_096)}`);
-    }
-    const evidence = JSON.parse(stdout) as Json;
-    if (
-        evidence.schema !== "prototype-native-window-action-v3" ||
-        evidence.action !== action ||
-        typeof evidence.processId !== "number" ||
-        !Number.isSafeInteger(evidence.processId) ||
-        evidence.processId <= 0 ||
-        (processId !== null && evidence.processId !== processId) ||
-        evidence.activated !== (action !== "close") ||
-        evidence.closeRequested !== (action === "close") ||
-        evidence.requiredVisible !== requireVisible ||
-        (requireVisible && evidence.windowWasVisible !== true) ||
-        JSON.stringify(evidence.keys) !== JSON.stringify(nativeKeys) ||
-        JSON.stringify(evidence.messages) !== JSON.stringify(expectedMessages) ||
-        JSON.stringify(evidence.delaysBeforeKeysMilliseconds) !== JSON.stringify(keyDelays) ||
-        !Array.isArray(evidence.keyPostIntervalsMilliseconds) ||
-        evidence.keyPostIntervalsMilliseconds.length !== Math.max(0, keys.length - 1) ||
-        evidence.keyPostIntervalsMilliseconds.some((interval, index) =>
-            typeof interval !== "number" ||
-            interval < keyDelays[index + 1]
-        ) ||
-        evidence.exitAfterLastMilliseconds !== exitAfterLastMilliseconds ||
-        evidence.atomicBatch !== atomicBatch ||
-        (atomicBatch
-            ? typeof evidence.batchThreadId !== "number" ||
-                !Number.isSafeInteger(evidence.batchThreadId) ||
-                evidence.batchThreadId <= 0 ||
-                typeof evidence.batchSpanMilliseconds !== "number" ||
-                evidence.batchSpanMilliseconds < 0 ||
-                evidence.batchSpanMilliseconds > 50
-            : evidence.batchThreadId !== null || evidence.batchSpanMilliseconds !== null) ||
-        (exitAfterLastMilliseconds === 0
-            ? evidence.exitIntervalMilliseconds !== null
-            : typeof evidence.exitIntervalMilliseconds !== "number" ||
-                evidence.exitIntervalMilliseconds < exitAfterLastMilliseconds)
-    ) {
-        fail(
-            `prototype native window action evidence diverged: ${
-                JSON.stringify({
-                    action,
-                    nativeKeys,
-                    keyDelays,
-                    exitAfterLastMilliseconds,
-                    atomicBatch,
-                    expectedMessages,
-                    evidence,
-                })
-            }`,
-        );
-    }
-    return evidence;
+    return await startPreparedWindowAction(
+        script,
+        {
+            action,
+            processId,
+            nativeKeys,
+            requireVisible,
+            keyDelays,
+            exitAfterLastMilliseconds,
+            atomicBatch,
+            expectedMessages,
+        },
+    );
+}
+
+export async function postPrototypeWindowAction(
+    processId: number | null,
+    keys: PrototypeKeyTransition[],
+    requireVisible: boolean,
+    action: PrototypeWindowAction = "input",
+    delaysBeforeKeysMilliseconds: number[] = [],
+    exitAfterLastMilliseconds = 0,
+    atomicBatch = false,
+): Promise<Json> {
+    const prepared = await preparePrototypeWindowAction(
+        processId,
+        keys,
+        requireVisible,
+        action,
+        delaysBeforeKeysMilliseconds,
+        exitAfterLastMilliseconds,
+        atomicBatch,
+    );
+    return await prepared.evidence;
 }
 
 export async function postPrototypeKeys(

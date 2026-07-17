@@ -12,6 +12,7 @@ import { sustainedCapacityInvariant } from "../object/gates.ts";
 import { runReleaseSessionInvariant } from "./run_release.ts";
 import { runRepressSessionInvariant } from "./run_repress.ts";
 import { focusSessionInvariant } from "./focus.ts";
+import { diagonalWalkSessionInvariant } from "./diagonal_walk.ts";
 import { locomotionOppositionSessionInvariant } from "./locomotion_opposition.ts";
 import { gracefulCompletionInvariant, gracefulExit, idleCompletionInvariant } from "./mod.ts";
 
@@ -115,6 +116,12 @@ export async function sessionGates(
         "opposed-run",
         "opposed-run-release",
     );
+    const diagonalWalk = await gracefulExit(
+        executable,
+        config,
+        "prototype native diagonal Walk",
+        "diagonal-walk",
+    );
     sameInitial(escape, first, "Escape", startupInvariant, jumpInvariant);
     sameInitial(windowClose, first, "window-close", startupInvariant, jumpInvariant);
     same(
@@ -144,6 +151,7 @@ export async function sessionGates(
         startupInvariant,
         jumpInvariant,
     );
+    sameInitial(diagonalWalk, first, "diagonal-Walk", startupInvariant, jumpInvariant);
     same(
         startupInvariant(sustained),
         startupInvariant(sustainedBaseline),
@@ -214,6 +222,11 @@ export async function sessionGates(
         locomotionOppositionInvariant: locomotionOppositionSessionInvariant(
             locomotionOpposition,
             idleCompletionInvariant(locomotionOpposition),
+        ),
+        diagonalWalk,
+        diagonalWalkInvariant: diagonalWalkSessionInvariant(
+            diagonalWalk,
+            idleCompletionInvariant(diagonalWalk),
         ),
         sustained,
         sustainedInvariant: await sustainedCapacityInvariant(
