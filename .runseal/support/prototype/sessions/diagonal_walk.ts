@@ -16,29 +16,36 @@ function nativeDiagonalWalkInvariant(launch: Json): Json {
         JSON.stringify(sequence.keys) !== JSON.stringify([
                 { key: "W", virtualKey: 0x57, down: true },
                 { key: "A", virtualKey: 0x41, down: true },
+                { key: "W", virtualKey: 0x57, down: false },
             ]) ||
         JSON.stringify(sequence.messages) !== JSON.stringify([
                 "WM_SETFOCUS",
                 "WM_KEYDOWN:W",
                 "WM_KEYDOWN:A",
+                "WM_KEYUP:W",
                 "WM_KEYDOWN:Escape",
             ]) ||
-        JSON.stringify(sequence.delaysBeforeKeysMilliseconds) !== JSON.stringify([0, 0]) ||
+        JSON.stringify(sequence.delaysBeforeKeysMilliseconds) !==
+            JSON.stringify([0, 0, 250]) ||
         !Array.isArray(intervals) ||
-        intervals.length !== 1 ||
+        intervals.length !== 2 ||
         typeof intervals[0] !== "number" ||
         intervals[0] < 0 ||
         intervals[0] > 50 ||
-        sequence.atomicBatch !== true ||
+        typeof intervals[1] !== "number" ||
+        intervals[1] < 250 ||
+        intervals[1] > 750 ||
+        sequence.atomicBatch !== false ||
+        number(sequence, "atomicPrefixLength") !== 2 ||
         typeof sequence.batchThreadId !== "number" ||
         !Number.isSafeInteger(sequence.batchThreadId) ||
         sequence.batchThreadId <= 0 ||
         typeof sequence.batchSpanMilliseconds !== "number" ||
         sequence.batchSpanMilliseconds < 0 ||
         sequence.batchSpanMilliseconds > 50 ||
-        number(sequence, "exitAfterLastMilliseconds") !== 200 ||
-        exitInterval < 200 ||
-        exitInterval > 700
+        number(sequence, "exitAfterLastMilliseconds") !== 250 ||
+        exitInterval < 250 ||
+        exitInterval > 750
     ) fail("prototype native diagonal Walk input evidence diverged");
     same(sequence, object(launch, "exitInput"), "prototype diagonal Walk exit input");
     return {
@@ -46,9 +53,10 @@ function nativeDiagonalWalkInvariant(launch: Json): Json {
         atomicWindowThreadBatch: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
-        keyPostIntervalMilliseconds: intervals[0],
+        diagonalKeyPostIntervalMilliseconds: intervals[0],
+        diagonalHoldMilliseconds: intervals[1],
         orderedMessages: sequence.messages,
-        exitIntervalMilliseconds: exitInterval,
+        leftWalkHoldMilliseconds: exitInterval,
         actionAfterReadiness: true,
     };
 }
@@ -95,18 +103,23 @@ export function diagonalWalkSessionInvariant(launch: Json, session: Json): Json 
     const deltaXQ9 = number(finalPosition, "localXQ9") - readyXQ9;
     const deltaZQ9 = number(finalPosition, "localZQ9") - readyZQ9;
     if (
-        deltaXQ9 >= 0 ||
-        deltaXQ9 !== deltaZQ9 ||
-        deltaXQ9 % 23 !== 0
-    ) fail("prototype diagonal Walk completion normalization diverged");
-    const diagonalStepCount = -deltaXQ9 / 23;
-    if (diagonalStepCount < 1 || diagonalStepCount > 512) {
-        fail("prototype diagonal Walk completion step bound diverged");
+        deltaZQ9 >= 0 ||
+        deltaZQ9 % 23 !== 0 ||
+        deltaXQ9 >= deltaZQ9 ||
+        (deltaZQ9 - deltaXQ9) % 32 !== 0
+    ) fail("prototype diagonal-to-left Walk decomposition diverged");
+    const diagonalStepCount = -deltaZQ9 / 23;
+    const leftStepCount = (deltaZQ9 - deltaXQ9) / 32;
+    if (
+        diagonalStepCount < 1 || diagonalStepCount > 512 ||
+        leftStepCount < 1 || leftStepCount > 512
+    ) {
+        fail("prototype diagonal-to-left Walk phase bounds diverged");
     }
     const finalPresentation = presentationInvariant(
         object(finalActor, "presentation"),
         1,
-        40_960,
+        32_768,
         "prototype diagonal Walk completion",
     );
     if (
@@ -135,7 +148,11 @@ export function diagonalWalkSessionInvariant(launch: Json, session: Json): Json 
         atomicDiagonalInput: true,
         nativeLeftInput: true,
         exactWalkNormalization: true,
+        forwardInputReleased: true,
+        retainedLeftWalk: true,
+        exactTwoPhaseDisplacement: true,
         diagonalStepCount,
+        leftStepCount,
         deltaXQ9,
         deltaZQ9,
         readyPresentation,
