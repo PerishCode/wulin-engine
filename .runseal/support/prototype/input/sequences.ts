@@ -89,6 +89,21 @@ export async function postOppositeCameraSequence(processId: number): Promise<Jso
     );
 }
 
+export async function postCounterClockwiseSequence(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "Q", virtualKey: 0x51, down: true },
+            { key: "W", virtualKey: 0x57, down: true },
+        ],
+        true,
+        "input",
+        [0, 0],
+        200,
+        true,
+    );
+}
+
 export type StartupInput =
     | "camera-clockwise"
     | "camera-forward"
