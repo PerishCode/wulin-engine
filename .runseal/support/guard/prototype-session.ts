@@ -303,6 +303,10 @@ export async function requireBoundedPrototypeSession(
         !diagonalWalkAcceptance.includes("forwardInputReleased: true") ||
         !diagonalWalkAcceptance.includes("retainedLeftWalk: true") ||
         !diagonalWalkAcceptance.includes("exactTwoPhaseDisplacement: true") ||
+        !diagonalWalkAcceptance.includes("leftInputReleased: true") ||
+        !diagonalWalkAcceptance.includes("movedThenStopped: true") ||
+        !diagonalWalkAcceptance.includes("transitionedToSurvey: true") ||
+        !diagonalWalkAcceptance.includes("retainedLeftYaw: true") ||
         !diagonalWalkAcceptance.includes("actionAfterReadiness: true") ||
         !diagonalWalkAcceptance.includes("diagonalStepCount") ||
         !diagonalWalkAcceptance.includes("leftStepCount") ||

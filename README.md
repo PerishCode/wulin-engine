@@ -1043,6 +1043,17 @@ clip2/yaw32768、epoch `1 -> 48`。clock Ready/sample 从 `2/3 -> 78/79`，零
 stall/render block，对象状态 idle，stdout 恰为两值且 exit code 0；全部 103 engine-runtime、
 48 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning。产品、Runtime、
 renderer/GPU/source/resource/synchronization 与 process count 均未改变。
+Experiment 0148 继续强化既有 diagonal-Walk 子进程，而不增加 child 或产品输出：在已接受的
+W/A 原子对角段与 W-up 保留左行段之后，再延迟释放 A，并保持至少 250ms stationary 后由
+Escape 正常完成。`canonical-prototype-v63` 首轮在 163.081 秒通过，455,824-byte report
+中 PID 16472 / thread 23708 的 W/A interval/span 均为 0.0013ms，diagonal、left-only、
+stationary hold 依次为 265.2565/261.3792/259.2750ms。最终 local `(-857,-345)` Q9 仍唯一
+分解为 15 个 `(-23,-23)` diagonal Walk steps 和 16 个 `(-32,0)` left Walk steps；静止段
+不再移动，最终为 Survey clip0/yaw32768、epoch `1 -> 79`。clock Ready/sample 从
+`2/3 -> 93/94`，零 stall/render block，对象状态 idle，stdout 恰为两值、stderr 为空且
+exit code 0。全部 103 engine-runtime、48 Prototype、20 reference-host 测试通过，Flavor
+0 deny / 5 个既有 warning；产品、Runtime、renderer/GPU/source/resource/synchronization
+与 process count 均未改变，下一次资源清理仍为 Experiment 0160。
 
 ## Project model
 
@@ -1120,8 +1131,9 @@ the exact 12-frame acknowledgement, plus sustained post-readiness motion/capacit
 one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-Run
 finite-edge endpoint and graceful completion, exact native Escape and visible-window WM_CLOSE clean exits, native
 same-batch Space/F/Enter/W focus-loss action/held-input suppression plus no-backlog resume and
-same-process fresh-A Walk/release readmission, one exact native diagonal-to-left Walk release with
-two-phase fixed-Q9 decomposition, one exact native diagonal-to-left Run release with independent
+same-process fresh-A Walk/release readmission, one exact native diagonal-Walk lifetime from
+diagonal-to-left two-phase fixed-Q9 movement through final-direction release to retained-facing
+Survey, one exact native diagonal-to-left Run release with independent
 two-phase fixed-Q9 decomposition, one exact atomic same-ingest opposite-Q/E
 camera-edge cancellation with negative-Z Walk proof, direct restart equality, and Sidecar cleanup.
 
