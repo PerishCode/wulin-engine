@@ -861,6 +861,20 @@ PID 3764 以 0.0270ms span 保留 ID495，得到 12 Rejected；sustained PID 159
 消费 ID496、移动到 local X 2400、保留排除后 ID505，得到 12 Activated/12 Rejected/2133
 suppression。Flavor 0 deny / 5 个既有 warning，report 519,872 bytes；Rust 产品、Runtime、
 renderer/GPU/source/resource/synchronization 均未改变。
+Experiment 0130 执行逢 5 强制兼容清理，彻底删除 acceptance-only startup action 模式：
+5 个 readiness 即强杀的 W/Shift-W/E-W/E/Space 进程检查、`StartupInput`/request switch、
+PID-zero next-window 选择、`startupNativeInput` 报告字段以及失去调用者的命令期望全部移除。
+首轮 v45 因旧 camera re-press startup E 未在 readiness 前生效而得到 orbit 0，次轮又以
+199.2574ms 拒绝了声明 200ms 的 midair delayed key；没有重跑取巧或放宽阈值，而是让所有
+动作先取得 idle readiness 和确切 PID，并让 delayed key/exit 共用 Stopwatch 下限 deadline。
+最终 `canonical-prototype-v45` 在 144.642 秒通过：camera repeat/re-press 分别保持
+267.5133/260.4763ms 后完成 orbit 1 的 `(-384,0)` 与 orbit 2 的 `(0,416)` Q9；Run
+release/re-press 以 512.4148/514.1356ms 转为精确 Walk/Run；opposed input 保持
+259.2241ms 后完成 12 个 Run 步；post-readiness diagonal Walk/Run 分别以
+0.0012/0.0023ms span 完成 `(-299,-299)`/`(-585,-585)`；finite-boundary 在 readiness
+后持 W 并存活 15,016.9422ms。最终耗时 144.642 秒，较 v44 减少 18.789 秒，report
+缩小 77,834 bytes 至 442,038；Rust 产品、Runtime、renderer/GPU/source/
+resource/synchronization 均未改变。
 
 ## Project model
 

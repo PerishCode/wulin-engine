@@ -11,7 +11,6 @@ import {
     string,
     useSidecar,
 } from "../canonical-runtime.ts";
-import type { StartupInput } from "./input/sequences.ts";
 import { jumpMotionInvariant, jumpPolicyInvariant } from "./jump.ts";
 import { actorInvariant } from "./actor.ts";
 import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
@@ -24,15 +23,8 @@ import {
     sustainedCapacitySession,
 } from "./sessions/mod.ts";
 import { sessionGates } from "./sessions/gates.ts";
-import {
-    CAMERA_FORWARD_COMMAND,
-    type ExpectedCommand,
-    FORWARD_COMMAND,
-    JUMP_COMMAND,
-    RUN_FORWARD_COMMAND,
-    STATIONARY_COMMAND,
-} from "./simulation.ts";
-import { cameraOrbitTraversalInvariant, traversalInvariant } from "./traversal.ts";
+import { type ExpectedCommand, STATIONARY_COMMAND } from "./simulation.ts";
+import { traversalInvariant } from "./traversal.ts";
 
 export const CONFIG = "out/cooked/bootstrap/runtime.json";
 export const SIDECAR = "sidecar.prototype.toml";
@@ -108,8 +100,8 @@ export async function failedStart(label: string): Promise<Json> {
     };
 }
 
-export async function capturedReady(label: string, startupInput?: StartupInput): Promise<Json> {
-    return await captureReady(EXECUTABLE, CONFIG, label, startupInput);
+export async function capturedReady(label: string): Promise<Json> {
+    return await captureReady(EXECUTABLE, CONFIG, label);
 }
 
 export function startupInvariant(launch: Json): Json {
@@ -285,14 +277,6 @@ export async function prototypeHostGates(
     await writeDocument(document(terrain, objects, base));
     const first = await capturedReady("prototype first process");
     const restarted = await capturedReady("prototype restarted process");
-    const forward = await capturedReady("prototype forward locomotion", "forward");
-    const runForward = await capturedReady("prototype forward Run modifier", "run-forward");
-    const cameraForward = await capturedReady(
-        "prototype camera-relative forward locomotion",
-        "camera-forward",
-    );
-    const cameraOrbit = await capturedReady("prototype clockwise camera orbit", "camera-clockwise");
-    const jump = await capturedReady("prototype committed jump", "jump");
     const objectActionActivated = await objectFeedbackSession(
         EXECUTABLE,
         CONFIG,
@@ -353,78 +337,6 @@ export async function prototypeHostGates(
         firstTraversal,
         "prototype restart traversal activation",
     );
-    same(startupInvariant(forward), startupInvariant(first), "prototype locomotion configuration");
-    same(
-        actorInvariant(forward, base),
-        actorInvariant(first, base),
-        "prototype locomotion initial actor authority",
-    );
-    const forwardTraversal = traversalInvariant(forward, base);
-    same(forwardTraversal, firstTraversal, "prototype locomotion traversal activation");
-    const forwardInvariant = {
-        simulation: simulationDriverInvariant(forward, FORWARD_COMMAND),
-        jump: jumpPolicyInvariant(forward, true),
-        camera: cameraDriverInvariant(forward),
-        traversal: forwardTraversal,
-    };
-    same(startupInvariant(runForward), startupInvariant(first), "prototype Run configuration");
-    same(
-        actorInvariant(runForward, base),
-        actorInvariant(first, base),
-        "prototype Run initial actor authority",
-    );
-    const runTraversal = traversalInvariant(runForward, base);
-    same(runTraversal, firstTraversal, "prototype Run traversal activation");
-    const runInvariant = {
-        simulation: simulationDriverInvariant(runForward, RUN_FORWARD_COMMAND),
-        jump: jumpPolicyInvariant(runForward, true),
-        camera: cameraDriverInvariant(runForward),
-        traversal: runTraversal,
-    };
-    same(
-        startupInvariant(cameraForward),
-        startupInvariant(first),
-        "prototype camera-relative locomotion configuration",
-    );
-    same(
-        actorInvariant(cameraForward, base),
-        actorInvariant(first, base),
-        "prototype camera-relative locomotion initial actor authority",
-    );
-    const cameraForwardInvariant = {
-        simulation: simulationDriverInvariant(cameraForward, CAMERA_FORWARD_COMMAND),
-        jump: jumpPolicyInvariant(cameraForward, true),
-        camera: cameraDriverInvariant(cameraForward, 1),
-        traversal: cameraOrbitTraversalInvariant(cameraForward, base),
-    };
-    same(
-        startupInvariant(cameraOrbit),
-        startupInvariant(first),
-        "prototype camera-orbit configuration",
-    );
-    same(
-        actorInvariant(cameraOrbit, base),
-        actorInvariant(first, base),
-        "prototype camera-orbit initial actor authority",
-    );
-    const cameraOrbitInvariant = {
-        simulation: simulationDriverInvariant(cameraOrbit, STATIONARY_COMMAND),
-        jump: jumpPolicyInvariant(cameraOrbit, true),
-        camera: cameraDriverInvariant(cameraOrbit, 1),
-        traversal: cameraOrbitTraversalInvariant(cameraOrbit, base),
-    };
-    same(startupInvariant(jump), startupInvariant(first), "prototype jump configuration");
-    same(
-        actorInvariant(jump, base),
-        actorInvariant(first, base),
-        "prototype jump initial actor authority",
-    );
-    const jumpInvariant = {
-        simulation: simulationDriverInvariant(jump, JUMP_COMMAND),
-        jump: jumpPolicyInvariant(jump, false),
-        camera: cameraDriverInvariant(jump),
-        traversal: traversalInvariant(jump, base),
-    };
     const objectFeedbackInvariant = await objectFeedbackGates(
         objectActionActivated,
         objectActionRejected,
@@ -444,12 +356,13 @@ export async function prototypeHostGates(
         "prototype boundary initial actor authority",
     );
     const boundaryInvariant = {
-        simulation: simulationDriverInvariant(boundary, FORWARD_COMMAND),
+        simulation: simulationDriverInvariant(boundary, STATIONARY_COMMAND),
         jump: jumpPolicyInvariant(boundary, true),
         camera: cameraDriverInvariant(boundary),
         traversal: traversalInvariant(boundary, base),
         minimumHoldMilliseconds: BOUNDARY_HOLD_MILLISECONDS,
         processRemainedLive: boundary.processRemainedLive,
+        actionAfterReadiness: boundary.actionAfterReadiness,
     };
 
     await lifecycle("start");
@@ -476,17 +389,7 @@ export async function prototypeHostGates(
         corruptPayload,
         first,
         restarted,
-        forward,
-        runForward,
-        cameraForward,
         sessions,
-        forwardInvariant,
-        runInvariant,
-        cameraForwardInvariant,
-        cameraOrbit,
-        cameraOrbitInvariant,
-        jump,
-        jumpInvariant,
         objectActionBaseline,
         objectActionActivated,
         objectActionRejected,

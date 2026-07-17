@@ -16,6 +16,9 @@ export async function requireBoundedPrototypeSession(
     const focusAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/sessions/focus.ts`,
     );
+    const boundaryAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/boundary.ts`,
+    );
     const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input/mod.ts`);
     const preparedInput = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/input/prepared.ts`,
@@ -61,6 +64,9 @@ export async function requireBoundedPrototypeSession(
     const prototypeHost = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/host.ts`,
     );
+    const prototypeSimulation = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/simulation.ts`,
+    );
     const canonicalSetup = await Deno.readTextFile(
         `${root}/.runseal/support/canonical-setup.ts`,
     );
@@ -78,22 +84,23 @@ export async function requireBoundedPrototypeSession(
         atomicPrefixIndex,
     );
     const capturedReadyIndex = acceptance.indexOf("export async function capturedReady");
-    const capturedPreparationIndex = acceptance.indexOf(
-        "await prepareStartupInput(startupInput)",
+    const capturedReadyEndIndex = acceptance.indexOf(
+        "export async function sustainedCapacitySession",
         capturedReadyIndex,
     );
+    const capturedReadySource = acceptance.slice(capturedReadyIndex, capturedReadyEndIndex);
     const capturedSpawnIndex = acceptance.indexOf(
         "new Deno.Command(executable",
-        capturedPreparationIndex,
+        capturedReadyIndex,
     );
     const gracefulExitIndex = acceptance.indexOf("export async function gracefulExit");
-    const gracefulPreparationIndex = acceptance.indexOf(
-        "await prepareStartupInput(startupInput)",
-        gracefulExitIndex,
-    );
     const gracefulSpawnIndex = acceptance.indexOf(
         "new Deno.Command(executable",
-        gracefulPreparationIndex,
+        gracefulExitIndex,
+    );
+    const boundaryReadyIndex = boundaryAcceptance.indexOf("await readinessLine(reader)");
+    const boundaryActionIndex = boundaryAcceptance.indexOf(
+        "await holdPrototypeForwardKey(child.pid)",
     );
     if (
         !main.includes("mod session;") ||
@@ -142,28 +149,45 @@ export async function requireBoundedPrototypeSession(
         !inputSequences.includes("postInvalidAliasSequence") ||
         !inputSequences.includes("postOppositeCameraSequence") ||
         !inputSequences.includes("postCounterClockwiseSequence") ||
-        !inputSequences.includes('case "run-release"') ||
-        !inputSequences.includes('case "run-repress"') ||
+        !inputSequences.includes("postRunRelease") ||
+        !inputSequences.includes("postRunRepress") ||
+        !inputSequences.includes("postOpposedRun") ||
+        !inputSequences.includes("postDiagonalWalk") ||
+        !inputSequences.includes("postDiagonalRun") ||
         !inputSequences.includes("releaseOpposedRun") ||
-        !inputSequences.includes('case "diagonal-walk"') ||
-        !inputSequences.includes('case "diagonal-run"') ||
         !inputSequences.includes('{ key: "A", virtualKey: 0x41, down: true }') ||
+        !inputSequences.includes("pressPrototypeCameraClockwise") ||
+        inputSequences.includes("StartupInput") ||
+        inputSequences.includes("prepareStartupInput") ||
+        inputSequences.includes("startupInputRequest") ||
+        inputSequences.includes('case "camera-clockwise"') ||
+        inputSequences.includes('case "camera-forward"') ||
+        inputSequences.includes('case "forward"') ||
+        inputSequences.includes('case "jump"') ||
+        inputSequences.includes('case "run-forward"') ||
         acceptance.includes("applyStartupInput(") ||
-        (acceptance.match(/await prepareStartupInput\(startupInput\)/g)?.length ?? 0) !== 2 ||
+        acceptance.includes("prepareStartupInput") ||
+        acceptance.includes("startupInput") ||
+        acceptance.includes("startupNativeInput") ||
         nativeTypeIndex < 0 ||
         helperReadyIndex <= nativeTypeIndex ||
         windowSearchIndex <= helperReadyIndex ||
         atomicPrefixIndex <= windowSearchIndex ||
         remainingInputIndex <= atomicPrefixIndex ||
         capturedReadyIndex < 0 ||
-        capturedPreparationIndex <= capturedReadyIndex ||
-        capturedSpawnIndex <= capturedPreparationIndex ||
+        capturedReadyEndIndex <= capturedReadyIndex ||
+        capturedSpawnIndex <= capturedReadyIndex ||
+        capturedReadySource.includes("startupInput") ||
+        capturedReadySource.includes("prepareStartupInput") ||
+        capturedReadySource.includes("nativeInput") ||
         gracefulExitIndex < 0 ||
-        gracefulPreparationIndex <= gracefulExitIndex ||
-        gracefulSpawnIndex <= gracefulPreparationIndex ||
-        !acceptance.includes("startup input selected the wrong process") ||
+        gracefulSpawnIndex <= gracefulExitIndex ||
+        boundaryReadyIndex < 0 ||
+        boundaryActionIndex <= boundaryReadyIndex ||
+        !boundaryAcceptance.includes("actionAfterReadiness: true") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
+        !cameraAcceptance.includes("actionAfterReadiness: true") ||
         !cameraAcceptance.includes("checkedRangeRejected: true") ||
         !cameraAcceptance.includes('truncationWouldAlias: "E"') ||
         !cameraAcceptance.includes("oppositePressEdgesRetained: true") ||
@@ -176,29 +200,35 @@ export async function requireBoundedPrototypeSession(
         !cameraRepressAcceptance.includes("heldKeyReleased: true") ||
         !cameraRepressAcceptance.includes("freshPressEdgeReadmitted: true") ||
         !cameraRepressAcceptance.includes("committedOrbitIndex: 2") ||
+        !cameraRepressAcceptance.includes("actionAfterReadiness: true") ||
         !cameraRepressAcceptance.includes("deltaZQ9 <= 0") ||
         !runReleaseAcceptance.includes("runModifierReleased: true") ||
         !runReleaseAcceptance.includes("retainedForwardInput: true") ||
         !runReleaseAcceptance.includes("transitionedToWalk: true") ||
         !runReleaseAcceptance.includes("runHoldIntervalMilliseconds") ||
-        !runReleaseAcceptance.includes("atomicStartupPrefix: true") ||
+        !runReleaseAcceptance.includes("atomicInitialPrefix: true") ||
+        !runReleaseAcceptance.includes("actionAfterReadiness: true") ||
         !runRepressAcceptance.includes("runModifierReadmitted: true") ||
         !runRepressAcceptance.includes("retainedForwardInput: true") ||
         !runRepressAcceptance.includes("transitionedToRun: true") ||
         !runRepressAcceptance.includes("walkHoldIntervalMilliseconds") ||
-        !runRepressAcceptance.includes("atomicStartupPrefix: true") ||
+        !runRepressAcceptance.includes("atomicInitialPrefix: true") ||
+        !runRepressAcceptance.includes("actionAfterReadiness: true") ||
         !locomotionOppositionAcceptance.includes("oppositeAxisCancelled: true") ||
-        !locomotionOppositionAcceptance.includes("stationarySurveyReadiness: true") ||
+        !locomotionOppositionAcceptance.includes("opposedInputHeldBeforeRelease: true") ||
         !locomotionOppositionAcceptance.includes("releasedBackwardInput: true") ||
         !locomotionOppositionAcceptance.includes("retainedForwardRunReadmitted: true") ||
+        !locomotionOppositionAcceptance.includes("actionAfterReadiness: true") ||
         !locomotionOppositionAcceptance.includes("runStepCount") ||
         !diagonalWalkAcceptance.includes("atomicDiagonalInput: true") ||
         !diagonalWalkAcceptance.includes("nativeLeftInput: true") ||
         !diagonalWalkAcceptance.includes("exactWalkNormalization: true") ||
+        !diagonalWalkAcceptance.includes("actionAfterReadiness: true") ||
         !diagonalWalkAcceptance.includes("diagonalStepCount") ||
         !diagonalRunAcceptance.includes("atomicDiagonalRunInput: true") ||
         !diagonalRunAcceptance.includes("nativeLeftInput: true") ||
         !diagonalRunAcceptance.includes("exactRunNormalization: true") ||
+        !diagonalRunAcceptance.includes("actionAfterReadiness: true") ||
         !diagonalRunAcceptance.includes("diagonalRunStepCount") ||
         !focusAcceptance.includes("atomicWindowThreadBatch") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
@@ -206,6 +236,10 @@ export async function requireBoundedPrototypeSession(
         !hostInput.includes("down == key_is_set(&self.held, key)") ||
         !hostInput.includes("u8::try_from(key)") ||
         !input.includes("[Diagnostics.Stopwatch]::StartNew()") ||
+        !input.includes("$windowProcessId -eq $expectedProcessId") ||
+        input.includes("$expectedProcessId -eq 0") ||
+        !input.includes("$keyDeadlineTicks") ||
+        input.includes("Start-Sleep -Milliseconds $keyDelay") ||
         !input.includes("prototype-native-window-action-v4") ||
         /prototype-native-window-action-v[23]/.test(input) ||
         !input.includes("startPreparedWindowAction") ||
@@ -225,6 +259,20 @@ export async function requireBoundedPrototypeSession(
         !objectObservation.includes("idleObservationInvariant") ||
         !prototypeHost.includes("objectActionCenter: Coord = [base[0] + 4, base[1]]") ||
         prototypeHost.includes('"object-action"') ||
+        prototypeHost.includes("prototype forward locomotion") ||
+        prototypeHost.includes("prototype forward Run modifier") ||
+        prototypeHost.includes("prototype camera-relative forward locomotion") ||
+        prototypeHost.includes("prototype clockwise camera orbit") ||
+        prototypeHost.includes("prototype committed jump") ||
+        prototypeHost.includes("forwardInvariant") ||
+        prototypeHost.includes("runInvariant") ||
+        prototypeHost.includes("cameraForwardInvariant") ||
+        prototypeHost.includes("cameraOrbitInvariant") ||
+        prototypeHost.includes("jumpInvariant") ||
+        prototypeSimulation.includes("RUN_FORWARD_COMMAND") ||
+        prototypeSimulation.includes("CAMERA_FORWARD_COMMAND") ||
+        prototypeSimulation.includes("JUMP_COMMAND") ||
+        prototypeSimulation.includes("FORWARD_COMMAND") ||
         !canonicalSetup.includes("objectActionCenter: Coord = [base[0] + 4, base[1]]") ||
         !canonicalSetup.includes(
             "objectActionTraversalCenter: Coord = [base[0] + 5, base[1] + 1]",

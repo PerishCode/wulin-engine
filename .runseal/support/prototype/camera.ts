@@ -95,9 +95,10 @@ export function cameraDriverInvariant(launch: Json, expectedOrbitIndex = 0): Jso
 
 function nativeCameraRepeatInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const startup = object(launch, "startupNativeInput");
-    const sequence = object(object(launch, "postReadinessInput"), "sequence");
-    const expectedStartupKeys = [{ key: "E", virtualKey: 69, down: true }];
+    const postReadiness = object(launch, "postReadinessInput");
+    const initialPress = object(postReadiness, "initialPress");
+    const sequence = object(postReadiness, "sequence");
+    const expectedInitialKeys = [{ key: "E", virtualKey: 69, down: true }];
     const expectedSequenceKeys = [
         { key: "E", virtualKey: 69, down: true },
         { key: "W", virtualKey: 87, down: true },
@@ -105,18 +106,23 @@ function nativeCameraRepeatInvariant(launch: Json): Json {
     const intervals = sequence.keyPostIntervalsMilliseconds;
     const exitInterval = number(sequence, "exitIntervalMilliseconds");
     if (
-        startup.schema !== "prototype-native-window-action-v4" ||
-        startup.action !== "input" ||
-        startup.processId !== processId ||
-        startup.requiredVisible !== true ||
-        startup.windowWasVisible !== true ||
-        JSON.stringify(startup.keys) !== JSON.stringify(expectedStartupKeys) ||
-        JSON.stringify(startup.messages) !==
+        Object.hasOwn(launch, "startupNativeInput") ||
+        initialPress.schema !== "prototype-native-window-action-v4" ||
+        initialPress.action !== "input" ||
+        initialPress.processId !== processId ||
+        initialPress.requiredVisible !== true ||
+        initialPress.windowWasVisible !== true ||
+        JSON.stringify(initialPress.keys) !== JSON.stringify(expectedInitialKeys) ||
+        JSON.stringify(initialPress.messages) !==
             JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:E"]) ||
+        initialPress.atomicBatch !== true ||
+        number(initialPress, "atomicPrefixLength") !== 1 ||
+        number(postReadiness, "requestedInitialHoldMilliseconds") !== 250 ||
+        number(postReadiness, "initialHoldMilliseconds") < 250 ||
         sequence.schema !== "prototype-native-window-action-v4" ||
         sequence.action !== "input" ||
         sequence.processId !== processId ||
-        sequence.windowHandle !== startup.windowHandle ||
+        sequence.windowHandle !== initialPress.windowHandle ||
         sequence.requiredVisible !== true ||
         sequence.windowWasVisible !== true ||
         JSON.stringify(sequence.keys) !== JSON.stringify(expectedSequenceKeys) ||
@@ -135,14 +141,16 @@ function nativeCameraRepeatInvariant(launch: Json): Json {
     ) fail("prototype native held-camera-repeat evidence diverged");
     return {
         exactProcessWindow: true,
-        initialPress: startup.messages,
+        initialPress: initialPress.messages,
         repeatedHeldPress: sequence.messages,
+        initialHoldMilliseconds: postReadiness.initialHoldMilliseconds,
         exitIntervalMilliseconds: exitInterval,
+        actionAfterReadiness: true,
     };
 }
 
 export function cameraRepeatSessionInvariant(launch: Json, session: Json): Json {
-    const camera = cameraDriverInvariant(launch, 1);
+    const camera = cameraDriverInvariant(launch, 0);
     const readiness = object(launch, "readiness");
     const completion = object(launch, "completion");
     const readyActor = object(object(readiness, "actor"), "state");

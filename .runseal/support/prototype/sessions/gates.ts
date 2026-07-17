@@ -38,7 +38,6 @@ export async function sessionGates(
         executable,
         config,
         "prototype native window close exit",
-        undefined,
         null,
         "window-close",
     );
@@ -46,56 +45,48 @@ export async function sessionGates(
         executable,
         config,
         "prototype native focus discontinuity",
-        undefined,
         "focus-discontinuity",
     );
     const jumpReadmission = await gracefulExit(
         executable,
         config,
         "prototype native Jump readmission",
-        undefined,
         "jump-readmission",
     );
     const jumpMidair = await gracefulExit(
         executable,
         config,
         "prototype native midair Jump rejection",
-        undefined,
         "jump-midair",
     );
     const cameraRepeat = await gracefulExit(
         executable,
         config,
         "prototype native held camera repeat",
-        "camera-clockwise",
         "camera-repeat",
     );
     const cameraRepress = await gracefulExit(
         executable,
         config,
         "prototype native camera re-press readmission",
-        "camera-clockwise",
         "camera-repress",
     );
     const invalidKey = await gracefulExit(
         executable,
         config,
         "prototype native out-of-range camera key",
-        undefined,
         "invalid-camera-alias",
     );
     const oppositeCamera = await gracefulExit(
         executable,
         config,
         "prototype native opposite camera edges",
-        undefined,
         "opposite-camera",
     );
     const counterClockwiseCamera = await gracefulExit(
         executable,
         config,
         "prototype native counter-clockwise camera wrap",
-        undefined,
         "counter-clockwise-camera",
     );
     const runRelease = await gracefulExit(
@@ -114,7 +105,6 @@ export async function sessionGates(
         executable,
         config,
         "prototype native opposite locomotion release",
-        "opposed-run",
         "opposed-run-release",
     );
     const diagonalWalk = await gracefulExit(
