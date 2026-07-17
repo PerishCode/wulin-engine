@@ -20,13 +20,14 @@ import {
     CONFIG as PROTOTYPE_CONFIG,
     document as prototypeDocument,
     failedStart as failedPrototypeStart,
+    prototypePids,
     SIDECAR as PROTOTYPE_SIDECAR,
+    sidecarStatus,
     simulationDriverInvariant,
     startupInvariant as prototypeStartupInvariant,
     writeDocument as writePrototypeDocument,
 } from "./prototype/host.ts";
 import { jumpPolicyInvariant } from "./prototype/jump.ts";
-import { prototypePids, sidecarStatus } from "./prototype/session.ts";
 import { STATIONARY_COMMAND } from "./prototype/simulation.ts";
 import { traversalInvariant } from "./prototype/traversal.ts";
 

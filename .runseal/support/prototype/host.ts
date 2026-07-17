@@ -1,4 +1,5 @@
 import {
+    array,
     type Coord,
     fail,
     type Json,
@@ -17,12 +18,7 @@ import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
 import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
 import { objectFacingGates, restartObservation } from "./object/gates.ts";
-import {
-    capturedReady as captureReady,
-    prototypePids,
-    sessionGates,
-    sidecarStatus,
-} from "./session.ts";
+import { capturedReady as captureReady, sessionGates } from "./session.ts";
 import {
     CAMERA_FORWARD_COMMAND,
     type ExpectedCommand,
@@ -38,6 +34,28 @@ export const CONFIG = "out/cooked/bootstrap/runtime.json";
 export const SIDECAR = "sidecar.prototype.toml";
 const EXECUTABLE = "target/debug/prototype.exe";
 const decoder = new TextDecoder();
+
+export async function sidecarStatus(config: string): Promise<Json> {
+    const output = await new Deno.Command("sidecar", {
+        args: ["status", "--config", config, "--format", "json"],
+        cwd: root,
+        stdout: "piped",
+        stderr: "inherit",
+    }).output();
+    if (!output.success) fail(`prototype Sidecar status failed with ${output.code}`);
+    return JSON.parse(decoder.decode(output.stdout).trim()) as Json;
+}
+
+export function prototypePids(status: Json): number[] {
+    const targets = array(status, "targets");
+    if (targets.length !== 1) fail("prototype Sidecar target count diverged");
+    const target = targets[0] as Json;
+    if (target.name !== "prototype") fail("prototype Sidecar target identity diverged");
+    return array(target, "pids").map((value) => {
+        if (typeof value !== "number") fail("prototype Sidecar PID must be numeric");
+        return value;
+    });
+}
 
 export function document(terrain: string, objects: string, center: Coord): Json {
     return {
