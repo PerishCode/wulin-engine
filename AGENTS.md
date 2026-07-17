@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0124 and the current ADR set through 0127 define one live content runtime
+Experiments 0031-0125 and the current ADR set through 0128 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -215,6 +215,11 @@ geometry/material/rig source, and one deterministic object-shadow path:
   velocity delta once at nonzero fixed-step batch entry, consumes nothing on zero steps, preserves
   schedule/actor/render-admission rollback, and introduces no jump verb, retained intent, default,
   alias, independent mutation route, or prototype behavior;
+- one mandatory post-v0 cleanup that deletes the recurring missing-field and invented-alias actor
+  velocity requests plus their report fields; current required-field commands, admitted nonzero
+  ordering, invalid-presentation rollback, and pending-window rollback remain the process authority,
+  while the existing simulation removal guard forbids probe restoration without an alias,
+  compatibility decoder, or replacement rejection registry;
 - one accepted post-v0 actor contact witness that reports no value for zero fixed steps and the
   final existing planar-first step's exact grounded result only for a committed nonzero transition;
   failures and render-blocked candidates expose no witness, RuntimeActor stores no contact flag,
@@ -532,6 +537,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0125-native-camera-repress-readmission.md` | Accepted native held-E release/re-press readmission and exact orbit-two positive-Z Walk proof. |
 | `docs/adr/0126-native-run-modifier-release.md` | Accepted native held-Shift release, retained-W Walk transition, and exact focus-discontinuity batch hardening. |
 | `docs/adr/0127-native-run-modifier-repress-readmission.md` | Accepted native held-W Shift re-press and exact Walk-to-Run readmission proof. |
+| `docs/adr/0128-retired-actor-velocity-compatibility-probes.md` | Accepted recurring actor velocity predecessor-shape probe deletion and current admission preservation. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -627,6 +633,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0122-native-camera-repress-readmission/README.md` | Accepted native held-E release/re-press and orbit-two positive-Z Walk evidence. |
 | `experiments/0123-native-run-modifier-release/README.md` | Accepted native Run-modifier release, retained-W Walk transition, and helper-race diagnosis evidence. |
 | `experiments/0124-native-run-modifier-repress-readmission/README.md` | Accepted native held-W Shift re-press and Walk-to-Run readmission evidence. |
+| `experiments/0125-retired-actor-velocity-compatibility-probes/README.md` | Accepted recurring actor velocity compatibility-probe/report deletion and current transaction evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
