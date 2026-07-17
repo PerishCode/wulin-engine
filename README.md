@@ -937,6 +937,14 @@ actor 精确等于 readiness，observation pending/target 均空，interaction p
 committed/ineligible 均为 0，零 stall/render block，stdout 恰为两值。report 447,315 bytes；
 全部 103 engine-runtime、45 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有
 warning；产品、Runtime、renderer/GPU/source/resource/synchronization 均未改变。
+Experiment 0137 固定了 Q/E 与 simulation-bound intents 在失焦边界上的既有差异，没有修改
+产品：组合政策测试明确证明同一 ingest 的 E-down/FocusLost 会清除 held，同时保留本 sample
+的 pressed/released；camera candidate 提交恰好一次 orbit `0 -> 1`，下一空 ingest 边沿过期且
+不会重复。focused camera tests 4/4 通过，Prototype 总数增至 46；没有增加原生 child、报告字段
+或 camera/HostInput/main-loop 逻辑。`canonical-prototype-v52` 首轮在 176.068 秒通过，现有
+原生 session/process 矩阵保持不变，report 447,306 bytes；全部 103 engine-runtime、46
+Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning；Runtime、
+renderer/GPU/source/resource/synchronization 均未改变。
 
 ## Project model
 
