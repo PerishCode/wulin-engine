@@ -10,6 +10,7 @@ export async function requireBoundedPrototypeSession(
     const acceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/session.ts`,
     );
+    const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input.ts`);
     if (
         !main.includes("mod session;") ||
         (main.match(/session::publish_readiness/g)?.length ?? 0) !== 1 ||
@@ -21,11 +22,19 @@ export async function requireBoundedPrototypeSession(
         !session.includes('"completion": "graceful-exit-only"') ||
         !session.includes('"eventStream": false') ||
         !session.includes('"eventHistory": false') ||
+        !session.includes('"live-prototype-object-rejected-feedback-v2"') ||
         (session.match(/println!/g)?.length ?? 0) !== 2 ||
         !acceptance.includes('outputLine(reader, "session completion"') ||
         !acceptance.includes("trailing session output") ||
         !acceptance.includes("completionEmitted !== false") ||
-        !acceptance.includes("buffered output after")
+        !acceptance.includes("buffered output after") ||
+        !acceptance.includes("objectNearestOracle") ||
+        !acceptance.includes("capacityRejectedFrameCount: 12") ||
+        !acceptance.includes("postReadinessCapacityRejection") ||
+        !input.includes("postPrototypeCapacityRejection") ||
+        !input.includes('{ key: "D", virtualKey: 0x44, down: false }') ||
+        !input.includes('{ key: "F", virtualKey: 0x46, down: false }') ||
+        !input.includes('{ key: "Enter", virtualKey: 0x0D, down: false }')
     ) fail("guard: bounded Prototype session contract diverged");
 
     const waitIndex = main.indexOf("runtime.wait_idle()");

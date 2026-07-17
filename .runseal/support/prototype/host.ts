@@ -292,6 +292,8 @@ export async function prototypeHostGates(
         first,
         startupInvariant,
         (launch) => jumpPolicyInvariant(launch, true),
+        objects,
+        base,
     );
     const boundary = await boundarySurvival(EXECUTABLE, CONFIG);
     if (number(first, "processId") === number(restarted, "processId")) {

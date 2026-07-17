@@ -16,7 +16,7 @@ export function idleInteractionInvariant(launch: Json): Json {
     const driver = object(object(launch, "readiness"), "object_interaction_driver");
     const status = object(driver, "status");
     if (
-        driver.revision !== "live-prototype-object-rejected-feedback-v1" ||
+        driver.revision !== "live-prototype-object-rejected-feedback-v2" ||
         driver.input !== "Enter" ||
         number(driver, "maxDistanceQ9") !== ACTION_RADIUS_Q9 ||
         number(driver, "acknowledgementFrameCount") !== ACKNOWLEDGEMENT_FRAME_COUNT ||
@@ -64,7 +64,7 @@ export function interactionInvariant(launch: Json): Json {
     const acknowledgement = object(status, "acknowledgement");
 
     if (
-        driver.revision !== "live-prototype-object-rejected-feedback-v1" ||
+        driver.revision !== "live-prototype-object-rejected-feedback-v2" ||
         driver.input !== "Enter" ||
         number(driver, "maxDistanceQ9") !== ACTION_RADIUS_Q9 ||
         number(driver, "acknowledgementFrameCount") !== ACKNOWLEDGEMENT_FRAME_COUNT ||
@@ -155,7 +155,7 @@ export function sideFacingInteractionInvariant(launch: Json): Json {
     const nearest = object(object(observation, "query"), "nearest");
     const identity = object(object(nearest, "object"), "identity");
     if (
-        driver.revision !== "live-prototype-object-rejected-feedback-v1" ||
+        driver.revision !== "live-prototype-object-rejected-feedback-v2" ||
         driver.input !== "Enter" ||
         number(driver, "maxDistanceQ9") !== ACTION_RADIUS_Q9 ||
         number(driver, "acknowledgementFrameCount") !== ACKNOWLEDGEMENT_FRAME_COUNT ||

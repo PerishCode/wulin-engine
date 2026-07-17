@@ -16,15 +16,21 @@ pub(crate) mod report {
                 "proximity": eligible.proximity,
                 "facing": facing(eligible.facing),
             }),
-            super::Attempt::Rejected(rejected) => json!({
+            super::Attempt::Rejected(super::Rejected::OutsideFacing {
+                feedback,
+                proximity,
+                facing: evidence,
+            }) => json!({
                 "outcome": "ineligible",
-                "reason": match rejected.reason {
-                    super::Ineligible::OutsideFacing => "outside-facing",
-                    _ => unreachable!("projectable rejection has an unsupported reason"),
-                },
-                "feedback": rejected.feedback,
-                "proximity": rejected.proximity,
-                "facing": facing(rejected.facing),
+                "reason": "outside-facing",
+                "feedback": feedback,
+                "proximity": proximity,
+                "facing": facing(evidence),
+            }),
+            super::Attempt::Rejected(super::Rejected::CapacityExhausted { feedback }) => json!({
+                "outcome": "ineligible",
+                "reason": "capacity-exhausted",
+                "feedback": feedback,
             }),
             super::Attempt::Ineligible(reason) => json!({
                 "outcome": "ineligible",
@@ -34,7 +40,6 @@ pub(crate) mod report {
                     super::Ineligible::SourceReplaced => "source-replaced",
                     super::Ineligible::OutsidePublishedWindow => "outside-published-window",
                     super::Ineligible::OutsideRadius => "outside-radius",
-                    super::Ineligible::OutsideFacing => "outside-facing",
                     super::Ineligible::CapacityExhausted => "capacity-exhausted",
                 },
             }),
@@ -91,7 +96,6 @@ pub(crate) enum Ineligible {
     SourceReplaced,
     OutsidePublishedWindow,
     OutsideRadius,
-    OutsideFacing,
     CapacityExhausted,
 }
 
@@ -111,11 +115,23 @@ pub(crate) struct Eligible {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct Rejected {
-    pub reason: Ineligible,
-    pub feedback: ObjectTargetFeedback,
-    pub proximity: CanonicalObjectProximity,
-    pub facing: Facing,
+pub(crate) enum Rejected {
+    OutsideFacing {
+        feedback: ObjectTargetFeedback,
+        proximity: CanonicalObjectProximity,
+        facing: Facing,
+    },
+    CapacityExhausted {
+        feedback: ObjectTargetFeedback,
+    },
+}
+
+impl Rejected {
+    const fn feedback(self) -> ObjectTargetFeedback {
+        match self {
+            Self::OutsideFacing { feedback, .. } | Self::CapacityExhausted { feedback } => feedback,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -175,8 +191,7 @@ fn proximity_attempt(
     };
     let facing = facing(proximity, yaw_q16)?;
     if proximity.distance_squared_q18 != 0 && facing.dot_q9 <= 0 {
-        return Ok(Attempt::Rejected(Rejected {
-            reason: Ineligible::OutsideFacing,
+        return Ok(Attempt::Rejected(Rejected::OutsideFacing {
             feedback: ObjectTargetFeedback {
                 identity: target.identity,
                 kind: ObjectTargetFeedbackKind::Rejected,
@@ -269,6 +284,22 @@ impl Policy {
             return Ok(None);
         }
         let attempt = match target {
+            Some(target) if self.consumed.is_some() && target.available => {
+                ensure!(
+                    resolution.is_none(),
+                    "exhausted object consumption capacity must not resolve another target"
+                );
+                ensure!(
+                    Some(target.identity) != self.consumed,
+                    "exhausted object consumption target must differ from the consumed identity"
+                );
+                Attempt::Rejected(Rejected::CapacityExhausted {
+                    feedback: ObjectTargetFeedback {
+                        identity: target.identity,
+                        kind: ObjectTargetFeedbackKind::Rejected,
+                    },
+                })
+            }
             _ if self.consumed.is_some() => {
                 ensure!(
                     resolution.is_none(),
@@ -317,7 +348,7 @@ impl Policy {
             return Some(eligible.feedback);
         }
         if let Some(Attempt::Rejected(rejected)) = attempt {
-            return Some(rejected.feedback);
+            return Some(rejected.feedback());
         }
         if let Some(acknowledgement) = self.acknowledgement {
             return Some(ObjectTargetFeedback {
@@ -372,19 +403,20 @@ impl Policy {
             }));
         }
         if let Some(Attempt::Rejected(rejected)) = attempt {
+            let feedback = rejected.feedback();
             ensure!(
-                submitted == Some(rejected.feedback),
+                submitted == Some(feedback),
                 "rejected object action was not submitted as the frame candidate"
             );
-            let presented = rendered == Some(rejected.feedback);
+            let presented = rendered == Some(feedback);
             self.acknowledgement = presented.then_some(Acknowledgement {
-                identity: rejected.feedback.identity,
-                kind: rejected.feedback.kind,
+                identity: feedback.identity,
+                kind: feedback.kind,
                 remaining_frames: ACKNOWLEDGEMENT_FRAME_COUNT - 1,
             });
             return Ok(Some(FrameCompletion {
                 applied: false,
-                feedback: rejected.feedback,
+                feedback,
             }));
         }
         if let Some(mut acknowledgement) = self.acknowledgement
@@ -429,13 +461,15 @@ impl Policy {
         self.consumed
     }
 
-    pub(crate) const fn frame_suppression(
-        &self,
-    ) -> Option<engine_runtime::CanonicalObjectIdentity> {
-        if self.acknowledgement.is_none() {
-            self.consumed
-        } else {
-            None
+    pub(crate) fn frame_suppression(&self) -> Option<engine_runtime::CanonicalObjectIdentity> {
+        match (self.consumed, self.acknowledgement) {
+            (Some(consumed), Some(acknowledgement))
+                if acknowledgement.identity == consumed
+                    && matches!(acknowledgement.kind, ObjectTargetFeedbackKind::Activated) =>
+            {
+                None
+            }
+            (consumed, _) => consumed,
         }
     }
 

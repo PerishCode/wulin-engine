@@ -163,7 +163,7 @@ fn readiness_value(evidence: Readiness) -> Result<Value> {
             },
         },
         "object_interaction_driver": {
-            "revision": "live-prototype-object-rejected-feedback-v1",
+            "revision": "live-prototype-object-rejected-feedback-v2",
             "input": "Enter",
             "maxDistanceQ9": interaction::OBJECT_ACTION_RADIUS_Q9,
             "facingRule": {
