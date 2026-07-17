@@ -23,6 +23,9 @@ export async function requireBoundedPrototypeSession(
     const cameraAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/camera.ts`,
     );
+    const counterClockwiseCameraAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/camera_counter_clockwise.ts`,
+    );
     const cameraPolicy = await Deno.readTextFile(`${root}/apps/prototype/src/camera.rs`);
     const hostInput = await Deno.readTextFile(`${root}/crates/reference-host/src/input.rs`);
     const objectGates = await Deno.readTextFile(
@@ -64,6 +67,7 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("cameraRepeatSessionInvariant") ||
         !sessionGates.includes("invalidKeySessionInvariant") ||
         !sessionGates.includes("oppositeCameraSessionInvariant") ||
+        !sessionGates.includes("counterClockwiseSessionInvariant") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
         !inputSequences.includes("repressJumpAndExit") ||
@@ -71,12 +75,18 @@ export async function requireBoundedPrototypeSession(
         !inputSequences.includes("postCameraRepeatSequence") ||
         !inputSequences.includes("postInvalidAliasSequence") ||
         !inputSequences.includes("postOppositeCameraSequence") ||
+        !inputSequences.includes("postCounterClockwiseSequence") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
         !cameraAcceptance.includes("checkedRangeRejected: true") ||
         !cameraAcceptance.includes('truncationWouldAlias: "E"') ||
         !cameraAcceptance.includes("oppositePressEdgesRetained: true") ||
         !cameraAcceptance.includes("cameraCandidateCancelled: true") ||
+        !counterClockwiseCameraAcceptance.includes(
+            "counterClockwisePressEdgeRetained: true",
+        ) ||
+        !counterClockwiseCameraAcceptance.includes("wrappedOrbitIndex: 3") ||
+        !counterClockwiseCameraAcceptance.includes("deltaXQ9 <= 0") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||
         !hostInput.includes("down == key_is_set(&self.held, key)") ||

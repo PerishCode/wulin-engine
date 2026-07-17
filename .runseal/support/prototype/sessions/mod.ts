@@ -9,6 +9,7 @@ import {
 import {
     applyStartupInput,
     postCameraRepeatSequence,
+    postCounterClockwiseSequence,
     postInvalidAliasSequence,
     postMidairSequence,
     postOppositeCameraSequence,
@@ -128,6 +129,7 @@ export async function gracefulExit(
     postReadiness:
         | "capacity-rejection"
         | "camera-repeat"
+        | "counter-clockwise-camera"
         | "focus-discontinuity"
         | "invalid-camera-alias"
         | "jump-midair"
@@ -164,6 +166,10 @@ export async function gracefulExit(
             await new Promise((resolve) => setTimeout(resolve, 250));
         } else if (postReadiness === "camera-repeat") {
             const sequence = await postCameraRepeatSequence(child.pid);
+            postReadinessInput = { sequence };
+            exitInput = sequence;
+        } else if (postReadiness === "counter-clockwise-camera") {
+            const sequence = await postCounterClockwiseSequence(child.pid);
             postReadinessInput = { sequence };
             exitInput = sequence;
         } else if (postReadiness === "focus-discontinuity") {

@@ -766,6 +766,16 @@ private bytes `412,213,248 -> 411,742,208`、2/2 lifecycle 与 24 files/25,346,2
 均不再含 `invalidDocument`。guard 的兼容删除 owner 禁止旧探针回归。最终在验证与 commit hook 后删除
 仓库内 `target/` 11,976 files/4,469,116,945 bytes 与 `out/` 263 files/441,628,335 bytes，共回收
 12,239 files/4,910,745,280 bytes；未触碰全局缓存、`.task/`、source asset 或产品/Runtime/GPU 行为。
+Experiment 0121 补齐 Q-only counter-clockwise camera wrap 的原生实机证明。0120 清理后首次 guard
+明确发现仓库本地 Agility SDK 缺失，维护中的 `runseal :gpu-lab correctness` 恢复固定 1.619.4 并以
+checksum `7ae6c64a0b95628a`、零 mismatch、零 D3D12 error 通过。随后
+`canonical-prototype-v37` 首次运行在 139.716 秒通过：PID 6788 的精确可见窗口线程 18860 原子排队
+Q-down/W-down，投递间隔与完整 batch span 均为 0.0011 ms，232.1975 ms 后 Escape 完成。readiness
+保持 orbit 0，最终 actor 精确产生 14 个正 X Walk steps，X +448/Z 0 Q9、clip 1/yaw 0、epoch
+`1 -> 35`；在唯一 locomotion key 为 W 的条件下，该方向只能来自 Q 将纯 camera candidate
+`0 -> 3` 的 wrap。clock reset/suspend/resume/stall 保持 `1/0/0/0`，Ready/sample
+`2/3 -> 40/41`，object idle、零 render block、两值 clean exit 与全部旧 gate 均成立；产品
+HostInput、camera/locomotion、session schema、Runtime、traversal 与 engine/GPU/resource 结构未改变。
 
 ## Project model
 
