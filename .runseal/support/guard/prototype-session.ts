@@ -11,6 +11,9 @@ export async function requireBoundedPrototypeSession(
         `${root}/.runseal/support/prototype/session.ts`,
     );
     const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input.ts`);
+    const objectGates = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/object/gates.ts`,
+    );
     if (
         !main.includes("mod session;") ||
         (main.match(/session::publish_readiness/g)?.length ?? 0) !== 1 ||
@@ -28,13 +31,17 @@ export async function requireBoundedPrototypeSession(
         !acceptance.includes("trailing session output") ||
         !acceptance.includes("completionEmitted !== false") ||
         !acceptance.includes("buffered output after") ||
-        !acceptance.includes("objectNearestOracle") ||
-        !acceptance.includes("capacityRejectedFrameCount: 12") ||
-        !acceptance.includes("postReadinessCapacityRejection") ||
+        !objectGates.includes("objectNearestOracle") ||
+        !objectGates.includes("capacityRejectedFrameCount: 12") ||
+        !objectGates.includes("postReadinessCapacityRejection") ||
         !acceptance.includes("nativeWindowCloseInvariant") ||
+        !acceptance.includes("focusSessionInvariant") ||
         !input.includes("postPrototypeCapacityRejection") ||
         !input.includes("requestPrototypeWindowClose") ||
+        !input.includes("suspendWithForward") ||
+        !input.includes("resumePrototypeFocus") ||
         !input.includes("0x0010") ||
+        !input.includes("0x0008") ||
         input.includes("DestroyWindow") ||
         !input.includes('{ key: "D", virtualKey: 0x44, down: false }') ||
         !input.includes('{ key: "F", virtualKey: 0x46, down: false }') ||

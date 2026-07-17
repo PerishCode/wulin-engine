@@ -11,19 +11,29 @@ type PrototypeKeyTransition = PrototypeKey & {
     down: boolean;
 };
 
+type PrototypeWindowAction = "close" | "input" | "resume" | "suspend";
+
 async function postPrototypeWindowAction(
     processId: number,
     keys: PrototypeKeyTransition[],
     requireVisible: boolean,
-    closeWindow = false,
+    action: PrototypeWindowAction = "input",
 ): Promise<Json> {
     if (!Number.isSafeInteger(processId) || processId <= 0) {
         fail(`prototype native input received invalid process id ${processId}`);
     }
-    if (keys.length === 0 && !closeWindow) {
-        fail("prototype native window action requires input or close");
+    const requiresKeys = action === "input" || action === "suspend";
+    if (requiresKeys === (keys.length === 0)) {
+        fail(`prototype native ${action} action key shape diverged`);
     }
     const nativeKeys = keys;
+    const expectedMessages = requiresKeys
+        ? [
+            "WM_SETFOCUS",
+            ...keys.map(({ key, down }) => `${down ? "WM_KEYDOWN" : "WM_KEYUP"}:${key}`),
+            ...(action === "suspend" ? ["WM_KILLFOCUS"] : []),
+        ]
+        : [action === "resume" ? "WM_SETFOCUS" : "WM_CLOSE"];
     const powershellKeys = keys.map(({ key, virtualKey, down }) =>
         `[ordered]@{ key = "${key}"; virtualKey = ${virtualKey}; down = ${
             down ? "$true" : "$false"
@@ -54,8 +64,9 @@ public static class PrototypeInputNative {
 
 $expectedProcessId = ${processId}
 $requireVisible = ${requireVisible ? "$true" : "$false"}
-$closeWindow = ${closeWindow ? "$true" : "$false"}
+$action = "${action}"
 $keys = @(${powershellKeys})
+$postedMessages = [System.Collections.Generic.List[string]]::new()
 $deadline = [DateTime]::UtcNow.AddSeconds(20)
 $window = [IntPtr]::Zero
 $windowProcessId = [uint32]0
@@ -81,7 +92,7 @@ if ($window -eq [IntPtr]::Zero) {
     throw "prototype window for process $expectedProcessId was not found"
 }
 $windowWasVisible = [PrototypeInputNative]::IsWindowVisible($window)
-if ($keys.Count -gt 0) {
+if ($action -eq "input" -or $action -eq "suspend") {
     if (-not [PrototypeInputNative]::PostMessage(
         $window,
         0x0007,
@@ -91,6 +102,7 @@ if ($keys.Count -gt 0) {
         $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
         throw "posting prototype focus activation failed with Win32 error $code"
     }
+    $postedMessages.Add("WM_SETFOCUS")
 }
 foreach ($key in $keys) {
     $message = if ($key.down) { 0x0100 } else { 0x0101 }
@@ -103,8 +115,31 @@ foreach ($key in $keys) {
         $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
         throw "posting prototype $($key.key) key down failed with Win32 error $code"
     }
+    $postedMessages.Add("$($message -eq 0x0100 ? 'WM_KEYDOWN' : 'WM_KEYUP'):$($key.key)")
 }
-if ($closeWindow) {
+if ($action -eq "suspend") {
+    if (-not [PrototypeInputNative]::PostMessage(
+        $window,
+        0x0008,
+        [UIntPtr]::Zero,
+        [IntPtr]::Zero
+    )) {
+        $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw "posting prototype focus suspension failed with Win32 error $code"
+    }
+    $postedMessages.Add("WM_KILLFOCUS")
+} elseif ($action -eq "resume") {
+    if (-not [PrototypeInputNative]::PostMessage(
+        $window,
+        0x0007,
+        [UIntPtr]::Zero,
+        [IntPtr]::Zero
+    )) {
+        $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw "posting prototype focus resume failed with Win32 error $code"
+    }
+    $postedMessages.Add("WM_SETFOCUS")
+} elseif ($action -eq "close") {
     if (-not [PrototypeInputNative]::PostMessage(
         $window,
         0x0010,
@@ -114,18 +149,20 @@ if ($closeWindow) {
         $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
         throw "posting prototype window close failed with Win32 error $code"
     }
+    $postedMessages.Add("WM_CLOSE")
 }
 
 [Console]::Out.Write((ConvertTo-Json ([ordered]@{
-    schema = "prototype-native-window-action-v1"
-    action = if ($closeWindow) { "close" } else { "input" }
+    schema = "prototype-native-window-action-v2"
+    action = $action
     processId = [int]$windowProcessId
     windowHandle = $window.ToInt64().ToString()
-    activated = $keys.Count -gt 0
-    closeRequested = $closeWindow
+    activated = $action -ne "close"
+    closeRequested = $action -eq "close"
     requiredVisible = $requireVisible
     windowWasVisible = $windowWasVisible
     keys = @($keys)
+    messages = @($postedMessages)
 }) -Depth 4 -Compress))
 `;
     const output = await new Deno.Command("pwsh", {
@@ -141,14 +178,15 @@ if ($closeWindow) {
     }
     const evidence = JSON.parse(stdout) as Json;
     if (
-        evidence.schema !== "prototype-native-window-action-v1" ||
-        evidence.action !== (closeWindow ? "close" : "input") ||
+        evidence.schema !== "prototype-native-window-action-v2" ||
+        evidence.action !== action ||
         evidence.processId !== processId ||
-        evidence.activated !== (keys.length > 0) ||
-        evidence.closeRequested !== closeWindow ||
+        evidence.activated !== (action !== "close") ||
+        evidence.closeRequested !== (action === "close") ||
         evidence.requiredVisible !== requireVisible ||
         (requireVisible && evidence.windowWasVisible !== true) ||
-        JSON.stringify(evidence.keys) !== JSON.stringify(nativeKeys)
+        JSON.stringify(evidence.keys) !== JSON.stringify(nativeKeys) ||
+        JSON.stringify(evidence.messages) !== JSON.stringify(expectedMessages)
     ) fail("prototype native window action evidence diverged");
     return evidence;
 }
@@ -214,12 +252,12 @@ export async function pressPrototypeEscape(processId: number): Promise<Json> {
 }
 
 export async function requestPrototypeWindowClose(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(processId, [], true, true);
+    return await postPrototypeWindowAction(processId, [], true, "close");
 }
 
 export function nativeWindowCloseInvariant(evidence: Json, processId: number): Json {
     if (
-        evidence.schema !== "prototype-native-window-action-v1" ||
+        evidence.schema !== "prototype-native-window-action-v2" ||
         evidence.action !== "close" ||
         evidence.processId !== processId ||
         evidence.activated !== false ||
@@ -227,12 +265,63 @@ export function nativeWindowCloseInvariant(evidence: Json, processId: number): J
         evidence.requiredVisible !== true ||
         evidence.windowWasVisible !== true ||
         !Array.isArray(evidence.keys) ||
-        evidence.keys.length !== 0
+        evidence.keys.length !== 0 ||
+        JSON.stringify(evidence.messages) !== JSON.stringify(["WM_CLOSE"])
     ) fail("prototype native window-close evidence diverged");
     return {
         exactProcessWindow: true,
         message: "WM_CLOSE",
         directDestroy: false,
+    };
+}
+
+export async function suspendWithForward(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [{ key: "W", virtualKey: 0x57, down: true }],
+        true,
+        "suspend",
+    );
+}
+
+export async function resumePrototypeFocus(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(processId, [], true, "resume");
+}
+
+export function nativeFocusDiscontinuityInvariant(
+    suspended: Json,
+    resumed: Json,
+    processId: number,
+): Json {
+    if (
+        suspended.schema !== "prototype-native-window-action-v2" ||
+        suspended.action !== "suspend" ||
+        suspended.processId !== processId ||
+        suspended.activated !== true ||
+        suspended.closeRequested !== false ||
+        suspended.requiredVisible !== true ||
+        suspended.windowWasVisible !== true ||
+        JSON.stringify(suspended.keys) !==
+            JSON.stringify([{ key: "W", virtualKey: 87, down: true }]) ||
+        JSON.stringify(suspended.messages) !==
+            JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:W", "WM_KILLFOCUS"]) ||
+        resumed.schema !== "prototype-native-window-action-v2" ||
+        resumed.action !== "resume" ||
+        resumed.processId !== processId ||
+        resumed.windowHandle !== suspended.windowHandle ||
+        resumed.activated !== true ||
+        resumed.closeRequested !== false ||
+        resumed.requiredVisible !== true ||
+        resumed.windowWasVisible !== true ||
+        !Array.isArray(resumed.keys) ||
+        resumed.keys.length !== 0 ||
+        JSON.stringify(resumed.messages) !== JSON.stringify(["WM_SETFOCUS"])
+    ) fail("prototype native focus-discontinuity evidence diverged");
+    return {
+        exactProcessWindow: true,
+        suspendedMessages: suspended.messages,
+        resumedMessages: resumed.messages,
+        synthesizedFocusState: false,
     };
 }
 

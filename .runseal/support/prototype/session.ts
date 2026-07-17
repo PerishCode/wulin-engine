@@ -1,13 +1,16 @@
 import { fail, type Json, number, object, root, same, string } from "../canonical-runtime.ts";
-import { objectNearestOracle } from "../object/nearest.ts";
 import {
     applyStartupInput,
+    nativeFocusDiscontinuityInvariant,
     nativeWindowCloseInvariant,
     postPrototypeCapacityRejection,
     pressPrototypeEscape,
     requestPrototypeWindowClose,
+    resumePrototypeFocus,
     type StartupInput,
+    suspendWithForward,
 } from "./input.ts";
+import { sustainedCapacityInvariant } from "./object/gates.ts";
 
 const REVISION = "live-prototype-session-completion-v1";
 
@@ -109,7 +112,7 @@ async function gracefulExit(
     config: string,
     label: string,
     startupInput?: StartupInput,
-    capacityRejection = false,
+    postReadiness: "capacity-rejection" | "focus-discontinuity" | null = null,
     exitReason: "escape" | "window-close" = "escape",
 ): Promise<Json> {
     const started = performance.now();
@@ -134,10 +137,16 @@ async function gracefulExit(
         startupNativeInput = await applyStartupInput(child.pid, startupInput);
         readiness = JSON.parse(await readinessLine(reader)) as Json;
         if (readiness.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
-        if (capacityRejection) {
+        if (postReadiness === "capacity-rejection") {
             await new Promise((resolve) => setTimeout(resolve, 250));
             postReadinessInput = await postPrototypeCapacityRejection(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
+        } else if (postReadiness === "focus-discontinuity") {
+            const suspended = await suspendWithForward(child.pid);
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            const resumed = await resumePrototypeFocus(child.pid);
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            postReadinessInput = { suspended, resumed };
         }
         exitInput = exitReason === "escape"
             ? await pressPrototypeEscape(child.pid)
@@ -214,15 +223,22 @@ export async function sessionGates(
         config,
         "prototype native window close exit",
         undefined,
-        false,
+        null,
         "window-close",
+    );
+    const focusDiscontinuity = await gracefulExit(
+        executable,
+        config,
+        "prototype native focus discontinuity",
+        undefined,
+        "focus-discontinuity",
     );
     const sustained = await gracefulExit(
         executable,
         config,
         "prototype sustained capacity-one session",
         "observe-action-facing",
-        true,
+        "capacity-rejection",
     );
     same(startupInvariant(escape), startupInvariant(first), "prototype Escape configuration");
     same(
@@ -241,6 +257,11 @@ export async function sessionGates(
         "prototype window-close jump policy",
     );
     same(
+        startupInvariant(focusDiscontinuity),
+        startupInvariant(first),
+        "prototype focus-discontinuity configuration",
+    );
+    same(
         startupInvariant(sustained),
         startupInvariant(first),
         "prototype sustained session configuration",
@@ -256,9 +277,59 @@ export async function sessionGates(
                 number(windowClose, "processId"),
             ),
         },
+        focusDiscontinuity,
+        focusDiscontinuityInvariant: focusSessionInvariant(focusDiscontinuity),
         sustained,
-        sustainedInvariant: await sustainedCapacityInvariant(sustained, source, windowCenter),
+        sustainedInvariant: await sustainedCapacityInvariant(
+            sustained,
+            gracefulCompletionInvariant(sustained, "escape"),
+            source,
+            windowCenter,
+        ),
         forcedReadinessCompletionEmitted: false,
+    };
+}
+
+function focusSessionInvariant(launch: Json): Json {
+    const session = idleCompletionInvariant(launch);
+    const readiness = object(launch, "readiness");
+    const completion = object(launch, "completion");
+    const readyActor = object(object(readiness, "actor"), "state");
+    const finalActor = object(object(completion, "actor"), "state");
+    same(finalActor, readyActor, "prototype focus-discontinuity actor state");
+
+    const readyClock = object(object(readiness, "simulation_driver"), "clock");
+    const finalClock = object(completion, "clock");
+    if (
+        finalClock.suspended !== false ||
+        finalClock.hasBaseline !== true ||
+        number(finalClock, "suspendCount") !== number(readyClock, "suspendCount") + 1 ||
+        number(finalClock, "resumeCount") !== number(readyClock, "resumeCount") + 1 ||
+        number(finalClock, "suspendedSampleCount") <=
+            number(readyClock, "suspendedSampleCount") ||
+        number(finalClock, "resetCount") !== number(readyClock, "resetCount") + 1 ||
+        number(finalClock, "readyCount") <= number(readyClock, "readyCount") ||
+        number(finalClock, "sampleCount") <= number(readyClock, "sampleCount") ||
+        number(finalClock, "stallCount") !== number(readyClock, "stallCount") ||
+        number(object(completion, "frames"), "renderBlockCount") !== 0
+    ) fail("prototype focus-discontinuity clock recovery diverged");
+
+    const postReadiness = object(launch, "postReadinessInput");
+    return {
+        ...session,
+        actorStateUnchanged: true,
+        clock: {
+            ready: readyClock,
+            final: finalClock,
+            exactSuspendResumeCount: 1,
+            postResumeResetCount: 1,
+            elapsedBacklog: false,
+        },
+        nativeFocus: nativeFocusDiscontinuityInvariant(
+            object(postReadiness, "suspended"),
+            object(postReadiness, "resumed"),
+            number(launch, "processId"),
+        ),
     };
 }
 
@@ -362,125 +433,5 @@ export function idleCompletionInvariant(
     return {
         ...session,
         idleFinalObjectState: true,
-    };
-}
-
-export async function sustainedCapacityInvariant(
-    launch: Json,
-    source: string,
-    windowCenter: [number, number],
-): Promise<Json> {
-    const session = gracefulCompletionInvariant(launch, "escape");
-    const readiness = object(launch, "readiness");
-    const completion = object(launch, "completion");
-    const readyInteraction = object(
-        object(readiness, "object_interaction_driver"),
-        "status",
-    );
-    const finalInteraction = object(completion, "object_interaction");
-    const finalObservation = object(completion, "object_observation");
-    const consumed = object(readyInteraction, "consumed");
-    if (
-        number(readyInteraction, "committedCount") !== 1 ||
-        number(readyInteraction, "ineligibleCount") !== 0 ||
-        finalInteraction.pending !== false ||
-        finalInteraction.acknowledgement !== null ||
-        number(finalInteraction, "committedCount") !== 1 ||
-        number(finalInteraction, "ineligibleCount") !== 1 ||
-        finalObservation.pending !== false ||
-        finalObservation.target === null
-    ) fail("prototype sustained capacity-one state diverged");
-    same(
-        object(finalInteraction, "consumed"),
-        consumed,
-        "prototype sustained consumed identity",
-    );
-    same(
-        object(finalInteraction, "nearestExclusion"),
-        consumed,
-        "prototype sustained nearest exclusion",
-    );
-    const finalTarget = object(finalObservation, "target");
-    if (
-        finalTarget.availability !== "resolved" ||
-        JSON.stringify(object(finalTarget, "identity")) === JSON.stringify(consumed)
-    ) fail("prototype sustained capacity rejection did not retain a different resolved target");
-
-    const frames = object(completion, "frames");
-    if (
-        number(frames, "liveFrameCount") <=
-            number(object(readiness, "simulation_driver"), "liveFrameCount") ||
-        number(frames, "activatedFrameCount") < 1 ||
-        number(frames, "rejectedFrameCount") !== 12 ||
-        number(frames, "suppressionProjectedFrameCount") < 1
-    ) fail("prototype sustained session did not project exact capacity rejection and suppression");
-    const readyPosition = object(
-        object(
-            object(object(object(readiness, "actor"), "state"), "motion"),
-            "body",
-        ),
-        "position",
-    );
-    const finalPosition = object(
-        object(
-            object(object(object(completion, "actor"), "state"), "motion"),
-            "body",
-        ),
-        "position",
-    );
-    same(
-        object(finalPosition, "region"),
-        object(readyPosition, "region"),
-        "sustained actor region",
-    );
-    if (number(finalPosition, "localXQ9") <= number(readyPosition, "localXQ9")) {
-        fail("prototype sustained actor did not advance after readiness");
-    }
-    const finalRegion = object(finalPosition, "region");
-    const expected = await objectNearestOracle(
-        source,
-        {
-            region: [number(finalRegion, "x"), number(finalRegion, "z")],
-            localXQ9: number(finalPosition, "localXQ9"),
-            localZQ9: number(finalPosition, "localZQ9"),
-            maxDistanceQ9: 512,
-            excludedIdentity: consumed,
-        },
-        windowCenter,
-    );
-    const expectedIdentity = object(object(object(expected, "nearest"), "object"), "identity");
-    same(
-        object(finalTarget, "identity"),
-        expectedIdentity,
-        "prototype sustained exclusion-aware second target",
-    );
-
-    const postReadiness = object(launch, "postReadinessInput");
-    const transitions = postReadiness.keys;
-    if (
-        !Array.isArray(transitions) ||
-        transitions.length !== 5 ||
-        JSON.stringify(transitions) !== JSON.stringify([
-                { key: "D", virtualKey: 68, down: false },
-                { key: "F", virtualKey: 70, down: false },
-                { key: "F", virtualKey: 70, down: true },
-                { key: "Enter", virtualKey: 13, down: false },
-                { key: "Enter", virtualKey: 13, down: true },
-            ])
-    ) fail("prototype sustained capacity-rejection input evidence diverged");
-
-    return {
-        ...session,
-        consumedIdentity: consumed,
-        rejectedTargetIdentity: expectedIdentity,
-        committedCount: 1,
-        postReadinessIneligibleCount: 1,
-        acknowledgement: null,
-        capacityRejectedFrameCount: 12,
-        suppressionProjectedFrameCount: number(frames, "suppressionProjectedFrameCount"),
-        actorAdvancedAfterReadiness: true,
-        postReadinessCapacityRejection: postReadiness,
-        independentExclusionOracle: true,
-        exactCapacityOneRollback: true,
     };
 }

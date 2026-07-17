@@ -687,6 +687,14 @@ readiness 后只向可见且 class/title/PID 精确匹配的窗口投递一个 `
 completion，exit 0、stderr/尾随输出为空、进程与 actor identity 不变、object policy idle；原 Escape、
 forced-termination silence 和持续 capacity-one 会话仍精确，后者保留 12 个 Rejected 与 1,069 个
 suppression frames。Prototype Rust、engine/GPU/resource 与 session schema/输出节奏均未改变。
+Experiment 0112 将原生焦点中断接入同一有界实机会话证明：PID 18472 的精确可见窗口先收到
+`WM_SETFOCUS`、`WM_KEYDOWN:W`、`WM_KILLFOCUS`，在暂停采样后再收到 `WM_SETFOCUS`，恢复后通过既有
+Escape 退出。92.183 秒 `canonical-prototype-v29` 中，readiness live frame/sample 5 到 completion
+1643 恰好新增 suspend/resume/reset 各一，记录 635 个 suspended samples、之后 1,002 个 Ready
+samples，stall/render block 均为零且无 elapsed backlog；完整 actor state 与 readiness 逐字段相同，
+object observation/interaction 保持 idle，stdout 仍恰为两值。Escape、WM_CLOSE、forced-silence 与
+持续 capacity-one gate 均保持精确，后者仍有 12 个 Rejected 和 1,072 个 suppression frames；没有
+修改产品输入/时钟策略、session schema、Runtime 或 engine/GPU/resource 结构。
 
 ## Project model
 
@@ -758,8 +766,8 @@ one visible-window native F+Enter+W observation/action whose origin is the exact
 output, whose bounded result matches an independent source oracle, and whose exact activated target
 commits only through the successful frame,
 one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-W
-finite-edge survival, exact native Escape and visible-window WM_CLOSE clean exits, direct restart
-equality, and Sidecar cleanup.
+finite-edge survival, exact native Escape and visible-window WM_CLOSE clean exits, native
+focus-loss held-input cleanup plus no-backlog resume, direct restart equality, and Sidecar cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
 minimal signed pair, checks strict committed CPU object lookup and exact terrain-position conversion
