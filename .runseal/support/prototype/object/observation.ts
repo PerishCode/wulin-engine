@@ -19,7 +19,19 @@ export async function observationInvariant(
         number(driver, "maxDistanceQ9") !== OBSERVATION_RADIUS_Q9 ||
         status.pending !== false ||
         driver.completed !== expectedCompleted
-    ) fail("prototype object observation driver diverged");
+    ) {
+        fail(
+            `prototype object observation driver diverged: ${
+                JSON.stringify({
+                    revision: driver.revision,
+                    maxDistanceQ9: driver.maxDistanceQ9,
+                    pending: status.pending,
+                    expectedCompleted,
+                    completed: driver.completed,
+                })
+            }`,
+        );
+    }
 
     if (!expectedCompleted) {
         const feedback = object(driver, "frameFeedback");

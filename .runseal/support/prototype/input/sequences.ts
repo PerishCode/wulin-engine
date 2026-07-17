@@ -1,5 +1,6 @@
 import type { Json } from "../../canonical-runtime.ts";
 import {
+    holdOpposedRunKeys,
     holdOrbitForwardKeys,
     holdPrototypeForwardKey,
     holdRunForwardKeys,
@@ -7,11 +8,11 @@ import {
 } from "./actions.ts";
 import { postPrototypeKeys, postPrototypeWindowAction } from "./mod.ts";
 
-export async function pressPrototypeCameraClockwise(processId: number): Promise<Json> {
+export async function pressPrototypeCameraClockwise(processId: number | null): Promise<Json> {
     return await postPrototypeKeys(processId, [{ key: "E", virtualKey: 0x45 }], true);
 }
 
-export async function pressPrototypeJump(processId: number): Promise<Json> {
+export async function pressPrototypeJump(processId: number | null): Promise<Json> {
     return await postPrototypeKeys(processId, [{ key: "Space", virtualKey: 0x20 }], true);
 }
 
@@ -75,7 +76,7 @@ export async function postCameraRepressSequence(processId: number): Promise<Json
     );
 }
 
-export async function postRunReleaseSequence(processId: number): Promise<Json> {
+export async function postRunReleaseSequence(processId: number | null): Promise<Json> {
     return await postPrototypeWindowAction(
         processId,
         [
@@ -90,7 +91,7 @@ export async function postRunReleaseSequence(processId: number): Promise<Json> {
     );
 }
 
-export async function postRunRepressSequence(processId: number): Promise<Json> {
+export async function postRunRepressSequence(processId: number | null): Promise<Json> {
     return await postPrototypeWindowAction(
         processId,
         [
@@ -100,6 +101,17 @@ export async function postRunRepressSequence(processId: number): Promise<Json> {
         true,
         "input",
         [0, 500],
+        200,
+    );
+}
+
+export async function releaseOpposedRun(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [{ key: "S", virtualKey: 0x53, down: false }],
+        true,
+        "input",
+        [0],
         200,
     );
 }
@@ -155,12 +167,13 @@ export type StartupInput =
     | "forward"
     | "jump"
     | "object-action"
+    | "opposed-run"
     | "run-forward"
     | "run-release"
     | "run-repress";
 
 export async function applyStartupInput(
-    processId: number,
+    processId: number | null,
     input?: StartupInput,
 ): Promise<Json | null> {
     switch (input) {
@@ -174,6 +187,8 @@ export async function applyStartupInput(
             return await pressPrototypeJump(processId);
         case "object-action":
             return await postInvariantObjectAction(processId);
+        case "opposed-run":
+            return await holdOpposedRunKeys(processId);
         case "run-forward":
             return await holdRunForwardKeys(processId);
         case "run-release":

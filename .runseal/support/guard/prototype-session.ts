@@ -38,6 +38,9 @@ export async function requireBoundedPrototypeSession(
     const runRepressAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/sessions/run_repress.ts`,
     );
+    const locomotionOppositionAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/sessions/locomotion_opposition.ts`,
+    );
     const cameraPolicy = await Deno.readTextFile(`${root}/apps/prototype/src/camera.rs`);
     const hostInput = await Deno.readTextFile(`${root}/crates/reference-host/src/input.rs`);
     const objectGates = await Deno.readTextFile(
@@ -83,6 +86,7 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("counterClockwiseSessionInvariant") ||
         !sessionGates.includes("runReleaseSessionInvariant") ||
         !sessionGates.includes("runRepressSessionInvariant") ||
+        !sessionGates.includes("locomotionOppositionSessionInvariant") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
         !inputSequences.includes("repressJumpAndExit") ||
@@ -94,6 +98,9 @@ export async function requireBoundedPrototypeSession(
         !inputSequences.includes("postCounterClockwiseSequence") ||
         !inputSequences.includes("postRunReleaseSequence") ||
         !inputSequences.includes("postRunRepressSequence") ||
+        !inputSequences.includes("releaseOpposedRun") ||
+        !acceptance.includes("applyStartupInput(null, startupInput)") ||
+        !acceptance.includes("startup input selected the wrong process") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
         !cameraAcceptance.includes("checkedRangeRejected: true") ||
@@ -117,6 +124,11 @@ export async function requireBoundedPrototypeSession(
         !runRepressAcceptance.includes("retainedForwardInput: true") ||
         !runRepressAcceptance.includes("transitionedToRun: true") ||
         !runRepressAcceptance.includes("walkHoldIntervalMilliseconds") ||
+        !locomotionOppositionAcceptance.includes("oppositeAxisCancelled: true") ||
+        !locomotionOppositionAcceptance.includes("stationarySurveyReadiness: true") ||
+        !locomotionOppositionAcceptance.includes("releasedBackwardInput: true") ||
+        !locomotionOppositionAcceptance.includes("retainedForwardRunReadmitted: true") ||
+        !locomotionOppositionAcceptance.includes("runStepCount") ||
         !focusAcceptance.includes("atomicWindowThreadBatch") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||

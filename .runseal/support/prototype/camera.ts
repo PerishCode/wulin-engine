@@ -26,8 +26,11 @@ export function cameraDriverInvariant(launch: Json, expectedOrbitIndex = 0): Jso
     const actor = object(object(readiness, "actor"), "state");
     same(object(driver, "actor"), object(actor, "handle"), "prototype camera actor handle");
     const rig = object(driver, "rig");
-    if (number(rig, "orbitIndex") !== expectedOrbitIndex) {
-        fail("prototype camera orbit index diverged");
+    const actualOrbitIndex = number(rig, "orbitIndex");
+    if (actualOrbitIndex !== expectedOrbitIndex) {
+        fail(
+            `prototype camera orbit index diverged: expected ${expectedOrbitIndex}, got ${actualOrbitIndex}`,
+        );
     }
     const expectedRig = CAMERA_RIGS[expectedOrbitIndex];
     if (expectedRig === undefined) fail("prototype expected camera orbit index is invalid");

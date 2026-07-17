@@ -15,6 +15,7 @@ import {
     postMidairSequence,
     postOppositeCameraSequence,
     pressPrototypeJump,
+    releaseOpposedRun,
     repressJumpAndExit,
     type StartupInput,
 } from "../input/sequences.ts";
@@ -63,6 +64,7 @@ export async function capturedReady(
     startupInput?: StartupInput,
 ): Promise<Json> {
     const started = performance.now();
+    const preparedNativeInput = applyStartupInput(null, startupInput);
     const child = new Deno.Command(executable, {
         args: [`--bootstrap=${config}`],
         cwd: root,
@@ -77,7 +79,10 @@ export async function capturedReady(
     let nativeInput: Json | null;
     let trailingOutput = "";
     try {
-        nativeInput = await applyStartupInput(child.pid, startupInput);
+        nativeInput = await preparedNativeInput;
+        if (nativeInput !== null && number(nativeInput, "processId") !== child.pid) {
+            fail(`${label} startup input selected the wrong process`);
+        }
         value = JSON.parse(await readinessLine(reader)) as Json;
         if (value.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
         const startup = object(value, "startup");
@@ -136,11 +141,13 @@ export async function gracefulExit(
         | "invalid-camera-alias"
         | "jump-midair"
         | "jump-readmission"
+        | "opposed-run-release"
         | "opposite-camera"
         | null = null,
     exitReason: "escape" | "window-close" = "escape",
 ): Promise<Json> {
     const started = performance.now();
+    const preparedStartupInput = applyStartupInput(null, startupInput);
     const child = new Deno.Command(executable, {
         args: [`--bootstrap=${config}`],
         cwd: root,
@@ -160,14 +167,17 @@ export async function gracefulExit(
     let trailingOutput = "";
     try {
         if (startupInput === "run-release" || startupInput === "run-repress") {
-            const stagedStartupInput = applyStartupInput(child.pid, startupInput);
             readiness = JSON.parse(await readinessLine(reader)) as Json;
-            startupNativeInput = await stagedStartupInput;
+            startupNativeInput = await preparedStartupInput;
             exitInput = startupNativeInput;
         } else {
-            startupNativeInput = await applyStartupInput(child.pid, startupInput);
+            startupNativeInput = await preparedStartupInput;
             readiness = JSON.parse(await readinessLine(reader)) as Json;
         }
+        if (
+            startupNativeInput !== null &&
+            number(startupNativeInput, "processId") !== child.pid
+        ) fail(`${label} startup input selected the wrong process`);
         if (readiness.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
         if (postReadiness === "capacity-rejection") {
             await new Promise((resolve) => setTimeout(resolve, 250));
@@ -197,6 +207,10 @@ export async function gracefulExit(
             exitInput = sequence;
         } else if (postReadiness === "opposite-camera") {
             const sequence = await postOppositeCameraSequence(child.pid);
+            postReadinessInput = { sequence };
+            exitInput = sequence;
+        } else if (postReadiness === "opposed-run-release") {
+            const sequence = await releaseOpposedRun(child.pid);
             postReadinessInput = { sequence };
             exitInput = sequence;
         } else if (postReadiness === "jump-readmission") {

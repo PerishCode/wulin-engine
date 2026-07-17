@@ -814,6 +814,17 @@ Prototype 与 engine/GPU/resource/synchronization 均未改变。`canonical-acto
 `141,824 -> 158,208`；pending candidate 保持 1 step/1 query、零 schedule/actor commit 且无
 advance payload。最终 report 无旧字段，5 个 capture files 共 5,355,420 bytes；guard 为 0 Flavor
 deny，init 通过。
+Experiment 0126 补齐相反 locomotion 轴的原生抵消与释放再接纳证明。新增 session 在精确可见窗口
+线程上原子排队 Shift/W/S；readiness 必须保持原点 Survey，随后只释放 S，completion 必须由仍 held
+的 Shift/W 产生负 Z Run。验收先发现 PowerShell 请求 200ms sleep 而 Stopwatch 仅测得
+197.0125ms，helper 改为单调 deadline 补足下界而未放宽阈值；后续不同旧 gate 又分别暴露 warm
+Prototype 可能早于新 PowerShell helper 编译完成而发布 readiness。最终 startup helper 在 child
+spawn 前预启动，等待下一个唯一 class/title 窗口并强制返回 PID 等于 child，没有 retry 或产品延迟。
+`canonical-prototype-v41` 在修复后的首轮以 147.265 秒通过：PID 6140 的 window thread 13656
+以 0.0022ms span 原子排队 Shift/W/S，readiness 为 `(0,0)`、Survey/yaw0/epoch1；S-up 后
+209.9403ms 投递 Escape，completion 为 `(0,-832)`、13 个 Run steps、clip2/yaw49152/epoch27。
+clock `1/2 -> 32/33`、零 block、对象 idle、两值 clean exit 与全部旧 gate 均成立；产品 HostInput、
+locomotion/presentation、session schema、Runtime 与 engine/GPU/resource/synchronization 未改变。
 
 ## Project model
 
