@@ -1010,6 +1010,19 @@ clock Ready/sample 为 `1007/1008`，1008 个 live frames 全部零 stall/render
 状态 idle，stdout 恰为两值；454,446-byte report 与全部 103 engine-runtime、48 Prototype、
 20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning。共享 native helper 的
 1000ms 延迟上限及产品、Runtime、renderer/GPU/source/resource/synchronization 均未改变。
+Experiment 0145 删除了强制/readiness-only 证据链中的 9 个报告与检查 occurrence：两个启动
+失败 `readinessEmitted`、四个 capture metadata、两个下游字段读取和一个静态 summary。
+启动失败仍直接拒绝成功 role 并保留 code/stdout/stderr；readiness-only capture 在强制终止后
+直接 drain/reject 额外 stdout，并直接拒绝 stderr，只返回正向 readiness。现有 session guard
+覆盖全部四个 owner，普通 graceful 两值会话不变。`canonical-prototype-v60` 首轮在 175.222
+秒通过，453,981-byte report 的三个 capture 均恰为
+`label/processId/elapsedMs/readiness`，四个退役字段名计数为零；`canonical-runtime-v20` 在
+328.876 秒通过，7,529,525-byte report 同样零退役字段，并保持 1,056 次 Sidecar invocation、
+4 warm/8 measured publications、502 handles、23 threads、private bytes
+`411,713,536 -> 412,483,584`、2/2 lifecycle 与 24 artifacts / 25,346,240 bytes。全部 103
+engine-runtime、48 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning；
+产品、Runtime、renderer/GPU/source/resource/synchronization 均未改变，下一次资源清理仍为
+Experiment 0160。
 
 ## Project model
 

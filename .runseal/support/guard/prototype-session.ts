@@ -70,6 +70,9 @@ export async function requireBoundedPrototypeSession(
     const prototypeHost = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/host.ts`,
     );
+    const runtimeBootstrap = await Deno.readTextFile(
+        `${root}/.runseal/support/runtime-bootstrap.ts`,
+    );
     const prototypeSimulation = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/simulation.ts`,
     );
@@ -138,7 +141,9 @@ export async function requireBoundedPrototypeSession(
         (session.match(/println!/g)?.length ?? 0) !== 2 ||
         !acceptance.includes('outputLine(reader, "session completion"') ||
         !acceptance.includes("trailing session output") ||
-        !sessionGates.includes("completionEmitted !== false") ||
+        sessionGates.includes("forcedReadinessCompletionEmitted") ||
+        sessionGates.includes("completionEmitted") ||
+        sessionGates.includes("first.trailingOutput") ||
         !acceptance.includes("buffered output after") ||
         !objectGates.includes("objectNearestOracle") ||
         !objectGates.includes("capacityRejectedFrameCount: 12") ||
@@ -221,6 +226,16 @@ export async function requireBoundedPrototypeSession(
         capturedReadySource.includes("startupInput") ||
         capturedReadySource.includes("prepareStartupInput") ||
         capturedReadySource.includes("nativeInput") ||
+        capturedReadySource.includes("forcedEvidenceExitCode") ||
+        capturedReadySource.includes("completionEmitted") ||
+        capturedReadySource.includes("trailingOutput") ||
+        capturedReadySource.includes("stderr: (await stderr)") ||
+        !capturedReadySource.includes(
+            "emitted session completion after forced evidence termination",
+        ) ||
+        !capturedReadySource.includes("emitted stderr before forced evidence termination") ||
+        prototypeHost.includes("readinessEmitted") ||
+        runtimeBootstrap.includes("readinessEmitted") ||
         gracefulExitIndex < 0 ||
         gracefulSpawnIndex <= gracefulExitIndex ||
         gracefulReadyIndex <= gracefulExitIndex ||
