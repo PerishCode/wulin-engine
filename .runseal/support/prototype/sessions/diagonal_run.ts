@@ -44,8 +44,7 @@ function nativeDiagonalRunInvariant(launch: Json): Json {
         sequence.batchSpanMilliseconds > 50 ||
         number(sequence, "exitAfterLastMilliseconds") !== 200 ||
         exitInterval < 200 ||
-        exitInterval > 700 ||
-        Object.hasOwn(launch, "startupNativeInput")
+        exitInterval > 700
     ) fail("prototype native diagonal Run input evidence diverged");
     same(sequence, object(launch, "exitInput"), "prototype diagonal Run exit input");
     return {

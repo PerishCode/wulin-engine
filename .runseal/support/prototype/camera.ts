@@ -106,7 +106,6 @@ function nativeCameraRepeatInvariant(launch: Json): Json {
     const intervals = sequence.keyPostIntervalsMilliseconds;
     const exitInterval = number(sequence, "exitIntervalMilliseconds");
     if (
-        Object.hasOwn(launch, "startupNativeInput") ||
         initialPress.schema !== "prototype-native-window-action-v4" ||
         initialPress.action !== "input" ||
         initialPress.processId !== processId ||

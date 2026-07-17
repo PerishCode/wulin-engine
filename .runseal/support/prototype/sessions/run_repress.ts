@@ -40,8 +40,7 @@ function nativeRunRepressInvariant(launch: Json): Json {
         sequence.batchSpanMilliseconds > 50 ||
         number(sequence, "exitAfterLastMilliseconds") !== 200 ||
         exitInterval < 200 ||
-        exitInterval > 700 ||
-        Object.hasOwn(launch, "startupNativeInput")
+        exitInterval > 700
     ) fail("prototype native Run modifier re-press evidence diverged");
     same(sequence, object(launch, "exitInput"), "prototype Run modifier re-press exit input");
     return {

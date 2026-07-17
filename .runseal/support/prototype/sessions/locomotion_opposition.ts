@@ -8,7 +8,6 @@ function nativeOppositionInvariant(launch: Json): Json {
     const opposedInput = object(postReadiness, "opposedInput");
     const opposedIntervals = opposedInput.keyPostIntervalsMilliseconds;
     if (
-        Object.hasOwn(launch, "startupNativeInput") ||
         opposedInput.schema !== "prototype-native-window-action-v4" ||
         opposedInput.action !== "input" ||
         opposedInput.processId !== processId ||

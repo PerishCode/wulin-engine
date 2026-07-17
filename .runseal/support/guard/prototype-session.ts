@@ -73,6 +73,19 @@ export async function requireBoundedPrototypeSession(
     const canonicalSetup = await Deno.readTextFile(
         `${root}/.runseal/support/canonical-setup.ts`,
     );
+    const currentNativeSessionSources = [
+        cameraAcceptance,
+        cameraRepressAcceptance,
+        runReleaseAcceptance,
+        runRepressAcceptance,
+        locomotionOppositionAcceptance,
+        diagonalWalkAcceptance,
+        diagonalRunAcceptance,
+        forwardReleaseAcceptance,
+    ];
+    if (currentNativeSessionSources.some((source) => source.includes("startupNativeInput"))) {
+        fail("guard: retired startup native-input report branch returned");
+    }
     const nativeTypeIndex = input.indexOf("Add-Type -TypeDefinition");
     const helperReadyIndex = input.indexOf(
         '[Console]::Out.WriteLine("prototype-native-helper-ready-v1")',

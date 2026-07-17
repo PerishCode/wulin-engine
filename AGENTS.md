@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0134 and the current ADR set through 0137 define one live content runtime
+Experiments 0031-0135 and the current ADR set through 0138 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -397,8 +397,10 @@ geometry/material/rig source, and one deterministic object-shadow path:
   `startupNativeInput`, four action-only command expectations, and the remaining pre-child action
   helper route; all maintained native actions now begin after idle readiness and target one exact
   PID, while every positive delayed key and delayed exit uses a monotonic lower-bound deadline,
-  with stable guards and no alias, fallback, decoder, retry, product sleep, relaxed threshold,
-  product behavior, Runtime, or renderer/GPU/resource change;
+  and the eight residual per-session startup-report shape branches are deleted from camera
+  repeat/re-press, Run release/re-press, opposite locomotion, diagonal Walk/Run, and forward
+  release; one static owner guards every current source, with no alias, fallback, decoder, retry,
+  product sleep, relaxed threshold, product behavior, Runtime, or renderer/GPU/resource change;
 - one accepted normal native forward-release session that replaces the redundant idle Escape
   process/report field, begins only after idle readiness against the exact PID, atomically posts
   W-down, holds Walk for at least 250 ms, posts W-up, retains at least 250 ms of stationary work,
@@ -585,6 +587,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0135-native-forward-release.md` | Accepted normal exact-PID W release, Walk-to-Survey retained-facing completion, and direct idle-Escape report replacement. |
 | `docs/adr/0136-native-focus-jump-suppression.md` | Accepted same-batch native Space/W focus-loss suppression across resumed Ready simulation. |
 | `docs/adr/0137-bounded-object-suppression-dwell.md` | Accepted 250 ms post-action dwell guaranteeing evidence beyond the 12-frame acknowledgement boundary. |
+| `docs/adr/0138-retired-startup-report-branches.md` | Accepted deletion of eight residual startup-report compatibility branches with one current-source removal guard. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -690,6 +693,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0132-native-forward-release/README.md` | Accepted normal W-up Walk-to-Survey completion evidence and replacement of the redundant idle Escape process. |
 | `experiments/0133-native-focus-jump-suppression/README.md` | Accepted same-batch Space/W focus-loss action and locomotion suppression evidence. |
 | `experiments/0134-bounded-object-suppression-dwell/README.md` | Accepted bounded post-action exit timing with a deterministic suppression-frame witness. |
+| `experiments/0135-retired-startup-report-branches/README.md` | Mandatory deletion of eight residual startup-report shape branches from current native-session oracles. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
