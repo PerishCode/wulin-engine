@@ -130,3 +130,27 @@ fn focus_cleanup_does_not_repeat_a_held_camera_key() {
     policy.commit(cleanup_candidate);
     assert_eq!(current(&policy).orbit_index, 1);
 }
+
+#[test]
+fn focus_cleanup_readmits_a_fresh_camera_press() {
+    let mut input = input(vec![key(0x45, true)]);
+    let mut policy = camera::Policy::new();
+    let candidate = policy.candidate(&input);
+    policy.commit(candidate);
+    assert_eq!(current(&policy).orbit_index, 1);
+
+    input.ingest(vec![NativeMessage::FocusLost]);
+    assert!(!input.is_held(0x45));
+    assert!(!input.was_pressed(0x45));
+    assert!(input.was_released(0x45));
+    assert_eq!(policy.candidate(&input).rig().orbit_index, 1);
+
+    input.ingest(vec![key(0x45, true)]);
+    assert!(input.is_held(0x45));
+    assert!(input.was_pressed(0x45));
+    assert!(!input.was_released(0x45));
+    let repressed_candidate = policy.candidate(&input);
+    assert_eq!(repressed_candidate.rig().orbit_index, 2);
+    policy.commit(repressed_candidate);
+    assert_eq!(current(&policy).orbit_index, 2);
+}
