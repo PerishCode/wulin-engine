@@ -1,19 +1,21 @@
 import { fail, type Json, number, object, root, same, string } from "../../canonical-runtime.ts";
 import {
-    applyStartupInput,
     nativeWindowCloseInvariant,
+    postPrototypeCapacityRejection,
+    pressPrototypeEscape,
+    requestPrototypeWindowClose,
+    resumePrototypeFocus,
+    suspendWithForward,
+} from "../input/actions.ts";
+import {
+    applyStartupInput,
     postCameraRepeatSequence,
     postInvalidAliasSequence,
     postMidairSequence,
-    postPrototypeCapacityRejection,
-    pressPrototypeEscape,
     pressPrototypeJump,
     repressJumpAndExit,
-    requestPrototypeWindowClose,
-    resumePrototypeFocus,
     type StartupInput,
-    suspendWithForward,
-} from "../input.ts";
+} from "../input/sequences.ts";
 import { cameraRepeatSessionInvariant, invalidKeySessionInvariant } from "../camera.ts";
 import { focusSessionInvariant } from "./focus.ts";
 import { jumpMidairInvariant, jumpReadmissionInvariant } from "../jump.ts";
@@ -52,9 +54,7 @@ export async function outputLine(
     fail(`prototype ${label} timeout expired`);
 }
 
-export async function readinessLine(
-    reader: ReadableStreamDefaultReader<string>,
-): Promise<string> {
+export async function readinessLine(reader: ReadableStreamDefaultReader<string>): Promise<string> {
     return await outputLine(reader, "readiness");
 }
 
@@ -112,6 +112,16 @@ export async function capturedReady(
         nativeInput,
         readiness: value,
     };
+}
+
+export async function sustainedCapacitySession(executable: string, config: string): Promise<Json> {
+    return await gracefulExit(
+        executable,
+        config,
+        "prototype sustained capacity-one session",
+        "object-action",
+        "capacity-rejection",
+    );
 }
 
 async function gracefulExit(
@@ -249,6 +259,8 @@ export async function sessionGates(
     executable: string,
     config: string,
     first: Json,
+    sustained: Json,
+    sustainedBaseline: Json,
     startupInvariant: (launch: Json) => Json,
     jumpInvariant: (launch: Json) => Json,
     source: string,
@@ -301,13 +313,6 @@ export async function sessionGates(
         undefined,
         "invalid-camera-alias",
     );
-    const sustained = await gracefulExit(
-        executable,
-        config,
-        "prototype sustained capacity-one session",
-        "observe-action-facing",
-        "capacity-rejection",
-    );
     sameInitial(escape, first, "Escape", startupInvariant, jumpInvariant);
     sameInitial(windowClose, first, "window-close", startupInvariant, jumpInvariant);
     same(
@@ -321,7 +326,7 @@ export async function sessionGates(
     sameInitial(invalidKey, first, "invalid-key", startupInvariant, jumpInvariant);
     same(
         startupInvariant(sustained),
-        startupInvariant(first),
+        startupInvariant(sustainedBaseline),
         "prototype sustained session configuration",
     );
     return {

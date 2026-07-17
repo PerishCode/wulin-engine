@@ -40,6 +40,44 @@ export async function observationInvariant(
             target: null,
         };
     }
+    const nativeInput = object(launch, "nativeInput");
+    const nativeKeys = nativeInput.keys;
+    const nativeIntervals = nativeInput.keyPostIntervalsMilliseconds;
+    const advance = object(object(readiness, "simulation_driver"), "advance");
+    const simulation = object(advance, "simulation");
+    const expectedNativeKeys = [
+        { key: "F", virtualKey: 70, down: true },
+        { key: "Enter", virtualKey: 13, down: true },
+    ];
+    const stepCount = number(simulation, "stepCount");
+    if (
+        nativeInput.atomicBatch !== true ||
+        !Number.isSafeInteger(nativeInput.batchThreadId) ||
+        number(nativeInput, "batchThreadId") <= 0 ||
+        number(nativeInput, "batchSpanMilliseconds") < 0 ||
+        number(nativeInput, "batchSpanMilliseconds") > 50 ||
+        !Array.isArray(nativeKeys) ||
+        JSON.stringify(nativeKeys) !== JSON.stringify(expectedNativeKeys) ||
+        !Array.isArray(nativeIntervals) ||
+        nativeIntervals.length !== Math.max(0, expectedNativeKeys.length - 1) ||
+        stepCount < 1 ||
+        stepCount > 8
+    ) {
+        fail(
+            `prototype object action did not use one bounded atomic native input batch: ${
+                JSON.stringify({
+                    expectedFeedbackKind,
+                    expectedNativeKeys,
+                    nativeKeys,
+                    nativeIntervals,
+                    atomicBatch: nativeInput.atomicBatch,
+                    batchThreadId: nativeInput.batchThreadId,
+                    batchSpanMilliseconds: nativeInput.batchSpanMilliseconds,
+                    stepCount: simulation.stepCount,
+                })
+            }`,
+        );
+    }
     const observation = object(driver, "observation");
     const origin = object(observation, "origin");
     const actorOutput = object(
@@ -86,7 +124,29 @@ export async function observationInvariant(
     if (
         submitted.kind !== expectedFeedbackKind ||
         number(feedback, "submittedFrameCount") < 1 || feedback.copiedObjectState !== false
-    ) fail("prototype did not forward exact immutable target feedback");
+    ) {
+        fail(
+            `prototype did not forward exact immutable target feedback: ${
+                JSON.stringify({
+                    expectedFeedbackKind,
+                    submittedKind: submitted.kind,
+                    submittedFrameCount: feedback.submittedFrameCount,
+                    copiedObjectState: feedback.copiedObjectState,
+                    nativeIntervals,
+                    nativeKeys,
+                    stepCount,
+                    yawQ16: object(actorOutput, "presentation").yawQ16,
+                    deltaXQ9: nearest.deltaXQ9,
+                    deltaZQ9: nearest.deltaZQ9,
+                    distanceSquaredQ18: nearest.distanceSquaredQ18,
+                    interactionStatus: object(
+                        object(readiness, "object_interaction_driver"),
+                        "status",
+                    ),
+                })
+            }`,
+        );
+    }
     const targetSnapshot = object(target, "snapshot");
     const targetToken = number(targetSnapshot, "publicationToken");
     if (targetSnapshot.sourceNamespace !== snapshot.sourceNamespace) {
@@ -123,6 +183,14 @@ export async function observationInvariant(
         snapshotGatedTarget: true,
         ...traversalOrder,
         copiedObjectState: false,
+        nativeInput: {
+            atomicBatch: true,
+            batchThreadId: nativeInput.batchThreadId,
+            batchSpanMilliseconds: nativeInput.batchSpanMilliseconds,
+            keyPostIntervalsMilliseconds: nativeIntervals,
+            stepCount,
+            maximumBatchGeometryInvariant: true,
+        },
         frameFeedback: feedback,
     };
 }

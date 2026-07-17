@@ -8,7 +8,7 @@ import { observationInvariant } from "./observation.ts";
 import {
     idleInteractionInvariant,
     interactionInvariant,
-    sideFacingInteractionInvariant,
+    rejectedInteractionInvariant,
 } from "./interaction.ts";
 
 type StartupInvariant = (launch: Json) => Json;
@@ -32,7 +32,7 @@ export async function restartObservation(
     );
 }
 
-export async function facingRejectionGates(
+export async function invariantRejectionGates(
     launch: Json,
     baseline: Json,
     objects: string,
@@ -43,29 +43,31 @@ export async function facingRejectionGates(
     same(
         startupInvariant(launch),
         startupInvariant(baseline),
-        "prototype side-facing action configuration",
+        "prototype invariant rejected-action configuration",
     );
     same(
         actorInvariant(launch, base),
         actorInvariant(baseline, base),
-        "prototype side-facing action initial actor authority",
+        "prototype invariant rejected-action initial actor authority",
     );
     return {
         simulation: simulationInvariant(launch),
         observation: await observationInvariant(launch, objects, base, true, "rejected"),
-        interaction: sideFacingInteractionInvariant(launch),
+        interaction: rejectedInteractionInvariant(launch),
         jump: jumpPolicyInvariant(launch, true),
         camera: cameraDriverInvariant(launch),
         traversal: traversalInvariant(launch, base),
     };
 }
 
-export async function objectFacingGates(
+export async function objectFeedbackGates(
     admitted: Json,
     rejected: Json,
-    baseline: Json,
+    admittedBaseline: Json,
+    rejectedBaseline: Json,
     objects: string,
-    base: Coord,
+    admittedBase: Coord,
+    rejectedBase: Coord,
     startupInvariant: StartupInvariant,
     admittedSimulation: SimulationInvariant,
     rejectedSimulation: SimulationInvariant,
@@ -73,17 +75,17 @@ export async function objectFacingGates(
     return {
         admitted: await observationGates(
             admitted,
-            baseline,
+            admittedBaseline,
             objects,
-            base,
+            admittedBase,
             startupInvariant,
             admittedSimulation,
         ),
-        rejected: await facingRejectionGates(
+        rejected: await invariantRejectionGates(
             rejected,
-            baseline,
+            rejectedBaseline,
             objects,
-            base,
+            rejectedBase,
             startupInvariant,
             rejectedSimulation,
         ),
@@ -181,11 +183,21 @@ export async function sustainedCapacityInvariant(
     );
 
     const postReadiness = object(launch, "postReadinessInput");
-    const transitions = postReadiness.keys;
+    const motion = object(postReadiness, "motion");
+    const action = object(postReadiness, "action");
+    const motionTransitions = motion.keys;
+    const actionTransitions = action.keys;
     if (
-        !Array.isArray(transitions) ||
-        transitions.length !== 5 ||
-        JSON.stringify(transitions) !== JSON.stringify([
+        postReadiness.revision !== "prototype-capacity-rejection-input-v1" ||
+        number(postReadiness, "requestedMotionHoldMilliseconds") !== 250 ||
+        number(postReadiness, "motionHoldMilliseconds") < 250 ||
+        !Array.isArray(motionTransitions) ||
+        JSON.stringify(motionTransitions) !== JSON.stringify([
+                { key: "D", virtualKey: 68, down: true },
+            ]) ||
+        !Array.isArray(actionTransitions) ||
+        actionTransitions.length !== 5 ||
+        JSON.stringify(actionTransitions) !== JSON.stringify([
                 { key: "D", virtualKey: 68, down: false },
                 { key: "F", virtualKey: 70, down: false },
                 { key: "F", virtualKey: 70, down: true },
@@ -204,7 +216,10 @@ export async function sustainedCapacityInvariant(
         capacityRejectedFrameCount: 12,
         suppressionProjectedFrameCount: number(frames, "suppressionProjectedFrameCount"),
         actorAdvancedAfterReadiness: true,
-        postReadinessCapacityRejection: postReadiness,
+        postReadinessCapacityRejection: {
+            ...postReadiness,
+            motionThenStationaryAction: true,
+        },
         independentExclusionOracle: true,
         exactCapacityOneRollback: true,
     };

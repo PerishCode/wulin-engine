@@ -10,13 +10,28 @@ export async function requireBoundedPrototypeSession(
     const acceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/sessions/mod.ts`,
     );
-    const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input.ts`);
+    const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input/mod.ts`);
+    const inputActions = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/input/actions.ts`,
+    );
+    const inputSequences = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/input/sequences.ts`,
+    );
     const cameraAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/camera.ts`,
     );
     const hostInput = await Deno.readTextFile(`${root}/crates/reference-host/src/input.rs`);
     const objectGates = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/object/gates.ts`,
+    );
+    const objectObservation = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/object/observation.ts`,
+    );
+    const prototypeHost = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/host.ts`,
+    );
+    const canonicalSetup = await Deno.readTextFile(
+        `${root}/.runseal/support/canonical-setup.ts`,
     );
     if (
         !main.includes("mod session;") ||
@@ -44,12 +59,12 @@ export async function requireBoundedPrototypeSession(
         !acceptance.includes("jumpMidairInvariant") ||
         !acceptance.includes("cameraRepeatSessionInvariant") ||
         !acceptance.includes("invalidKeySessionInvariant") ||
-        !input.includes("postPrototypeCapacityRejection") ||
-        !input.includes("requestPrototypeWindowClose") ||
-        !input.includes("repressJumpAndExit") ||
-        !input.includes("postMidairSequence") ||
-        !input.includes("postCameraRepeatSequence") ||
-        !input.includes("postInvalidAliasSequence") ||
+        !inputActions.includes("postPrototypeCapacityRejection") ||
+        !inputActions.includes("requestPrototypeWindowClose") ||
+        !inputSequences.includes("repressJumpAndExit") ||
+        !inputSequences.includes("postMidairSequence") ||
+        !inputSequences.includes("postCameraRepeatSequence") ||
+        !inputSequences.includes("postInvalidAliasSequence") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
         !cameraAcceptance.includes("checkedRangeRejected: true") ||
@@ -58,14 +73,28 @@ export async function requireBoundedPrototypeSession(
         !hostInput.includes("u8::try_from(key)") ||
         !input.includes("[Diagnostics.Stopwatch]::StartNew()") ||
         input.includes("prototype-native-window-action-v2") ||
-        !input.includes("suspendWithForward") ||
-        !input.includes("resumePrototypeFocus") ||
+        !input.includes("PostAtomicInputBatch") ||
+        !input.includes("SuspendThread") ||
+        !input.includes("ResumeThread") ||
+        !inputActions.includes("postInvariantObjectAction") ||
+        !objectObservation.includes("maximumBatchGeometryInvariant: true") ||
+        !objectObservation.includes("stepCount > 8") ||
+        !prototypeHost.includes("objectActionCenter: Coord = [base[0] + 4, base[1]]") ||
+        !prototypeHost.includes('"object-action"') ||
+        !canonicalSetup.includes("objectActionCenter: Coord = [base[0] + 4, base[1]]") ||
+        !canonicalSetup.includes(
+            "objectActionTraversalCenter: Coord = [base[0] + 5, base[1] + 1]",
+        ) ||
+        !inputActions.includes("suspendWithForward") ||
+        !inputActions.includes("resumePrototypeFocus") ||
         !input.includes("0x0010") ||
         !input.includes("0x0008") ||
         input.includes("DestroyWindow") ||
-        !input.includes('{ key: "D", virtualKey: 0x44, down: false }') ||
-        !input.includes('{ key: "F", virtualKey: 0x46, down: false }') ||
-        !input.includes('{ key: "Enter", virtualKey: 0x0D, down: false }')
+        !inputActions.includes('{ key: "D", virtualKey: 0x44, down: true }') ||
+        !inputActions.includes('{ key: "D", virtualKey: 0x44, down: false }') ||
+        !inputActions.includes('"prototype-capacity-rejection-input-v1"') ||
+        !inputActions.includes('{ key: "F", virtualKey: 0x46, down: false }') ||
+        !inputActions.includes('{ key: "Enter", virtualKey: 0x0D, down: false }')
     ) fail("guard: bounded Prototype session contract diverged");
 
     const waitIndex = main.indexOf("runtime.wait_idle()");

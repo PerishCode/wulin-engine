@@ -11,20 +11,23 @@ import {
     string,
     useSidecar,
 } from "../canonical-runtime.ts";
-import type { StartupInput } from "./input.ts";
+import type { StartupInput } from "./input/sequences.ts";
 import { jumpMotionInvariant, jumpPolicyInvariant } from "./jump.ts";
 import { actorInvariant } from "./actor.ts";
 import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
 import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
-import { objectFacingGates, restartObservation } from "./object/gates.ts";
-import { capturedReady as captureReady, sessionGates } from "./sessions/mod.ts";
+import { objectFeedbackGates, restartObservation } from "./object/gates.ts";
+import {
+    capturedReady as captureReady,
+    sessionGates,
+    sustainedCapacitySession,
+} from "./sessions/mod.ts";
 import {
     CAMERA_FORWARD_COMMAND,
     type ExpectedCommand,
     FORWARD_COMMAND,
     JUMP_COMMAND,
-    RIGHT_COMMAND,
     RUN_FORWARD_COMMAND,
     STATIONARY_COMMAND,
 } from "./simulation.ts";
@@ -277,14 +280,11 @@ export async function prototypeHostGates(
     invalid.fallback = true;
     await writeDocument(invalid);
     const invalidDocument = await failedStart("invalid document");
-
     await writeDocument(document(terrain, "out/cooked/bootstrap/missing.wlr", base));
     const missingSource = await failedStart("missing source");
-
     const corruptCenter: Coord = [base[0] + 70, base[1]];
     await writeDocument(document(terrain, corruptObjects, corruptCenter));
     const corruptPayload = await failedStart("corrupt payload");
-
     await writeDocument(document(terrain, objects, base));
     const first = await capturedReady("prototype first process");
     const restarted = await capturedReady("prototype restarted process");
@@ -296,17 +296,26 @@ export async function prototypeHostGates(
     );
     const cameraOrbit = await capturedReady("prototype clockwise camera orbit", "camera-clockwise");
     const jump = await capturedReady("prototype committed jump", "jump");
-    const objectActionFacing = await capturedReady(
-        "prototype committed front-facing object action",
-        "observe-action-facing",
+    const objectActionActivated = await capturedReady(
+        "prototype invariant activated object action",
+        "object-action",
     );
-    const objectActionSide = await capturedReady(
-        "prototype rejected side-facing object action",
-        "observe-action-side",
+    const sustained = await sustainedCapacitySession(EXECUTABLE, CONFIG);
+    const objectActionCenter: Coord = [base[0] + 4, base[1]];
+    await writeDocument(document(terrain, objects, objectActionCenter));
+    const objectActionBaseline = await capturedReady(
+        "prototype invariant object action baseline",
     );
+    const objectActionRejected = await capturedReady(
+        "prototype invariant rejected object action",
+        "object-action",
+    );
+    await writeDocument(document(terrain, objects, base));
     const sessions = await sessionGates(
         EXECUTABLE,
         CONFIG,
+        first,
+        sustained,
         first,
         startupInvariant,
         (launch) => jumpPolicyInvariant(launch, true),
@@ -417,15 +426,17 @@ export async function prototypeHostGates(
         camera: cameraDriverInvariant(jump),
         traversal: traversalInvariant(jump, base),
     };
-    const objectFacingInvariant = await objectFacingGates(
-        objectActionFacing,
-        objectActionSide,
+    const objectFeedbackInvariant = await objectFeedbackGates(
+        objectActionActivated,
+        objectActionRejected,
         first,
+        objectActionBaseline,
         objects,
         base,
+        objectActionCenter,
         startupInvariant,
-        (launch) => simulationDriverInvariant(launch, RIGHT_COMMAND),
-        (launch) => simulationDriverInvariant(launch, FORWARD_COMMAND),
+        (launch) => simulationDriverInvariant(launch, STATIONARY_COMMAND),
+        (launch) => simulationDriverInvariant(launch, STATIONARY_COMMAND),
     );
     same(startupInvariant(boundary), startupInvariant(first), "prototype boundary configuration");
     same(
@@ -478,9 +489,10 @@ export async function prototypeHostGates(
         cameraOrbitInvariant,
         jump,
         jumpInvariant,
-        objectActionFacing,
-        objectActionSide,
-        objectFacingInvariant,
+        objectActionBaseline,
+        objectActionActivated,
+        objectActionRejected,
+        objectFeedbackInvariant,
         boundary,
         boundaryInvariant,
         sidecar: { first: firstSidecar, restarted: restartedSidecar, stopped },

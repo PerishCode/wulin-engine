@@ -105,13 +105,13 @@ export function interactionInvariant(launch: Json): Json {
         "presentation",
     );
     const facing = {
-        yawQ16: number(actorPresentation, "yawQ16"),
+        yawQ16: 0,
         directionX: 1,
         directionZ: 0,
         dotQ9: number(proximity, "deltaXQ9"),
     };
     if (
-        number(facing, "yawQ16") !== 0 ||
+        number(actorPresentation, "yawQ16") !== number(facing, "yawQ16") ||
         number(facing, "directionX") !== 1 || number(facing, "directionZ") !== 0 ||
         number(facing, "dotQ9") !== number(proximity, "deltaXQ9") ||
         number(facing, "dotQ9") <= 0
@@ -140,7 +140,7 @@ export function interactionInvariant(launch: Json): Json {
     };
 }
 
-export function sideFacingInteractionInvariant(launch: Json): Json {
+export function rejectedInteractionInvariant(launch: Json): Json {
     const readiness = object(launch, "readiness");
     const driver = object(readiness, "object_interaction_driver");
     const status = object(driver, "status");
@@ -160,10 +160,10 @@ export function sideFacingInteractionInvariant(launch: Json): Json {
         terrainPosition: object(nearest, "terrainPosition"),
     };
     const facing = {
-        yawQ16: 49_152,
-        directionX: 0,
-        directionZ: -1,
-        dotQ9: -number(proximity, "deltaZQ9"),
+        yawQ16: 0,
+        directionX: 1,
+        directionZ: 0,
+        dotQ9: number(proximity, "deltaXQ9"),
     };
     if (
         driver.revision !== "live-prototype-object-rejected-feedback-v3" ||
@@ -188,11 +188,11 @@ export function sideFacingInteractionInvariant(launch: Json): Json {
         "prototype rejected acknowledgement identity",
     );
     if (
-        number(facing, "yawQ16") !== 49_152 || number(facing, "directionX") !== 0 ||
-        number(facing, "directionZ") !== -1 ||
-        number(facing, "dotQ9") !== -number(proximity, "deltaZQ9") ||
+        number(facing, "yawQ16") !== 0 || number(facing, "directionX") !== 1 ||
+        number(facing, "directionZ") !== 0 ||
+        number(facing, "dotQ9") !== number(proximity, "deltaXQ9") ||
         number(facing, "dotQ9") > 0
-    ) fail("prototype rejected action exact committed facing diverged");
+    ) fail("prototype rejected action exact invariant facing diverged");
     return {
         revision: driver.revision,
         input: driver.input,
@@ -209,7 +209,7 @@ export function sideFacingInteractionInvariant(launch: Json): Json {
         activatedFrameCount: 0,
         rejectedFrameCount: 1,
         nearestExclusion: null,
-        exactSideRejection: true,
+        exactInvariantRejection: true,
         exactProjectedRejection: true,
         copiedObjectState: false,
     };

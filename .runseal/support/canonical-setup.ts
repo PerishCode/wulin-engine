@@ -98,8 +98,17 @@ export async function preparePrototypeSetup(
     await resetCaptureCollection(collection);
     const traversalCenter: Coord = [base[0] + 1, base[1] + 1];
     const cameraOrbitCenter: Coord = [base[0] + 1, base[1] - 1];
+    const objectActionCenter: Coord = [base[0] + 4, base[1]];
+    const objectActionTraversalCenter: Coord = [base[0] + 5, base[1] + 1];
     const corruptCenter: Coord = [base[0] + 70, base[1]];
-    const centers = [base, traversalCenter, cameraOrbitCenter, corruptCenter];
+    const centers = [
+        base,
+        traversalCenter,
+        cameraOrbitCenter,
+        objectActionCenter,
+        objectActionTraversalCenter,
+        corruptCenter,
+    ];
     const terrain = await cookTerrain(paths.terrain, centers);
     const objects = await cookObjects(paths.objects, centers, "a");
     await Deno.copyFile(`${root}/${paths.objects}`, `${root}/${paths.objectsCorrupt}`);
