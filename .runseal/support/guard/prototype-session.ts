@@ -266,7 +266,14 @@ export async function requireBoundedPrototypeSession(
         !focusAcceptance.includes("sameBatchJumpDidNotReachResumedSimulation: true") ||
         !focusAcceptance.includes("sameBatchObservationDidNotReachResumedSimulation: true") ||
         !focusAcceptance.includes("sameBatchActivationDidNotReachResumedSimulation: true") ||
-        !focusAcceptance.includes("heldLocomotionDidNotReachSimulation: true") ||
+        !focusAcceptance.includes("sameBatchForwardDidNotReachResumedSimulation: true") ||
+        !focusAcceptance.includes("postFocusLocomotionReadmitted: true") ||
+        !focusAcceptance.includes("staleForwardDidNotReachSimulation: true") ||
+        !focusAcceptance.includes("freshLeftInputReadmitted: true") ||
+        !focusAcceptance.includes("movedThenStopped: true") ||
+        !focusAcceptance.includes("retainedLeftYaw: true") ||
+        !focusAcceptance.includes("leftHoldIntervalMilliseconds") ||
+        !focusAcceptance.includes("stationaryHoldIntervalMilliseconds") ||
         !focusAcceptance.includes("objectPoliciesIdleAcrossDiscontinuity: true") ||
         !focusAcceptance.includes("resumedReadyProgress: true") ||
         !focusAcceptance.includes("actionAfterReadiness: true") ||
@@ -323,6 +330,9 @@ export async function requireBoundedPrototypeSession(
         inputActions.includes("suspendWithJumpAndForward") ||
         inputActions.includes("suspendWithForward") ||
         !inputActions.includes("resumePrototypeFocus") ||
+        !inputActions.includes("postFocusLocomotionReadmission") ||
+        !inputActions.includes('{ key: "A", virtualKey: 0x41, down: true }') ||
+        !inputActions.includes('{ key: "A", virtualKey: 0x41, down: false }') ||
         !input.includes("0x0010") ||
         !input.includes("0x0008") ||
         input.includes("DestroyWindow") ||

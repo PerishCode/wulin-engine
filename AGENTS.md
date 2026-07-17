@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0140 and the current ADR set through 0143 define one live content runtime
+Experiments 0031-0141 and the current ADR set through 0144 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -353,11 +353,13 @@ geometry/material/rig source, and one deterministic object-shadow path:
   schema, telemetry, engine/GPU, or resource change;
 - one accepted native focus-discontinuity session gate that atomically posts Space/F/Enter/W
   immediately before `WM_KILLFOCUS` on the exact visible process window thread, observes suspended
-  sampling, posts `WM_SETFOCUS`, and proves one suspend/resume pair, one post-resume reset, later
-  Ready progress, zero elapsed backlog/stalls/blocks, exact unchanged actor state, and idle
-  observation/interaction with zero action counts; the queued Jump, observation, and activation
-  edges plus held locomotion cannot reach resumed nonzero simulation, without claiming immediate
-  edge deletion or adding product input/clock/schema/telemetry or Runtime/GPU/resource changes;
+  sampling, posts `WM_SETFOCUS`, and then atomically posts fresh A-down, bounded A-up, and delayed
+  Escape on the same PID/window; it proves one suspend/resume pair, one post-resume reset, later
+  Ready progress, zero elapsed backlog/stalls/blocks, exact negative-X 32-Q9 Walk admission with
+  zero Z displacement and final Survey/left yaw, and idle observation/interaction with zero action
+  counts; the queued Jump, observation, activation, and held W cannot reach resumed nonzero
+  simulation while fresh locomotion does, without claiming immediate edge deletion or adding
+  product input/clock/schema/telemetry or Runtime/GPU/resource changes;
 - one accepted native Jump-readmission session gate that posts one grounded Space, waits beyond
   the exact 48-step flight without a stall, posts Space up/down, and uses one same-helper monotonic
   delay before Escape to prove the final actor lies on the exact second `4369/-179` flight while
@@ -606,6 +608,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0141-held-camera-focus-cleanup.md` | Accepted duplicate-down suppression and release-only focus cleanup for an already-held camera key. |
 | `docs/adr/0142-camera-focus-readmission.md` | Accepted fresh Q/E press readmission after release-only focus cleanup. |
 | `docs/adr/0143-retired-negative-session-fields-resource-cleanup.md` | Accepted static negative Prototype session-field retirement, schema-v2 replacement, and scheduled workspace resource cleanup. |
+| `docs/adr/0144-native-focus-locomotion-readmission.md` | Accepted stale-W suppression and fresh-A locomotion readmission across one native focus discontinuity. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -717,6 +720,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0138-held-camera-focus-cleanup/README.md` | Accepted no-repeat Q/E camera composition when focus cleanup releases an already-held key. |
 | `experiments/0139-camera-focus-readmission/README.md` | Accepted fresh Q/E camera press readmission after focus cleanup ends the prior held-key lifetime. |
 | `experiments/0140-retired-negative-session-fields-resource-cleanup/README.md` | Mandatory static negative session-report compatibility deletion and measured target/out cleanup. |
+| `experiments/0141-native-focus-locomotion-readmission/README.md` | Accepted exact stale-W suppression and fresh-A Walk/release evidence in the existing focus process. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |

@@ -62,6 +62,22 @@ export async function resumePrototypeFocus(processId: number): Promise<Json> {
     return await postPrototypeWindowAction(processId, [], true, "resume");
 }
 
+export async function postFocusLocomotionReadmission(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "A", virtualKey: 0x41, down: true },
+            { key: "A", virtualKey: 0x41, down: false },
+        ],
+        true,
+        "input",
+        [0, 250],
+        250,
+        false,
+        1,
+    );
+}
+
 export async function postPrototypeCapacityRejection(processId: number): Promise<Json> {
     const motion = await postPrototypeWindowAction(
         processId,
