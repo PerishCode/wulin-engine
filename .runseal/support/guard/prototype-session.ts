@@ -8,7 +8,7 @@ export async function requireBoundedPrototypeSession(
     const main = await Deno.readTextFile(`${root}/apps/prototype/src/main.rs`);
     const session = await Deno.readTextFile(`${root}/apps/prototype/src/session.rs`);
     const acceptance = await Deno.readTextFile(
-        `${root}/.runseal/support/prototype/session.ts`,
+        `${root}/.runseal/support/prototype/sessions/mod.ts`,
     );
     const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input.ts`);
     const objectGates = await Deno.readTextFile(
@@ -37,10 +37,13 @@ export async function requireBoundedPrototypeSession(
         !acceptance.includes("nativeWindowCloseInvariant") ||
         !acceptance.includes("focusSessionInvariant") ||
         !acceptance.includes("jumpReadmissionInvariant") ||
+        !acceptance.includes("jumpMidairInvariant") ||
         !input.includes("postPrototypeCapacityRejection") ||
         !input.includes("requestPrototypeWindowClose") ||
         !input.includes("repressJumpAndExit") ||
+        !input.includes("postMidairSequence") ||
         !input.includes("[Diagnostics.Stopwatch]::StartNew()") ||
+        input.includes("prototype-native-window-action-v2") ||
         !input.includes("suspendWithForward") ||
         !input.includes("resumePrototypeFocus") ||
         !input.includes("0x0010") ||

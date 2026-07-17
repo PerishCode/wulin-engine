@@ -1,8 +1,8 @@
-import { fail, type Json, number, object, root, same, string } from "../canonical-runtime.ts";
+import { fail, type Json, number, object, root, same, string } from "../../canonical-runtime.ts";
 import {
     applyStartupInput,
-    nativeFocusDiscontinuityInvariant,
     nativeWindowCloseInvariant,
+    postMidairSequence,
     postPrototypeCapacityRejection,
     pressPrototypeEscape,
     pressPrototypeJump,
@@ -11,9 +11,10 @@ import {
     resumePrototypeFocus,
     type StartupInput,
     suspendWithForward,
-} from "./input.ts";
-import { jumpReadmissionInvariant } from "./jump.ts";
-import { sustainedCapacityInvariant } from "./object/gates.ts";
+} from "../input.ts";
+import { focusSessionInvariant } from "./focus.ts";
+import { jumpMidairInvariant, jumpReadmissionInvariant } from "../jump.ts";
+import { sustainedCapacityInvariant } from "../object/gates.ts";
 
 const REVISION = "live-prototype-session-completion-v1";
 
@@ -118,6 +119,7 @@ async function gracefulExit(
     postReadiness:
         | "capacity-rejection"
         | "focus-discontinuity"
+        | "jump-midair"
         | "jump-readmission"
         | null = null,
     exitReason: "escape" | "window-close" = "escape",
@@ -166,6 +168,10 @@ async function gracefulExit(
                 firstToSecondPostingLowerBoundMs: readmitStartedAt - firstJumpPostedAt,
             };
             exitInput = secondJump;
+        } else if (postReadiness === "jump-midair") {
+            const sequence = await postMidairSequence(child.pid);
+            postReadinessInput = { sequence };
+            exitInput = sequence;
         }
         if (exitInput === null) {
             exitInput = exitReason === "escape"
@@ -261,6 +267,13 @@ export async function sessionGates(
         undefined,
         "jump-readmission",
     );
+    const jumpMidair = await gracefulExit(
+        executable,
+        config,
+        "prototype native midair Jump rejection",
+        undefined,
+        "jump-midair",
+    );
     const sustained = await gracefulExit(
         executable,
         config,
@@ -300,6 +313,16 @@ export async function sessionGates(
         "prototype Jump-readmission initial grounded policy",
     );
     same(
+        startupInvariant(jumpMidair),
+        startupInvariant(first),
+        "prototype midair-Jump configuration",
+    );
+    same(
+        jumpInvariant(jumpMidair),
+        jumpInvariant(first),
+        "prototype midair-Jump initial grounded policy",
+    );
+    same(
         startupInvariant(sustained),
         startupInvariant(first),
         "prototype sustained session configuration",
@@ -316,11 +339,19 @@ export async function sessionGates(
             ),
         },
         focusDiscontinuity,
-        focusDiscontinuityInvariant: focusSessionInvariant(focusDiscontinuity),
+        focusDiscontinuityInvariant: focusSessionInvariant(
+            focusDiscontinuity,
+            idleCompletionInvariant(focusDiscontinuity),
+        ),
         jumpReadmission,
         jumpReadmissionInvariant: jumpReadmissionInvariant(
             jumpReadmission,
             idleCompletionInvariant(jumpReadmission),
+        ),
+        jumpMidair,
+        jumpMidairInvariant: jumpMidairInvariant(
+            jumpMidair,
+            idleCompletionInvariant(jumpMidair),
         ),
         sustained,
         sustainedInvariant: await sustainedCapacityInvariant(
@@ -330,49 +361,6 @@ export async function sessionGates(
             windowCenter,
         ),
         forcedReadinessCompletionEmitted: false,
-    };
-}
-
-function focusSessionInvariant(launch: Json): Json {
-    const session = idleCompletionInvariant(launch);
-    const readiness = object(launch, "readiness");
-    const completion = object(launch, "completion");
-    const readyActor = object(object(readiness, "actor"), "state");
-    const finalActor = object(object(completion, "actor"), "state");
-    same(finalActor, readyActor, "prototype focus-discontinuity actor state");
-
-    const readyClock = object(object(readiness, "simulation_driver"), "clock");
-    const finalClock = object(completion, "clock");
-    if (
-        finalClock.suspended !== false ||
-        finalClock.hasBaseline !== true ||
-        number(finalClock, "suspendCount") !== number(readyClock, "suspendCount") + 1 ||
-        number(finalClock, "resumeCount") !== number(readyClock, "resumeCount") + 1 ||
-        number(finalClock, "suspendedSampleCount") <=
-            number(readyClock, "suspendedSampleCount") ||
-        number(finalClock, "resetCount") !== number(readyClock, "resetCount") + 1 ||
-        number(finalClock, "readyCount") <= number(readyClock, "readyCount") ||
-        number(finalClock, "sampleCount") <= number(readyClock, "sampleCount") ||
-        number(finalClock, "stallCount") !== number(readyClock, "stallCount") ||
-        number(object(completion, "frames"), "renderBlockCount") !== 0
-    ) fail("prototype focus-discontinuity clock recovery diverged");
-
-    const postReadiness = object(launch, "postReadinessInput");
-    return {
-        ...session,
-        actorStateUnchanged: true,
-        clock: {
-            ready: readyClock,
-            final: finalClock,
-            exactSuspendResumeCount: 1,
-            postResumeResetCount: 1,
-            elapsedBacklog: false,
-        },
-        nativeFocus: nativeFocusDiscontinuityInvariant(
-            object(postReadiness, "suspended"),
-            object(postReadiness, "resumed"),
-            number(launch, "processId"),
-        ),
     };
 }
 

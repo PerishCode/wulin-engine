@@ -8,7 +8,7 @@ import {
 } from "../support/canonical-runtime.ts";
 import { prototypeHostGates } from "../support/prototype/host.ts";
 
-const REVISION = "canonical-prototype-v30";
+const REVISION = "canonical-prototype-v31";
 const COLLECTION = "canonical-prototype";
 const FAR = 2 ** 40;
 const BASE: [number, number] = [FAR, -FAR];

@@ -1,6 +1,6 @@
 import { fail, type Json, root } from "../canonical-runtime.ts";
 import { holdPrototypeForwardKey } from "./input.ts";
-import { readinessLine } from "./session.ts";
+import { readinessLine } from "./sessions/mod.ts";
 
 export const BOUNDARY_HOLD_MILLISECONDS = 15_000;
 

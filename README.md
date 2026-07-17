@@ -704,6 +704,15 @@ shape、Survey/yaw/epoch、clock reset/suspend/resume/stall、object idle state 
 精确，stdout 仍恰为两值、exit 0、stderr 空。focus gate 保留 645 个 suspended samples，持续
 capacity gate 保留 12 个 Rejected 与 1,051 个 suppression frames；产品 Jump/input/time/session
 schema、Runtime 与 engine/GPU/resource 结构未改变。
+Experiment 0114 证明互补的 midair rejection：PID 3548 的同一可见窗口先收到 Space down/up，
+208.749 ms 后收到第二次 Space down 与 W，再经 207.008 ms 收到 Escape。102.146 秒
+`canonical-prototype-v31` 中，completion frame/sample 606 的 velocity -106 唯一反解为原始单 impulse
+第 25 step，rise 51,050、center 192,874；若第二次 impulse 生效则不可能满足该整数轨迹。同批 W
+同时产生 12 个 Walk steps、Z -384 Q9、clip 1/yaw 49,152，排除了第二次 input 未进入产品循环的假
+阳性。actor identity/region/X/shape、clock discontinuity/stall、object idle、零 render block 与两值
+clean exit 均精确；readmission/focus/sustained gate 分别保持 step 7、628 suspended samples、12 个
+Rejected 与 1,054 个 suppression frames。acceptance-only native action schema 3 完整替换 schema 2，
+无 alias；产品 Jump/input/session schema、Runtime 与 engine/GPU/resource 结构未改变。
 
 ## Project model
 
@@ -771,7 +780,7 @@ committed eight-way facing, one
 committed current actor authority, Q/E committed actor-relative camera orbit/frame ordering, typed render-block
 consumption with zero normal-path blocks, one visible-window native Space action with exact
 committed vertical trajectory and grounded-policy consumption plus a complete landing and exact
-second native Space readmission,
+second native Space readmission and exact midair re-press rejection with a Walk admission witness,
 one visible-window native F+Enter+W observation/action whose origin is the exact committed actor
 output, whose bounded result matches an independent source oracle, and whose exact activated target
 commits only through the successful frame,
