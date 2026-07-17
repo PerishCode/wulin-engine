@@ -825,6 +825,18 @@ spawn 前预启动，等待下一个唯一 class/title 窗口并强制返回 PID
 209.9403ms 投递 Escape，completion 为 `(0,-832)`、13 个 Run steps、clip2/yaw49152/epoch27。
 clock `1/2 -> 32/33`、零 block、对象 idle、两值 clean exit 与全部旧 gate 均成立；产品 HostInput、
 locomotion/presentation、session schema、Runtime 与 engine/GPU/resource/synchronization 未改变。
+Experiment 0127 将此前仅有单元证据的 A 键与对角 Walk 归一化提升为真实窗口证明。首轮 v42 在新
+gate 前复现旧 `run-forward` startup race：仅先启动 PowerShell 进程并不能保证其 `Add-Type`
+已在 warm Prototype 发布 readiness 前完成。传输现改为 helper 在类型准备后、找窗前输出唯一
+ready marker，session owner 必须等到 marker 才 spawn child，最终实际窗口 PID 仍必须等于 child；
+start-only 重复 helper 已删除，没有 retry、产品 sleep 或阈值放宽。显式握手后的首轮与职责拆分后
+的最终工作树均通过全部旧 gate；最终 `canonical-prototype-v42` 为 157.404 秒。新 session 的 PID
+1852 / thread 2472 以 0.0013ms interval/span 原子排队 W+A，readiness 为 `(-23,-23)`、Walk
+clip1/yaw40960/epoch5；213.7342ms 后 Escape，completion 为 `(-299,-299)`，新增 12 个精确
+23-Q9 对角步且 epoch 仍为 5。clock `4/5 -> 70/71`、零 block、对象 idle、两值 clean exit；
+Flavor 0 deny / 5 个既有 warning，init 通过，report 1 file / 502,641 bytes。产品 HostInput、
+locomotion/presentation、session schema、Runtime 与 engine/GPU/resource/synchronization
+均未改变。
 
 ## Project model
 

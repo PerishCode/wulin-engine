@@ -1,12 +1,10 @@
 import type { Json } from "../../canonical-runtime.ts";
+import type { PreparedPrototypeWindowAction, PrototypeKeyTransition } from "./mod.ts";
 import {
-    holdOpposedRunKeys,
-    holdOrbitForwardKeys,
-    holdPrototypeForwardKey,
-    holdRunForwardKeys,
-    postInvariantObjectAction,
-} from "./actions.ts";
-import { postPrototypeKeys, postPrototypeWindowAction } from "./mod.ts";
+    postPrototypeKeys,
+    postPrototypeWindowAction,
+    preparePrototypeWindowAction,
+} from "./mod.ts";
 
 export async function pressPrototypeCameraClockwise(processId: number | null): Promise<Json> {
     return await postPrototypeKeys(processId, [{ key: "E", virtualKey: 0x45 }], true);
@@ -76,35 +74,6 @@ export async function postCameraRepressSequence(processId: number): Promise<Json
     );
 }
 
-export async function postRunReleaseSequence(processId: number | null): Promise<Json> {
-    return await postPrototypeWindowAction(
-        processId,
-        [
-            { key: "Shift", virtualKey: 0x10, down: true },
-            { key: "W", virtualKey: 0x57, down: true },
-            { key: "Shift", virtualKey: 0x10, down: false },
-        ],
-        true,
-        "input",
-        [0, 0, 500],
-        200,
-    );
-}
-
-export async function postRunRepressSequence(processId: number | null): Promise<Json> {
-    return await postPrototypeWindowAction(
-        processId,
-        [
-            { key: "W", virtualKey: 0x57, down: true },
-            { key: "Shift", virtualKey: 0x10, down: true },
-        ],
-        true,
-        "input",
-        [0, 500],
-        200,
-    );
-}
-
 export async function releaseOpposedRun(processId: number): Promise<Json> {
     return await postPrototypeWindowAction(
         processId,
@@ -164,6 +133,7 @@ export async function postCounterClockwiseSequence(processId: number): Promise<J
 export type StartupInput =
     | "camera-clockwise"
     | "camera-forward"
+    | "diagonal-walk"
     | "forward"
     | "jump"
     | "object-action"
@@ -172,29 +142,114 @@ export type StartupInput =
     | "run-release"
     | "run-repress";
 
-export async function applyStartupInput(
-    processId: number | null,
+export async function prepareStartupInput(
     input?: StartupInput,
-): Promise<Json | null> {
+): Promise<PreparedPrototypeWindowAction | null> {
+    const request = startupInputRequest(input);
+    if (request === null) return null;
+    return await preparePrototypeWindowAction(
+        null,
+        request.keys,
+        request.requireVisible,
+        "input",
+        request.delaysBeforeKeysMilliseconds,
+        request.exitAfterLastMilliseconds,
+        request.atomicBatch,
+    );
+}
+
+type StartupInputRequest = {
+    keys: PrototypeKeyTransition[];
+    requireVisible: boolean;
+    delaysBeforeKeysMilliseconds?: number[];
+    exitAfterLastMilliseconds?: number;
+    atomicBatch?: boolean;
+};
+
+function startupInputRequest(input?: StartupInput): StartupInputRequest | null {
     switch (input) {
         case "camera-clockwise":
-            return await pressPrototypeCameraClockwise(processId);
+            return {
+                keys: [{ key: "E", virtualKey: 0x45, down: true }],
+                requireVisible: true,
+            };
         case "camera-forward":
-            return await holdOrbitForwardKeys(processId);
+            return {
+                keys: [
+                    { key: "E", virtualKey: 0x45, down: true },
+                    { key: "W", virtualKey: 0x57, down: true },
+                ],
+                requireVisible: true,
+            };
+        case "diagonal-walk":
+            return {
+                keys: [
+                    { key: "W", virtualKey: 0x57, down: true },
+                    { key: "A", virtualKey: 0x41, down: true },
+                ],
+                requireVisible: true,
+                delaysBeforeKeysMilliseconds: [0, 0],
+                exitAfterLastMilliseconds: 200,
+                atomicBatch: true,
+            };
         case "forward":
-            return await holdPrototypeForwardKey(processId);
+            return {
+                keys: [{ key: "W", virtualKey: 0x57, down: true }],
+                requireVisible: false,
+            };
         case "jump":
-            return await pressPrototypeJump(processId);
+            return {
+                keys: [{ key: "Space", virtualKey: 0x20, down: true }],
+                requireVisible: true,
+            };
         case "object-action":
-            return await postInvariantObjectAction(processId);
+            return {
+                keys: [
+                    { key: "F", virtualKey: 0x46, down: true },
+                    { key: "Enter", virtualKey: 0x0D, down: true },
+                ],
+                requireVisible: true,
+                atomicBatch: true,
+            };
         case "opposed-run":
-            return await holdOpposedRunKeys(processId);
+            return {
+                keys: [
+                    { key: "Shift", virtualKey: 0x10, down: true },
+                    { key: "W", virtualKey: 0x57, down: true },
+                    { key: "S", virtualKey: 0x53, down: true },
+                ],
+                requireVisible: true,
+                atomicBatch: true,
+            };
         case "run-forward":
-            return await holdRunForwardKeys(processId);
+            return {
+                keys: [
+                    { key: "Shift", virtualKey: 0x10, down: true },
+                    { key: "W", virtualKey: 0x57, down: true },
+                ],
+                requireVisible: true,
+            };
         case "run-release":
-            return await postRunReleaseSequence(processId);
+            return {
+                keys: [
+                    { key: "Shift", virtualKey: 0x10, down: true },
+                    { key: "W", virtualKey: 0x57, down: true },
+                    { key: "Shift", virtualKey: 0x10, down: false },
+                ],
+                requireVisible: true,
+                delaysBeforeKeysMilliseconds: [0, 0, 500],
+                exitAfterLastMilliseconds: 200,
+            };
         case "run-repress":
-            return await postRunRepressSequence(processId);
+            return {
+                keys: [
+                    { key: "W", virtualKey: 0x57, down: true },
+                    { key: "Shift", virtualKey: 0x10, down: true },
+                ],
+                requireVisible: true,
+                delaysBeforeKeysMilliseconds: [0, 500],
+                exitAfterLastMilliseconds: 200,
+            };
         case undefined:
             return null;
     }
