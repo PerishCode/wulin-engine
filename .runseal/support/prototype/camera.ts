@@ -1,4 +1,5 @@
 import { array, fail, type Json, number, object, same } from "../canonical-runtime.ts";
+import { presentationInvariant } from "./presentation.ts";
 
 const CAMERA_RIGS = [
     { position: [9, 4, 12], target: [0, -1, -3] },
@@ -86,5 +87,135 @@ export function cameraDriverInvariant(launch: Json, expectedOrbitIndex = 0): Jso
         rig,
         camera,
         anchorPerLiveFrame: true,
+    };
+}
+
+function nativeCameraRepeatInvariant(launch: Json): Json {
+    const processId = number(launch, "processId");
+    const startup = object(launch, "startupNativeInput");
+    const sequence = object(object(launch, "postReadinessInput"), "sequence");
+    const expectedStartupKeys = [{ key: "E", virtualKey: 69, down: true }];
+    const expectedSequenceKeys = [
+        { key: "E", virtualKey: 69, down: true },
+        { key: "W", virtualKey: 87, down: true },
+    ];
+    const intervals = sequence.keyPostIntervalsMilliseconds;
+    const exitInterval = number(sequence, "exitIntervalMilliseconds");
+    if (
+        startup.schema !== "prototype-native-window-action-v3" ||
+        startup.action !== "input" ||
+        startup.processId !== processId ||
+        startup.requiredVisible !== true ||
+        startup.windowWasVisible !== true ||
+        JSON.stringify(startup.keys) !== JSON.stringify(expectedStartupKeys) ||
+        JSON.stringify(startup.messages) !==
+            JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:E"]) ||
+        sequence.schema !== "prototype-native-window-action-v3" ||
+        sequence.action !== "input" ||
+        sequence.processId !== processId ||
+        sequence.windowHandle !== startup.windowHandle ||
+        sequence.requiredVisible !== true ||
+        sequence.windowWasVisible !== true ||
+        JSON.stringify(sequence.keys) !== JSON.stringify(expectedSequenceKeys) ||
+        JSON.stringify(sequence.messages) !== JSON.stringify([
+                "WM_SETFOCUS",
+                "WM_KEYDOWN:E",
+                "WM_KEYDOWN:W",
+                "WM_KEYDOWN:Escape",
+            ]) ||
+        JSON.stringify(sequence.delaysBeforeKeysMilliseconds) !== JSON.stringify([0, 0]) ||
+        !Array.isArray(intervals) ||
+        intervals.length !== 1 ||
+        number(sequence, "exitAfterLastMilliseconds") !== 200 ||
+        exitInterval < 200 ||
+        exitInterval > 700
+    ) fail("prototype native held-camera-repeat evidence diverged");
+    return {
+        exactProcessWindow: true,
+        initialPress: startup.messages,
+        repeatedHeldPress: sequence.messages,
+        exitIntervalMilliseconds: exitInterval,
+    };
+}
+
+export function cameraRepeatSessionInvariant(launch: Json, session: Json): Json {
+    const camera = cameraDriverInvariant(launch, 1);
+    const readiness = object(launch, "readiness");
+    const completion = object(launch, "completion");
+    const readyActor = object(object(readiness, "actor"), "state");
+    const finalActor = object(object(completion, "actor"), "state");
+    const readyMotion = object(readyActor, "motion");
+    const finalMotion = object(finalActor, "motion");
+    const readyBody = object(readyMotion, "body");
+    const finalBody = object(finalMotion, "body");
+    const readyPosition = object(readyBody, "position");
+    const finalPosition = object(finalBody, "position");
+    same(
+        object(finalActor, "handle"),
+        object(readyActor, "handle"),
+        "prototype held-camera-repeat actor handle",
+    );
+    same(
+        object(finalPosition, "region"),
+        object(readyPosition, "region"),
+        "prototype held-camera-repeat actor region",
+    );
+    if (
+        number(finalBody, "halfHeightNumerator") !==
+            number(readyBody, "halfHeightNumerator") ||
+        number(finalMotion, "stepVelocityQ16") !== 0
+    ) fail("prototype held-camera-repeat vertical state diverged");
+
+    const deltaXQ9 = number(finalPosition, "localXQ9") -
+        number(readyPosition, "localXQ9");
+    const deltaZQ9 = number(finalPosition, "localZQ9") -
+        number(readyPosition, "localZQ9");
+    if (deltaXQ9 >= 0 || deltaXQ9 % 32 !== 0 || deltaZQ9 !== 0) {
+        fail("prototype held-camera-repeat did not retain orbit-one locomotion");
+    }
+    const horizontalSteps = -deltaXQ9 / 32;
+    if (horizontalSteps < 1 || horizontalSteps > 43) {
+        fail("prototype held-camera-repeat horizontal step count diverged");
+    }
+    const presentation = presentationInvariant(
+        object(finalActor, "presentation"),
+        1,
+        32_768,
+        "prototype held-camera-repeat Walk",
+    );
+    if (
+        number(finalActor, "animationEpochTick") <=
+            number(readyActor, "animationEpochTick")
+    ) fail("prototype held-camera-repeat did not commit the Walk transition");
+
+    const readyClock = object(object(readiness, "simulation_driver"), "clock");
+    const finalClock = object(completion, "clock");
+    if (
+        finalClock.suspended !== false ||
+        finalClock.hasBaseline !== true ||
+        number(finalClock, "suspendCount") !== number(readyClock, "suspendCount") ||
+        number(finalClock, "resumeCount") !== number(readyClock, "resumeCount") ||
+        number(finalClock, "resetCount") !== number(readyClock, "resetCount") ||
+        number(finalClock, "stallCount") !== number(readyClock, "stallCount") ||
+        number(finalClock, "readyCount") <= number(readyClock, "readyCount") ||
+        number(finalClock, "sampleCount") <= number(readyClock, "sampleCount") ||
+        number(object(completion, "frames"), "renderBlockCount") !== 0
+    ) fail("prototype held-camera-repeat clock continuity diverged");
+
+    return {
+        ...session,
+        nativeInput: nativeCameraRepeatInvariant(launch),
+        readinessCamera: camera,
+        heldRepeatSuppressed: true,
+        retainedOrbitIndex: 1,
+        horizontalSteps,
+        deltaXQ9,
+        deltaZQ9,
+        presentation,
+        clock: {
+            ready: readyClock,
+            final: finalClock,
+            discontinuity: false,
+        },
     };
 }

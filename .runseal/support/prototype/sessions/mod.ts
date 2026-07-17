@@ -2,6 +2,7 @@ import { fail, type Json, number, object, root, same, string } from "../../canon
 import {
     applyStartupInput,
     nativeWindowCloseInvariant,
+    postCameraRepeatSequence,
     postMidairSequence,
     postPrototypeCapacityRejection,
     pressPrototypeEscape,
@@ -12,6 +13,7 @@ import {
     type StartupInput,
     suspendWithForward,
 } from "../input.ts";
+import { cameraRepeatSessionInvariant } from "../camera.ts";
 import { focusSessionInvariant } from "./focus.ts";
 import { jumpMidairInvariant, jumpReadmissionInvariant } from "../jump.ts";
 import { sustainedCapacityInvariant } from "../object/gates.ts";
@@ -118,6 +120,7 @@ async function gracefulExit(
     startupInput?: StartupInput,
     postReadiness:
         | "capacity-rejection"
+        | "camera-repeat"
         | "focus-discontinuity"
         | "jump-midair"
         | "jump-readmission"
@@ -150,6 +153,10 @@ async function gracefulExit(
             await new Promise((resolve) => setTimeout(resolve, 250));
             postReadinessInput = await postPrototypeCapacityRejection(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
+        } else if (postReadiness === "camera-repeat") {
+            const sequence = await postCameraRepeatSequence(child.pid);
+            postReadinessInput = { sequence };
+            exitInput = sequence;
         } else if (postReadiness === "focus-discontinuity") {
             const suspended = await suspendWithForward(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
@@ -274,6 +281,13 @@ export async function sessionGates(
         undefined,
         "jump-midair",
     );
+    const cameraRepeat = await gracefulExit(
+        executable,
+        config,
+        "prototype native held camera repeat",
+        "camera-clockwise",
+        "camera-repeat",
+    );
     const sustained = await gracefulExit(
         executable,
         config,
@@ -323,6 +337,16 @@ export async function sessionGates(
         "prototype midair-Jump initial grounded policy",
     );
     same(
+        startupInvariant(cameraRepeat),
+        startupInvariant(first),
+        "prototype held-camera-repeat configuration",
+    );
+    same(
+        jumpInvariant(cameraRepeat),
+        jumpInvariant(first),
+        "prototype held-camera-repeat initial grounded policy",
+    );
+    same(
         startupInvariant(sustained),
         startupInvariant(first),
         "prototype sustained session configuration",
@@ -352,6 +376,11 @@ export async function sessionGates(
         jumpMidairInvariant: jumpMidairInvariant(
             jumpMidair,
             idleCompletionInvariant(jumpMidair),
+        ),
+        cameraRepeat,
+        cameraRepeatInvariant: cameraRepeatSessionInvariant(
+            cameraRepeat,
+            idleCompletionInvariant(cameraRepeat),
         ),
         sustained,
         sustainedInvariant: await sustainedCapacityInvariant(

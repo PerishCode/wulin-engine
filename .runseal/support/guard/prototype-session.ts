@@ -11,6 +11,10 @@ export async function requireBoundedPrototypeSession(
         `${root}/.runseal/support/prototype/sessions/mod.ts`,
     );
     const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input.ts`);
+    const cameraAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/camera.ts`,
+    );
+    const hostInput = await Deno.readTextFile(`${root}/crates/reference-host/src/input.rs`);
     const objectGates = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/object/gates.ts`,
     );
@@ -38,10 +42,15 @@ export async function requireBoundedPrototypeSession(
         !acceptance.includes("focusSessionInvariant") ||
         !acceptance.includes("jumpReadmissionInvariant") ||
         !acceptance.includes("jumpMidairInvariant") ||
+        !acceptance.includes("cameraRepeatSessionInvariant") ||
         !input.includes("postPrototypeCapacityRejection") ||
         !input.includes("requestPrototypeWindowClose") ||
         !input.includes("repressJumpAndExit") ||
         !input.includes("postMidairSequence") ||
+        !input.includes("postCameraRepeatSequence") ||
+        !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
+        !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
+        !hostInput.includes("down == key_is_set(&self.held, key)") ||
         !input.includes("[Diagnostics.Stopwatch]::StartNew()") ||
         input.includes("prototype-native-window-action-v2") ||
         !input.includes("suspendWithForward") ||
