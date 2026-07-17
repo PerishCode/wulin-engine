@@ -1,4 +1,4 @@
-#[path = "../src/observation.rs"]
+#[path = "../src/object/observation.rs"]
 mod observation;
 
 use engine_runtime::{

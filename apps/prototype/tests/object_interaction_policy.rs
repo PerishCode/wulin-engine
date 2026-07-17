@@ -1,4 +1,4 @@
-#[path = "../src/interaction.rs"]
+#[path = "../src/object/interaction.rs"]
 mod interaction;
 use engine_runtime::{
     CanonicalObject, CanonicalObjectIdentity, CanonicalObjectPresentation,

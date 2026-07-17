@@ -5,6 +5,7 @@ import { requireLiveOperatorSurface } from "../support/guard/live-operator-surfa
 import { requireTypedObjectResolution } from "../support/guard/object-identity.ts";
 import { requireInputJournalRemoved } from "../support/guard/input-journal-removal.ts";
 import { requirePresentationStatusRemoved } from "../support/guard/presentation-status-removal.ts";
+import { requireBoundedPrototypeSession } from "../support/guard/prototype-session.ts";
 import { requireSimulationHistoryRemoved } from "../support/guard/simulation-control-removal.ts";
 import { requireTerrainHistoryRemoved } from "../support/guard/terrain-transaction-removal.ts";
 
@@ -410,6 +411,7 @@ await requireTerrainHistoryRemoved(root, fail);
 await requireSimulationHistoryRemoved(root, fail);
 await requirePresentationStatusRemoved(root, fail);
 await requireTypedObjectResolution(root, fail);
+await requireBoundedPrototypeSession(root, fail);
 await run("git diff check", "git", ["diff", "--check"]);
 await run("cargo fmt", "cargo", ["fmt", "--all", "--check"]);
 await run("cargo clippy", "cargo", [
@@ -445,6 +447,7 @@ await run("deno check", "deno", [
     ".runseal/support/prototype/input.ts",
     ".runseal/support/prototype/object/observation.ts",
     ".runseal/support/prototype/object/gates.ts",
+    ".runseal/support/prototype/session.ts",
     ".runseal/support/prototype/presentation.ts",
     ".runseal/support/prototype/traversal.ts",
     ".runseal/support/actor/lifecycle.ts",
