@@ -953,6 +953,14 @@ child、报告字段或 camera/HostInput/main-loop 逻辑。`canonical-prototype
 170.211 秒通过，现有原生 session/process 矩阵保持不变，report 447,346 bytes；全部 103
 engine-runtime、47 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning；
 Runtime、renderer/GPU/source/resource/synchronization 均未改变。
+Experiment 0139 固定了相机键失焦清理后的重新准入，没有修改产品：E-down 先提交 orbit
+`0 -> 1`，FocusLost 清 held、只产生 release 并保持 orbit 1；同一 HostInput owner 上后续
+E-down 恢复为 held=true、pressed=true、released=false，并精确提交 orbit `1 -> 2`。focused
+camera tests 6/6 通过，Prototype 总数增至 48；没有增加原生 child、报告字段或
+camera/HostInput/main-loop 逻辑。`canonical-prototype-v54` 首轮在 175.160 秒通过，现有原生
+session/process 矩阵保持不变，report 447,322 bytes；全部 103 engine-runtime、48 Prototype、
+20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning；Runtime、renderer/GPU/source/
+resource/synchronization 均未改变。
 
 ## Project model
 

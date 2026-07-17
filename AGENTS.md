@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0138 and the current ADR set through 0141 define one live content runtime
+Experiments 0031-0139 and the current ADR set through 0142 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -215,7 +215,8 @@ geometry/material/rig source, and one deterministic object-shadow path:
   through the existing bounded latest-wins state machine; a Q/E down ordered before FocusLost in one
   ingest remains one sample-scoped press/release, clears held state, commits at most one camera step,
   and does not repeat on the next empty ingest; if Q/E was already held, duplicate down before
-  FocusLost produces no new press or camera step and only releases the held key, without an engine
+  FocusLost produces no new press or camera step and only releases the held key, while the next
+  physical down is re-admitted as one fresh press and exact next orbit, without an engine
   input/camera controller or simulation-action cancellation rule;
 - one accepted post-v0 actor transaction input that checked-adds a required caller-owned vertical
   velocity delta once at nonzero fixed-step batch entry, consumes nothing on zero steps, preserves
@@ -596,6 +597,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0139-native-focus-object-intent-suppression.md` | Accepted same-batch native F/Enter focus-loss suppression beside retained Jump/locomotion evidence. |
 | `docs/adr/0140-focus-cleanup-camera-edge.md` | Accepted sample-scoped camera press/release retention across same-ingest focus cleanup. |
 | `docs/adr/0141-held-camera-focus-cleanup.md` | Accepted duplicate-down suppression and release-only focus cleanup for an already-held camera key. |
+| `docs/adr/0142-camera-focus-readmission.md` | Accepted fresh Q/E press readmission after release-only focus cleanup. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -705,6 +707,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0136-native-focus-object-intent-suppression/README.md` | Accepted same-batch F/Enter focus-loss suppression with exact idle object-policy completion evidence. |
 | `experiments/0137-focus-cleanup-camera-edge/README.md` | Accepted one-step Q/E camera composition across same-ingest focus cleanup with no held repetition. |
 | `experiments/0138-held-camera-focus-cleanup/README.md` | Accepted no-repeat Q/E camera composition when focus cleanup releases an already-held key. |
+| `experiments/0139-camera-focus-readmission/README.md` | Accepted fresh Q/E camera press readmission after focus cleanup ends the prior held-key lifetime. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
