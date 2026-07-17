@@ -18,7 +18,11 @@ import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
 import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
 import { objectFeedbackGates, restartObservation } from "./object/gates.ts";
-import { capturedReady as captureReady, sustainedCapacitySession } from "./sessions/mod.ts";
+import {
+    capturedReady as captureReady,
+    objectFeedbackSession,
+    sustainedCapacitySession,
+} from "./sessions/mod.ts";
 import { sessionGates } from "./sessions/gates.ts";
 import {
     CAMERA_FORWARD_COMMAND,
@@ -289,9 +293,10 @@ export async function prototypeHostGates(
     );
     const cameraOrbit = await capturedReady("prototype clockwise camera orbit", "camera-clockwise");
     const jump = await capturedReady("prototype committed jump", "jump");
-    const objectActionActivated = await capturedReady(
+    const objectActionActivated = await objectFeedbackSession(
+        EXECUTABLE,
+        CONFIG,
         "prototype invariant activated object action",
-        "object-action",
     );
     const sustained = await sustainedCapacitySession(EXECUTABLE, CONFIG);
     const objectActionCenter: Coord = [base[0] + 4, base[1]];
@@ -299,9 +304,10 @@ export async function prototypeHostGates(
     const objectActionBaseline = await capturedReady(
         "prototype invariant object action baseline",
     );
-    const objectActionRejected = await capturedReady(
+    const objectActionRejected = await objectFeedbackSession(
+        EXECUTABLE,
+        CONFIG,
         "prototype invariant rejected object action",
-        "object-action",
     );
     await writeDocument(document(terrain, objects, base));
     const sessions = await sessionGates(
@@ -340,7 +346,7 @@ export async function prototypeHostGates(
         jumpPolicyInvariant(first, true),
         "prototype restart jump policy",
     );
-    await restartObservation(restarted, first, objects, base);
+    restartObservation(restarted, first);
     const firstTraversal = traversalInvariant(first, base);
     same(
         traversalInvariant(restarted, base),
