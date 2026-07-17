@@ -43,14 +43,19 @@ export async function requireBoundedPrototypeSession(
         !acceptance.includes("jumpReadmissionInvariant") ||
         !acceptance.includes("jumpMidairInvariant") ||
         !acceptance.includes("cameraRepeatSessionInvariant") ||
+        !acceptance.includes("invalidKeySessionInvariant") ||
         !input.includes("postPrototypeCapacityRejection") ||
         !input.includes("requestPrototypeWindowClose") ||
         !input.includes("repressJumpAndExit") ||
         !input.includes("postMidairSequence") ||
         !input.includes("postCameraRepeatSequence") ||
+        !input.includes("postInvalidAliasSequence") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
+        !cameraAcceptance.includes("checkedRangeRejected: true") ||
+        !cameraAcceptance.includes('truncationWouldAlias: "E"') ||
         !hostInput.includes("down == key_is_set(&self.held, key)") ||
+        !hostInput.includes("u8::try_from(key)") ||
         !input.includes("[Diagnostics.Stopwatch]::StartNew()") ||
         input.includes("prototype-native-window-action-v2") ||
         !input.includes("suspendWithForward") ||

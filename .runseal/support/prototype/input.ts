@@ -3,7 +3,16 @@ import { fail, type Json, root } from "../canonical-runtime.ts";
 const decoder = new TextDecoder();
 
 type PrototypeKey = {
-    key: "D" | "E" | "Enter" | "Escape" | "F" | "Shift" | "Space" | "W";
+    key:
+        | "D"
+        | "E"
+        | "Enter"
+        | "Escape"
+        | "F"
+        | "OutOfRangeE"
+        | "Shift"
+        | "Space"
+        | "W";
     virtualKey: number;
 };
 
@@ -432,6 +441,20 @@ export async function postCameraRepeatSequence(processId: number): Promise<Json>
         processId,
         [
             { key: "E", virtualKey: 0x45, down: true },
+            { key: "W", virtualKey: 0x57, down: true },
+        ],
+        true,
+        "input",
+        [0, 0],
+        200,
+    );
+}
+
+export async function postInvalidAliasSequence(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "OutOfRangeE", virtualKey: 0x145, down: true },
             { key: "W", virtualKey: 0x57, down: true },
         ],
         true,
