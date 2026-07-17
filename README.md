@@ -894,6 +894,18 @@ clock ready/sample `4/5 -> 758/759`，无 suspend/resume/stall、零 render bloc
 stdout 恰为两值。report 446,287 bytes；全部 103 engine-runtime、45 Prototype、
 20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning；Rust 产品、Runtime、
 renderer/GPU/source/resource/synchronization 均未改变。
+Experiment 0133 把现有 focus-discontinuity 进程的 W-only 批次直接升级为同一可见窗口线程上的
+原子 Space/W/失焦批次，没有增加 child 或产品输出。首轮 focused guard 拒绝了五词 helper 名，
+随后直接收敛为 `suspendWithActionBatch`，未增加 Flavor 例外。`canonical-prototype-v48` 在
+144.949 秒通过：PID 2252 / thread 20452 依次收到 Space-down、W-down、`WM_KILLFOCUS`，
+两键 interval 与完整 batch span 均为 0.0012ms。恢复后 clock 精确增加一次 suspend/resume 与
+一次 reset，累计 740 个 suspended samples，并继续完成 1,206 个 Ready samples / 1,948 个
+live frames；actor 仍逐字段等于 readiness，证明同批 Jump 边沿和 held W 都未进入恢复后的
+非零模拟，且无 elapsed backlog、stall 或 render block。该结论不声称 HostInput 在最初 ingest
+中立即删除 Space 边沿；它只由 Suspended/Reset 后的 Ready 进展与最终 actor 共同界定。report
+447,445 bytes；全部 103 engine-runtime、45 Prototype、20 reference-host 测试通过，Flavor
+0 deny / 5 个既有 warning；产品、Runtime、renderer/GPU/source/resource/synchronization
+均未改变。
 
 ## Project model
 
@@ -968,7 +980,7 @@ independent source oracle, and whose exact Activated/Rejected targets commit onl
 successful frame, plus sustained post-readiness motion/capacity rejection,
 one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-W
 finite-edge survival, exact native Escape and visible-window WM_CLOSE clean exits, native
-focus-loss held-input cleanup plus no-backlog resume, one exact atomic same-ingest opposite-Q/E
+same-batch Space/W focus-loss action and held-input suppression plus no-backlog resume, one exact atomic same-ingest opposite-Q/E
 camera-edge cancellation with negative-Z Walk proof, direct restart equality, and Sidecar cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh

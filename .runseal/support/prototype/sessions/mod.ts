@@ -6,7 +6,7 @@ import {
     pressPrototypeEscape,
     requestPrototypeWindowClose,
     resumePrototypeFocus,
-    suspendWithForward,
+    suspendWithActionBatch,
 } from "../input/actions.ts";
 import {
     postCameraRepeatSequence,
@@ -228,7 +228,7 @@ export async function gracefulExit(
             postReadinessInput = { sequence };
             exitInput = sequence;
         } else if (postReadiness === "focus-discontinuity") {
-            const suspended = await suspendWithForward(child.pid);
+            const suspended = await suspendWithActionBatch(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
             const resumed = await resumePrototypeFocus(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));

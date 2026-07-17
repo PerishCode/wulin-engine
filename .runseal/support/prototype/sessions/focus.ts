@@ -10,12 +10,29 @@ function nativeFocusInvariant(suspended: Json, resumed: Json, processId: number)
         suspended.requiredVisible !== true ||
         suspended.windowWasVisible !== true ||
         JSON.stringify(suspended.keys) !==
-            JSON.stringify([{ key: "W", virtualKey: 87, down: true }]) ||
+            JSON.stringify([
+                { key: "Space", virtualKey: 32, down: true },
+                { key: "W", virtualKey: 87, down: true },
+            ]) ||
         JSON.stringify(suspended.messages) !==
-            JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:W", "WM_KILLFOCUS"]) ||
+            JSON.stringify([
+                "WM_SETFOCUS",
+                "WM_KEYDOWN:Space",
+                "WM_KEYDOWN:W",
+                "WM_KILLFOCUS",
+            ]) ||
+        JSON.stringify(suspended.delaysBeforeKeysMilliseconds) !==
+            JSON.stringify([0, 0]) ||
+        !Array.isArray(suspended.keyPostIntervalsMilliseconds) ||
+        suspended.keyPostIntervalsMilliseconds.length !== 1 ||
+        typeof suspended.keyPostIntervalsMilliseconds[0] !== "number" ||
+        suspended.keyPostIntervalsMilliseconds[0] < 0 ||
+        suspended.keyPostIntervalsMilliseconds[0] > 50 ||
         suspended.atomicBatch !== true ||
+        number(suspended, "atomicPrefixLength") !== 2 ||
         number(suspended, "batchThreadId") <= 0 ||
-        number(suspended, "batchSpanMilliseconds") !== 0 ||
+        number(suspended, "batchSpanMilliseconds") < 0 ||
+        number(suspended, "batchSpanMilliseconds") > 50 ||
         resumed.schema !== "prototype-native-window-action-v4" ||
         resumed.action !== "resume" ||
         resumed.processId !== processId ||
@@ -36,6 +53,8 @@ function nativeFocusInvariant(suspended: Json, resumed: Json, processId: number)
             threadId: suspended.batchThreadId,
             spanMilliseconds: suspended.batchSpanMilliseconds,
         },
+        actionPressBeforeFocusLoss: true,
+        locomotionPressBeforeFocusLoss: true,
         synthesizedFocusState: false,
     };
 }
@@ -46,6 +65,10 @@ export function focusSessionInvariant(launch: Json, session: Json): Json {
     const readyActor = object(object(readiness, "actor"), "state");
     const finalActor = object(object(completion, "actor"), "state");
     same(finalActor, readyActor, "prototype focus-discontinuity actor state");
+    const jump = object(object(readiness, "jump_driver"), "status");
+    if (jump.pending !== false || jump.grounded !== true) {
+        fail("prototype focus-discontinuity did not begin from grounded idle Jump state");
+    }
 
     const readyClock = object(object(readiness, "simulation_driver"), "clock");
     const finalClock = object(completion, "clock");
@@ -67,6 +90,10 @@ export function focusSessionInvariant(launch: Json, session: Json): Json {
     return {
         ...session,
         actorStateUnchanged: true,
+        sameBatchJumpDidNotReachResumedSimulation: true,
+        heldLocomotionDidNotReachSimulation: true,
+        resumedReadyProgress: true,
+        actionAfterReadiness: true,
         clock: {
             ready: readyClock,
             final: finalClock,
