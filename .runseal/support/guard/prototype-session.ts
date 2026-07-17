@@ -10,6 +10,9 @@ export async function requireBoundedPrototypeSession(
     const acceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/sessions/mod.ts`,
     );
+    const sessionGates = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/sessions/gates.ts`,
+    );
     const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input/mod.ts`);
     const inputActions = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/input/actions.ts`,
@@ -20,6 +23,7 @@ export async function requireBoundedPrototypeSession(
     const cameraAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/camera.ts`,
     );
+    const cameraPolicy = await Deno.readTextFile(`${root}/apps/prototype/src/camera.rs`);
     const hostInput = await Deno.readTextFile(`${root}/crates/reference-host/src/input.rs`);
     const objectGates = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/object/gates.ts`,
@@ -48,27 +52,33 @@ export async function requireBoundedPrototypeSession(
         (session.match(/println!/g)?.length ?? 0) !== 2 ||
         !acceptance.includes('outputLine(reader, "session completion"') ||
         !acceptance.includes("trailing session output") ||
-        !acceptance.includes("completionEmitted !== false") ||
+        !sessionGates.includes("completionEmitted !== false") ||
         !acceptance.includes("buffered output after") ||
         !objectGates.includes("objectNearestOracle") ||
         !objectGates.includes("capacityRejectedFrameCount: 12") ||
         !objectGates.includes("postReadinessCapacityRejection") ||
-        !acceptance.includes("nativeWindowCloseInvariant") ||
-        !acceptance.includes("focusSessionInvariant") ||
-        !acceptance.includes("jumpReadmissionInvariant") ||
-        !acceptance.includes("jumpMidairInvariant") ||
-        !acceptance.includes("cameraRepeatSessionInvariant") ||
-        !acceptance.includes("invalidKeySessionInvariant") ||
+        !sessionGates.includes("nativeWindowCloseInvariant") ||
+        !sessionGates.includes("focusSessionInvariant") ||
+        !sessionGates.includes("jumpReadmissionInvariant") ||
+        !sessionGates.includes("jumpMidairInvariant") ||
+        !sessionGates.includes("cameraRepeatSessionInvariant") ||
+        !sessionGates.includes("invalidKeySessionInvariant") ||
+        !sessionGates.includes("oppositeCameraSessionInvariant") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
         !inputSequences.includes("repressJumpAndExit") ||
         !inputSequences.includes("postMidairSequence") ||
         !inputSequences.includes("postCameraRepeatSequence") ||
         !inputSequences.includes("postInvalidAliasSequence") ||
+        !inputSequences.includes("postOppositeCameraSequence") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
         !cameraAcceptance.includes("checkedRangeRejected: true") ||
         !cameraAcceptance.includes('truncationWouldAlias: "E"') ||
+        !cameraAcceptance.includes("oppositePressEdgesRetained: true") ||
+        !cameraAcceptance.includes("cameraCandidateCancelled: true") ||
+        !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
+        !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||
         !hostInput.includes("down == key_is_set(&self.held, key)") ||
         !hostInput.includes("u8::try_from(key)") ||
         !input.includes("[Diagnostics.Stopwatch]::StartNew()") ||
