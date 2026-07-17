@@ -19,6 +19,9 @@ export async function requireBoundedPrototypeSession(
     const forwardReleaseAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/sessions/forward_release.ts`,
     );
+    const jumpAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/jump.ts`,
+    );
     const boundaryAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/boundary.ts`,
     );
@@ -145,6 +148,12 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("focusSessionInvariant") ||
         !sessionGates.includes("jumpReadmissionInvariant") ||
         !sessionGates.includes("jumpMidairInvariant") ||
+        !jumpAcceptance.includes("heldJumpFocusCleanup: true") ||
+        !jumpAcceptance.includes("freshJumpAfterFocusReadmitted: true") ||
+        !jumpAcceptance.includes("exactFocusSuspendResumeCount: 1") ||
+        !jumpAcceptance.includes("postResumeResetCount: 1") ||
+        !jumpAcceptance.includes("focusClearedHeldJump: true") ||
+        !jumpAcceptance.includes("freshPressAfterFocus: true") ||
         !sessionGates.includes("cameraRepeatSessionInvariant") ||
         !sessionGates.includes("cameraRepressSessionInvariant") ||
         !sessionGates.includes("invalidKeySessionInvariant") ||
@@ -330,6 +339,7 @@ export async function requireBoundedPrototypeSession(
         inputActions.includes("suspendWithJumpAndForward") ||
         inputActions.includes("suspendWithForward") ||
         !inputActions.includes("resumePrototypeFocus") ||
+        !inputActions.includes("suspendHeldPrototypeJump") ||
         !inputActions.includes("postFocusLocomotionReadmission") ||
         !inputActions.includes('{ key: "A", virtualKey: 0x41, down: true }') ||
         !inputActions.includes('{ key: "A", virtualKey: 0x41, down: false }') ||

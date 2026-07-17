@@ -981,6 +981,15 @@ clip 0/yaw 32768 停止。clock 恰增加一次 suspend/resume/reset，76 个 su
 零 stall/render block，stdout 恰为两值；442,700-byte report 与全部 103 engine-runtime、
 48 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning。产品、
 Runtime、renderer/GPU/source/resource/synchronization 均未改变。
+Experiment 0142 复用现有 Jump-readmission 进程闭合 held Space 的失焦生命周期：第一次
+Jump 落地但 Space 仍 held 后，同一 PID/window/thread 原子投递重复 Space-down 与失焦；
+恢复后现有 Space-up/down 被重新准入并产生精确第二飞行。`canonical-prototype-v57` 首轮在
+170.997 秒通过；线程 23692 的单键 batch span 为 0，第二次动作到 Escape 为 118.1957ms，
+最终恰为第 7 步、速度 3116 Q16、上升 25571 Q16，actor identity/XZ/shape/Survey/epoch
+均不变。clock 恰增加一次 suspend/resume/reset，84 个 suspended samples，零
+stall/render block，stdout 恰为两值；445,067-byte report 与全部 103 engine-runtime、
+48 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning。产品、
+Runtime、renderer/GPU/source/resource/synchronization 均未改变。
 
 ## Project model
 
@@ -1048,7 +1057,8 @@ committed eight-way facing, one
 committed current actor authority, Q/E committed actor-relative camera orbit/frame ordering, typed render-block
 consumption with zero normal-path blocks, one visible-window native Space action with exact
 committed vertical trajectory and grounded-policy consumption plus a complete landing and exact
-second native Space readmission and exact midair re-press rejection with a Walk admission witness,
+second native Space readmission across held-key focus cleanup and exact midair re-press rejection
+with a Walk admission witness,
 two exact-window atomic native F+Enter stationary observation/actions whose positive/negative-X
 source fixtures are invariant across every allowed first batch, whose bounded results match an
 independent source oracle, and whose exact Activated/Rejected targets commit only through the

@@ -58,6 +58,18 @@ export async function suspendWithActionBatch(processId: number): Promise<Json> {
     );
 }
 
+export async function suspendHeldPrototypeJump(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [{ key: "Space", virtualKey: 0x20, down: true }],
+        true,
+        "suspend",
+        [],
+        0,
+        true,
+    );
+}
+
 export async function resumePrototypeFocus(processId: number): Promise<Json> {
     return await postPrototypeWindowAction(processId, [], true, "resume");
 }

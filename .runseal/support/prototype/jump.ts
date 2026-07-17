@@ -61,7 +61,11 @@ type SessionFlight = {
     expectedRise: number;
 };
 
-function sessionFlightInvariant(launch: Json, label: string): SessionFlight {
+function sessionFlightInvariant(
+    launch: Json,
+    label: string,
+    focusDiscontinuity = false,
+): SessionFlight {
     const readiness = object(launch, "readiness");
     const completion = object(launch, "completion");
     const readyActor = object(object(readiness, "actor"), "state");
@@ -103,12 +107,21 @@ function sessionFlightInvariant(launch: Json, label: string): SessionFlight {
 
     const readyClock = object(object(readiness, "simulation_driver"), "clock");
     const finalClock = object(completion, "clock");
+    const discontinuityCount = focusDiscontinuity ? 1 : 0;
+    const readySuspendedSamples = number(readyClock, "suspendedSampleCount");
+    const finalSuspendedSamples = number(finalClock, "suspendedSampleCount");
     if (
         finalClock.suspended !== false ||
         finalClock.hasBaseline !== true ||
-        number(finalClock, "suspendCount") !== number(readyClock, "suspendCount") ||
-        number(finalClock, "resumeCount") !== number(readyClock, "resumeCount") ||
-        number(finalClock, "resetCount") !== number(readyClock, "resetCount") ||
+        number(finalClock, "suspendCount") !==
+            number(readyClock, "suspendCount") + discontinuityCount ||
+        number(finalClock, "resumeCount") !==
+            number(readyClock, "resumeCount") + discontinuityCount ||
+        number(finalClock, "resetCount") !==
+            number(readyClock, "resetCount") + discontinuityCount ||
+        (focusDiscontinuity
+            ? finalSuspendedSamples <= readySuspendedSamples
+            : finalSuspendedSamples !== readySuspendedSamples) ||
         number(finalClock, "stallCount") !== number(readyClock, "stallCount") ||
         number(finalClock, "readyCount") <= number(readyClock, "readyCount") ||
         number(finalClock, "sampleCount") <= number(readyClock, "sampleCount") ||
@@ -128,7 +141,13 @@ function sessionFlightInvariant(launch: Json, label: string): SessionFlight {
     };
 }
 
-function nativeReadmissionInvariant(first: Json, second: Json, processId: number): Json {
+function nativeReadmissionInvariant(
+    first: Json,
+    suspended: Json,
+    resumed: Json,
+    second: Json,
+    processId: number,
+): Json {
     const intervals = second.keyPostIntervalsMilliseconds;
     if (
         first.schema !== "prototype-native-window-action-v4" ||
@@ -142,6 +161,38 @@ function nativeReadmissionInvariant(first: Json, second: Json, processId: number
             JSON.stringify([{ key: "Space", virtualKey: 32, down: true }]) ||
         JSON.stringify(first.messages) !==
             JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:Space"]) ||
+        suspended.schema !== "prototype-native-window-action-v4" ||
+        suspended.action !== "suspend" ||
+        suspended.processId !== processId ||
+        suspended.windowHandle !== first.windowHandle ||
+        suspended.activated !== true ||
+        suspended.closeRequested !== false ||
+        suspended.requiredVisible !== true ||
+        suspended.windowWasVisible !== true ||
+        JSON.stringify(suspended.keys) !==
+            JSON.stringify([{ key: "Space", virtualKey: 32, down: true }]) ||
+        JSON.stringify(suspended.messages) !==
+            JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:Space", "WM_KILLFOCUS"]) ||
+        JSON.stringify(suspended.delaysBeforeKeysMilliseconds) !== JSON.stringify([0]) ||
+        !Array.isArray(suspended.keyPostIntervalsMilliseconds) ||
+        suspended.keyPostIntervalsMilliseconds.length !== 0 ||
+        suspended.atomicBatch !== true ||
+        number(suspended, "atomicPrefixLength") !== 1 ||
+        typeof suspended.batchThreadId !== "number" ||
+        !Number.isSafeInteger(suspended.batchThreadId) ||
+        suspended.batchThreadId <= 0 ||
+        number(suspended, "batchSpanMilliseconds") !== 0 ||
+        resumed.schema !== "prototype-native-window-action-v4" ||
+        resumed.action !== "resume" ||
+        resumed.processId !== processId ||
+        resumed.windowHandle !== first.windowHandle ||
+        resumed.activated !== true ||
+        resumed.closeRequested !== false ||
+        resumed.requiredVisible !== true ||
+        resumed.windowWasVisible !== true ||
+        !Array.isArray(resumed.keys) ||
+        resumed.keys.length !== 0 ||
+        JSON.stringify(resumed.messages) !== JSON.stringify(["WM_SETFOCUS"]) ||
         second.schema !== "prototype-native-window-action-v4" ||
         second.action !== "input" ||
         second.processId !== processId ||
@@ -164,6 +215,9 @@ function nativeReadmissionInvariant(first: Json, second: Json, processId: number
         JSON.stringify(second.delaysBeforeKeysMilliseconds) !== JSON.stringify([0, 0, 100]) ||
         !Array.isArray(intervals) ||
         intervals.length !== 2 ||
+        typeof intervals[0] !== "number" ||
+        intervals[0] < 0 ||
+        intervals[0] > 50 ||
         typeof intervals[1] !== "number" ||
         intervals[1] < 100 ||
         intervals[1] > 700 ||
@@ -173,8 +227,17 @@ function nativeReadmissionInvariant(first: Json, second: Json, processId: number
     return {
         exactProcessWindow: true,
         firstMessages: first.messages,
+        suspendedMessages: suspended.messages,
+        resumedMessages: resumed.messages,
         secondMessages: second.messages,
+        atomicHeldCleanup: {
+            threadId: suspended.batchThreadId,
+            spanMilliseconds: suspended.batchSpanMilliseconds,
+        },
         secondToExitIntervalMs: intervals[1],
+        heldPressBeforeFocusLoss: true,
+        focusClearedHeldJump: true,
+        freshPressAfterFocus: true,
         normalizedSecondPress: true,
     };
 }
@@ -231,7 +294,7 @@ function nativeMidairInvariant(evidence: Json, processId: number): Json {
 }
 
 export function jumpReadmissionInvariant(launch: Json, session: Json): Json {
-    const flight = sessionFlightInvariant(launch, "readmission");
+    const flight = sessionFlightInvariant(launch, "readmission", true);
     same(
         object(flight.finalActor, "presentation"),
         object(flight.readyActor, "presentation"),
@@ -254,17 +317,21 @@ export function jumpReadmissionInvariant(launch: Json, session: Json): Json {
     );
     const nativeJump = nativeReadmissionInvariant(
         object(postReadiness, "firstJump"),
+        object(postReadiness, "suspended"),
+        object(postReadiness, "resumed"),
         object(postReadiness, "secondJump"),
         number(launch, "processId"),
     );
     const flightIntervalMs = number(nativeJump, "secondToExitIntervalMs");
-    if (landingLowerMs < 1_250 || flightIntervalMs > 700) {
+    if (landingLowerMs < 1_750 || flightIntervalMs > 700) {
         fail("prototype Jump-readmission wall-time bounds diverged");
     }
 
     return {
         ...session,
         firstFlightLandedBeforeReadmission: true,
+        heldJumpFocusCleanup: true,
+        freshJumpAfterFocusReadmitted: true,
         secondFlight: {
             stepCount: flight.stepCount,
             expectedVelocity: flight.expectedVelocity,
@@ -278,6 +345,8 @@ export function jumpReadmissionInvariant(launch: Json, session: Json): Json {
         clock: {
             ready: flight.readyClock,
             final: flight.finalClock,
+            exactFocusSuspendResumeCount: 1,
+            postResumeResetCount: 1,
             elapsedBacklog: false,
         },
         nativeJump,
