@@ -36,8 +36,11 @@ export async function requireBoundedPrototypeSession(
         !objectGates.includes("postReadinessCapacityRejection") ||
         !acceptance.includes("nativeWindowCloseInvariant") ||
         !acceptance.includes("focusSessionInvariant") ||
+        !acceptance.includes("jumpReadmissionInvariant") ||
         !input.includes("postPrototypeCapacityRejection") ||
         !input.includes("requestPrototypeWindowClose") ||
+        !input.includes("repressJumpAndExit") ||
+        !input.includes("[Diagnostics.Stopwatch]::StartNew()") ||
         !input.includes("suspendWithForward") ||
         !input.includes("resumePrototypeFocus") ||
         !input.includes("0x0010") ||

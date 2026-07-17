@@ -5,11 +5,14 @@ import {
     nativeWindowCloseInvariant,
     postPrototypeCapacityRejection,
     pressPrototypeEscape,
+    pressPrototypeJump,
+    repressJumpAndExit,
     requestPrototypeWindowClose,
     resumePrototypeFocus,
     type StartupInput,
     suspendWithForward,
 } from "./input.ts";
+import { jumpReadmissionInvariant } from "./jump.ts";
 import { sustainedCapacityInvariant } from "./object/gates.ts";
 
 const REVISION = "live-prototype-session-completion-v1";
@@ -112,7 +115,11 @@ async function gracefulExit(
     config: string,
     label: string,
     startupInput?: StartupInput,
-    postReadiness: "capacity-rejection" | "focus-discontinuity" | null = null,
+    postReadiness:
+        | "capacity-rejection"
+        | "focus-discontinuity"
+        | "jump-readmission"
+        | null = null,
     exitReason: "escape" | "window-close" = "escape",
 ): Promise<Json> {
     const started = performance.now();
@@ -130,7 +137,7 @@ async function gracefulExit(
     let completion: Json;
     let startupNativeInput: Json | null;
     let postReadinessInput: Json | null = null;
-    let exitInput: Json;
+    let exitInput: Json | null = null;
     let status: Deno.CommandStatus;
     let trailingOutput = "";
     try {
@@ -147,10 +154,24 @@ async function gracefulExit(
             const resumed = await resumePrototypeFocus(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
             postReadinessInput = { suspended, resumed };
+        } else if (postReadiness === "jump-readmission") {
+            const firstJump = await pressPrototypeJump(child.pid);
+            const firstJumpPostedAt = performance.now();
+            await new Promise((resolve) => setTimeout(resolve, 1_250));
+            const readmitStartedAt = performance.now();
+            const secondJump = await repressJumpAndExit(child.pid);
+            postReadinessInput = {
+                firstJump,
+                secondJump,
+                firstToSecondPostingLowerBoundMs: readmitStartedAt - firstJumpPostedAt,
+            };
+            exitInput = secondJump;
         }
-        exitInput = exitReason === "escape"
-            ? await pressPrototypeEscape(child.pid)
-            : await requestPrototypeWindowClose(child.pid);
+        if (exitInput === null) {
+            exitInput = exitReason === "escape"
+                ? await pressPrototypeEscape(child.pid)
+                : await requestPrototypeWindowClose(child.pid);
+        }
         completion = JSON.parse(await outputLine(reader, "session completion", 10_000)) as Json;
         const exit = await Promise.race([
             child.status.then((value) => ({ kind: "status" as const, value })),
@@ -233,6 +254,13 @@ export async function sessionGates(
         undefined,
         "focus-discontinuity",
     );
+    const jumpReadmission = await gracefulExit(
+        executable,
+        config,
+        "prototype native Jump readmission",
+        undefined,
+        "jump-readmission",
+    );
     const sustained = await gracefulExit(
         executable,
         config,
@@ -262,6 +290,16 @@ export async function sessionGates(
         "prototype focus-discontinuity configuration",
     );
     same(
+        startupInvariant(jumpReadmission),
+        startupInvariant(first),
+        "prototype Jump-readmission configuration",
+    );
+    same(
+        jumpInvariant(jumpReadmission),
+        jumpInvariant(first),
+        "prototype Jump-readmission initial grounded policy",
+    );
+    same(
         startupInvariant(sustained),
         startupInvariant(first),
         "prototype sustained session configuration",
@@ -279,6 +317,11 @@ export async function sessionGates(
         },
         focusDiscontinuity,
         focusDiscontinuityInvariant: focusSessionInvariant(focusDiscontinuity),
+        jumpReadmission,
+        jumpReadmissionInvariant: jumpReadmissionInvariant(
+            jumpReadmission,
+            idleCompletionInvariant(jumpReadmission),
+        ),
         sustained,
         sustainedInvariant: await sustainedCapacityInvariant(
             sustained,

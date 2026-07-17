@@ -18,6 +18,7 @@ async function postPrototypeWindowAction(
     keys: PrototypeKeyTransition[],
     requireVisible: boolean,
     action: PrototypeWindowAction = "input",
+    delayBeforeLastMilliseconds = 0,
 ): Promise<Json> {
     if (!Number.isSafeInteger(processId) || processId <= 0) {
         fail(`prototype native input received invalid process id ${processId}`);
@@ -26,6 +27,12 @@ async function postPrototypeWindowAction(
     if (requiresKeys === (keys.length === 0)) {
         fail(`prototype native ${action} action key shape diverged`);
     }
+    if (
+        !Number.isSafeInteger(delayBeforeLastMilliseconds) ||
+        delayBeforeLastMilliseconds < 0 ||
+        delayBeforeLastMilliseconds > 1_000 ||
+        (delayBeforeLastMilliseconds > 0 && keys.length < 2)
+    ) fail(`prototype native ${action} action delay diverged`);
     const nativeKeys = keys;
     const expectedMessages = requiresKeys
         ? [
@@ -66,7 +73,11 @@ $expectedProcessId = ${processId}
 $requireVisible = ${requireVisible ? "$true" : "$false"}
 $action = "${action}"
 $keys = @(${powershellKeys})
+$delayBeforeLastMilliseconds = ${delayBeforeLastMilliseconds}
 $postedMessages = [System.Collections.Generic.List[string]]::new()
+$timer = [Diagnostics.Stopwatch]::StartNew()
+$delayStartedTicks = $null
+$delayedIntervalMilliseconds = $null
 $deadline = [DateTime]::UtcNow.AddSeconds(20)
 $window = [IntPtr]::Zero
 $windowProcessId = [uint32]0
@@ -85,7 +96,7 @@ do {
             break
         }
     }
-    Start-Sleep -Milliseconds 10
+    Start-Sleep -Milliseconds 1
 } while ([DateTime]::UtcNow -lt $deadline)
 
 if ($window -eq [IntPtr]::Zero) {
@@ -104,7 +115,14 @@ if ($action -eq "input" -or $action -eq "suspend") {
     }
     $postedMessages.Add("WM_SETFOCUS")
 }
+$keyIndex = 0
 foreach ($key in $keys) {
+    if (
+        $delayBeforeLastMilliseconds -gt 0 -and
+        $keyIndex -eq $keys.Count - 1
+    ) {
+        Start-Sleep -Milliseconds $delayBeforeLastMilliseconds
+    }
     $message = if ($key.down) { 0x0100 } else { 0x0101 }
     if (-not [PrototypeInputNative]::PostMessage(
         $window,
@@ -115,7 +133,22 @@ foreach ($key in $keys) {
         $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
         throw "posting prototype $($key.key) key down failed with Win32 error $code"
     }
+    if (
+        $delayStartedTicks -ne $null -and
+        $keyIndex -eq $keys.Count - 1
+    ) {
+        $delayedIntervalMilliseconds = (
+            ($timer.ElapsedTicks - $delayStartedTicks) * 1000.0 /
+            [Diagnostics.Stopwatch]::Frequency
+        )
+    } elseif (
+        $delayBeforeLastMilliseconds -gt 0 -and
+        $keyIndex -eq $keys.Count - 2
+    ) {
+        $delayStartedTicks = $timer.ElapsedTicks
+    }
     $postedMessages.Add("$($message -eq 0x0100 ? 'WM_KEYDOWN' : 'WM_KEYUP'):$($key.key)")
+    $keyIndex += 1
 }
 if ($action -eq "suspend") {
     if (-not [PrototypeInputNative]::PostMessage(
@@ -163,6 +196,8 @@ if ($action -eq "suspend") {
     windowWasVisible = $windowWasVisible
     keys = @($keys)
     messages = @($postedMessages)
+    delayBeforeLastMilliseconds = $delayBeforeLastMilliseconds
+    delayedIntervalMilliseconds = $delayedIntervalMilliseconds
 }) -Depth 4 -Compress))
 `;
     const output = await new Deno.Command("pwsh", {
@@ -186,7 +221,12 @@ if ($action -eq "suspend") {
         evidence.requiredVisible !== requireVisible ||
         (requireVisible && evidence.windowWasVisible !== true) ||
         JSON.stringify(evidence.keys) !== JSON.stringify(nativeKeys) ||
-        JSON.stringify(evidence.messages) !== JSON.stringify(expectedMessages)
+        JSON.stringify(evidence.messages) !== JSON.stringify(expectedMessages) ||
+        evidence.delayBeforeLastMilliseconds !== delayBeforeLastMilliseconds ||
+        (delayBeforeLastMilliseconds === 0
+            ? evidence.delayedIntervalMilliseconds !== null
+            : typeof evidence.delayedIntervalMilliseconds !== "number" ||
+                evidence.delayedIntervalMilliseconds < delayBeforeLastMilliseconds)
     ) fail("prototype native window action evidence diverged");
     return evidence;
 }
@@ -345,6 +385,70 @@ export async function pressPrototypeCameraClockwise(processId: number): Promise<
 
 export async function pressPrototypeJump(processId: number): Promise<Json> {
     return await postPrototypeKeys(processId, [{ key: "Space", virtualKey: 0x20 }], true);
+}
+
+export async function repressJumpAndExit(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "Space", virtualKey: 0x20, down: false },
+            { key: "Space", virtualKey: 0x20, down: true },
+            { key: "Escape", virtualKey: 0x1B, down: true },
+        ],
+        true,
+        "input",
+        100,
+    );
+}
+
+export function nativeJumpReadmissionInvariant(
+    first: Json,
+    second: Json,
+    processId: number,
+): Json {
+    if (
+        first.schema !== "prototype-native-window-action-v2" ||
+        first.action !== "input" ||
+        first.processId !== processId ||
+        first.activated !== true ||
+        first.closeRequested !== false ||
+        first.requiredVisible !== true ||
+        first.windowWasVisible !== true ||
+        JSON.stringify(first.keys) !==
+            JSON.stringify([{ key: "Space", virtualKey: 32, down: true }]) ||
+        JSON.stringify(first.messages) !==
+            JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:Space"]) ||
+        second.schema !== "prototype-native-window-action-v2" ||
+        second.action !== "input" ||
+        second.processId !== processId ||
+        second.windowHandle !== first.windowHandle ||
+        second.activated !== true ||
+        second.closeRequested !== false ||
+        second.requiredVisible !== true ||
+        second.windowWasVisible !== true ||
+        JSON.stringify(second.keys) !== JSON.stringify([
+                { key: "Space", virtualKey: 32, down: false },
+                { key: "Space", virtualKey: 32, down: true },
+                { key: "Escape", virtualKey: 27, down: true },
+            ]) ||
+        JSON.stringify(second.messages) !== JSON.stringify([
+                "WM_SETFOCUS",
+                "WM_KEYUP:Space",
+                "WM_KEYDOWN:Space",
+                "WM_KEYDOWN:Escape",
+            ]) ||
+        second.delayBeforeLastMilliseconds !== 100 ||
+        typeof second.delayedIntervalMilliseconds !== "number" ||
+        second.delayedIntervalMilliseconds < 100 ||
+        second.delayedIntervalMilliseconds > 700
+    ) fail("prototype native Jump-readmission evidence diverged");
+    return {
+        exactProcessWindow: true,
+        firstMessages: first.messages,
+        secondMessages: second.messages,
+        secondToExitIntervalMs: second.delayedIntervalMilliseconds,
+        normalizedSecondPress: true,
+    };
 }
 
 export type StartupInput =
