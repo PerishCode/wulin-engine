@@ -16,6 +16,9 @@ export async function requireBoundedPrototypeSession(
     const focusAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/sessions/focus.ts`,
     );
+    const forwardReleaseAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/sessions/forward_release.ts`,
+    );
     const boundaryAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/boundary.ts`,
     );
@@ -125,6 +128,9 @@ export async function requireBoundedPrototypeSession(
         !objectGates.includes("actionAfterReadiness: true") ||
         !acceptance.includes("objectFeedbackSession") ||
         !sessionGates.includes("nativeWindowCloseInvariant") ||
+        !sessionGates.includes("forwardReleaseSessionInvariant") ||
+        sessionGates.includes("prototype Escape press exit") ||
+        sessionGates.includes("escapeInvariant") ||
         !sessionGates.includes("focusSessionInvariant") ||
         !sessionGates.includes("jumpReadmissionInvariant") ||
         !sessionGates.includes("jumpMidairInvariant") ||
@@ -153,6 +159,7 @@ export async function requireBoundedPrototypeSession(
         !inputSequences.includes("postCounterClockwiseSequence") ||
         !inputSequences.includes("postRunRelease") ||
         !inputSequences.includes("postRunRepress") ||
+        !inputSequences.includes("postForwardRelease") ||
         !inputSequences.includes("postOpposedRun") ||
         !inputSequences.includes("postDiagonalWalk") ||
         !inputSequences.includes("postDiagonalRun") ||
@@ -237,6 +244,13 @@ export async function requireBoundedPrototypeSession(
         !diagonalRunAcceptance.includes("exactRunNormalization: true") ||
         !diagonalRunAcceptance.includes("actionAfterReadiness: true") ||
         !diagonalRunAcceptance.includes("diagonalRunStepCount") ||
+        !forwardReleaseAcceptance.includes("normalForwardReleased: true") ||
+        !forwardReleaseAcceptance.includes("movedThenStopped: true") ||
+        !forwardReleaseAcceptance.includes("transitionedToSurvey: true") ||
+        !forwardReleaseAcceptance.includes("retainedForwardYaw: true") ||
+        !forwardReleaseAcceptance.includes("actionAfterReadiness: true") ||
+        !forwardReleaseAcceptance.includes("walkHoldIntervalMilliseconds") ||
+        !forwardReleaseAcceptance.includes("stationaryHoldIntervalMilliseconds") ||
         !focusAcceptance.includes("atomicWindowThreadBatch") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||

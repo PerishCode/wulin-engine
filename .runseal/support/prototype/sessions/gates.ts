@@ -12,6 +12,7 @@ import { sustainedCapacityInvariant } from "../object/gates.ts";
 import { runReleaseSessionInvariant } from "./run_release.ts";
 import { runRepressSessionInvariant } from "./run_repress.ts";
 import { focusSessionInvariant } from "./focus.ts";
+import { forwardReleaseSessionInvariant } from "./forward_release.ts";
 import { diagonalRunSessionInvariant } from "./diagonal_run.ts";
 import { diagonalWalkSessionInvariant } from "./diagonal_walk.ts";
 import { locomotionOppositionSessionInvariant } from "./locomotion_opposition.ts";
@@ -33,7 +34,12 @@ export async function sessionGates(
     if (first.completionEmitted !== false || first.trailingOutput !== "") {
         fail("prototype forced readiness process emitted session completion");
     }
-    const escape = await gracefulExit(executable, config, "prototype Escape press exit");
+    const forwardRelease = await gracefulExit(
+        executable,
+        config,
+        "prototype native forward release",
+        "forward-release",
+    );
     const windowClose = await gracefulExit(
         executable,
         config,
@@ -119,7 +125,7 @@ export async function sessionGates(
         "prototype native diagonal Run",
         "diagonal-run",
     );
-    sameInitial(escape, first, "Escape", startupInvariant, jumpInvariant);
+    sameInitial(forwardRelease, first, "forward-release", startupInvariant, jumpInvariant);
     sameInitial(windowClose, first, "window-close", startupInvariant, jumpInvariant);
     same(
         startupInvariant(focusDiscontinuity),
@@ -152,8 +158,11 @@ export async function sessionGates(
     sameInitial(diagonalRun, first, "diagonal-Run", startupInvariant, jumpInvariant);
     sameInitial(sustained, sustainedBaseline, "sustained", startupInvariant, jumpInvariant);
     return {
-        escape,
-        escapeInvariant: idleCompletionInvariant(escape),
+        forwardRelease,
+        forwardReleaseInvariant: forwardReleaseSessionInvariant(
+            forwardRelease,
+            idleCompletionInvariant(forwardRelease),
+        ),
         windowClose,
         windowCloseInvariant: {
             ...idleCompletionInvariant(windowClose, "window-close"),

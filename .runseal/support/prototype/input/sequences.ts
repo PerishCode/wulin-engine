@@ -138,6 +138,22 @@ export async function postRunRepress(processId: number): Promise<Json> {
     );
 }
 
+export async function postForwardRelease(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "W", virtualKey: 0x57, down: true },
+            { key: "W", virtualKey: 0x57, down: false },
+        ],
+        true,
+        "input",
+        [0, 250],
+        250,
+        false,
+        1,
+    );
+}
+
 export async function postOpposedRun(processId: number): Promise<Json> {
     return await postPrototypeWindowAction(
         processId,

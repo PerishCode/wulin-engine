@@ -14,6 +14,7 @@ import {
     postCounterClockwiseSequence,
     postDiagonalRun,
     postDiagonalWalk,
+    postForwardRelease,
     postInvalidAliasSequence,
     postMidairSequence,
     postOpposedRun,
@@ -145,6 +146,7 @@ export async function gracefulExit(
         | "diagonal-run"
         | "diagonal-walk"
         | "focus-discontinuity"
+        | "forward-release"
         | "invalid-camera-alias"
         | "jump-midair"
         | "jump-readmission"
@@ -231,6 +233,10 @@ export async function gracefulExit(
             const resumed = await resumePrototypeFocus(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
             postReadinessInput = { suspended, resumed };
+        } else if (postReadiness === "forward-release") {
+            const sequence = await postForwardRelease(child.pid);
+            postReadinessInput = { sequence };
+            exitInput = sequence;
         } else if (postReadiness === "invalid-camera-alias") {
             const sequence = await postInvalidAliasSequence(child.pid);
             postReadinessInput = { sequence };
