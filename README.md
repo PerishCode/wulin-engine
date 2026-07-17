@@ -739,6 +739,15 @@ orbit 1 并产生负 X，因此该方向证据排除了 coercion。clock reset/s
 render block 与两值 clean exit 均精确。验收 session 的重复 startup/jump 比较被收敛到一个本地 helper
 以满足 500 行质量门；产品 HostInput/Win32 adapter/camera/locomotion、session schema、Runtime 与
 engine/GPU/resource 结构未改变。
+Experiment 0118 消除了对象反馈验收夹具对首批模拟步数的隐式依赖。诊断中，即使把 F/Enter/方向键在
+同一窗口线程暂停期间原子排队，旧夹具仍能返回合法但不同的反馈；根因是首个事务允许 `1..=8` steps，
+移动会跨过 256-Q9 对象网格并改变 nearest 与 facing dot，而 focus reset 也不能精确强制单步。最终
+`canonical-prototype-v34` 在 120.784 秒通过：PID 10244 于 base 静止三步，原子 F/Enter 跨度
+0.0012 ms，选择 delta `(160,-32)` Q9 的 authored ID 496 并精确投影 Activated；PID 13120 于
+`base+4` 静止一步，同样以 0.0012 ms 原子跨度选择 delta `(-224,-32)` Q9 的 authored ID 495 并精确
+投影 Rejected。持续会话保持首次 consumption，D motion 后先释放 D 再提交第二次动作，保留 12 个
+capacity Rejected 与 87 个 suppression frames。没有重试、阈值放宽、时间重置或动态接受反馈种类；
+产品、reference-host、Runtime、renderer/GPU/resource/synchronization 均未改变。
 
 ## Project model
 
@@ -798,7 +807,7 @@ exact target inside 512 Q9; a successful projected action receives a bounded 12-
 acknowledgement. No prior canonical acceptance output is required.
 
 `runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
-runtime/prototype/reference-host tests, cooks the four required signed centers, and proves
+runtime/prototype/reference-host tests, cooks the six required signed centers, and proves
 strict bootstrap failure, exact committed grounded gravity witness, exact stationary/native-W Walk
 plus visible native-Shift+W Run and same-sample E+W camera-relative locomotion with transactional
 Survey/Walk/Run selection and exact
@@ -807,9 +816,10 @@ committed current actor authority, Q/E committed actor-relative camera orbit/fra
 consumption with zero normal-path blocks, one visible-window native Space action with exact
 committed vertical trajectory and grounded-policy consumption plus a complete landing and exact
 second native Space readmission and exact midair re-press rejection with a Walk admission witness,
-one visible-window native F+Enter+W observation/action whose origin is the exact committed actor
-output, whose bounded result matches an independent source oracle, and whose exact activated target
-commits only through the successful frame,
+two exact-window atomic native F+Enter stationary observation/actions whose positive/negative-X
+source fixtures are invariant across every allowed first batch, whose bounded results match an
+independent source oracle, and whose exact Activated/Rejected targets commit only through the
+successful frame, plus sustained post-readiness motion/capacity rejection,
 one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-W
 finite-edge survival, exact native Escape and visible-window WM_CLOSE clean exits, native
 focus-loss held-input cleanup plus no-backlog resume, direct restart equality, and Sidecar cleanup.

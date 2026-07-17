@@ -1,8 +1,8 @@
-import { fail, type Json, root } from "../canonical-runtime.ts";
+import { fail, type Json, root } from "../../canonical-runtime.ts";
 
 const decoder = new TextDecoder();
 
-type PrototypeKey = {
+export type PrototypeKey = {
     key:
         | "D"
         | "E"
@@ -16,19 +16,20 @@ type PrototypeKey = {
     virtualKey: number;
 };
 
-type PrototypeKeyTransition = PrototypeKey & {
+export type PrototypeKeyTransition = PrototypeKey & {
     down: boolean;
 };
 
-type PrototypeWindowAction = "close" | "input" | "resume" | "suspend";
+export type PrototypeWindowAction = "close" | "input" | "resume" | "suspend";
 
-async function postPrototypeWindowAction(
+export async function postPrototypeWindowAction(
     processId: number,
     keys: PrototypeKeyTransition[],
     requireVisible: boolean,
     action: PrototypeWindowAction = "input",
     delaysBeforeKeysMilliseconds: number[] = [],
     exitAfterLastMilliseconds = 0,
+    atomicBatch = false,
 ): Promise<Json> {
     if (!Number.isSafeInteger(processId) || processId <= 0) {
         fail(`prototype native input received invalid process id ${processId}`);
@@ -50,7 +51,12 @@ async function postPrototypeWindowAction(
         !Number.isSafeInteger(exitAfterLastMilliseconds) ||
         exitAfterLastMilliseconds < 0 ||
         exitAfterLastMilliseconds > 1_000 ||
-        (exitAfterLastMilliseconds > 0 && action !== "input")
+        (exitAfterLastMilliseconds > 0 && action !== "input") ||
+        (atomicBatch &&
+            (action !== "input" ||
+                keys.length < 2 ||
+                keyDelays.some((delay) => delay !== 0) ||
+                exitAfterLastMilliseconds !== 0))
     ) fail(`prototype native ${action} action delay diverged`);
     const nativeKeys = keys;
     const expectedMessages = requiresKeys
@@ -71,9 +77,17 @@ async function postPrototypeWindowAction(
 $ErrorActionPreference = "Stop"
 Add-Type -TypeDefinition @'
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
+public sealed class PrototypeInputBatchResult {
+    public uint ThreadId { get; set; }
+    public long[] KeyTicks { get; set; }
+}
+
 public static class PrototypeInputNative {
+    private const uint ThreadSuspendResume = 0x0002;
+
     [DllImport("user32.dll", EntryPoint = "FindWindowW", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern IntPtr FindWindow(string className, string windowName);
 
@@ -87,6 +101,80 @@ public static class PrototypeInputNative {
     [DllImport("user32.dll", EntryPoint = "PostMessageW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool PostMessage(IntPtr window, uint message, UIntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenThread(uint desiredAccess, bool inheritHandle, uint threadId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint SuspendThread(IntPtr thread);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint ResumeThread(IntPtr thread);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    public static PrototypeInputBatchResult PostAtomicInputBatch(
+        IntPtr window,
+        uint[] virtualKeys,
+        bool[] downs,
+        Stopwatch timer
+    ) {
+        if (virtualKeys.Length != downs.Length || virtualKeys.Length < 2) {
+            throw new InvalidOperationException("prototype atomic input batch shape diverged");
+        }
+        uint processId;
+        uint threadId = GetWindowThreadProcessId(window, out processId);
+        IntPtr thread = OpenThread(ThreadSuspendResume, false, threadId);
+        if (thread == IntPtr.Zero) {
+            throw new InvalidOperationException(
+                "opening prototype window thread failed with Win32 error " +
+                Marshal.GetLastWin32Error()
+            );
+        }
+        if (SuspendThread(thread) == uint.MaxValue) {
+            CloseHandle(thread);
+            throw new InvalidOperationException(
+                "suspending prototype window thread failed with Win32 error " +
+                Marshal.GetLastWin32Error()
+            );
+        }
+        try {
+            if (!PostMessage(window, 0x0007, UIntPtr.Zero, IntPtr.Zero)) {
+                throw new InvalidOperationException(
+                    "posting prototype focus activation failed with Win32 error " +
+                    Marshal.GetLastWin32Error()
+                );
+            }
+            long[] ticks = new long[virtualKeys.Length];
+            for (int index = 0; index < virtualKeys.Length; index++) {
+                uint message = downs[index] ? 0x0100u : 0x0101u;
+                if (!PostMessage(
+                    window,
+                    message,
+                    new UIntPtr(virtualKeys[index]),
+                    new IntPtr(1)
+                )) {
+                    throw new InvalidOperationException(
+                        "posting prototype atomic key failed with Win32 error " +
+                        Marshal.GetLastWin32Error()
+                    );
+                }
+                ticks[index] = timer.ElapsedTicks;
+            }
+            return new PrototypeInputBatchResult { ThreadId = threadId, KeyTicks = ticks };
+        } finally {
+            uint resumeResult = ResumeThread(thread);
+            bool closeResult = CloseHandle(thread);
+            if (resumeResult == uint.MaxValue || !closeResult) {
+                throw new InvalidOperationException(
+                    "restoring prototype window thread failed with Win32 error " +
+                    Marshal.GetLastWin32Error()
+                );
+            }
+        }
+    }
 }
 '@
 
@@ -96,12 +184,15 @@ $action = "${action}"
 $keys = @(${powershellKeys})
 $keyDelays = @(${powershellDelays})
 $exitAfterLastMilliseconds = ${exitAfterLastMilliseconds}
+$atomicBatch = ${atomicBatch ? "$true" : "$false"}
 $postedMessages = [System.Collections.Generic.List[string]]::new()
 $timer = [Diagnostics.Stopwatch]::StartNew()
 $previousKeyTicks = $null
 $lastKeyTicks = $null
 $keyPostIntervalsMilliseconds = [System.Collections.Generic.List[double]]::new()
 $exitIntervalMilliseconds = $null
+$batchThreadId = $null
+$batchSpanMilliseconds = $null
 $deadline = [DateTime]::UtcNow.AddSeconds(20)
 $window = [IntPtr]::Zero
 $windowProcessId = [uint32]0
@@ -127,45 +218,75 @@ if ($window -eq [IntPtr]::Zero) {
     throw "prototype window for process $expectedProcessId was not found"
 }
 $windowWasVisible = [PrototypeInputNative]::IsWindowVisible($window)
-if ($action -eq "input" -or $action -eq "suspend") {
-    if (-not [PrototypeInputNative]::PostMessage(
+if ($atomicBatch) {
+    [uint32[]]$batchKeys = @($keys | ForEach-Object { [uint32]$_.virtualKey })
+    [bool[]]$batchDowns = @($keys | ForEach-Object { [bool]$_.down })
+    $batch = [PrototypeInputNative]::PostAtomicInputBatch(
         $window,
-        0x0007,
-        [UIntPtr]::Zero,
-        [IntPtr]::Zero
-    )) {
-        $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-        throw "posting prototype focus activation failed with Win32 error $code"
-    }
+        $batchKeys,
+        $batchDowns,
+        $timer
+    )
+    $batchThreadId = [uint32]$batch.ThreadId
     $postedMessages.Add("WM_SETFOCUS")
-}
-$keyIndex = 0
-foreach ($key in $keys) {
-    $keyDelay = $keyDelays[$keyIndex]
-    if ($keyDelay -gt 0) {
-        Start-Sleep -Milliseconds $keyDelay
+    for ($keyIndex = 0; $keyIndex -lt $keys.Count; $keyIndex += 1) {
+        $key = $keys[$keyIndex]
+        $messageTicks = $batch.KeyTicks[$keyIndex]
+        if ($previousKeyTicks -ne $null) {
+            $keyPostIntervalsMilliseconds.Add(
+                ($messageTicks - $previousKeyTicks) * 1000.0 /
+                [Diagnostics.Stopwatch]::Frequency
+            )
+        }
+        $previousKeyTicks = $messageTicks
+        $lastKeyTicks = $messageTicks
+        $postedMessages.Add("$($key.down ? 'WM_KEYDOWN' : 'WM_KEYUP'):$($key.key)")
     }
-    $message = if ($key.down) { 0x0100 } else { 0x0101 }
-    if (-not [PrototypeInputNative]::PostMessage(
-        $window,
-        $message,
-        [UIntPtr][uint32]$key.virtualKey,
-        [IntPtr]1
-    )) {
-        $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-        throw "posting prototype $($key.key) key down failed with Win32 error $code"
+    $batchSpanMilliseconds = (
+        ($batch.KeyTicks[$batch.KeyTicks.Length - 1] - $batch.KeyTicks[0]) *
+        1000.0 / [Diagnostics.Stopwatch]::Frequency
+    )
+} else {
+    if ($action -eq "input" -or $action -eq "suspend") {
+        if (-not [PrototypeInputNative]::PostMessage(
+            $window,
+            0x0007,
+            [UIntPtr]::Zero,
+            [IntPtr]::Zero
+        )) {
+            $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            throw "posting prototype focus activation failed with Win32 error $code"
+        }
+        $postedMessages.Add("WM_SETFOCUS")
     }
-    $messageTicks = $timer.ElapsedTicks
-    if ($previousKeyTicks -ne $null) {
-        $keyPostIntervalsMilliseconds.Add(
-            ($messageTicks - $previousKeyTicks) * 1000.0 /
-            [Diagnostics.Stopwatch]::Frequency
-        )
+    $keyIndex = 0
+    foreach ($key in $keys) {
+        $keyDelay = $keyDelays[$keyIndex]
+        if ($keyDelay -gt 0) {
+            Start-Sleep -Milliseconds $keyDelay
+        }
+        $message = if ($key.down) { 0x0100 } else { 0x0101 }
+        if (-not [PrototypeInputNative]::PostMessage(
+            $window,
+            $message,
+            [UIntPtr][uint32]$key.virtualKey,
+            [IntPtr]1
+        )) {
+            $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            throw "posting prototype $($key.key) key down failed with Win32 error $code"
+        }
+        $messageTicks = $timer.ElapsedTicks
+        if ($previousKeyTicks -ne $null) {
+            $keyPostIntervalsMilliseconds.Add(
+                ($messageTicks - $previousKeyTicks) * 1000.0 /
+                [Diagnostics.Stopwatch]::Frequency
+            )
+        }
+        $previousKeyTicks = $messageTicks
+        $lastKeyTicks = $messageTicks
+        $postedMessages.Add("$($message -eq 0x0100 ? 'WM_KEYDOWN' : 'WM_KEYUP'):$($key.key)")
+        $keyIndex += 1
     }
-    $previousKeyTicks = $messageTicks
-    $lastKeyTicks = $messageTicks
-    $postedMessages.Add("$($message -eq 0x0100 ? 'WM_KEYDOWN' : 'WM_KEYUP'):$($key.key)")
-    $keyIndex += 1
 }
 if ($exitAfterLastMilliseconds -gt 0) {
     Start-Sleep -Milliseconds $exitAfterLastMilliseconds
@@ -234,6 +355,9 @@ if ($action -eq "suspend") {
     keyPostIntervalsMilliseconds = @($keyPostIntervalsMilliseconds)
     exitAfterLastMilliseconds = $exitAfterLastMilliseconds
     exitIntervalMilliseconds = $exitIntervalMilliseconds
+    atomicBatch = $atomicBatch
+    batchThreadId = $batchThreadId
+    batchSpanMilliseconds = $batchSpanMilliseconds
 }) -Depth 4 -Compress))
 `;
     const output = await new Deno.Command("pwsh", {
@@ -266,6 +390,15 @@ if ($action -eq "suspend") {
             interval < keyDelays[index + 1]
         ) ||
         evidence.exitAfterLastMilliseconds !== exitAfterLastMilliseconds ||
+        evidence.atomicBatch !== atomicBatch ||
+        (atomicBatch
+            ? typeof evidence.batchThreadId !== "number" ||
+                !Number.isSafeInteger(evidence.batchThreadId) ||
+                evidence.batchThreadId <= 0 ||
+                typeof evidence.batchSpanMilliseconds !== "number" ||
+                evidence.batchSpanMilliseconds < 0 ||
+                evidence.batchSpanMilliseconds > 50
+            : evidence.batchThreadId !== null || evidence.batchSpanMilliseconds !== null) ||
         (exitAfterLastMilliseconds === 0
             ? evidence.exitIntervalMilliseconds !== null
             : typeof evidence.exitIntervalMilliseconds !== "number" ||
@@ -278,6 +411,7 @@ if ($action -eq "suspend") {
                     nativeKeys,
                     keyDelays,
                     exitAfterLastMilliseconds,
+                    atomicBatch,
                     expectedMessages,
                     evidence,
                 })
@@ -287,212 +421,19 @@ if ($action -eq "suspend") {
     return evidence;
 }
 
-async function postPrototypeKeys(
+export async function postPrototypeKeys(
     processId: number,
     keys: PrototypeKey[],
     requireVisible: boolean,
+    atomicBatch = false,
 ): Promise<Json> {
     return await postPrototypeWindowAction(
         processId,
         keys.map((key) => ({ ...key, down: true })),
         requireVisible,
-    );
-}
-
-export async function holdPrototypeForwardKey(processId: number): Promise<Json> {
-    return await postPrototypeKeys(processId, [{ key: "W", virtualKey: 0x57 }], false);
-}
-
-export async function holdRunForwardKeys(processId: number): Promise<Json> {
-    return await postPrototypeKeys(
-        processId,
-        [{ key: "Shift", virtualKey: 0x10 }, { key: "W", virtualKey: 0x57 }],
-        true,
-    );
-}
-
-export async function holdOrbitForwardKeys(processId: number): Promise<Json> {
-    return await postPrototypeKeys(
-        processId,
-        [{ key: "E", virtualKey: 0x45 }, { key: "W", virtualKey: 0x57 }],
-        true,
-    );
-}
-
-export async function postObserveActionFacing(processId: number): Promise<Json> {
-    return await postPrototypeKeys(
-        processId,
-        [
-            { key: "F", virtualKey: 0x46 },
-            { key: "Enter", virtualKey: 0x0D },
-            { key: "D", virtualKey: 0x44 },
-        ],
-        true,
-    );
-}
-
-export async function postObserveActionSide(processId: number): Promise<Json> {
-    return await postPrototypeKeys(
-        processId,
-        [
-            { key: "F", virtualKey: 0x46 },
-            { key: "Enter", virtualKey: 0x0D },
-            { key: "W", virtualKey: 0x57 },
-        ],
-        true,
-    );
-}
-
-export async function pressPrototypeEscape(processId: number): Promise<Json> {
-    return await postPrototypeKeys(processId, [{ key: "Escape", virtualKey: 0x1B }], false);
-}
-
-export async function requestPrototypeWindowClose(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(processId, [], true, "close");
-}
-
-export function nativeWindowCloseInvariant(evidence: Json, processId: number): Json {
-    if (
-        evidence.schema !== "prototype-native-window-action-v3" ||
-        evidence.action !== "close" ||
-        evidence.processId !== processId ||
-        evidence.activated !== false ||
-        evidence.closeRequested !== true ||
-        evidence.requiredVisible !== true ||
-        evidence.windowWasVisible !== true ||
-        !Array.isArray(evidence.keys) ||
-        evidence.keys.length !== 0 ||
-        JSON.stringify(evidence.messages) !== JSON.stringify(["WM_CLOSE"])
-    ) fail("prototype native window-close evidence diverged");
-    return {
-        exactProcessWindow: true,
-        message: "WM_CLOSE",
-        directDestroy: false,
-    };
-}
-
-export async function suspendWithForward(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(
-        processId,
-        [{ key: "W", virtualKey: 0x57, down: true }],
-        true,
-        "suspend",
-    );
-}
-
-export async function resumePrototypeFocus(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(processId, [], true, "resume");
-}
-
-export async function postPrototypeCapacityRejection(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(
-        processId,
-        [
-            { key: "D", virtualKey: 0x44, down: false },
-            { key: "F", virtualKey: 0x46, down: false },
-            { key: "F", virtualKey: 0x46, down: true },
-            { key: "Enter", virtualKey: 0x0D, down: false },
-            { key: "Enter", virtualKey: 0x0D, down: true },
-        ],
-        true,
-    );
-}
-
-export async function pressPrototypeCameraClockwise(processId: number): Promise<Json> {
-    return await postPrototypeKeys(processId, [{ key: "E", virtualKey: 0x45 }], true);
-}
-
-export async function pressPrototypeJump(processId: number): Promise<Json> {
-    return await postPrototypeKeys(processId, [{ key: "Space", virtualKey: 0x20 }], true);
-}
-
-export async function repressJumpAndExit(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(
-        processId,
-        [
-            { key: "Space", virtualKey: 0x20, down: false },
-            { key: "Space", virtualKey: 0x20, down: true },
-            { key: "Escape", virtualKey: 0x1B, down: true },
-        ],
-        true,
         "input",
-        [0, 0, 100],
+        [],
+        0,
+        atomicBatch,
     );
-}
-
-export async function postMidairSequence(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(
-        processId,
-        [
-            { key: "Space", virtualKey: 0x20, down: true },
-            { key: "Space", virtualKey: 0x20, down: false },
-            { key: "Space", virtualKey: 0x20, down: true },
-            { key: "W", virtualKey: 0x57, down: true },
-        ],
-        true,
-        "input",
-        [0, 0, 200, 0],
-        200,
-    );
-}
-
-export async function postCameraRepeatSequence(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(
-        processId,
-        [
-            { key: "E", virtualKey: 0x45, down: true },
-            { key: "W", virtualKey: 0x57, down: true },
-        ],
-        true,
-        "input",
-        [0, 0],
-        200,
-    );
-}
-
-export async function postInvalidAliasSequence(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(
-        processId,
-        [
-            { key: "OutOfRangeE", virtualKey: 0x145, down: true },
-            { key: "W", virtualKey: 0x57, down: true },
-        ],
-        true,
-        "input",
-        [0, 0],
-        200,
-    );
-}
-
-export type StartupInput =
-    | "camera-clockwise"
-    | "camera-forward"
-    | "forward"
-    | "jump"
-    | "observe-action-facing"
-    | "observe-action-side"
-    | "run-forward";
-
-export async function applyStartupInput(
-    processId: number,
-    input?: StartupInput,
-): Promise<Json | null> {
-    switch (input) {
-        case "camera-clockwise":
-            return await pressPrototypeCameraClockwise(processId);
-        case "camera-forward":
-            return await holdOrbitForwardKeys(processId);
-        case "forward":
-            return await holdPrototypeForwardKey(processId);
-        case "jump":
-            return await pressPrototypeJump(processId);
-        case "observe-action-facing":
-            return await postObserveActionFacing(processId);
-        case "observe-action-side":
-            return await postObserveActionSide(processId);
-        case "run-forward":
-            return await holdRunForwardKeys(processId);
-        case undefined:
-            return null;
-    }
 }
