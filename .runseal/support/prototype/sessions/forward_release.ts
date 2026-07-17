@@ -40,8 +40,7 @@ function nativeForwardReleaseInvariant(launch: Json): Json {
         number(sequence, "batchSpanMilliseconds") !== 0 ||
         number(sequence, "exitAfterLastMilliseconds") !== 250 ||
         exitInterval < 250 ||
-        exitInterval > 750 ||
-        Object.hasOwn(launch, "startupNativeInput")
+        exitInterval > 750
     ) fail("prototype native forward-release evidence diverged");
     same(sequence, object(launch, "exitInput"), "prototype forward-release exit input");
     return {

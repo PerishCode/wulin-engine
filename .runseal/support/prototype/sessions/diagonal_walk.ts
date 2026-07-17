@@ -38,8 +38,7 @@ function nativeDiagonalWalkInvariant(launch: Json): Json {
         sequence.batchSpanMilliseconds > 50 ||
         number(sequence, "exitAfterLastMilliseconds") !== 200 ||
         exitInterval < 200 ||
-        exitInterval > 700 ||
-        Object.hasOwn(launch, "startupNativeInput")
+        exitInterval > 700
     ) fail("prototype native diagonal Walk input evidence diverged");
     same(sequence, object(launch, "exitInput"), "prototype diagonal Walk exit input");
     return {

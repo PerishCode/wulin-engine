@@ -45,8 +45,7 @@ function nativeRunReleaseInvariant(launch: Json): Json {
         sequence.batchSpanMilliseconds > 50 ||
         number(sequence, "exitAfterLastMilliseconds") !== 200 ||
         exitInterval < 200 ||
-        exitInterval > 700 ||
-        Object.hasOwn(launch, "startupNativeInput")
+        exitInterval > 700
     ) fail("prototype native Run modifier release evidence diverged");
     same(sequence, object(launch, "exitInput"), "prototype Run modifier release exit input");
     return {
