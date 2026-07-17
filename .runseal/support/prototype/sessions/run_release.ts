@@ -13,7 +13,7 @@ function nativeRunReleaseInvariant(launch: Json): Json {
     const intervals = sequence.keyPostIntervalsMilliseconds;
     const exitInterval = number(sequence, "exitIntervalMilliseconds");
     if (
-        sequence.schema !== "prototype-native-window-action-v3" ||
+        sequence.schema !== "prototype-native-window-action-v4" ||
         sequence.action !== "input" ||
         sequence.processId !== processId ||
         sequence.requiredVisible !== true ||
@@ -36,8 +36,13 @@ function nativeRunReleaseInvariant(launch: Json): Json {
         intervals[1] < 500 ||
         intervals[1] > 1_000 ||
         sequence.atomicBatch !== false ||
-        sequence.batchThreadId !== null ||
-        sequence.batchSpanMilliseconds !== null ||
+        number(sequence, "atomicPrefixLength") !== 2 ||
+        typeof sequence.batchThreadId !== "number" ||
+        !Number.isSafeInteger(sequence.batchThreadId) ||
+        sequence.batchThreadId <= 0 ||
+        typeof sequence.batchSpanMilliseconds !== "number" ||
+        sequence.batchSpanMilliseconds < 0 ||
+        sequence.batchSpanMilliseconds > 50 ||
         number(sequence, "exitAfterLastMilliseconds") !== 200 ||
         exitInterval < 200 ||
         exitInterval > 700 ||
@@ -46,6 +51,9 @@ function nativeRunReleaseInvariant(launch: Json): Json {
     same(sequence, object(launch, "exitInput"), "prototype Run modifier release exit input");
     return {
         exactProcessWindow: true,
+        atomicStartupPrefix: true,
+        batchThreadId: sequence.batchThreadId,
+        batchSpanMilliseconds: sequence.batchSpanMilliseconds,
         orderedMessages: sequence.messages,
         runHoldIntervalMilliseconds: intervals[1],
         exitIntervalMilliseconds: exitInterval,

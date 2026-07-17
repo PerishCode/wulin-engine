@@ -15,7 +15,7 @@ function nativeCameraRepressInvariant(launch: Json): Json {
     const intervals = sequence.keyPostIntervalsMilliseconds;
     const exitInterval = number(sequence, "exitIntervalMilliseconds");
     if (
-        startup.schema !== "prototype-native-window-action-v3" ||
+        startup.schema !== "prototype-native-window-action-v4" ||
         startup.action !== "input" ||
         startup.processId !== processId ||
         startup.requiredVisible !== true ||
@@ -23,7 +23,7 @@ function nativeCameraRepressInvariant(launch: Json): Json {
         JSON.stringify(startup.keys) !== JSON.stringify(expectedStartupKeys) ||
         JSON.stringify(startup.messages) !==
             JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:E"]) ||
-        sequence.schema !== "prototype-native-window-action-v3" ||
+        sequence.schema !== "prototype-native-window-action-v4" ||
         sequence.action !== "input" ||
         sequence.processId !== processId ||
         sequence.windowHandle !== startup.windowHandle ||

@@ -167,6 +167,7 @@ export async function gracefulExit(
     let trailingOutput = "";
     try {
         if (
+            startupInput === "diagonal-run" ||
             startupInput === "diagonal-walk" ||
             startupInput === "run-release" ||
             startupInput === "run-repress"

@@ -12,7 +12,7 @@ function nativeRunRepressInvariant(launch: Json): Json {
     const intervals = sequence.keyPostIntervalsMilliseconds;
     const exitInterval = number(sequence, "exitIntervalMilliseconds");
     if (
-        sequence.schema !== "prototype-native-window-action-v3" ||
+        sequence.schema !== "prototype-native-window-action-v4" ||
         sequence.action !== "input" ||
         sequence.processId !== processId ||
         sequence.requiredVisible !== true ||
@@ -31,8 +31,13 @@ function nativeRunRepressInvariant(launch: Json): Json {
         intervals[0] < 500 ||
         intervals[0] > 1_000 ||
         sequence.atomicBatch !== false ||
-        sequence.batchThreadId !== null ||
-        sequence.batchSpanMilliseconds !== null ||
+        number(sequence, "atomicPrefixLength") !== 1 ||
+        typeof sequence.batchThreadId !== "number" ||
+        !Number.isSafeInteger(sequence.batchThreadId) ||
+        sequence.batchThreadId <= 0 ||
+        typeof sequence.batchSpanMilliseconds !== "number" ||
+        sequence.batchSpanMilliseconds < 0 ||
+        sequence.batchSpanMilliseconds > 50 ||
         number(sequence, "exitAfterLastMilliseconds") !== 200 ||
         exitInterval < 200 ||
         exitInterval > 700 ||
@@ -41,6 +46,9 @@ function nativeRunRepressInvariant(launch: Json): Json {
     same(sequence, object(launch, "exitInput"), "prototype Run modifier re-press exit input");
     return {
         exactProcessWindow: true,
+        atomicStartupPrefix: true,
+        batchThreadId: sequence.batchThreadId,
+        batchSpanMilliseconds: sequence.batchSpanMilliseconds,
         orderedMessages: sequence.messages,
         walkHoldIntervalMilliseconds: intervals[0],
         exitIntervalMilliseconds: exitInterval,

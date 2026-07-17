@@ -36,6 +36,7 @@ export async function preparePrototypeWindowAction(
     delaysBeforeKeysMilliseconds: number[] = [],
     exitAfterLastMilliseconds = 0,
     atomicBatch = false,
+    atomicPrefixLength = 0,
 ): Promise<PreparedPrototypeWindowAction> {
     if (
         processId !== null &&
@@ -61,11 +62,20 @@ export async function preparePrototypeWindowAction(
         exitAfterLastMilliseconds < 0 ||
         exitAfterLastMilliseconds > 1_000 ||
         (exitAfterLastMilliseconds > 0 && action !== "input") ||
-        (atomicBatch &&
+        !Number.isSafeInteger(atomicPrefixLength) ||
+        atomicPrefixLength < 0 ||
+        atomicPrefixLength > keys.length ||
+        ((atomicBatch || atomicPrefixLength > 0) &&
             ((action !== "input" && action !== "suspend") ||
-                keys.length < (action === "input" ? 2 : 1) ||
-                keyDelays.some((delay) => delay !== 0)))
+                keys.length < 1 ||
+                (atomicBatch &&
+                    atomicPrefixLength !== 0 &&
+                    atomicPrefixLength !== keys.length) ||
+                keyDelays
+                    .slice(0, atomicBatch ? keys.length : atomicPrefixLength)
+                    .some((delay) => delay !== 0)))
     ) fail(`prototype native ${action} action delay diverged`);
+    const resolvedAtomicPrefixLength = atomicBatch ? keys.length : atomicPrefixLength;
     const nativeKeys = keys;
     const expectedMessages = requiresKeys
         ? [
@@ -132,8 +142,7 @@ public static class PrototypeInputNative {
     ) {
         if (
             virtualKeys.Length != downs.Length ||
-            virtualKeys.Length < 1 ||
-            (!suspendAfterInput && virtualKeys.Length < 2)
+            virtualKeys.Length < 1
         ) {
             throw new InvalidOperationException("prototype atomic input batch shape diverged");
         }
@@ -208,7 +217,8 @@ $action = "${action}"
 $keys = @(${powershellKeys})
 $keyDelays = @(${powershellDelays})
 $exitAfterLastMilliseconds = ${exitAfterLastMilliseconds}
-$atomicBatch = ${atomicBatch ? "$true" : "$false"}
+$atomicPrefixLength = ${resolvedAtomicPrefixLength}
+$atomicBatch = $atomicPrefixLength -eq $keys.Count -and $atomicPrefixLength -gt 0
 $postedMessages = [System.Collections.Generic.List[string]]::new()
 $timer = [Diagnostics.Stopwatch]::StartNew()
 $previousKeyTicks = $null
@@ -244,19 +254,20 @@ if ($window -eq [IntPtr]::Zero) {
     throw "prototype window for process $expectedProcessId was not found"
 }
 $windowWasVisible = [PrototypeInputNative]::IsWindowVisible($window)
-if ($atomicBatch) {
-    [uint32[]]$batchKeys = @($keys | ForEach-Object { [uint32]$_.virtualKey })
-    [bool[]]$batchDowns = @($keys | ForEach-Object { [bool]$_.down })
+if ($atomicPrefixLength -gt 0) {
+    $atomicPrefix = @($keys | Select-Object -First $atomicPrefixLength)
+    [uint32[]]$batchKeys = @($atomicPrefix | ForEach-Object { [uint32]$_.virtualKey })
+    [bool[]]$batchDowns = @($atomicPrefix | ForEach-Object { [bool]$_.down })
     $batch = [PrototypeInputNative]::PostAtomicInputBatch(
         $window,
         $batchKeys,
         $batchDowns,
-        $action -eq "suspend",
+        $action -eq "suspend" -and $atomicBatch,
         $timer
     )
     $batchThreadId = [uint32]$batch.ThreadId
     $postedMessages.Add("WM_SETFOCUS")
-    for ($keyIndex = 0; $keyIndex -lt $keys.Count; $keyIndex += 1) {
+    for ($keyIndex = 0; $keyIndex -lt $atomicPrefixLength; $keyIndex += 1) {
         $key = $keys[$keyIndex]
         $messageTicks = $batch.KeyTicks[$keyIndex]
         if ($previousKeyTicks -ne $null) {
@@ -269,14 +280,15 @@ if ($atomicBatch) {
         $lastKeyTicks = $messageTicks
         $postedMessages.Add("$($key.down ? 'WM_KEYDOWN' : 'WM_KEYUP'):$($key.key)")
     }
-    if ($action -eq "suspend") {
+    if ($action -eq "suspend" -and $atomicBatch) {
         $postedMessages.Add("WM_KILLFOCUS")
     }
     $batchSpanMilliseconds = (
         ($batch.KeyTicks[$batch.KeyTicks.Length - 1] - $batch.KeyTicks[0]) *
         1000.0 / [Diagnostics.Stopwatch]::Frequency
     )
-} else {
+}
+if ($atomicPrefixLength -eq 0) {
     if ($action -eq "input" -or $action -eq "suspend") {
         if (-not [PrototypeInputNative]::PostMessage(
             $window,
@@ -289,8 +301,10 @@ if ($atomicBatch) {
         }
         $postedMessages.Add("WM_SETFOCUS")
     }
-    $keyIndex = 0
-    foreach ($key in $keys) {
+}
+if ($atomicPrefixLength -lt $keys.Count) {
+    for ($keyIndex = $atomicPrefixLength; $keyIndex -lt $keys.Count; $keyIndex += 1) {
+        $key = $keys[$keyIndex]
         $keyDelay = $keyDelays[$keyIndex]
         if ($keyDelay -gt 0) {
             Start-Sleep -Milliseconds $keyDelay
@@ -315,7 +329,6 @@ if ($atomicBatch) {
         $previousKeyTicks = $messageTicks
         $lastKeyTicks = $messageTicks
         $postedMessages.Add("$($message -eq 0x0100 ? 'WM_KEYDOWN' : 'WM_KEYUP'):$($key.key)")
-        $keyIndex += 1
     }
 }
 if ($exitAfterLastMilliseconds -gt 0) {
@@ -384,7 +397,7 @@ if ($action -eq "suspend" -and -not $atomicBatch) {
 }
 
 [Console]::Out.Write((ConvertTo-Json ([ordered]@{
-    schema = "prototype-native-window-action-v3"
+    schema = "prototype-native-window-action-v4"
     action = $action
     processId = [int]$windowProcessId
     windowHandle = $window.ToInt64().ToString()
@@ -398,6 +411,7 @@ if ($action -eq "suspend" -and -not $atomicBatch) {
     keyPostIntervalsMilliseconds = @($keyPostIntervalsMilliseconds)
     exitAfterLastMilliseconds = $exitAfterLastMilliseconds
     exitIntervalMilliseconds = $exitIntervalMilliseconds
+    atomicPrefixLength = $atomicPrefixLength
     atomicBatch = $atomicBatch
     batchThreadId = $batchThreadId
     batchSpanMilliseconds = $batchSpanMilliseconds
@@ -413,6 +427,7 @@ if ($action -eq "suspend" -and -not $atomicBatch) {
             keyDelays,
             exitAfterLastMilliseconds,
             atomicBatch,
+            atomicPrefixLength: resolvedAtomicPrefixLength,
             expectedMessages,
         },
     );

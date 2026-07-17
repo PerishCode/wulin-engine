@@ -12,7 +12,7 @@ function nativeCounterClockwiseInvariant(launch: Json): Json {
     const intervals = sequence.keyPostIntervalsMilliseconds;
     const exitInterval = number(sequence, "exitIntervalMilliseconds");
     if (
-        sequence.schema !== "prototype-native-window-action-v3" ||
+        sequence.schema !== "prototype-native-window-action-v4" ||
         sequence.action !== "input" ||
         sequence.processId !== processId ||
         sequence.requiredVisible !== true ||

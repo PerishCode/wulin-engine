@@ -13,6 +13,7 @@ type ExpectedWindowAction = {
     keyDelays: number[];
     exitAfterLastMilliseconds: number;
     atomicBatch: boolean;
+    atomicPrefixLength: number;
     expectedMessages: string[];
 };
 
@@ -103,7 +104,7 @@ async function completePrototypeWindowAction(
     }
     const evidence = JSON.parse(stdout.trim()) as Json;
     if (
-        evidence.schema !== "prototype-native-window-action-v3" ||
+        evidence.schema !== "prototype-native-window-action-v4" ||
         evidence.action !== expected.action ||
         typeof evidence.processId !== "number" ||
         !Number.isSafeInteger(evidence.processId) ||
@@ -125,8 +126,9 @@ async function completePrototypeWindowAction(
             interval < expected.keyDelays[index + 1]
         ) ||
         evidence.exitAfterLastMilliseconds !== expected.exitAfterLastMilliseconds ||
+        evidence.atomicPrefixLength !== expected.atomicPrefixLength ||
         evidence.atomicBatch !== expected.atomicBatch ||
-        (expected.atomicBatch
+        (expected.atomicPrefixLength > 0
             ? typeof evidence.batchThreadId !== "number" ||
                 !Number.isSafeInteger(evidence.batchThreadId) ||
                 evidence.batchThreadId <= 0 ||
