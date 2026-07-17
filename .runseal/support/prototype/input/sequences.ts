@@ -137,7 +137,6 @@ export type StartupInput =
     | "diagonal-walk"
     | "forward"
     | "jump"
-    | "object-action"
     | "opposed-run"
     | "run-forward"
     | "run-release"
@@ -219,15 +218,6 @@ function startupInputRequest(input?: StartupInput): StartupInputRequest | null {
                 keys: [{ key: "Space", virtualKey: 0x20, down: true }],
                 requireVisible: true,
                 atomicPrefixLength: 1,
-            };
-        case "object-action":
-            return {
-                keys: [
-                    { key: "F", virtualKey: 0x46, down: true },
-                    { key: "Enter", virtualKey: 0x0D, down: true },
-                ],
-                requireVisible: true,
-                atomicPrefixLength: 2,
             };
         case "opposed-run":
             return {

@@ -115,6 +115,8 @@ export async function requireBoundedPrototypeSession(
         !objectGates.includes("objectNearestOracle") ||
         !objectGates.includes("capacityRejectedFrameCount: 12") ||
         !objectGates.includes("postReadinessCapacityRejection") ||
+        !objectGates.includes("actionAfterReadiness: true") ||
+        !acceptance.includes("objectFeedbackSession") ||
         !sessionGates.includes("nativeWindowCloseInvariant") ||
         !sessionGates.includes("focusSessionInvariant") ||
         !sessionGates.includes("jumpReadmissionInvariant") ||
@@ -130,6 +132,8 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("diagonalWalkSessionInvariant") ||
         !sessionGates.includes("diagonalRunSessionInvariant") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
+        !inputActions.includes("postObjectActionExit") ||
+        !inputActions.includes("postConsumptionCapacity") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
         !inputSequences.includes("repressJumpAndExit") ||
         !inputSequences.includes("postMidairSequence") ||
@@ -217,11 +221,10 @@ export async function requireBoundedPrototypeSession(
         !input.includes("0x0008u") ||
         !input.includes("SuspendThread") ||
         !input.includes("ResumeThread") ||
-        !inputSequences.includes('case "object-action"') ||
-        !objectObservation.includes("maximumBatchGeometryInvariant: true") ||
-        !objectObservation.includes("stepCount > 8") ||
+        inputSequences.includes('case "object-action"') ||
+        !objectObservation.includes("idleObservationInvariant") ||
         !prototypeHost.includes("objectActionCenter: Coord = [base[0] + 4, base[1]]") ||
-        !prototypeHost.includes('"object-action"') ||
+        prototypeHost.includes('"object-action"') ||
         !canonicalSetup.includes("objectActionCenter: Coord = [base[0] + 4, base[1]]") ||
         !canonicalSetup.includes(
             "objectActionTraversalCenter: Coord = [base[0] + 5, base[1] + 1]",
@@ -279,8 +282,8 @@ export async function requireBoundedPrototypeSession(
         !interaction.includes(") -> Result<()>") ||
         !actionAcceptance.includes('"attempt" in driver') ||
         !actionAcceptance.includes('"completion" in driver') ||
-        !actionAcceptance.includes("projectedFeedback: feedback") ||
-        !actionAcceptance.includes("exactCommittedOriginProximity: true") ||
-        !actionAcceptance.includes("exactCommittedFacing: true")
+        !objectGates.includes("exactCommittedOriginProximity: true") ||
+        !objectGates.includes("exactCommittedFacing: true") ||
+        !objectGates.includes("exactSourceIdentity")
     ) fail("guard: current projected-feedback/state authority diverged");
 }

@@ -76,3 +76,46 @@ export async function postPrototypeCapacityRejection(processId: number): Promise
         motionHoldMilliseconds: performance.now() - motionStartedAt,
     };
 }
+
+export async function postObjectActionExit(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "F", virtualKey: 0x46, down: true },
+            { key: "Enter", virtualKey: 0x0D, down: true },
+        ],
+        true,
+        "input",
+        [0, 0],
+        200,
+        true,
+    );
+}
+
+export async function postConsumptionCapacity(
+    processId: number,
+): Promise<Json> {
+    const consumption = await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "F", virtualKey: 0x46, down: true },
+            { key: "Enter", virtualKey: 0x0D, down: true },
+        ],
+        true,
+        "input",
+        [0, 0],
+        0,
+        true,
+    );
+    const consumptionStartedAt = performance.now();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const consumptionHoldMilliseconds = performance.now() - consumptionStartedAt;
+    const capacity = await postPrototypeCapacityRejection(processId);
+    return {
+        revision: "prototype-post-ready-consumption-capacity-input-v1",
+        consumption,
+        capacity,
+        requestedConsumptionHoldMilliseconds: 250,
+        consumptionHoldMilliseconds,
+    };
+}

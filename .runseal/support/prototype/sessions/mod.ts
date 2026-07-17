@@ -1,5 +1,7 @@
 import { fail, type Json, number, object, root, same, string } from "../../canonical-runtime.ts";
 import {
+    postConsumptionCapacity,
+    postObjectActionExit,
     postPrototypeCapacityRejection,
     pressPrototypeEscape,
     requestPrototypeWindowClose,
@@ -122,9 +124,17 @@ export async function sustainedCapacitySession(executable: string, config: strin
         executable,
         config,
         "prototype sustained capacity-one session",
-        "object-action",
-        "capacity-rejection",
+        undefined,
+        "consumption-capacity-rejection",
     );
+}
+
+export async function objectFeedbackSession(
+    executable: string,
+    config: string,
+    label: string,
+): Promise<Json> {
+    return await gracefulExit(executable, config, label, undefined, "object-feedback");
 }
 
 export async function gracefulExit(
@@ -136,11 +146,13 @@ export async function gracefulExit(
         | "capacity-rejection"
         | "camera-repeat"
         | "camera-repress"
+        | "consumption-capacity-rejection"
         | "counter-clockwise-camera"
         | "focus-discontinuity"
         | "invalid-camera-alias"
         | "jump-midair"
         | "jump-readmission"
+        | "object-feedback"
         | "opposed-run-release"
         | "opposite-camera"
         | null = null,
@@ -192,6 +204,13 @@ export async function gracefulExit(
             await new Promise((resolve) => setTimeout(resolve, 250));
             postReadinessInput = await postPrototypeCapacityRejection(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
+        } else if (postReadiness === "consumption-capacity-rejection") {
+            postReadinessInput = await postConsumptionCapacity(child.pid);
+            await new Promise((resolve) => setTimeout(resolve, 250));
+        } else if (postReadiness === "object-feedback") {
+            const sequence = await postObjectActionExit(child.pid);
+            postReadinessInput = { sequence };
+            exitInput = sequence;
         } else if (postReadiness === "camera-repeat") {
             const sequence = await postCameraRepeatSequence(child.pid);
             postReadinessInput = { sequence };

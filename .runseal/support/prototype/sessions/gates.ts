@@ -160,11 +160,7 @@ export async function sessionGates(
     );
     sameInitial(diagonalWalk, first, "diagonal-Walk", startupInvariant, jumpInvariant);
     sameInitial(diagonalRun, first, "diagonal-Run", startupInvariant, jumpInvariant);
-    same(
-        startupInvariant(sustained),
-        startupInvariant(sustainedBaseline),
-        "prototype sustained session configuration",
-    );
+    sameInitial(sustained, sustainedBaseline, "sustained", startupInvariant, jumpInvariant);
     return {
         escape,
         escapeInvariant: idleCompletionInvariant(escape),
