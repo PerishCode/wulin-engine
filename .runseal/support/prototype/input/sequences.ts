@@ -75,6 +75,21 @@ export async function postCameraRepressSequence(processId: number): Promise<Json
     );
 }
 
+export async function postRunReleaseSequence(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "Shift", virtualKey: 0x10, down: true },
+            { key: "W", virtualKey: 0x57, down: true },
+            { key: "Shift", virtualKey: 0x10, down: false },
+        ],
+        true,
+        "input",
+        [0, 0, 500],
+        200,
+    );
+}
+
 export async function postInvalidAliasSequence(processId: number): Promise<Json> {
     return await postPrototypeWindowAction(
         processId,
@@ -126,7 +141,8 @@ export type StartupInput =
     | "forward"
     | "jump"
     | "object-action"
-    | "run-forward";
+    | "run-forward"
+    | "run-release";
 
 export async function applyStartupInput(
     processId: number,
@@ -145,6 +161,8 @@ export async function applyStartupInput(
             return await postInvariantObjectAction(processId);
         case "run-forward":
             return await holdRunForwardKeys(processId);
+        case "run-release":
+            return await postRunReleaseSequence(processId);
         case undefined:
             return null;
     }

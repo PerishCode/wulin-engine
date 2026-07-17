@@ -13,6 +13,9 @@ function nativeFocusInvariant(suspended: Json, resumed: Json, processId: number)
             JSON.stringify([{ key: "W", virtualKey: 87, down: true }]) ||
         JSON.stringify(suspended.messages) !==
             JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:W", "WM_KILLFOCUS"]) ||
+        suspended.atomicBatch !== true ||
+        number(suspended, "batchThreadId") <= 0 ||
+        number(suspended, "batchSpanMilliseconds") !== 0 ||
         resumed.schema !== "prototype-native-window-action-v3" ||
         resumed.action !== "resume" ||
         resumed.processId !== processId ||
@@ -29,6 +32,10 @@ function nativeFocusInvariant(suspended: Json, resumed: Json, processId: number)
         exactProcessWindow: true,
         suspendedMessages: suspended.messages,
         resumedMessages: resumed.messages,
+        atomicWindowThreadBatch: {
+            threadId: suspended.batchThreadId,
+            spanMilliseconds: suspended.batchSpanMilliseconds,
+        },
         synthesizedFocusState: false,
     };
 }

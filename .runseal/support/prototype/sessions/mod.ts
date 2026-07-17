@@ -159,8 +159,15 @@ export async function gracefulExit(
     let status: Deno.CommandStatus;
     let trailingOutput = "";
     try {
-        startupNativeInput = await applyStartupInput(child.pid, startupInput);
-        readiness = JSON.parse(await readinessLine(reader)) as Json;
+        if (startupInput === "run-release") {
+            const stagedStartupInput = applyStartupInput(child.pid, startupInput);
+            readiness = JSON.parse(await readinessLine(reader)) as Json;
+            startupNativeInput = await stagedStartupInput;
+            exitInput = startupNativeInput;
+        } else {
+            startupNativeInput = await applyStartupInput(child.pid, startupInput);
+            readiness = JSON.parse(await readinessLine(reader)) as Json;
+        }
         if (readiness.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
         if (postReadiness === "capacity-rejection") {
             await new Promise((resolve) => setTimeout(resolve, 250));

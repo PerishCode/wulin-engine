@@ -9,6 +9,7 @@ import { counterClockwiseSessionInvariant } from "../camera_counter_clockwise.ts
 import { cameraRepressSessionInvariant } from "../camera_repress.ts";
 import { jumpMidairInvariant, jumpReadmissionInvariant } from "../jump.ts";
 import { sustainedCapacityInvariant } from "../object/gates.ts";
+import { runReleaseSessionInvariant } from "./run_release.ts";
 import { focusSessionInvariant } from "./focus.ts";
 import { gracefulCompletionInvariant, gracefulExit, idleCompletionInvariant } from "./mod.ts";
 
@@ -93,6 +94,12 @@ export async function sessionGates(
         undefined,
         "counter-clockwise-camera",
     );
+    const runRelease = await gracefulExit(
+        executable,
+        config,
+        "prototype native Run modifier release",
+        "run-release",
+    );
     sameInitial(escape, first, "Escape", startupInvariant, jumpInvariant);
     sameInitial(windowClose, first, "window-close", startupInvariant, jumpInvariant);
     same(
@@ -113,6 +120,7 @@ export async function sessionGates(
         startupInvariant,
         jumpInvariant,
     );
+    sameInitial(runRelease, first, "Run-release", startupInvariant, jumpInvariant);
     same(
         startupInvariant(sustained),
         startupInvariant(sustainedBaseline),
@@ -168,6 +176,11 @@ export async function sessionGates(
         counterClockwiseCameraInvariant: counterClockwiseSessionInvariant(
             counterClockwiseCamera,
             idleCompletionInvariant(counterClockwiseCamera),
+        ),
+        runRelease,
+        runReleaseInvariant: runReleaseSessionInvariant(
+            runRelease,
+            idleCompletionInvariant(runRelease),
         ),
         sustained,
         sustainedInvariant: await sustainedCapacityInvariant(

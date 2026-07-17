@@ -67,6 +67,9 @@ export async function suspendWithForward(processId: number): Promise<Json> {
         [{ key: "W", virtualKey: 0x57, down: true }],
         true,
         "suspend",
+        [],
+        0,
+        true,
     );
 }
 

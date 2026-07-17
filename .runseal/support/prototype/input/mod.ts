@@ -54,8 +54,8 @@ export async function postPrototypeWindowAction(
         exitAfterLastMilliseconds > 1_000 ||
         (exitAfterLastMilliseconds > 0 && action !== "input") ||
         (atomicBatch &&
-            (action !== "input" ||
-                keys.length < 2 ||
+            ((action !== "input" && action !== "suspend") ||
+                keys.length < (action === "input" ? 2 : 1) ||
                 keyDelays.some((delay) => delay !== 0)))
     ) fail(`prototype native ${action} action delay diverged`);
     const nativeKeys = keys;
@@ -119,9 +119,14 @@ public static class PrototypeInputNative {
         IntPtr window,
         uint[] virtualKeys,
         bool[] downs,
+        bool suspendAfterInput,
         Stopwatch timer
     ) {
-        if (virtualKeys.Length != downs.Length || virtualKeys.Length < 2) {
+        if (
+            virtualKeys.Length != downs.Length ||
+            virtualKeys.Length < 1 ||
+            (!suspendAfterInput && virtualKeys.Length < 2)
+        ) {
             throw new InvalidOperationException("prototype atomic input batch shape diverged");
         }
         uint processId;
@@ -162,6 +167,17 @@ public static class PrototypeInputNative {
                     );
                 }
                 ticks[index] = timer.ElapsedTicks;
+            }
+            if (suspendAfterInput && !PostMessage(
+                window,
+                0x0008u,
+                UIntPtr.Zero,
+                IntPtr.Zero
+            )) {
+                throw new InvalidOperationException(
+                    "posting prototype atomic focus suspension failed with Win32 error " +
+                    Marshal.GetLastWin32Error()
+                );
             }
             return new PrototypeInputBatchResult { ThreadId = threadId, KeyTicks = ticks };
         } finally {
@@ -225,6 +241,7 @@ if ($atomicBatch) {
         $window,
         $batchKeys,
         $batchDowns,
+        $action -eq "suspend",
         $timer
     )
     $batchThreadId = [uint32]$batch.ThreadId
@@ -241,6 +258,9 @@ if ($atomicBatch) {
         $previousKeyTicks = $messageTicks
         $lastKeyTicks = $messageTicks
         $postedMessages.Add("$($key.down ? 'WM_KEYDOWN' : 'WM_KEYUP'):$($key.key)")
+    }
+    if ($action -eq "suspend") {
+        $postedMessages.Add("WM_KILLFOCUS")
     }
     $batchSpanMilliseconds = (
         ($batch.KeyTicks[$batch.KeyTicks.Length - 1] - $batch.KeyTicks[0]) *
@@ -305,7 +325,7 @@ if ($exitAfterLastMilliseconds -gt 0) {
     )
     $postedMessages.Add("WM_KEYDOWN:Escape")
 }
-if ($action -eq "suspend") {
+if ($action -eq "suspend" -and -not $atomicBatch) {
     if (-not [PrototypeInputNative]::PostMessage(
         $window,
         0x0008,
