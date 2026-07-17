@@ -7,6 +7,7 @@ import {
     pressPrototypeEscape,
     requestPrototypeWindowClose,
     resumePrototypeFocus,
+    suspendHeldPrototypeJump,
     suspendWithActionBatch,
 } from "../input/actions.ts";
 import {
@@ -265,10 +266,16 @@ export async function gracefulExit(
             const firstJump = await pressPrototypeJump(child.pid);
             const firstJumpPostedAt = performance.now();
             await new Promise((resolve) => setTimeout(resolve, 1_250));
+            const suspended = await suspendHeldPrototypeJump(child.pid);
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            const resumed = await resumePrototypeFocus(child.pid);
+            await new Promise((resolve) => setTimeout(resolve, 250));
             const readmitStartedAt = performance.now();
             const secondJump = await repressJumpAndExit(child.pid);
             postReadinessInput = {
                 firstJump,
+                suspended,
+                resumed,
                 secondJump,
                 firstToSecondPostingLowerBoundMs: readmitStartedAt - firstJumpPostedAt,
             };
