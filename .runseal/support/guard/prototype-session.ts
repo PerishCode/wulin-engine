@@ -100,7 +100,7 @@ export async function requireBoundedPrototypeSession(
     );
     const boundaryReadyIndex = boundaryAcceptance.indexOf("await readinessLine(reader)");
     const boundaryActionIndex = boundaryAcceptance.indexOf(
-        "await holdPrototypeForwardKey(child.pid)",
+        "await holdPrototypeBoundaryRun(child.pid)",
     );
     if (
         !main.includes("mod session;") ||
@@ -142,6 +142,8 @@ export async function requireBoundedPrototypeSession(
         !inputActions.includes("postObjectActionExit") ||
         !inputActions.includes("postConsumptionCapacity") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
+        !inputActions.includes("holdPrototypeBoundaryRun") ||
+        inputActions.includes("holdPrototypeForwardKey") ||
         !inputSequences.includes("repressJumpAndExit") ||
         !inputSequences.includes("postMidairSequence") ||
         !inputSequences.includes("postCameraRepeatSequence") ||
@@ -185,6 +187,11 @@ export async function requireBoundedPrototypeSession(
         boundaryReadyIndex < 0 ||
         boundaryActionIndex <= boundaryReadyIndex ||
         !boundaryAcceptance.includes("actionAfterReadiness: true") ||
+        !boundaryAcceptance.includes("boundaryRunInputInvariant") ||
+        !boundaryAcceptance.includes('{ key: "Shift", virtualKey: 0x10, down: true }') ||
+        !boundaryAcceptance.includes('{ key: "W", virtualKey: 0x57, down: true }') ||
+        !boundaryAcceptance.includes("atomicWindowThreadBatch: true") ||
+        !prototypeHost.includes("boundaryRunInputInvariant(boundary)") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
         !cameraAcceptance.includes("actionAfterReadiness: true") ||
