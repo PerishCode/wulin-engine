@@ -29,7 +29,7 @@ export type PreparedPrototypeWindowAction = {
 };
 
 export async function preparePrototypeWindowAction(
-    processId: number | null,
+    processId: number,
     keys: PrototypeKeyTransition[],
     requireVisible: boolean,
     action: PrototypeWindowAction = "input",
@@ -38,10 +38,7 @@ export async function preparePrototypeWindowAction(
     atomicBatch = false,
     atomicPrefixLength = 0,
 ): Promise<PreparedPrototypeWindowAction> {
-    if (
-        processId !== null &&
-        (!Number.isSafeInteger(processId) || processId <= 0)
-    ) {
+    if (!Number.isSafeInteger(processId) || processId <= 0) {
         fail(`prototype native input received invalid process id ${processId}`);
     }
     const requiresKeys = action === "input" || action === "suspend";
@@ -211,7 +208,7 @@ public static class PrototypeInputNative {
 }
 '@
 
-$expectedProcessId = ${processId ?? 0}
+$expectedProcessId = ${processId}
 $requireVisible = ${requireVisible ? "$true" : "$false"}
 $action = "${action}"
 $keys = @(${powershellKeys})
@@ -240,7 +237,7 @@ do {
     if ($candidate -ne [IntPtr]::Zero) {
         [void][PrototypeInputNative]::GetWindowThreadProcessId($candidate, [ref]$windowProcessId)
         if (
-            ($expectedProcessId -eq 0 -or $windowProcessId -eq $expectedProcessId) -and
+            $windowProcessId -eq $expectedProcessId -and
             (-not $requireVisible -or [PrototypeInputNative]::IsWindowVisible($candidate))
         ) {
             $window = $candidate
@@ -307,7 +304,25 @@ if ($atomicPrefixLength -lt $keys.Count) {
         $key = $keys[$keyIndex]
         $keyDelay = $keyDelays[$keyIndex]
         if ($keyDelay -gt 0) {
-            Start-Sleep -Milliseconds $keyDelay
+            $delayBaseTicks = if ($lastKeyTicks -eq $null) {
+                $timer.ElapsedTicks
+            } else {
+                $lastKeyTicks
+            }
+            $keyDeadlineTicks = $delayBaseTicks + [long][Math]::Ceiling(
+                $keyDelay * [Diagnostics.Stopwatch]::Frequency / 1000.0
+            )
+            while ($timer.ElapsedTicks -lt $keyDeadlineTicks) {
+                $remainingTicks = $keyDeadlineTicks - $timer.ElapsedTicks
+                $remainingMilliseconds = [Math]::Floor(
+                    $remainingTicks * 1000.0 / [Diagnostics.Stopwatch]::Frequency
+                )
+                if ($remainingMilliseconds -gt 1) {
+                    Start-Sleep -Milliseconds ([int]($remainingMilliseconds - 1))
+                } else {
+                    [Threading.Thread]::Yield() | Out-Null
+                }
+            }
         }
         $message = if ($key.down) { 0x0100 } else { 0x0101 }
         if (-not [PrototypeInputNative]::PostMessage(
@@ -434,13 +449,14 @@ if ($action -eq "suspend" -and -not $atomicBatch) {
 }
 
 export async function postPrototypeWindowAction(
-    processId: number | null,
+    processId: number,
     keys: PrototypeKeyTransition[],
     requireVisible: boolean,
     action: PrototypeWindowAction = "input",
     delaysBeforeKeysMilliseconds: number[] = [],
     exitAfterLastMilliseconds = 0,
     atomicBatch = false,
+    atomicPrefixLength = 0,
 ): Promise<Json> {
     const prepared = await preparePrototypeWindowAction(
         processId,
@@ -450,12 +466,13 @@ export async function postPrototypeWindowAction(
         delaysBeforeKeysMilliseconds,
         exitAfterLastMilliseconds,
         atomicBatch,
+        atomicPrefixLength,
     );
     return await prepared.evidence;
 }
 
 export async function postPrototypeKeys(
-    processId: number | null,
+    processId: number,
     keys: PrototypeKey[],
     requireVisible: boolean,
     atomicBatch = false,

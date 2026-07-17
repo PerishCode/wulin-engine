@@ -2,7 +2,7 @@ import { fail, type Json } from "../../canonical-runtime.ts";
 import { postPrototypeKeys, postPrototypeWindowAction } from "./mod.ts";
 
 export async function holdPrototypeForwardKey(processId: number): Promise<Json> {
-    return await postPrototypeKeys(processId, [{ key: "W", virtualKey: 0x57 }], false);
+    return await postPrototypeKeys(processId, [{ key: "W", virtualKey: 0x57 }], true);
 }
 
 export async function pressPrototypeEscape(processId: number): Promise<Json> {

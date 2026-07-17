@@ -4,7 +4,7 @@ import { presentationInvariant } from "../presentation.ts";
 
 function nativeDiagonalWalkInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const sequence = object(launch, "startupNativeInput");
+    const sequence = object(object(launch, "postReadinessInput"), "sequence");
     const intervals = sequence.keyPostIntervalsMilliseconds;
     const exitInterval = number(sequence, "exitIntervalMilliseconds");
     if (
@@ -39,7 +39,7 @@ function nativeDiagonalWalkInvariant(launch: Json): Json {
         number(sequence, "exitAfterLastMilliseconds") !== 200 ||
         exitInterval < 200 ||
         exitInterval > 700 ||
-        launch.postReadinessInput !== null
+        Object.hasOwn(launch, "startupNativeInput")
     ) fail("prototype native diagonal Walk input evidence diverged");
     same(sequence, object(launch, "exitInput"), "prototype diagonal Walk exit input");
     return {
@@ -50,6 +50,7 @@ function nativeDiagonalWalkInvariant(launch: Json): Json {
         keyPostIntervalMilliseconds: intervals[0],
         orderedMessages: sequence.messages,
         exitIntervalMilliseconds: exitInterval,
+        actionAfterReadiness: true,
     };
 }
 
@@ -67,19 +68,13 @@ export function diagonalWalkSessionInvariant(launch: Json, session: Json): Json 
     const finalPosition = object(finalBody, "position");
     const readyXQ9 = number(readyPosition, "localXQ9");
     const readyZQ9 = number(readyPosition, "localZQ9");
-    if (
-        readyXQ9 >= 0 ||
-        readyXQ9 !== readyZQ9 ||
-        readyXQ9 % 23 !== 0
-    ) fail("prototype diagonal Walk readiness normalization diverged");
-    const readyStepCount = -readyXQ9 / 23;
-    if (readyStepCount < 1 || readyStepCount > 8) {
-        fail("prototype diagonal Walk readiness step bound diverged");
+    if (readyXQ9 !== 0 || readyZQ9 !== 0) {
+        fail("prototype diagonal Walk readiness moved before action");
     }
     const readyPresentation = presentationInvariant(
         object(readyActor, "presentation"),
-        1,
-        40_960,
+        0,
+        0,
         "prototype diagonal Walk readiness",
     );
     same(
@@ -116,9 +111,9 @@ export function diagonalWalkSessionInvariant(launch: Json, session: Json): Json 
         "prototype diagonal Walk completion",
     );
     if (
-        number(finalActor, "animationEpochTick") !==
+        number(finalActor, "animationEpochTick") <=
             number(readyActor, "animationEpochTick")
-    ) fail("prototype diagonal Walk unexpectedly reset its animation epoch");
+    ) fail("prototype diagonal Walk did not commit its presentation transition");
 
     const readyClock = object(object(readiness, "simulation_driver"), "clock");
     const finalClock = object(completion, "clock");
@@ -141,13 +136,13 @@ export function diagonalWalkSessionInvariant(launch: Json, session: Json): Json 
         atomicDiagonalInput: true,
         nativeLeftInput: true,
         exactWalkNormalization: true,
-        readyStepCount,
         diagonalStepCount,
         deltaXQ9,
         deltaZQ9,
         readyPresentation,
         finalPresentation,
-        animationEpochStable: true,
+        actionAfterReadiness: true,
+        animationEpochTransitioned: true,
         clock: {
             ready: readyClock,
             final: finalClock,

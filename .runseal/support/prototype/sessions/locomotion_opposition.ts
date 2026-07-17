@@ -4,43 +4,48 @@ import { presentationInvariant } from "../presentation.ts";
 
 function nativeOppositionInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const startup = object(launch, "startupNativeInput");
-    const startupIntervals = startup.keyPostIntervalsMilliseconds;
+    const postReadiness = object(launch, "postReadinessInput");
+    const opposedInput = object(postReadiness, "opposedInput");
+    const opposedIntervals = opposedInput.keyPostIntervalsMilliseconds;
     if (
-        startup.schema !== "prototype-native-window-action-v4" ||
-        startup.action !== "input" ||
-        startup.processId !== processId ||
-        startup.requiredVisible !== true ||
-        startup.windowWasVisible !== true ||
-        JSON.stringify(startup.keys) !== JSON.stringify([
+        Object.hasOwn(launch, "startupNativeInput") ||
+        opposedInput.schema !== "prototype-native-window-action-v4" ||
+        opposedInput.action !== "input" ||
+        opposedInput.processId !== processId ||
+        opposedInput.requiredVisible !== true ||
+        opposedInput.windowWasVisible !== true ||
+        JSON.stringify(opposedInput.keys) !== JSON.stringify([
                 { key: "Shift", virtualKey: 0x10, down: true },
                 { key: "W", virtualKey: 0x57, down: true },
                 { key: "S", virtualKey: 0x53, down: true },
             ]) ||
-        JSON.stringify(startup.messages) !== JSON.stringify([
+        JSON.stringify(opposedInput.messages) !== JSON.stringify([
                 "WM_SETFOCUS",
                 "WM_KEYDOWN:Shift",
                 "WM_KEYDOWN:W",
                 "WM_KEYDOWN:S",
             ]) ||
-        JSON.stringify(startup.delaysBeforeKeysMilliseconds) !== JSON.stringify([0, 0, 0]) ||
-        !Array.isArray(startupIntervals) ||
-        startupIntervals.length !== 2 ||
-        startupIntervals.some((interval) =>
+        JSON.stringify(opposedInput.delaysBeforeKeysMilliseconds) !==
+            JSON.stringify([0, 0, 0]) ||
+        !Array.isArray(opposedIntervals) ||
+        opposedIntervals.length !== 2 ||
+        opposedIntervals.some((interval) =>
             typeof interval !== "number" || interval < 0 || interval > 50
         ) ||
-        startup.atomicBatch !== true ||
-        typeof startup.batchThreadId !== "number" ||
-        !Number.isSafeInteger(startup.batchThreadId) ||
-        startup.batchThreadId <= 0 ||
-        typeof startup.batchSpanMilliseconds !== "number" ||
-        startup.batchSpanMilliseconds < 0 ||
-        startup.batchSpanMilliseconds > 50 ||
-        startup.exitAfterLastMilliseconds !== 0 ||
-        startup.exitIntervalMilliseconds !== null
-    ) fail("prototype native opposite locomotion startup evidence diverged");
+        opposedInput.atomicBatch !== true ||
+        typeof opposedInput.batchThreadId !== "number" ||
+        !Number.isSafeInteger(opposedInput.batchThreadId) ||
+        opposedInput.batchThreadId <= 0 ||
+        typeof opposedInput.batchSpanMilliseconds !== "number" ||
+        opposedInput.batchSpanMilliseconds < 0 ||
+        opposedInput.batchSpanMilliseconds > 50 ||
+        opposedInput.exitAfterLastMilliseconds !== 0 ||
+        opposedInput.exitIntervalMilliseconds !== null ||
+        number(postReadiness, "requestedOpposedHoldMilliseconds") !== 250 ||
+        number(postReadiness, "opposedHoldMilliseconds") < 250
+    ) fail("prototype native opposite locomotion input evidence diverged");
 
-    const release = object(object(launch, "postReadinessInput"), "sequence");
+    const release = object(postReadiness, "sequence");
     const exitInterval = number(release, "exitIntervalMilliseconds");
     if (
         release.schema !== "prototype-native-window-action-v4" ||
@@ -70,11 +75,13 @@ function nativeOppositionInvariant(launch: Json): Json {
     return {
         exactProcessWindow: true,
         atomicWindowThreadBatch: true,
-        batchThreadId: startup.batchThreadId,
-        batchSpanMilliseconds: startup.batchSpanMilliseconds,
-        orderedStartupMessages: startup.messages,
+        batchThreadId: opposedInput.batchThreadId,
+        batchSpanMilliseconds: opposedInput.batchSpanMilliseconds,
+        orderedOpposedMessages: opposedInput.messages,
         orderedReleaseMessages: release.messages,
+        opposedHoldMilliseconds: postReadiness.opposedHoldMilliseconds,
         exitIntervalMilliseconds: exitInterval,
+        actionAfterReadiness: true,
     };
 }
 
@@ -155,9 +162,11 @@ export function locomotionOppositionSessionInvariant(launch: Json, session: Json
         nativeInput: nativeOppositionInvariant(launch),
         readinessCamera: camera,
         oppositeAxisCancelled: true,
-        stationarySurveyReadiness: true,
+        idleReadiness: true,
+        opposedInputHeldBeforeRelease: true,
         releasedBackwardInput: true,
         retainedForwardRunReadmitted: true,
+        actionAfterReadiness: true,
         deltaXQ9,
         deltaZQ9,
         runStepCount,

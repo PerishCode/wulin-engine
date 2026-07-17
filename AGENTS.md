@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0129 and the current ADR set through 0132 define one live content runtime
+Experiments 0031-0130 and the current ADR set through 0133 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -237,36 +237,31 @@ geometry/material/rig source, and one deterministic object-shadow path:
   plus final admitted nonzero W/A/S/D, selects exact fixed 64/45-Q9 displacement and the existing
   imported Run clip in the sole actor transaction, and adds no retained gait state, host/engine
   action state, acceleration, horizontal velocity, alternate movement path, or new asset;
-- one accepted native Run-modifier release proof whose single visible-window ordered sequence
-  publishes exact forward Run readiness before delayed Shift-up, retains held-W negative-Z
-  locomotion, and completes as exact Walk with a later epoch, while the maintained focus
-  discontinuity queues its W-down/focus-loss batch on one suspended window thread and neither
-  acceptance route adds product input state, gait state, telemetry, or Runtime/GPU behavior;
-- one accepted native Run-modifier re-press proof whose single visible-window ordered sequence
-  publishes exact forward Walk readiness before delayed Shift-down, retains held-W negative-Z
-  locomotion, and completes as exact Run with a later epoch without product input state, retained
+- one accepted post-readiness native Run-modifier release proof that targets the exact live PID,
+  atomically queues Shift/W, admits the authored 500 ms hold by monotonic deadline, releases Shift,
+  retains W, and completes as exact negative-Z Walk with a later epoch; the maintained focus
+  discontinuity still queues W-down/focus-loss on one suspended window thread, and neither route
+  adds product input state, gait state, telemetry, or Runtime/GPU behavior;
+- one accepted post-readiness native Run-modifier re-press proof that targets the exact live PID,
+  atomically queues W, admits the authored 500 ms Walk hold by monotonic deadline, presses Shift,
+  and completes as exact negative-Z Run with a later epoch without product input state, retained
   gait state, telemetry, or Runtime/GPU behavior;
-- one accepted native opposite-locomotion proof whose prestarted helper atomically queues
-  Shift/W/S on the exact window thread before readiness, produces stationary Survey at the origin,
-  releases only S, and completes as exact retained Shift/W negative-Z Run with a later epoch; every
-  startup helper selects the next unique class/title window and must return the spawned child PID,
-  while delayed Escape uses a monotonic lower-bound deadline without retry, product delay, relaxed
-  threshold, input history, telemetry, or Runtime/GPU behavior;
-- one accepted native diagonal-Walk proof whose helper emits one fixed post-`Add-Type` readiness
-  marker before its Prototype child is spawned, atomically queues W/A on the exact selected window
-  thread, and produces equal negative 23-Q9 X/Z movement with Walk clip 1, yaw 40,960, and one
-  stable animation epoch from readiness through completion; every startup request shares this
-  explicit preparation handshake and still requires its final actual window PID to equal the
-  child, with no start-only duplicate helper, retry, product delay, threshold relaxation, product
-  output, input history, telemetry, or Runtime/GPU behavior;
-- one accepted native diagonal-Run proof whose exact selected window thread remains suspended while
-  its complete zero-delay Shift/W/A prefix is queued, producing equal negative 45-Q9 X/Z movement
-  with imported Run clip 2, yaw 40,960, and one stable animation epoch from readiness through
-  completion; the same schema-4 transport admits single-key atomic startup batches and atomically
-  queues only the initial zero-delay prefix of delayed Run release/re-press sequences while
-  preserving their later authored transition, with no schema-3 decoder, response-before-post
-  probe, retry, product delay, threshold relaxation, product output, input history, telemetry, or
+- one accepted post-readiness native opposite-locomotion proof that atomically queues Shift/W/S on
+  the exact live window thread, holds that opposed input for at least 250 ms, releases only S, and
+  completes as exact retained Shift/W negative-Z Run with a later epoch; exact product tests remain
+  the cancellation authority, with no retry, product delay, relaxed threshold, input history,
+  telemetry, or Runtime/GPU behavior;
+- one accepted post-readiness native diagonal-Walk proof that atomically queues W/A against the
+  exact live PID and produces equal negative 23-Q9 X/Z movement with Walk clip 1, yaw 40,960, and
+  one Survey-to-Walk epoch transition between readiness and completion, with no pre-child helper,
+  retry, product delay, threshold relaxation, product output, input history, telemetry, or
   Runtime/GPU behavior;
+- one accepted post-readiness native diagonal-Run proof that keeps the exact live window thread
+  suspended while queueing Shift/W/A and produces equal negative 45-Q9 X/Z movement with imported
+  Run clip 2, yaw 40,960, and one Survey-to-Run epoch transition between readiness and completion;
+  schema-4 exact-PID transport retains atomic prefixes without a startup request, schema-3 decoder,
+  response-before-post probe, retry, product delay, threshold relaxation, product output, input
+  history, telemetry, or Runtime/GPU behavior;
 - one accepted post-v0 camera-relative locomotion policy that uses the current pure Q/E camera
   candidate to quarter-rotate exact local Walk/Run into world XZ before boundary admission, authors
   facing from that final world command, and still commits orbit state only after the existing checked
@@ -361,15 +356,16 @@ geometry/material/rig source, and one deterministic object-shadow path:
   interval, posts a second Space with W, and exits after another bounded interval; the final exact
   single-impulse trajectory proves no second impulse while same-batch Walk displacement proves
   product admission, with no Jump queue/state/report, Runtime query, or engine/GPU/resource change;
-- one accepted native held-camera repeat session gate that retains startup E-down across readiness,
-  posts repeated E-down plus W to the same exact visible process window, and proves duplicate-down
-  suppression through retained orbit-one negative-X/zero-Z Walk output, with no input history,
-  action queue, controller state, product schema, Runtime, or engine/GPU/resource change;
-- one accepted native camera re-press session gate that begins with held-E/orbit-one readiness,
-  atomically queues E-up/E-down/W-down against the same exact visible window thread, and proves the
-  fresh press edge commits orbit 2 through positive-Z-only Walk/yaw-16,384 output, with no input
-  history, controller state, product schema, traversal change, Runtime, or engine/GPU/resource
-  change;
+- one accepted native held-camera repeat session gate that begins at orbit-zero readiness, posts
+  E-down to the exact PID, holds it for at least 250 ms, then posts repeated E-down plus W to the
+  same window and proves duplicate-down suppression through retained orbit-one negative-X/zero-Z
+  Walk output, with no input history, action queue, controller state, product schema, Runtime, or
+  engine/GPU/resource change;
+- one accepted native camera re-press session gate that begins at orbit-zero readiness, posts and
+  holds E-down for at least 250 ms, atomically queues E-up/E-down/W-down against the same exact
+  window thread, and proves the fresh press edge commits orbit 2 through positive-Z-only
+  Walk/yaw-16,384 output, with no input history, controller state, product schema, traversal change,
+  Runtime, or engine/GPU/resource change;
 - one accepted native out-of-range key session gate that posts `0x145` plus W after orbit-zero
   readiness and proves full-value checked rejection through negative-Z-only Walk output, excluding
   low-byte E alias truncation without input telemetry, compatibility decoding, product behavior,
@@ -391,6 +387,13 @@ geometry/material/rig source, and one deterministic object-shadow path:
   request and action-specific readiness oracles are deleted because queue-before-resume does not
   prove message-pump-before-current-frame ordering, with no retry, event stream,
   product delay, relaxed threshold, product change, or Runtime/GPU/resource change;
+- one mandatory acceptance compatibility cleanup that deletes five readiness-only action process
+  launches, every `StartupInput` request/dispatcher, implicit PID-zero next-window selection,
+  `startupNativeInput`, four action-only command expectations, and the remaining pre-child action
+  helper route; all maintained native actions now begin after idle readiness and target one exact
+  PID, while every positive delayed key and delayed exit uses a monotonic lower-bound deadline,
+  with stable guards and no alias, fallback, decoder, retry, product sleep, relaxed threshold,
+  product behavior, Runtime, or renderer/GPU/resource change;
 - one mandatory bootstrap compatibility/resource cleanup that deletes three recurring
   fallback-driven invalid-document process launches, their report fields, and fallback/schema-1
   unit assertions while retaining current path/projection/bounds and missing/corrupt source
@@ -565,6 +568,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0130-native-diagonal-walk.md` | Accepted atomic native W/A diagonal Walk and explicit startup-helper preparation handshake. |
 | `docs/adr/0131-native-diagonal-run.md` | Accepted atomic native Shift/W/A diagonal Run and zero-delay startup-prefix boundary. |
 | `docs/adr/0132-post-readiness-native-object-actions.md` | Accepted exact-PID post-readiness Activated/Rejected/capacity action evidence and retired startup object-action request. |
+| `docs/adr/0133-retired-startup-action-acceptance.md` | Accepted deletion of readiness-only/startup-action acceptance, exact-PID post-readiness replacement, and monotonic delayed-key admission. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -665,6 +669,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0127-native-diagonal-walk/README.md` | Accepted native A-path, exact 23-Q9 diagonal Walk, and explicit helper-ready handshake evidence. |
 | `experiments/0128-native-diagonal-run/README.md` | Accepted native Shift/W/A path, exact 45-Q9 diagonal Run, and schema-4 atomic startup-prefix evidence. |
 | `experiments/0129-post-readiness-native-object-actions/README.md` | Accepted post-readiness native object-action ordering, exact completion/source-oracle evidence, and startup-edge race removal. |
+| `experiments/0130-retired-startup-action-acceptance/README.md` | Mandatory deletion of readiness-only/startup-action acceptance, next-window selection, and sleep-based delayed-key admission. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -785,34 +790,34 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/live-operator-surface.ts` | Exact wrapper set, single current-boundary authority, and maintained prototype-operator documentation gate. |
 | `.runseal/support/guard/input-journal-removal.ts` | Forbidden-file/symbol/verb/command gate for the retired diagnostic input journal surface. |
 | `.runseal/support/guard/object-identity.ts` | Required typed source-qualified resolver, nearest exclusion, frame suppression, prototype consumption, and forbidden old-surface gate. |
-| `.runseal/support/guard/prototype-session.ts` | Required bounded Escape/window-close/focus/Jump-readmission/midair-rejection/held-camera-repeat/re-press/Run-release/re-press/opposite-locomotion/diagonal-Walk/diagonal-Run/invalid-key/opposite-camera/counter-clockwise/post-readiness atomic-object, helper preparation, and schema-4 atomic-prefix contracts plus forbidden startup object-action, old native timing, and transient action surfaces. |
+| `.runseal/support/guard/prototype-session.ts` | Required bounded Escape/window-close/focus/Jump/camera/Run/opposed/diagonal/object post-readiness sessions, exact-PID schema-4 timing, and forbidden startup-action/next-window/old timing/transient-action surfaces. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/actor/admission.ts` | Canonical-aggregate schedule evidence, strict schema-2 advance, typed pending block, zero-commit rollback, and retained-frame support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |
 | `.runseal/support/actor/animation.ts` | Fixed-tick spawn/transition actor epoch, GPU local-phase, same-clip retention, and fractional rollback support. |
 | `.runseal/support/actor/simulation.ts` | Canonical-aggregate schedule assertions plus schema-2 fractional, partition, rollback, and sole actor advance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured canonical-ready/restart plus current missing/corrupt failure and bounded Prototype invariant/lifecycle checkpoints. |
-| `.runseal/support/prototype/host.ts` | Prototype current missing/corrupt startup failures, exact Walk/Run/Jump and two-center post-readiness object-target/action sessions, camera-orbit/zero-block readiness, boundary survival, Sidecar status/PID ownership, restart, and no-inspect lifecycle orchestration. |
-| `.runseal/support/prototype/boundary.ts` | Real activated held-input finite-edge process survival and cleanup evidence owner. |
+| `.runseal/support/prototype/host.ts` | Prototype current missing/corrupt startup failures, plain readiness/restart baselines, post-readiness action sessions, boundary survival, Sidecar status/PID ownership, and no-inspect lifecycle orchestration. |
+| `.runseal/support/prototype/boundary.ts` | Post-readiness exact-PID held-input finite-edge process survival and cleanup evidence owner. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
 | `.runseal/support/prototype/camera.ts` | Exact default/orbit rig, actor anchor, camera/frame readiness, held-repeat, invalid-key, and atomic opposite-edge locomotion oracle owner. |
 | `.runseal/support/prototype/camera_counter_clockwise.ts` | Exact native counter-clockwise wrap, orbit-three Walk, clock, and bounded session oracle owner. |
 | `.runseal/support/prototype/camera_repress.ts` | Exact native held-E release/re-press, orbit-two Walk, clock, and bounded session oracle owner. |
-| `.runseal/support/prototype/input/mod.ts` | Explicit-PID or prepared next-window native request/script owner, monotonic delayed exit, bounded exact-window-thread atomic input prefixes/focus-loss batches, single-key admission, suspend/resume/close actions, and schema-4 timing evidence. |
-| `.runseal/support/prototype/input/prepared.ts` | PowerShell helper-ready handshake, bounded process completion, and exact final schema-4 native-window/prefix evidence validation owner. |
+| `.runseal/support/prototype/input/mod.ts` | Explicit-PID native request/script owner, monotonic delayed keys/exits, bounded exact-window-thread atomic input/focus-loss batches, suspend/resume/close actions, and schema-4 timing evidence. |
+| `.runseal/support/prototype/input/prepared.ts` | PowerShell helper-ready handshake, bounded process completion, and exact-PID schema-4 native-window/prefix evidence validation owner. |
 | `.runseal/support/prototype/input/actions.ts` | Named Prototype boundary locomotion, post-readiness object/capacity action, atomic focus-loss, Escape, resume, and window-close native actions. |
-| `.runseal/support/prototype/input/sequences.ts` | Sole prepared atomic-prefix startup-request owner, excluding object actions, plus diagonal Walk/Run, Jump, opposed-locomotion release, camera-repeat/re-press, midair, invalid-key, atomic opposite-camera, and counter-clockwise native input sequences. |
+| `.runseal/support/prototype/input/sequences.ts` | Exact-PID post-readiness diagonal Walk/Run, Run transitions, Jump, opposed-locomotion, camera, invalid-key, and delayed-exit native input sequences. |
 | `.runseal/support/prototype/jump.ts` | Exact native Jump policy, first/second/single-flight arithmetic, landing/readmission, and midair-rejection oracles. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk/Run, locomotion yaw, and committed actor presentation invariant owner. |
 | `.runseal/support/prototype/sessions/focus.ts` | Exact atomic native focus batch, clock recovery, and unchanged-actor session oracle. |
 | `.runseal/support/prototype/sessions/gates.ts` | Bounded Escape/window-close/focus/Jump/Run release/re-press/opposite-locomotion/diagonal-Walk/diagonal-Run/camera/input/sustained session matrix, baseline comparisons, and exact invariant composition. |
-| `.runseal/support/prototype/sessions/mod.ts` | Shared Prototype readiness/completion framing, helper-ready-before-spawn/PID-checked startup input, and exact-PID post-readiness native object/action execution. |
-| `.runseal/support/prototype/sessions/diagonal_walk.ts` | Exact atomic W/A input, 23-Q9 forward-left Walk, yaw, stable epoch, clock, and bounded session oracle owner. |
-| `.runseal/support/prototype/sessions/diagonal_run.ts` | Exact atomic Shift/W/A input, 45-Q9 forward-left Run, yaw, stable epoch, clock, and bounded session oracle owner. |
-| `.runseal/support/prototype/sessions/locomotion_opposition.ts` | Exact atomic Shift/W/S cancellation, stationary Survey, S-release Run readmission, clock, and bounded session oracle owner. |
-| `.runseal/support/prototype/sessions/run_release.ts` | Exact atomic Shift/W startup prefix, delayed held-Shift release, retained-W Walk transition, clock, and bounded session oracle owner. |
-| `.runseal/support/prototype/sessions/run_repress.ts` | Exact atomic W startup prefix, delayed Shift re-press, Run transition, clock, and bounded session oracle owner. |
-| `.runseal/support/prototype/simulation.ts` | Exact stationary, Walk, Run, camera-relative Walk, and Jump command expectation owner. |
+| `.runseal/support/prototype/sessions/mod.ts` | Shared Prototype readiness/completion framing and exact-PID post-readiness native object/action execution. |
+| `.runseal/support/prototype/sessions/diagonal_walk.ts` | Post-readiness atomic W/A, exact 23-Q9 forward-left Walk, yaw/epoch transition, clock, and bounded session oracle owner. |
+| `.runseal/support/prototype/sessions/diagonal_run.ts` | Post-readiness atomic Shift/W/A, exact 45-Q9 forward-left Run, yaw/epoch transition, clock, and bounded session oracle owner. |
+| `.runseal/support/prototype/sessions/locomotion_opposition.ts` | Post-readiness atomic Shift/W/S hold, S-release Run readmission, clock, and bounded session oracle owner. |
+| `.runseal/support/prototype/sessions/run_release.ts` | Post-readiness atomic Shift/W prefix, delayed Shift release, retained-W Walk transition, clock, and bounded session oracle owner. |
+| `.runseal/support/prototype/sessions/run_repress.ts` | Post-readiness atomic W prefix, delayed Shift re-press, Run transition, clock, and bounded session oracle owner. |
+| `.runseal/support/prototype/simulation.ts` | Exact stationary readiness command expectation owner. |
 | `.runseal/support/prototype/traversal.ts` | Exact default/orbit traversal targets, bounded async/latest-wins publication, and no-prefetch/block/failure invariant owner. |
 | `.runseal/support/terrain/query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |

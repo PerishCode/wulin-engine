@@ -17,13 +17,13 @@ export async function boundarySurvival(executable: string, config: string): Prom
         .pipeThrough(new TextDecoderStream())
         .getReader();
     const status = child.status;
-    const nativeInput = await holdPrototypeForwardKey(child.pid);
     const line = await readinessLine(reader);
     const readiness = JSON.parse(line) as Json;
     if (readiness.role !== "prototype") {
         child.kill();
         fail("prototype boundary survival emitted the wrong readiness role");
     }
+    const nativeInput = await holdPrototypeForwardKey(child.pid);
     const heldStarted = performance.now();
     const outcome = await Promise.race([
         status.then((value) => ({ kind: "exit" as const, status: value })),
@@ -66,6 +66,7 @@ export async function boundarySurvival(executable: string, config: string): Prom
         stderr: stderrText.slice(-4_096),
         trailingOutput,
         completionEmitted: false,
+        actionAfterReadiness: true,
         nativeInput,
         readiness,
     };

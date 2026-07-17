@@ -7,7 +7,7 @@ import type {
 
 type ExpectedWindowAction = {
     action: PrototypeWindowAction;
-    processId: number | null;
+    processId: number;
     nativeKeys: PrototypeKeyTransition[];
     requireVisible: boolean;
     keyDelays: number[];
@@ -76,7 +76,7 @@ async function helperReadyLine(
         const newline = value.indexOf("\n");
         if (newline < 0) continue;
         if (value.slice(newline + 1).trim() !== "") {
-            fail("prototype native input helper emitted evidence before child launch");
+            fail("prototype native input helper emitted evidence with its readiness marker");
         }
         return value.slice(0, newline).trimEnd();
     }
@@ -109,7 +109,7 @@ async function completePrototypeWindowAction(
         typeof evidence.processId !== "number" ||
         !Number.isSafeInteger(evidence.processId) ||
         evidence.processId <= 0 ||
-        (expected.processId !== null && evidence.processId !== expected.processId) ||
+        evidence.processId !== expected.processId ||
         evidence.activated !== (expected.action !== "close") ||
         evidence.closeRequested !== (expected.action === "close") ||
         evidence.requiredVisible !== expected.requireVisible ||

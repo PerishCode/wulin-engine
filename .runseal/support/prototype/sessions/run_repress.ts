@@ -4,7 +4,7 @@ import { presentationInvariant } from "../presentation.ts";
 
 function nativeRunRepressInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const sequence = object(launch, "startupNativeInput");
+    const sequence = object(object(launch, "postReadinessInput"), "sequence");
     const expectedKeys = [
         { key: "W", virtualKey: 0x57, down: true },
         { key: "Shift", virtualKey: 0x10, down: true },
@@ -41,17 +41,18 @@ function nativeRunRepressInvariant(launch: Json): Json {
         number(sequence, "exitAfterLastMilliseconds") !== 200 ||
         exitInterval < 200 ||
         exitInterval > 700 ||
-        launch.postReadinessInput !== null
+        Object.hasOwn(launch, "startupNativeInput")
     ) fail("prototype native Run modifier re-press evidence diverged");
     same(sequence, object(launch, "exitInput"), "prototype Run modifier re-press exit input");
     return {
         exactProcessWindow: true,
-        atomicStartupPrefix: true,
+        atomicInitialPrefix: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
         orderedMessages: sequence.messages,
         walkHoldIntervalMilliseconds: intervals[0],
         exitIntervalMilliseconds: exitInterval,
+        actionAfterReadiness: true,
     };
 }
 
@@ -69,8 +70,8 @@ export function runRepressSessionInvariant(launch: Json, session: Json): Json {
     const finalPosition = object(finalBody, "position");
     const readyPresentation = presentationInvariant(
         object(readyActor, "presentation"),
-        1,
-        49_152,
+        0,
+        0,
         "prototype Run modifier re-press readiness",
     );
     same(
@@ -84,6 +85,8 @@ export function runRepressSessionInvariant(launch: Json, session: Json): Json {
         "prototype Run modifier re-press actor region",
     );
     if (
+        number(readyPosition, "localXQ9") !== 0 ||
+        number(readyPosition, "localZQ9") !== 0 ||
         number(finalBody, "halfHeightNumerator") !==
             number(readyBody, "halfHeightNumerator") ||
         number(finalMotion, "stepVelocityQ16") !== 0
@@ -132,6 +135,7 @@ export function runRepressSessionInvariant(launch: Json, session: Json): Json {
         runModifierReadmitted: true,
         retainedForwardInput: true,
         transitionedToRun: true,
+        actionAfterReadiness: true,
         deltaXQ9,
         deltaZQ9,
         forwardDisplacementUnits32Q9,

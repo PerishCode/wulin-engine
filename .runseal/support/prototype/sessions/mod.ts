@@ -12,14 +12,18 @@ import {
     postCameraRepeatSequence,
     postCameraRepressSequence,
     postCounterClockwiseSequence,
+    postDiagonalRun,
+    postDiagonalWalk,
     postInvalidAliasSequence,
     postMidairSequence,
+    postOpposedRun,
     postOppositeCameraSequence,
-    prepareStartupInput,
+    postRunRelease,
+    postRunRepress,
+    pressPrototypeCameraClockwise,
     pressPrototypeJump,
     releaseOpposedRun,
     repressJumpAndExit,
-    type StartupInput,
 } from "../input/sequences.ts";
 
 const REVISION = "live-prototype-session-completion-v1";
@@ -63,10 +67,8 @@ export async function capturedReady(
     executable: string,
     config: string,
     label: string,
-    startupInput?: StartupInput,
 ): Promise<Json> {
     const started = performance.now();
-    const preparedNativeInput = await prepareStartupInput(startupInput);
     const child = new Deno.Command(executable, {
         args: [`--bootstrap=${config}`],
         cwd: root,
@@ -78,13 +80,8 @@ export async function capturedReady(
         .pipeThrough(new TextDecoderStream())
         .getReader();
     let value: Json;
-    let nativeInput: Json | null;
     let trailingOutput = "";
     try {
-        nativeInput = preparedNativeInput === null ? null : await preparedNativeInput.evidence;
-        if (nativeInput !== null && number(nativeInput, "processId") !== child.pid) {
-            fail(`${label} startup input selected the wrong process`);
-        }
         value = JSON.parse(await readinessLine(reader)) as Json;
         if (value.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
         const startup = object(value, "startup");
@@ -114,7 +111,6 @@ export async function capturedReady(
         stderr: (await stderr).trim().slice(-4_096),
         trailingOutput,
         completionEmitted: false,
-        nativeInput,
         readiness: value,
     };
 }
@@ -124,7 +120,6 @@ export async function sustainedCapacitySession(executable: string, config: strin
         executable,
         config,
         "prototype sustained capacity-one session",
-        undefined,
         "consumption-capacity-rejection",
     );
 }
@@ -134,20 +129,21 @@ export async function objectFeedbackSession(
     config: string,
     label: string,
 ): Promise<Json> {
-    return await gracefulExit(executable, config, label, undefined, "object-feedback");
+    return await gracefulExit(executable, config, label, "object-feedback");
 }
 
 export async function gracefulExit(
     executable: string,
     config: string,
     label: string,
-    startupInput?: StartupInput,
     postReadiness:
         | "capacity-rejection"
         | "camera-repeat"
         | "camera-repress"
         | "consumption-capacity-rejection"
         | "counter-clockwise-camera"
+        | "diagonal-run"
+        | "diagonal-walk"
         | "focus-discontinuity"
         | "invalid-camera-alias"
         | "jump-midair"
@@ -155,11 +151,12 @@ export async function gracefulExit(
         | "object-feedback"
         | "opposed-run-release"
         | "opposite-camera"
+        | "run-release"
+        | "run-repress"
         | null = null,
     exitReason: "escape" | "window-close" = "escape",
 ): Promise<Json> {
     const started = performance.now();
-    const preparedStartupInput = await prepareStartupInput(startupInput);
     const child = new Deno.Command(executable, {
         args: [`--bootstrap=${config}`],
         cwd: root,
@@ -172,33 +169,12 @@ export async function gracefulExit(
         .getReader();
     let readiness: Json;
     let completion: Json;
-    let startupNativeInput: Json | null;
     let postReadinessInput: Json | null = null;
     let exitInput: Json | null = null;
     let status: Deno.CommandStatus;
     let trailingOutput = "";
     try {
-        if (
-            startupInput === "diagonal-run" ||
-            startupInput === "diagonal-walk" ||
-            startupInput === "run-release" ||
-            startupInput === "run-repress"
-        ) {
-            readiness = JSON.parse(await readinessLine(reader)) as Json;
-            startupNativeInput = preparedStartupInput === null
-                ? null
-                : await preparedStartupInput.evidence;
-            exitInput = startupNativeInput;
-        } else {
-            startupNativeInput = preparedStartupInput === null
-                ? null
-                : await preparedStartupInput.evidence;
-            readiness = JSON.parse(await readinessLine(reader)) as Json;
-        }
-        if (
-            startupNativeInput !== null &&
-            number(startupNativeInput, "processId") !== child.pid
-        ) fail(`${label} startup input selected the wrong process`);
+        readiness = JSON.parse(await readinessLine(reader)) as Json;
         if (readiness.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
         if (postReadiness === "capacity-rejection") {
             await new Promise((resolve) => setTimeout(resolve, 250));
@@ -212,15 +188,41 @@ export async function gracefulExit(
             postReadinessInput = { sequence };
             exitInput = sequence;
         } else if (postReadiness === "camera-repeat") {
+            const initialPress = await pressPrototypeCameraClockwise(child.pid);
+            const initialPressedAt = performance.now();
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            const initialHoldMilliseconds = performance.now() - initialPressedAt;
             const sequence = await postCameraRepeatSequence(child.pid);
-            postReadinessInput = { sequence };
+            postReadinessInput = {
+                initialPress,
+                sequence,
+                requestedInitialHoldMilliseconds: 250,
+                initialHoldMilliseconds,
+            };
             exitInput = sequence;
         } else if (postReadiness === "camera-repress") {
+            const initialPress = await pressPrototypeCameraClockwise(child.pid);
+            const initialPressedAt = performance.now();
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            const initialHoldMilliseconds = performance.now() - initialPressedAt;
             const sequence = await postCameraRepressSequence(child.pid);
-            postReadinessInput = { sequence };
+            postReadinessInput = {
+                initialPress,
+                sequence,
+                requestedInitialHoldMilliseconds: 250,
+                initialHoldMilliseconds,
+            };
             exitInput = sequence;
         } else if (postReadiness === "counter-clockwise-camera") {
             const sequence = await postCounterClockwiseSequence(child.pid);
+            postReadinessInput = { sequence };
+            exitInput = sequence;
+        } else if (postReadiness === "diagonal-run") {
+            const sequence = await postDiagonalRun(child.pid);
+            postReadinessInput = { sequence };
+            exitInput = sequence;
+        } else if (postReadiness === "diagonal-walk") {
+            const sequence = await postDiagonalWalk(child.pid);
             postReadinessInput = { sequence };
             exitInput = sequence;
         } else if (postReadiness === "focus-discontinuity") {
@@ -238,8 +240,17 @@ export async function gracefulExit(
             postReadinessInput = { sequence };
             exitInput = sequence;
         } else if (postReadiness === "opposed-run-release") {
+            const opposedInput = await postOpposedRun(child.pid);
+            const opposedStartedAt = performance.now();
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            const opposedHoldMilliseconds = performance.now() - opposedStartedAt;
             const sequence = await releaseOpposedRun(child.pid);
-            postReadinessInput = { sequence };
+            postReadinessInput = {
+                opposedInput,
+                sequence,
+                requestedOpposedHoldMilliseconds: 250,
+                opposedHoldMilliseconds,
+            };
             exitInput = sequence;
         } else if (postReadiness === "jump-readmission") {
             const firstJump = await pressPrototypeJump(child.pid);
@@ -255,6 +266,14 @@ export async function gracefulExit(
             exitInput = secondJump;
         } else if (postReadiness === "jump-midair") {
             const sequence = await postMidairSequence(child.pid);
+            postReadinessInput = { sequence };
+            exitInput = sequence;
+        } else if (postReadiness === "run-release") {
+            const sequence = await postRunRelease(child.pid);
+            postReadinessInput = { sequence };
+            exitInput = sequence;
+        } else if (postReadiness === "run-repress") {
+            const sequence = await postRunRepress(child.pid);
             postReadinessInput = { sequence };
             exitInput = sequence;
         }
@@ -306,7 +325,6 @@ export async function gracefulExit(
         elapsedMs: performance.now() - started,
         exitCode: status.code,
         stderr: stderrText,
-        startupNativeInput,
         postReadinessInput,
         exitInput,
         exitReason,
