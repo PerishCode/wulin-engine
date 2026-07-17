@@ -650,6 +650,16 @@ descriptor/copy/readback/synchronization、mutation、inventory、reward、netwo
 最终 `canonical-runtime-v15` 在 257.299 秒内通过 source/window、rollback、restart、32+32 traversal、
 5 warm/8 measured resource checkpoint 与 2 lifecycle；980 次 Sidecar invocation，资源保持 492
 handles/21 threads，private 419,368,960→419,319,808，报告 24 files/25,346,275 bytes。
+Experiment 0108 将一次性 readiness 扩展为仍然有界的成功会话契约：启动只输出 sequence-one
+canonical readiness，只有优雅 Escape/window close 在 Runtime idle 后输出一次 sequence-two immutable
+completion；失败、强制证据终止与 15 秒边界进程不输出 completion，也不存在事件流、inspect、journal、
+replay 或产品文件写入。81.332 秒 `canonical-prototype-v25` 的同一真实进程先以 `F+Enter+D` 消费
+qualified ID 496，在 live frame 5 读取 readiness，随后接收新的 Enter release/press，并在 Escape
+completion 的 live frame 970 精确保持 committed/consumed 为一、只将 ineligible 推进到一、清空
+acknowledgement/target 且累计 954 个 suppression frames；stdout 恰为两值、无 trailing output/event
+history/copied object state。最终 `canonical-runtime-v16` 在 252.427 秒内通过原有 source/window、
+rollback、restart、32+32 traversal、5 warm/8 measured resource 与 2 lifecycle；979 次 Sidecar
+invocation，资源保持 495 handles/21 threads，private +1,257,472，报告 24 files/25,346,292 bytes。
 
 ## Project model
 

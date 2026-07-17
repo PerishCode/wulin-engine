@@ -1,6 +1,6 @@
 import { fail, type Json, root } from "../canonical-runtime.ts";
 import { holdPrototypeForwardKey } from "./input.ts";
-import { readinessLine } from "./process.ts";
+import { readinessLine } from "./session.ts";
 
 export const BOUNDARY_HOLD_MILLISECONDS = 15_000;
 
@@ -32,9 +32,15 @@ export async function boundarySurvival(executable: string, config: string): Prom
         ),
     ]);
     const heldMilliseconds = performance.now() - heldStarted;
-    await reader.cancel();
     if (outcome.kind === "held") child.kill();
     const finalStatus = await status;
+    let trailingOutput = "";
+    while (true) {
+        const remaining = await reader.read();
+        if (remaining.done) break;
+        trailingOutput += remaining.value;
+    }
+    await reader.cancel();
     const stderrText = (await stderr).trim();
     if (outcome.kind === "exit") {
         fail(
@@ -42,7 +48,11 @@ export async function boundarySurvival(executable: string, config: string): Prom
                 `with code ${outcome.status.code}: ${stderrText.slice(-4_096)}`,
         );
     }
-    if (heldMilliseconds < BOUNDARY_HOLD_MILLISECONDS || stderrText.includes("prototype failed:")) {
+    if (
+        heldMilliseconds < BOUNDARY_HOLD_MILLISECONDS ||
+        stderrText.includes("prototype failed:") ||
+        trailingOutput.trim()
+    ) {
         fail("prototype boundary survival duration or stderr diverged");
     }
     return {
@@ -54,6 +64,8 @@ export async function boundarySurvival(executable: string, config: string): Prom
         processRemainedLive: true,
         forcedEvidenceExitCode: finalStatus.code,
         stderr: stderrText.slice(-4_096),
+        trailingOutput,
+        completionEmitted: false,
         nativeInput,
         readiness,
     };

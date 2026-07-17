@@ -10,14 +10,19 @@ import {
     string,
     useSidecar,
 } from "../canonical-runtime.ts";
-import { applyStartupInput, type StartupInput } from "./input.ts";
+import type { StartupInput } from "./input.ts";
 import { jumpMotionInvariant, jumpPolicyInvariant } from "./jump.ts";
 import { actorInvariant } from "./actor.ts";
 import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
 import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
 import { objectFacingGates, restartObservation } from "./object/gates.ts";
-import { escapeExit, prototypePids, readinessLine, sidecarStatus } from "./process.ts";
+import {
+    capturedReady as captureReady,
+    prototypePids,
+    sessionGates,
+    sidecarStatus,
+} from "./session.ts";
 import {
     CAMERA_FORWARD_COMMAND,
     type ExpectedCommand,
@@ -65,8 +70,11 @@ export async function failedStart(label: string): Promise<Json> {
     const stdout = decoder.decode(output.stdout).trim();
     const stderr = decoder.decode(output.stderr).trim();
     if (output.success) fail(`prototype ${label} unexpectedly succeeded`);
-    if (stdout.includes('"role":"prototype"')) {
-        fail(`prototype ${label} emitted readiness before failing`);
+    if (
+        stdout.includes('"role":"prototype"') ||
+        stdout.includes('"role":"prototype-session-completion"')
+    ) {
+        fail(`prototype ${label} emitted successful session output before failing`);
     }
     return {
         label,
@@ -79,44 +87,7 @@ export async function failedStart(label: string): Promise<Json> {
 }
 
 export async function capturedReady(label: string, startupInput?: StartupInput): Promise<Json> {
-    const started = performance.now();
-    const child = new Deno.Command(EXECUTABLE, {
-        args: [`--bootstrap=${CONFIG}`],
-        cwd: root,
-        stdout: "piped",
-        stderr: "piped",
-    }).spawn();
-    const stderr = new Response(child.stderr).text();
-    const reader = child.stdout
-        .pipeThrough(new TextDecoderStream())
-        .getReader();
-    let value: Json;
-    let nativeInput: Json | null;
-    try {
-        nativeInput = await applyStartupInput(child.pid, startupInput);
-        const line = await readinessLine(reader);
-        value = JSON.parse(line) as Json;
-        if (value.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
-        const startup = object(value, "startup");
-        if (
-            startup.mode !== "canonical-bootstrap" ||
-            number(startup, "readyFrameIndex") < 1 ||
-            number(startup, "elapsedMs") <= 0
-        ) fail(`${label} emitted incomplete canonical readiness`);
-    } finally {
-        await reader.cancel();
-        child.kill();
-    }
-    const status = await child.status;
-    return {
-        label,
-        processId: Number(string(value, "instance_id")),
-        elapsedMs: performance.now() - started,
-        forcedEvidenceExitCode: status.code,
-        stderr: (await stderr).trim().slice(-4_096),
-        nativeInput,
-        readiness: value,
-    };
+    return await captureReady(EXECUTABLE, CONFIG, label, startupInput);
 }
 
 export function startupInvariant(launch: Json): Json {
@@ -315,7 +286,13 @@ export async function prototypeHostGates(
         "prototype rejected side-facing object action",
         "observe-action-side",
     );
-    const escape = await escapeExit(EXECUTABLE, CONFIG, "prototype Escape press exit");
+    const sessions = await sessionGates(
+        EXECUTABLE,
+        CONFIG,
+        first,
+        startupInvariant,
+        (launch) => jumpPolicyInvariant(launch, true),
+    );
     const boundary = await boundarySurvival(EXECUTABLE, CONFIG);
     if (number(first, "processId") === number(restarted, "processId")) {
         fail("prototype evidence restart reused the process identity");
@@ -349,12 +326,6 @@ export async function prototypeHostGates(
         "prototype restart traversal activation",
     );
     same(startupInvariant(forward), startupInvariant(first), "prototype locomotion configuration");
-    same(startupInvariant(escape), startupInvariant(first), "prototype Escape configuration");
-    same(
-        jumpPolicyInvariant(escape, true),
-        jumpPolicyInvariant(first, true),
-        "prototype Escape jump policy",
-    );
     same(
         actorInvariant(forward, base),
         actorInvariant(first, base),
@@ -479,7 +450,7 @@ export async function prototypeHostGates(
         forward,
         runForward,
         cameraForward,
-        escape,
+        sessions,
         forwardInvariant,
         runInvariant,
         cameraForwardInvariant,

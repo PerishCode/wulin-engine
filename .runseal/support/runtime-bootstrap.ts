@@ -26,7 +26,7 @@ import {
     writeDocument as writePrototypeDocument,
 } from "./prototype/host.ts";
 import { jumpPolicyInvariant } from "./prototype/jump.ts";
-import { prototypePids, sidecarStatus } from "./prototype/process.ts";
+import { prototypePids, sidecarStatus } from "./prototype/session.ts";
 import { STATIONARY_COMMAND } from "./prototype/simulation.ts";
 import { traversalInvariant } from "./prototype/traversal.ts";
 

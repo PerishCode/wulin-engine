@@ -75,9 +75,14 @@ export async function requireTypedObjectResolution(
         dispatch.includes("exact-canonical-object-nearest-v1")
     ) fail("guard: workbench typed object-resolution schema diverged");
 
-    const prototype = await Deno.readTextFile(`${root}/apps/prototype/src/observation.rs`);
-    const interaction = await Deno.readTextFile(`${root}/apps/prototype/src/interaction.rs`);
+    const prototype = await Deno.readTextFile(
+        `${root}/apps/prototype/src/object/observation.rs`,
+    );
+    const interaction = await Deno.readTextFile(
+        `${root}/apps/prototype/src/object/interaction.rs`,
+    );
     const prototypeMain = await Deno.readTextFile(`${root}/apps/prototype/src/main.rs`);
+    const prototypeSession = await Deno.readTextFile(`${root}/apps/prototype/src/session.rs`);
     const runtimeFrame = await Deno.readTextFile(
         `${root}/crates/engine-runtime/src/rendering/renderer/frame.rs`,
     );
@@ -113,11 +118,11 @@ export async function requireTypedObjectResolution(
         !prototypeMain.includes("if observation_policy.has_target()") ||
         !prototypeMain.includes("observation_policy.validation_request(snapshot)") ||
         !prototypeMain.includes("let object_target = observation_policy.target_identity()") ||
-        !prototypeMain.includes('"frameFeedback"') ||
+        !prototypeSession.includes('"frameFeedback"') ||
         !prototypeMain.includes("const ACTIVATE_OBJECT: u8 = 0x0D") ||
         !prototypeMain.includes(".prepare_after_advance(") ||
         !prototypeMain.includes(".complete_frame(") ||
-        !prototypeMain.includes('"object_interaction_driver"') ||
+        !prototypeSession.includes('"object_interaction_driver"') ||
         !interaction.includes("pub(crate) const OBJECT_ACTION_RADIUS_Q9: u32 = 512") ||
         !interaction.includes("pub(crate) const ACKNOWLEDGEMENT_FRAME_COUNT: u32 = 12") ||
         !interaction.includes("object.proximity_from(origin, OBJECT_ACTION_RADIUS_Q9)?") ||

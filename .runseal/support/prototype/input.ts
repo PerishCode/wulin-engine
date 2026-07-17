@@ -7,18 +7,24 @@ type PrototypeKey = {
     virtualKey: number;
 };
 
-async function postPrototypeKeys(
+type PrototypeKeyTransition = PrototypeKey & {
+    down: boolean;
+};
+
+async function postPrototypeTransitions(
     processId: number,
-    keys: PrototypeKey[],
+    keys: PrototypeKeyTransition[],
     requireVisible: boolean,
 ): Promise<Json> {
     if (!Number.isSafeInteger(processId) || processId <= 0) {
         fail(`prototype native input received invalid process id ${processId}`);
     }
     if (keys.length === 0) fail("prototype native input requires at least one key");
-    const nativeKeys = keys.map(({ key, virtualKey }) => ({ key, virtualKey, down: true }));
-    const powershellKeys = keys.map(({ key, virtualKey }) =>
-        `[ordered]@{ key = "${key}"; virtualKey = ${virtualKey}; down = $true }`
+    const nativeKeys = keys;
+    const powershellKeys = keys.map(({ key, virtualKey, down }) =>
+        `[ordered]@{ key = "${key}"; virtualKey = ${virtualKey}; down = ${
+            down ? "$true" : "$false"
+        } }`
     ).join(", ");
     const script = String.raw`
 $ErrorActionPreference = "Stop"
@@ -80,9 +86,10 @@ if (-not [PrototypeInputNative]::PostMessage(
     throw "posting prototype focus activation failed with Win32 error $code"
 }
 foreach ($key in $keys) {
+    $message = if ($key.down) { 0x0100 } else { 0x0101 }
     if (-not [PrototypeInputNative]::PostMessage(
         $window,
-        0x0100,
+        $message,
         [UIntPtr][uint32]$key.virtualKey,
         [IntPtr]1
     )) {
@@ -122,6 +129,18 @@ foreach ($key in $keys) {
         JSON.stringify(evidence.keys) !== JSON.stringify(nativeKeys)
     ) fail("prototype native input evidence diverged");
     return evidence;
+}
+
+async function postPrototypeKeys(
+    processId: number,
+    keys: PrototypeKey[],
+    requireVisible: boolean,
+): Promise<Json> {
+    return await postPrototypeTransitions(
+        processId,
+        keys.map((key) => ({ ...key, down: true })),
+        requireVisible,
+    );
 }
 
 export async function holdPrototypeForwardKey(processId: number): Promise<Json> {
@@ -170,6 +189,17 @@ export async function postObserveActionSide(processId: number): Promise<Json> {
 
 export async function pressPrototypeEscape(processId: number): Promise<Json> {
     return await postPrototypeKeys(processId, [{ key: "Escape", virtualKey: 0x1B }], false);
+}
+
+export async function repressPrototypeEnter(processId: number): Promise<Json> {
+    return await postPrototypeTransitions(
+        processId,
+        [
+            { key: "Enter", virtualKey: 0x0D, down: false },
+            { key: "Enter", virtualKey: 0x0D, down: true },
+        ],
+        true,
+    );
 }
 
 export async function pressPrototypeCameraClockwise(processId: number): Promise<Json> {
