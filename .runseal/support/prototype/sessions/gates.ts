@@ -12,6 +12,7 @@ import { sustainedCapacityInvariant } from "../object/gates.ts";
 import { runReleaseSessionInvariant } from "./run_release.ts";
 import { runRepressSessionInvariant } from "./run_repress.ts";
 import { focusSessionInvariant } from "./focus.ts";
+import { locomotionOppositionSessionInvariant } from "./locomotion_opposition.ts";
 import { gracefulCompletionInvariant, gracefulExit, idleCompletionInvariant } from "./mod.ts";
 
 type LaunchInvariant = (launch: Json) => Json;
@@ -107,6 +108,13 @@ export async function sessionGates(
         "prototype native Run modifier re-press readmission",
         "run-repress",
     );
+    const locomotionOpposition = await gracefulExit(
+        executable,
+        config,
+        "prototype native opposite locomotion release",
+        "opposed-run",
+        "opposed-run-release",
+    );
     sameInitial(escape, first, "Escape", startupInvariant, jumpInvariant);
     sameInitial(windowClose, first, "window-close", startupInvariant, jumpInvariant);
     same(
@@ -129,6 +137,13 @@ export async function sessionGates(
     );
     sameInitial(runRelease, first, "Run-release", startupInvariant, jumpInvariant);
     sameInitial(runRepress, first, "Run-repress", startupInvariant, jumpInvariant);
+    sameInitial(
+        locomotionOpposition,
+        first,
+        "opposite-locomotion",
+        startupInvariant,
+        jumpInvariant,
+    );
     same(
         startupInvariant(sustained),
         startupInvariant(sustainedBaseline),
@@ -194,6 +209,11 @@ export async function sessionGates(
         runRepressInvariant: runRepressSessionInvariant(
             runRepress,
             idleCompletionInvariant(runRepress),
+        ),
+        locomotionOpposition,
+        locomotionOppositionInvariant: locomotionOppositionSessionInvariant(
+            locomotionOpposition,
+            idleCompletionInvariant(locomotionOpposition),
         ),
         sustained,
         sustainedInvariant: await sustainedCapacityInvariant(
