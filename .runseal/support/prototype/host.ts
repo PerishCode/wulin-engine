@@ -273,10 +273,6 @@ export async function prototypeHostGates(
     console.log("==> thin non-diagnostic prototype host gates");
     useSidecar(SIDECAR);
     await lifecycle("stop");
-    const invalid = document(terrain, objects, base);
-    invalid.fallback = true;
-    await writeDocument(invalid);
-    const invalidDocument = await failedStart("invalid document");
     await writeDocument(document(terrain, "out/cooked/bootstrap/missing.wlr", base));
     const missingSource = await failedStart("missing source");
     const corruptCenter: Coord = [base[0] + 70, base[1]];
@@ -470,7 +466,6 @@ export async function prototypeHostGates(
 
     return {
         configPath: CONFIG,
-        invalidDocument,
         missingSource,
         corruptPayload,
         first,

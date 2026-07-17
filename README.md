@@ -757,6 +757,15 @@ clip 1/yaw 49,152。任一相反边缘丢失都会选择非零 camera candidate 
 `1/0/0/0`，Ready/sample `2/3 -> 39/40`，object idle、零 render block、两值 clean exit 均成立。
 已达 500 行的会话文件按职责拆为共享进程 framing 与 session gate matrix；产品 HostInput、
 camera/locomotion、session schema、Runtime 与 engine/GPU/resource 结构未改变。
+Experiment 0120 按兼容与资源双重清理节奏删除三次只由历史 `fallback=true` 驱动的 invalid-bootstrap
+进程启动、三个 `invalidDocument` 报告字段，以及 fallback/schema-1 单测断言；当前 schema-2 解码、路径
+逃逸/非法投影/边界测试、missing source、corrupt payload、readiness/restart 全部保留。
+`canonical-prototype-v36` 在 128.894 秒通过，`canonical-runtime-v18` 在 286.415 秒通过；后者含
+1,108 次 Sidecar invocation、4 warm/8 measured publication、稳定 527 handles/24 threads、
+private bytes `412,213,248 -> 411,742,208`、2/2 lifecycle 与 24 files/25,346,219 bytes，两个报告
+均不再含 `invalidDocument`。guard 的兼容删除 owner 禁止旧探针回归。最终在验证与 commit hook 后删除
+仓库内 `target/` 11,976 files/4,469,116,945 bytes 与 `out/` 263 files/441,628,335 bytes，共回收
+12,239 files/4,910,745,280 bytes；未触碰全局缓存、`.task/`、source asset 或产品/Runtime/GPU 行为。
 
 ## Project model
 
@@ -817,7 +826,7 @@ acknowledgement. No prior canonical acceptance output is required.
 
 `runseal :canonical-prototype` is the focused real-process prototype workflow. It runs the
 runtime/prototype/reference-host tests, cooks the six required signed centers, and proves
-strict bootstrap failure, exact committed grounded gravity witness, exact stationary/native-W Walk
+terminal missing/corrupt bootstrap failure, exact committed grounded gravity witness, exact stationary/native-W Walk
 plus visible native-Shift+W Run and same-sample E+W camera-relative locomotion with transactional
 Survey/Walk/Run selection and exact
 committed eight-way facing, one

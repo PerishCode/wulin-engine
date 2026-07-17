@@ -117,11 +117,6 @@ export async function bootstrapGates(
     useSidecar(SIDECAR);
     await lifecycle("stop");
 
-    const invalid = document(terrain, objects, base, base);
-    invalid.fallback = true;
-    await writeDocument(invalid);
-    const invalidDocument = await failedStart("invalid document");
-
     await writeDocument(document(terrain, "out/cooked/bootstrap/missing.wlr", base, base));
     const missingSource = await failedStart("missing source");
 
@@ -169,7 +164,6 @@ export async function bootstrapGates(
 
     return {
         configPath: CONFIG,
-        invalidDocument,
         missingSource,
         corruptPayload,
         first: { status: firstStatus, frame: firstFrame },
@@ -188,11 +182,6 @@ export async function prototypeHostCheckpointGates(
     useSidecar(PROTOTYPE_SIDECAR);
     try {
         await lifecycle("stop");
-        const invalid = prototypeDocument(terrain, objects, base);
-        invalid.fallback = true;
-        await writePrototypeDocument(invalid);
-        const invalidDocument = await failedPrototypeStart("invalid document");
-
         const corruptCenter: Coord = [base[0] + 70, base[1]];
         await writePrototypeDocument(prototypeDocument(terrain, corruptObjects, corruptCenter));
         const corruptPayload = await failedPrototypeStart("corrupt payload");
@@ -247,7 +236,6 @@ export async function prototypeHostCheckpointGates(
         return {
             profile: "full-checkpoint-v1",
             configPath: PROTOTYPE_CONFIG,
-            invalidDocument,
             corruptPayload,
             first,
             restarted,
