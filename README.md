@@ -990,6 +990,16 @@ Jump 落地但 Space 仍 held 后，同一 PID/window/thread 原子投递重复 
 stall/render block，stdout 恰为两值；445,067-byte report 与全部 103 engine-runtime、
 48 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning。产品、
 Runtime、renderer/GPU/source/resource/synchronization 均未改变。
+Experiment 0143 复用现有 Activated object-feedback 进程闭合 F/Enter 失焦后的重新准入：
+readiness 后同一 PID/window/thread 原子投递 F/Enter/失焦，恢复并经过既有 reset 边界后再
+原子投递新 F/Enter 与延迟 Escape。`canonical-prototype-v58` 首轮在 169.078 秒通过；PID
+13320 / thread 22076 的旧、新批次跨度均为 0.0013ms，新批次到 Escape 为 275.2869ms。
+最终 actor 保持 generation 1、local `(0,0)` Q9、Survey/yaw 0；对象策略仅有 1 次
+Activated commit、0 次 ineligible、12 个 acknowledgement frames，并精确消费当前 source /
+owner region 的 authored ID 496。clock 恰增加一次 suspend/resume/reset，83 个 suspended
+samples，零 stall/render block，stdout 恰为两值；448,810-byte report 与全部 103
+engine-runtime、48 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有
+warning。产品、Runtime、renderer/GPU/source/resource/synchronization 均未改变。
 
 ## Project model
 
