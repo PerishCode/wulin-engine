@@ -1,18 +1,11 @@
-import {
-    array,
-    fail,
-    type Json,
-    number,
-    object,
-    root,
-    same,
-    string,
-} from "../canonical-runtime.ts";
+import { fail, type Json, number, object, root, same, string } from "../canonical-runtime.ts";
 import { objectNearestOracle } from "../object/nearest.ts";
 import {
     applyStartupInput,
+    nativeWindowCloseInvariant,
     postPrototypeCapacityRejection,
     pressPrototypeEscape,
+    requestPrototypeWindowClose,
     type StartupInput,
 } from "./input.ts";
 
@@ -117,6 +110,7 @@ async function gracefulExit(
     label: string,
     startupInput?: StartupInput,
     capacityRejection = false,
+    exitReason: "escape" | "window-close" = "escape",
 ): Promise<Json> {
     const started = performance.now();
     const child = new Deno.Command(executable, {
@@ -133,7 +127,7 @@ async function gracefulExit(
     let completion: Json;
     let startupNativeInput: Json | null;
     let postReadinessInput: Json | null = null;
-    let escapeInput: Json;
+    let exitInput: Json;
     let status: Deno.CommandStatus;
     let trailingOutput = "";
     try {
@@ -145,7 +139,9 @@ async function gracefulExit(
             postReadinessInput = await postPrototypeCapacityRejection(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
         }
-        escapeInput = await pressPrototypeEscape(child.pid);
+        exitInput = exitReason === "escape"
+            ? await pressPrototypeEscape(child.pid)
+            : await requestPrototypeWindowClose(child.pid);
         completion = JSON.parse(await outputLine(reader, "session completion", 10_000)) as Json;
         const exit = await Promise.race([
             child.status.then((value) => ({ kind: "status" as const, value })),
@@ -153,7 +149,7 @@ async function gracefulExit(
                 setTimeout(() => resolve({ kind: "timeout" }), 10_000)
             ),
         ]);
-        if (exit.kind === "timeout") fail(`${label} did not exit after the Escape press edge`);
+        if (exit.kind === "timeout") fail(`${label} did not exit after ${exitReason}`);
         status = exit.value;
         if (!status.success) fail(`${label} exited with code ${status.code}`);
         while (true) {
@@ -189,37 +185,15 @@ async function gracefulExit(
         elapsedMs: performance.now() - started,
         exitCode: status.code,
         stderr: stderrText,
-        nativeInput: escapeInput,
         startupNativeInput,
         postReadinessInput,
-        escapeInput,
+        exitInput,
+        exitReason,
         readiness,
         completion,
         outputValueCount: 2,
         trailingOutput,
     };
-}
-
-export async function sidecarStatus(config: string): Promise<Json> {
-    const output = await new Deno.Command("sidecar", {
-        args: ["status", "--config", config, "--format", "json"],
-        cwd: root,
-        stdout: "piped",
-        stderr: "inherit",
-    }).output();
-    if (!output.success) fail(`prototype Sidecar status failed with ${output.code}`);
-    return JSON.parse(new TextDecoder().decode(output.stdout).trim()) as Json;
-}
-
-export function prototypePids(status: Json): number[] {
-    const targets = array(status, "targets");
-    if (targets.length !== 1) fail("prototype Sidecar target count diverged");
-    const target = targets[0] as Json;
-    if (target.name !== "prototype") fail("prototype Sidecar target identity diverged");
-    return array(target, "pids").map((value) => {
-        if (typeof value !== "number") fail("prototype Sidecar PID must be numeric");
-        return value;
-    });
 }
 
 export async function sessionGates(
@@ -235,6 +209,14 @@ export async function sessionGates(
         fail("prototype forced readiness process emitted session completion");
     }
     const escape = await gracefulExit(executable, config, "prototype Escape press exit");
+    const windowClose = await gracefulExit(
+        executable,
+        config,
+        "prototype native window close exit",
+        undefined,
+        false,
+        "window-close",
+    );
     const sustained = await gracefulExit(
         executable,
         config,
@@ -249,6 +231,16 @@ export async function sessionGates(
         "prototype Escape jump policy",
     );
     same(
+        startupInvariant(windowClose),
+        startupInvariant(first),
+        "prototype window-close configuration",
+    );
+    same(
+        jumpInvariant(windowClose),
+        jumpInvariant(first),
+        "prototype window-close jump policy",
+    );
+    same(
         startupInvariant(sustained),
         startupInvariant(first),
         "prototype sustained session configuration",
@@ -256,6 +248,14 @@ export async function sessionGates(
     return {
         escape,
         escapeInvariant: idleCompletionInvariant(escape),
+        windowClose,
+        windowCloseInvariant: {
+            ...idleCompletionInvariant(windowClose, "window-close"),
+            nativeWindowClose: nativeWindowCloseInvariant(
+                object(windowClose, "exitInput"),
+                number(windowClose, "processId"),
+            ),
+        },
         sustained,
         sustainedInvariant: await sustainedCapacityInvariant(sustained, source, windowCenter),
         forcedReadinessCompletionEmitted: false,
@@ -342,8 +342,11 @@ export function gracefulCompletionInvariant(
     };
 }
 
-export function idleCompletionInvariant(launch: Json): Json {
-    const session = gracefulCompletionInvariant(launch, "escape");
+export function idleCompletionInvariant(
+    launch: Json,
+    expectedReason: "escape" | "window-close" = "escape",
+): Json {
+    const session = gracefulCompletionInvariant(launch, expectedReason);
     const interaction = object(object(launch, "completion"), "object_interaction");
     const observation = object(object(launch, "completion"), "object_observation");
     if (

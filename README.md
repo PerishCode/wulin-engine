@@ -680,6 +680,13 @@ actor 精确推导 delta/yaw/direction/dot `(128,-32)/0/(1,0)/128` 和
 frame 4 到 798，保持 consumed ID 496、exclusion-oracle target ID 501、12 个 capacity-rejected
 frames 和 783 个 suppression frames。现有 session guard 稳定禁止所有被删 surface，未新增 guard
 模块；engine/GPU/resource 结构未变，因此未重复全量运行时验收。
+Experiment 0111 补齐既有优雅退出契约中唯一缺少实机证明的路径：维护中的 native harness 在
+readiness 后只向可见且 class/title/PID 精确匹配的窗口投递一个 `WM_CLOSE`，不激活窗口、不注入按键、
+不直接 DestroyWindow 或终止进程。86.089 秒 `canonical-prototype-v28` 中，PID 21236 在 live frame 5
+输出 sequence-one readiness，在 live frame/sample 356 输出 reason `window-close` 的 sequence-two
+completion，exit 0、stderr/尾随输出为空、进程与 actor identity 不变、object policy idle；原 Escape、
+forced-termination silence 和持续 capacity-one 会话仍精确，后者保留 12 个 Rejected 与 1,069 个
+suppression frames。Prototype Rust、engine/GPU/resource 与 session schema/输出节奏均未改变。
 
 ## Project model
 
@@ -751,8 +758,8 @@ one visible-window native F+Enter+W observation/action whose origin is the exact
 output, whose bounded result matches an independent source oracle, and whose exact activated target
 commits only through the successful frame,
 one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-W
-finite-edge survival, one native Escape press-edge clean exit, direct restart equality, and Sidecar
-cleanup.
+finite-edge survival, exact native Escape and visible-window WM_CLOSE clean exits, direct restart
+equality, and Sidecar cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
 minimal signed pair, checks strict committed CPU object lookup and exact terrain-position conversion

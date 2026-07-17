@@ -11,15 +11,18 @@ type PrototypeKeyTransition = PrototypeKey & {
     down: boolean;
 };
 
-async function postPrototypeTransitions(
+async function postPrototypeWindowAction(
     processId: number,
     keys: PrototypeKeyTransition[],
     requireVisible: boolean,
+    closeWindow = false,
 ): Promise<Json> {
     if (!Number.isSafeInteger(processId) || processId <= 0) {
         fail(`prototype native input received invalid process id ${processId}`);
     }
-    if (keys.length === 0) fail("prototype native input requires at least one key");
+    if (keys.length === 0 && !closeWindow) {
+        fail("prototype native window action requires input or close");
+    }
     const nativeKeys = keys;
     const powershellKeys = keys.map(({ key, virtualKey, down }) =>
         `[ordered]@{ key = "${key}"; virtualKey = ${virtualKey}; down = ${
@@ -51,6 +54,7 @@ public static class PrototypeInputNative {
 
 $expectedProcessId = ${processId}
 $requireVisible = ${requireVisible ? "$true" : "$false"}
+$closeWindow = ${closeWindow ? "$true" : "$false"}
 $keys = @(${powershellKeys})
 $deadline = [DateTime]::UtcNow.AddSeconds(20)
 $window = [IntPtr]::Zero
@@ -76,14 +80,17 @@ do {
 if ($window -eq [IntPtr]::Zero) {
     throw "prototype window for process $expectedProcessId was not found"
 }
-if (-not [PrototypeInputNative]::PostMessage(
-    $window,
-    0x0007,
-    [UIntPtr]::Zero,
-    [IntPtr]::Zero
-)) {
-    $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-    throw "posting prototype focus activation failed with Win32 error $code"
+$windowWasVisible = [PrototypeInputNative]::IsWindowVisible($window)
+if ($keys.Count -gt 0) {
+    if (-not [PrototypeInputNative]::PostMessage(
+        $window,
+        0x0007,
+        [UIntPtr]::Zero,
+        [IntPtr]::Zero
+    )) {
+        $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw "posting prototype focus activation failed with Win32 error $code"
+    }
 }
 foreach ($key in $keys) {
     $message = if ($key.down) { 0x0100 } else { 0x0101 }
@@ -97,14 +104,27 @@ foreach ($key in $keys) {
         throw "posting prototype $($key.key) key down failed with Win32 error $code"
     }
 }
+if ($closeWindow) {
+    if (-not [PrototypeInputNative]::PostMessage(
+        $window,
+        0x0010,
+        [UIntPtr]::Zero,
+        [IntPtr]::Zero
+    )) {
+        $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw "posting prototype window close failed with Win32 error $code"
+    }
+}
 
 [Console]::Out.Write((ConvertTo-Json ([ordered]@{
-    schema = "prototype-native-input-v5"
+    schema = "prototype-native-window-action-v1"
+    action = if ($closeWindow) { "close" } else { "input" }
     processId = [int]$windowProcessId
     windowHandle = $window.ToInt64().ToString()
-    activated = $true
+    activated = $keys.Count -gt 0
+    closeRequested = $closeWindow
     requiredVisible = $requireVisible
-    windowVisible = [PrototypeInputNative]::IsWindowVisible($window)
+    windowWasVisible = $windowWasVisible
     keys = @($keys)
 }) -Depth 4 -Compress))
 `;
@@ -121,13 +141,15 @@ foreach ($key in $keys) {
     }
     const evidence = JSON.parse(stdout) as Json;
     if (
-        evidence.schema !== "prototype-native-input-v5" ||
+        evidence.schema !== "prototype-native-window-action-v1" ||
+        evidence.action !== (closeWindow ? "close" : "input") ||
         evidence.processId !== processId ||
-        evidence.activated !== true ||
+        evidence.activated !== (keys.length > 0) ||
+        evidence.closeRequested !== closeWindow ||
         evidence.requiredVisible !== requireVisible ||
-        (requireVisible && evidence.windowVisible !== true) ||
+        (requireVisible && evidence.windowWasVisible !== true) ||
         JSON.stringify(evidence.keys) !== JSON.stringify(nativeKeys)
-    ) fail("prototype native input evidence diverged");
+    ) fail("prototype native window action evidence diverged");
     return evidence;
 }
 
@@ -136,7 +158,7 @@ async function postPrototypeKeys(
     keys: PrototypeKey[],
     requireVisible: boolean,
 ): Promise<Json> {
-    return await postPrototypeTransitions(
+    return await postPrototypeWindowAction(
         processId,
         keys.map((key) => ({ ...key, down: true })),
         requireVisible,
@@ -191,8 +213,31 @@ export async function pressPrototypeEscape(processId: number): Promise<Json> {
     return await postPrototypeKeys(processId, [{ key: "Escape", virtualKey: 0x1B }], false);
 }
 
+export async function requestPrototypeWindowClose(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(processId, [], true, true);
+}
+
+export function nativeWindowCloseInvariant(evidence: Json, processId: number): Json {
+    if (
+        evidence.schema !== "prototype-native-window-action-v1" ||
+        evidence.action !== "close" ||
+        evidence.processId !== processId ||
+        evidence.activated !== false ||
+        evidence.closeRequested !== true ||
+        evidence.requiredVisible !== true ||
+        evidence.windowWasVisible !== true ||
+        !Array.isArray(evidence.keys) ||
+        evidence.keys.length !== 0
+    ) fail("prototype native window-close evidence diverged");
+    return {
+        exactProcessWindow: true,
+        message: "WM_CLOSE",
+        directDestroy: false,
+    };
+}
+
 export async function postPrototypeCapacityRejection(processId: number): Promise<Json> {
-    return await postPrototypeTransitions(
+    return await postPrototypeWindowAction(
         processId,
         [
             { key: "D", virtualKey: 0x44, down: false },

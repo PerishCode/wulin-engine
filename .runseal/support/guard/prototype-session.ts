@@ -31,7 +31,11 @@ export async function requireBoundedPrototypeSession(
         !acceptance.includes("objectNearestOracle") ||
         !acceptance.includes("capacityRejectedFrameCount: 12") ||
         !acceptance.includes("postReadinessCapacityRejection") ||
+        !acceptance.includes("nativeWindowCloseInvariant") ||
         !input.includes("postPrototypeCapacityRejection") ||
+        !input.includes("requestPrototypeWindowClose") ||
+        !input.includes("0x0010") ||
+        input.includes("DestroyWindow") ||
         !input.includes('{ key: "D", virtualKey: 0x44, down: false }') ||
         !input.includes('{ key: "F", virtualKey: 0x46, down: false }') ||
         !input.includes('{ key: "Enter", virtualKey: 0x0D, down: false }')
