@@ -300,8 +300,12 @@ export async function requireBoundedPrototypeSession(
         !diagonalWalkAcceptance.includes("atomicDiagonalInput: true") ||
         !diagonalWalkAcceptance.includes("nativeLeftInput: true") ||
         !diagonalWalkAcceptance.includes("exactWalkNormalization: true") ||
+        !diagonalWalkAcceptance.includes("forwardInputReleased: true") ||
+        !diagonalWalkAcceptance.includes("retainedLeftWalk: true") ||
+        !diagonalWalkAcceptance.includes("exactTwoPhaseDisplacement: true") ||
         !diagonalWalkAcceptance.includes("actionAfterReadiness: true") ||
         !diagonalWalkAcceptance.includes("diagonalStepCount") ||
+        !diagonalWalkAcceptance.includes("leftStepCount") ||
         !diagonalRunAcceptance.includes("atomicDiagonalRunInput: true") ||
         !diagonalRunAcceptance.includes("nativeLeftInput: true") ||
         !diagonalRunAcceptance.includes("exactRunNormalization: true") ||

@@ -1023,6 +1023,16 @@ Experiment 0145 删除了强制/readiness-only 证据链中的 9 个报告与检
 engine-runtime、48 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning；
 产品、Runtime、renderer/GPU/source/resource/synchronization 均未改变，下一次资源清理仍为
 Experiment 0160。
+Experiment 0146 在既有 diagonal-Walk 子进程内增加受控 W release，不新增 child 或产品输出：
+readiness 后 W/A 仍作为原子 prefix，至少 250ms 后释放 W 并保留 A，再至少 250ms 后 Escape。
+`canonical-prototype-v61` 首轮在 169.600 秒通过，454,638-byte report 中 PID 26360 / thread
+16028 的 W/A interval/span 均为 0.0015ms，diagonal hold 为 264.2536ms，left-only hold 为
+260.9478ms。最终 local `(-848,-368)` Q9 唯一分解为 16 个 `(-23,-23)` diagonal Walk steps
+和 15 个 `(-32,0)` left Walk steps，最终为 clip1/yaw32768、epoch `1 -> 63`。clock
+Ready/sample 从 `2/3 -> 92/93`，零 stall/render block，对象状态 idle，stdout 恰为两值且
+exit code 0；全部 103 engine-runtime、48 Prototype、20 reference-host 测试通过，Flavor
+0 deny / 5 个既有 warning。产品、Runtime、renderer/GPU/source/resource/synchronization
+与 process count 均未改变。
 
 ## Project model
 
@@ -1100,7 +1110,8 @@ the exact 12-frame acknowledgement, plus sustained post-readiness motion/capacit
 one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-Run
 finite-edge endpoint and graceful completion, exact native Escape and visible-window WM_CLOSE clean exits, native
 same-batch Space/F/Enter/W focus-loss action/held-input suppression plus no-backlog resume and
-same-process fresh-A Walk/release readmission, one exact atomic same-ingest opposite-Q/E
+same-process fresh-A Walk/release readmission, one exact native diagonal-to-left Walk release with
+two-phase fixed-Q9 decomposition, one exact atomic same-ingest opposite-Q/E
 camera-edge cancellation with negative-Z Walk proof, direct restart equality, and Sidecar cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh
