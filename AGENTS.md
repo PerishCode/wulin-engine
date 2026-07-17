@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0130 and the current ADR set through 0133 define one live content runtime
+Experiments 0031-0131 and the current ADR set through 0134 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -197,9 +197,11 @@ geometry/material/rig source, and one deterministic object-shadow path:
   output with no spawn-time terrain/actor compatibility snapshot, and the normalized Escape press
   edge limited to host exit;
 - one accepted post-v0 finite-edge policy whose maintained operator declares inclusive `[-6,6]²`
-  playable bounds inside cooked `[-8,8]²` centers, whose focused real process remains live under
-  explicitly activated held locomotion, and which adds no engine boundary mode, source-index
-  inference, compatibility decoder, product telemetry, or weakened runtime source/query failure;
+  playable bounds inside cooked `[-8,8]²` centers, whose sole focused real process receives exact-PID
+  atomic held Shift/W only after idle readiness and remains live for at least 15 seconds, whose pure
+  product tests own exact Run maximum-batch/per-axis reduction, and which adds no second boundary
+  process, engine boundary mode, source-index inference, compatibility decoder, product telemetry,
+  intermediate output, or weakened runtime source/query failure;
 - one accepted post-v0 host input-edge boundary that exposes sample-scoped `was_pressed` and
   `was_released` facts beside continuous `is_held`, expires them on empty ingest, and proves the
   first live consumer through a real Escape press and clean prototype exit without an action queue;
@@ -569,6 +571,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0131-native-diagonal-run.md` | Accepted atomic native Shift/W/A diagonal Run and zero-delay startup-prefix boundary. |
 | `docs/adr/0132-post-readiness-native-object-actions.md` | Accepted exact-PID post-readiness Activated/Rejected/capacity action evidence and retired startup object-action request. |
 | `docs/adr/0133-retired-startup-action-acceptance.md` | Accepted deletion of readiness-only/startup-action acceptance, exact-PID post-readiness replacement, and monotonic delayed-key admission. |
+| `docs/adr/0134-post-readiness-finite-boundary-run.md` | Accepted exact-PID post-readiness atomic Shift/W finite-boundary liveness with unchanged single-process/product-output budgets. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -670,6 +673,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0128-native-diagonal-run/README.md` | Accepted native Shift/W/A path, exact 45-Q9 diagonal Run, and schema-4 atomic startup-prefix evidence. |
 | `experiments/0129-post-readiness-native-object-actions/README.md` | Accepted post-readiness native object-action ordering, exact completion/source-oracle evidence, and startup-edge race removal. |
 | `experiments/0130-retired-startup-action-acceptance/README.md` | Mandatory deletion of readiness-only/startup-action acceptance, next-window selection, and sleep-based delayed-key admission. |
+| `experiments/0131-post-readiness-finite-boundary-run/README.md` | Accepted atomic post-readiness Shift/W finite-boundary process survival and explicit liveness/state evidence boundary. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |

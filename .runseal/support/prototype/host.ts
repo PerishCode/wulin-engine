@@ -13,7 +13,11 @@ import {
 } from "../canonical-runtime.ts";
 import { jumpMotionInvariant, jumpPolicyInvariant } from "./jump.ts";
 import { actorInvariant } from "./actor.ts";
-import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
+import {
+    BOUNDARY_HOLD_MILLISECONDS,
+    boundaryRunInputInvariant,
+    boundarySurvival,
+} from "./boundary.ts";
 import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
 import { objectFeedbackGates, restartObservation } from "./object/gates.ts";
@@ -363,6 +367,7 @@ export async function prototypeHostGates(
         minimumHoldMilliseconds: BOUNDARY_HOLD_MILLISECONDS,
         processRemainedLive: boundary.processRemainedLive,
         actionAfterReadiness: boundary.actionAfterReadiness,
+        nativeInput: boundaryRunInputInvariant(boundary),
     };
 
     await lifecycle("start");
