@@ -111,3 +111,22 @@ fn focus_cleanup_retains_one_camera_press() {
     assert!(!input.was_released(0x45));
     assert_eq!(policy.candidate(&input).rig().orbit_index, 1);
 }
+
+#[test]
+fn focus_cleanup_does_not_repeat_a_held_camera_key() {
+    let mut input = input(vec![key(0x45, true)]);
+    let mut policy = camera::Policy::new();
+    let candidate = policy.candidate(&input);
+    assert_eq!(candidate.rig().orbit_index, 1);
+    policy.commit(candidate);
+
+    input.ingest(vec![key(0x45, true), NativeMessage::FocusLost]);
+    assert!(!input.is_held(0x45));
+    assert!(!input.was_pressed(0x45));
+    assert!(input.was_released(0x45));
+
+    let cleanup_candidate = policy.candidate(&input);
+    assert_eq!(cleanup_candidate.rig().orbit_index, 1);
+    policy.commit(cleanup_candidate);
+    assert_eq!(current(&policy).orbit_index, 1);
+}
