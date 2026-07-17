@@ -776,6 +776,15 @@ Q-down/W-down，投递间隔与完整 batch span 均为 0.0011 ms，232.1975 ms 
 `0 -> 3` 的 wrap。clock reset/suspend/resume/stall 保持 `1/0/0/0`，Ready/sample
 `2/3 -> 40/41`，object idle、零 render block、两值 clean exit 与全部旧 gate 均成立；产品
 HostInput、camera/locomotion、session schema、Runtime、traversal 与 engine/GPU/resource 结构未改变。
+Experiment 0122 补齐 held E 在 release 后重新产生 camera press edge 的原生实机证明。
+`canonical-prototype-v38` 首次运行在 138.736 秒通过：PID 1752 先以 startup E-down 发布 orbit-1
+readiness，随后同一精确可见窗口线程 18524 原子排队 E-up/E-down/W-down；投递间隔
+0.0016/0.0010 ms、完整 batch span 0.0026 ms，211.8739 ms 后 Escape 完成。最终 actor 精确产生
+13 个正 Z Walk steps，X 0/Z +416 Q9、clip 1/yaw 16,384、epoch `1 -> 35`。若 E-up 或第二次
+E-down 未形成 fresh edge，相机会留在 orbit 1 且 W 必产生负 X，因此该方向证据证明现有纯 candidate
+已 `1 -> 2`。clock reset/suspend/resume/stall 保持 `1/0/0/0`，Ready/sample
+`2/3 -> 40/41`，object idle、零 render block、两值 clean exit 与全部旧 gate 均成立；产品
+HostInput、camera/locomotion、session schema、Runtime、traversal 与 engine/GPU/resource 结构未改变。
 
 ## Project model
 

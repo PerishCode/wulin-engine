@@ -26,6 +26,9 @@ export async function requireBoundedPrototypeSession(
     const counterClockwiseCameraAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/camera_counter_clockwise.ts`,
     );
+    const cameraRepressAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/camera_repress.ts`,
+    );
     const cameraPolicy = await Deno.readTextFile(`${root}/apps/prototype/src/camera.rs`);
     const hostInput = await Deno.readTextFile(`${root}/crates/reference-host/src/input.rs`);
     const objectGates = await Deno.readTextFile(
@@ -65,6 +68,7 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("jumpReadmissionInvariant") ||
         !sessionGates.includes("jumpMidairInvariant") ||
         !sessionGates.includes("cameraRepeatSessionInvariant") ||
+        !sessionGates.includes("cameraRepressSessionInvariant") ||
         !sessionGates.includes("invalidKeySessionInvariant") ||
         !sessionGates.includes("oppositeCameraSessionInvariant") ||
         !sessionGates.includes("counterClockwiseSessionInvariant") ||
@@ -73,6 +77,7 @@ export async function requireBoundedPrototypeSession(
         !inputSequences.includes("repressJumpAndExit") ||
         !inputSequences.includes("postMidairSequence") ||
         !inputSequences.includes("postCameraRepeatSequence") ||
+        !inputSequences.includes("postCameraRepressSequence") ||
         !inputSequences.includes("postInvalidAliasSequence") ||
         !inputSequences.includes("postOppositeCameraSequence") ||
         !inputSequences.includes("postCounterClockwiseSequence") ||
@@ -87,6 +92,10 @@ export async function requireBoundedPrototypeSession(
         ) ||
         !counterClockwiseCameraAcceptance.includes("wrappedOrbitIndex: 3") ||
         !counterClockwiseCameraAcceptance.includes("deltaXQ9 <= 0") ||
+        !cameraRepressAcceptance.includes("heldKeyReleased: true") ||
+        !cameraRepressAcceptance.includes("freshPressEdgeReadmitted: true") ||
+        !cameraRepressAcceptance.includes("committedOrbitIndex: 2") ||
+        !cameraRepressAcceptance.includes("deltaZQ9 <= 0") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||
         !hostInput.includes("down == key_is_set(&self.held, key)") ||

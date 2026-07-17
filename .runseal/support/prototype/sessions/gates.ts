@@ -6,6 +6,7 @@ import {
     oppositeCameraSessionInvariant,
 } from "../camera.ts";
 import { counterClockwiseSessionInvariant } from "../camera_counter_clockwise.ts";
+import { cameraRepressSessionInvariant } from "../camera_repress.ts";
 import { jumpMidairInvariant, jumpReadmissionInvariant } from "../jump.ts";
 import { sustainedCapacityInvariant } from "../object/gates.ts";
 import { focusSessionInvariant } from "./focus.ts";
@@ -64,6 +65,13 @@ export async function sessionGates(
         "camera-clockwise",
         "camera-repeat",
     );
+    const cameraRepress = await gracefulExit(
+        executable,
+        config,
+        "prototype native camera re-press readmission",
+        "camera-clockwise",
+        "camera-repress",
+    );
     const invalidKey = await gracefulExit(
         executable,
         config,
@@ -95,6 +103,7 @@ export async function sessionGates(
     sameInitial(jumpReadmission, first, "Jump-readmission", startupInvariant, jumpInvariant);
     sameInitial(jumpMidair, first, "midair-Jump", startupInvariant, jumpInvariant);
     sameInitial(cameraRepeat, first, "held-camera-repeat", startupInvariant, jumpInvariant);
+    sameInitial(cameraRepress, first, "camera-repress", startupInvariant, jumpInvariant);
     sameInitial(invalidKey, first, "invalid-key", startupInvariant, jumpInvariant);
     sameInitial(oppositeCamera, first, "opposite-camera", startupInvariant, jumpInvariant);
     sameInitial(
@@ -139,6 +148,11 @@ export async function sessionGates(
         cameraRepeatInvariant: cameraRepeatSessionInvariant(
             cameraRepeat,
             idleCompletionInvariant(cameraRepeat),
+        ),
+        cameraRepress,
+        cameraRepressInvariant: cameraRepressSessionInvariant(
+            cameraRepress,
+            idleCompletionInvariant(cameraRepress),
         ),
         invalidKey,
         invalidKeyInvariant: invalidKeySessionInvariant(
