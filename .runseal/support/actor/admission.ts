@@ -123,22 +123,6 @@ async function prepublication(center: Coord): Promise<Json> {
         await event("actor.spawn", actorPayload(center, HALF_HEIGHT_Q16)),
         "actor",
     );
-    const retiredShape = request(1, SHORT_STEP_NANOSECONDS, 0, 0);
-    delete retiredShape["initial_step_velocity_delta_q16"];
-    const retiredPayload = await rejectedEvent("simulation.actor.advance", retiredShape);
-    if (
-        typeof retiredPayload.error !== "string" ||
-        !retiredPayload.error.startsWith("invalid_payload: ") ||
-        !retiredPayload.error.includes("initial_step_velocity_delta_q16")
-    ) fail("retired simulation actor payload did not fail closed");
-    const aliasPayload = await rejectedEvent("simulation.actor.advance", {
-        ...retiredShape,
-        initial_velocity_delta_q16: 0,
-    });
-    if (
-        typeof aliasPayload.error !== "string" ||
-        !aliasPayload.error.startsWith("invalid_payload: ")
-    ) fail("simulation actor velocity alias did not fail closed");
     const invalidPresentation = await rejectedEvent("simulation.actor.advance", {
         ...request(1, SHORT_STEP_NANOSECONDS, 0, 0),
         archetype: 8,
@@ -192,8 +176,6 @@ async function prepublication(center: Coord): Promise<Json> {
     await event("actor.despawn", { generation: 1 });
     return {
         before,
-        retiredPayload,
-        aliasPayload,
         invalidPresentation,
         response,
         after,

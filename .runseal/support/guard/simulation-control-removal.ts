@@ -80,6 +80,30 @@ export async function requireSimulationHistoryRemoved(
         [".runseal/wrappers", ".runseal/support/actor", ".runseal/support/prototype/host.ts"],
         "independent simulation gate",
     );
+
+    const actorAdmission = await Deno.readTextFile(
+        `${root}/.runseal/support/actor/admission.ts`,
+    );
+    for (
+        const retired of [
+            "retiredShape",
+            "retiredPayload",
+            "aliasPayload",
+            "initial_velocity_delta_q16",
+        ]
+    ) {
+        if (actorAdmission.includes(retired)) {
+            fail(`guard: retired actor velocity compatibility probe returned: ${retired}`);
+        }
+    }
+    if (
+        !actorAdmission.includes(
+            "initial_step_velocity_delta_q16: initialVelocityDeltaQ16",
+        ) ||
+        !actorAdmission.includes("initial_step_velocity_delta_q16: 4_096") ||
+        !actorAdmission.includes("shared-window actor initial velocity delta ordering diverged") ||
+        !actorAdmission.includes("pending-window actor rollback")
+    ) fail("guard: current actor velocity admission authority diverged");
 }
 
 async function requireAbsent(
