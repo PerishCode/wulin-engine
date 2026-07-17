@@ -695,6 +695,15 @@ samples，stall/render block 均为零且无 elapsed backlog；完整 actor stat
 object observation/interaction 保持 idle，stdout 仍恰为两值。Escape、WM_CLOSE、forced-silence 与
 持续 capacity-one gate 均保持精确，后者仍有 12 个 Rejected 和 1,072 个 suppression frames；没有
 修改产品输入/时钟策略、session schema、Runtime 或 engine/GPU/resource 结构。
+Experiment 0113 补齐 Jump 生命周期的实机闭环：PID 2292 先收到一次 Space down，在零 stall 下等待
+1,265.727 ms（超过既有 48-step 完整飞行），再由同一 native helper 投递 Space up/down，并在精确
+104.278 ms 后投递 Escape。100.135 秒 `canonical-prototype-v30` 中，readiness live frame/sample 4
+保持 grounded true、velocity 0、ground center 141,824；completion frame/sample 1,616 的 velocity
+3,116 唯一反解为第二跳第 7 step，高度增量精确为 25,571、center 为 167,395。actor identity、XZ、
+shape、Survey/yaw/epoch、clock reset/suspend/resume/stall、object idle state 与零 render block 均保持
+精确，stdout 仍恰为两值、exit 0、stderr 空。focus gate 保留 645 个 suspended samples，持续
+capacity gate 保留 12 个 Rejected 与 1,051 个 suppression frames；产品 Jump/input/time/session
+schema、Runtime 与 engine/GPU/resource 结构未改变。
 
 ## Project model
 
@@ -760,8 +769,9 @@ plus visible native-Shift+W Run and same-sample E+W camera-relative locomotion w
 Survey/Walk/Run selection and exact
 committed eight-way facing, one
 committed current actor authority, Q/E committed actor-relative camera orbit/frame ordering, typed render-block
-consumption with zero normal-path blocks, one visible-window native Space action with exact committed
-vertical trajectory and grounded-policy consumption,
+consumption with zero normal-path blocks, one visible-window native Space action with exact
+committed vertical trajectory and grounded-policy consumption plus a complete landing and exact
+second native Space readmission,
 one visible-window native F+Enter+W observation/action whose origin is the exact committed actor
 output, whose bounded result matches an independent source oracle, and whose exact activated target
 commits only through the successful frame,
