@@ -96,7 +96,6 @@ export async function failedStart(label: string): Promise<Json> {
         elapsedMs: performance.now() - started,
         stdout: stdout.slice(-4_096),
         stderr: stderr.slice(-4_096),
-        readinessEmitted: false,
     };
 }
 

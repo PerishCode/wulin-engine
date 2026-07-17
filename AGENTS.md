@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0144 and the current ADR set through 0147 define one live content runtime
+Experiments 0031-0145 and the current ADR set through 0148 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -462,6 +462,13 @@ geometry/material/rig source, and one deterministic object-shadow path:
   session/object/process evidence remains exact, and the scheduled operator removes only resolved
   workspace-local `target/` and `out/` without a decoder, replacement flag, cleanup wrapper,
   `.task/` deletion, shared-cache mutation, or product/engine/GPU/resource behavior;
+- one mandatory forced-process report cleanup that deletes two static startup
+  `readinessEmitted` fields, four readiness-only capture fields, two downstream reads, and one
+  summary copy; startup failures retain direct successful-output rejection and exact diagnostics,
+  readiness-only capture rejects extra stdout and stderr at its execution boundary, normal
+  graceful-session evidence remains live, and the existing session guard prevents restoration
+  without a replacement flag, alias, decoder, retry, telemetry, or product/engine/GPU/resource
+  behavior;
 - one accepted plain Prototype v0 stage boundary over that exact self-contained finite single-actor
   loop; it does not claim sustained product traversal, a source service, finite-edge behavior,
   gameplay interaction, multiple actors, networking, or Wulin content;
@@ -619,6 +626,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0145-native-jump-focus-readmission.md` | Accepted held-Space focus cleanup and fresh grounded Jump readmission in the existing native process. |
 | `docs/adr/0146-native-object-focus-readmission.md` | Accepted stale F/Enter cancellation and fresh exact-object action readmission across one native focus discontinuity. |
 | `docs/adr/0147-exact-finite-boundary-run-completion.md` | Accepted exact bounded Run endpoint and standard graceful completion for the sole finite-boundary process. |
+| `docs/adr/0148-retired-forced-process-reports.md` | Accepted forced/readiness-only negative report retirement with direct stdout/stderr enforcement. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -734,6 +742,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0142-native-jump-focus-readmission/README.md` | Accepted held-Space focus cleanup and exact second-flight readmission evidence without a new process. |
 | `experiments/0143-native-object-focus-readmission/README.md` | Accepted stale F/Enter cancellation and fresh Activated object-action readmission evidence without a new process. |
 | `experiments/0144-exact-finite-boundary-run-completion/README.md` | Accepted exact 64-Q9 endpoint band, final Survey state, and two-value completion evidence without a new process. |
+| `experiments/0145-retired-forced-process-reports/README.md` | Mandatory forced/readiness-only report-chain deletion and direct current execution-boundary enforcement. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -854,14 +863,14 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/live-operator-surface.ts` | Exact wrapper set, single current-boundary authority, and maintained prototype-operator documentation gate. |
 | `.runseal/support/guard/input-journal-removal.ts` | Forbidden-file/symbol/verb/command gate for the retired diagnostic input journal surface. |
 | `.runseal/support/guard/object-identity.ts` | Required typed source-qualified resolver, nearest exclusion, frame suppression, prototype consumption, and forbidden old-surface gate. |
-| `.runseal/support/guard/prototype-session.ts` | Required bounded Escape/window-close/focus/Jump/camera/Run/boundary/object post-readiness sessions, exact-PID schema-4 timing, and forbidden forced-boundary/startup-action/next-window/old timing/transient-action surfaces. |
+| `.runseal/support/guard/prototype-session.ts` | Required bounded Escape/window-close/focus/Jump/camera/Run/boundary/object post-readiness sessions, exact-PID schema-4 timing, direct forced-process enforcement, and forbidden negative-report/forced-boundary/startup-action/next-window/old timing/transient-action surfaces. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/actor/admission.ts` | Canonical-aggregate schedule evidence, strict schema-2 advance, typed pending block, zero-commit rollback, and retained-frame support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |
 | `.runseal/support/actor/animation.ts` | Fixed-tick spawn/transition actor epoch, GPU local-phase, same-clip retention, and fractional rollback support. |
 | `.runseal/support/actor/simulation.ts` | Canonical-aggregate schedule assertions plus schema-2 fractional, partition, rollback, and sole actor advance support. |
-| `.runseal/support/runtime-bootstrap.ts` | Configured canonical-ready/restart plus current missing/corrupt failure and bounded Prototype invariant/lifecycle checkpoints. |
-| `.runseal/support/prototype/host.ts` | Prototype current missing/corrupt startup failures, plain readiness/restart baselines, post-readiness action sessions, exact boundary completion, Sidecar status/PID ownership, and no-inspect lifecycle orchestration. |
+| `.runseal/support/runtime-bootstrap.ts` | Configured canonical-ready/restart plus direct-output current missing/corrupt failure and bounded Prototype invariant/lifecycle checkpoints. |
+| `.runseal/support/prototype/host.ts` | Prototype direct-output current missing/corrupt startup failures, plain readiness/restart baselines, post-readiness action sessions, exact boundary completion, Sidecar status/PID ownership, and no-inspect lifecycle orchestration. |
 | `.runseal/support/prototype/boundary.ts` | Post-readiness exact-PID held-Run duration, conservative endpoint band, final Survey, clock/frame, and graceful finite-edge completion oracle. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
 | `.runseal/support/prototype/camera.ts` | Exact default/orbit rig, actor anchor, camera/frame readiness, held-repeat, invalid-key, and atomic opposite-edge locomotion oracle owner. |
@@ -874,8 +883,8 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/jump.ts` | Exact native Jump policy, first/second/single-flight arithmetic, landing/readmission, and midair-rejection oracles. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk/Run, locomotion yaw, and committed actor presentation invariant owner. |
 | `.runseal/support/prototype/sessions/focus.ts` | Exact atomic Space/W/focus-loss batch, clock recovery, and resumed-simulation suppression oracle. |
-| `.runseal/support/prototype/sessions/gates.ts` | Bounded forward-release/window-close/focus/Jump/Run release/re-press/opposite-locomotion/diagonal-Walk/diagonal-Run/camera/input/sustained session matrix, baseline comparisons, and exact invariant composition. |
-| `.runseal/support/prototype/sessions/mod.ts` | Shared Prototype readiness/completion framing plus exact-PID finite-boundary, object/action, and focus-recovery execution. |
+| `.runseal/support/prototype/sessions/gates.ts` | Bounded forward-release/window-close/focus/Jump/Run release/re-press/opposite-locomotion/diagonal-Walk/diagonal-Run/camera/input/sustained session matrix, positive baseline comparisons, and exact invariant composition. |
+| `.runseal/support/prototype/sessions/mod.ts` | Shared Prototype readiness/completion framing, direct readiness-only stdout/stderr enforcement, plus exact-PID finite-boundary, object/action, and focus-recovery execution. |
 | `.runseal/support/prototype/sessions/forward_release.ts` | Post-readiness W hold/release, exact Walk-to-Survey retained-facing transition, clock, and bounded session oracle owner. |
 | `.runseal/support/prototype/sessions/diagonal_walk.ts` | Post-readiness atomic W/A, exact 23-Q9 forward-left Walk, yaw/epoch transition, clock, and bounded session oracle owner. |
 | `.runseal/support/prototype/sessions/diagonal_run.ts` | Post-readiness atomic Shift/W/A, exact 45-Q9 forward-left Run, yaw/epoch transition, clock, and bounded session oracle owner. |

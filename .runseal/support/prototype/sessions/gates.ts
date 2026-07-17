@@ -31,9 +31,6 @@ export async function sessionGates(
     source: string,
     windowCenter: [number, number],
 ): Promise<Json> {
-    if (first.completionEmitted !== false || first.trailingOutput !== "") {
-        fail("prototype forced readiness process emitted session completion");
-    }
     const forwardRelease = await gracefulExit(
         executable,
         config,
@@ -243,7 +240,6 @@ export async function sessionGates(
             source,
             windowCenter,
         ),
-        forcedReadinessCompletionEmitted: false,
     };
 }
 

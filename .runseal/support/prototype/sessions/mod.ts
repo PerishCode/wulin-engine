@@ -86,7 +86,7 @@ export async function capturedReady(
         .pipeThrough(new TextDecoderStream())
         .getReader();
     let value: Json;
-    let trailingOutput = "";
+    let extraOutput = "";
     try {
         value = JSON.parse(await readinessLine(reader)) as Json;
         if (value.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
@@ -99,24 +99,22 @@ export async function capturedReady(
     } finally {
         child.kill();
     }
-    const status = await child.status;
+    await child.status;
     while (true) {
         const remaining = await reader.read();
         if (remaining.done) break;
-        trailingOutput += remaining.value;
+        extraOutput += remaining.value;
     }
     await reader.cancel();
-    if (trailingOutput.trim()) {
+    if (extraOutput.trim()) {
         fail(`${label} emitted session completion after forced evidence termination`);
     }
+    const stderrText = (await stderr).trim();
+    if (stderrText) fail(`${label} emitted stderr before forced evidence termination`);
     return {
         label,
         processId: Number(string(value, "instance_id")),
         elapsedMs: performance.now() - started,
-        forcedEvidenceExitCode: status.code,
-        stderr: (await stderr).trim().slice(-4_096),
-        trailingOutput,
-        completionEmitted: false,
         readiness: value,
     };
 }
