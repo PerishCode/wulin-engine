@@ -266,10 +266,15 @@ export async function requireBoundedPrototypeSession(
         !forwardReleaseAcceptance.includes("stationaryHoldIntervalMilliseconds") ||
         !focusAcceptance.includes("atomicWindowThreadBatch") ||
         !focusAcceptance.includes("sameBatchJumpDidNotReachResumedSimulation: true") ||
+        !focusAcceptance.includes("sameBatchObservationDidNotReachResumedSimulation: true") ||
+        !focusAcceptance.includes("sameBatchActivationDidNotReachResumedSimulation: true") ||
         !focusAcceptance.includes("heldLocomotionDidNotReachSimulation: true") ||
+        !focusAcceptance.includes("objectPoliciesIdleAcrossDiscontinuity: true") ||
         !focusAcceptance.includes("resumedReadyProgress: true") ||
         !focusAcceptance.includes("actionAfterReadiness: true") ||
         !focusAcceptance.includes("actionPressBeforeFocusLoss: true") ||
+        !focusAcceptance.includes("observationPressBeforeFocusLoss: true") ||
+        !focusAcceptance.includes("activationPressBeforeFocusLoss: true") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||
         !hostInput.includes("down == key_is_set(&self.held, key)") ||

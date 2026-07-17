@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0135 and the current ADR set through 0138 define one live content runtime
+Experiments 0031-0136 and the current ADR set through 0139 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -346,11 +346,12 @@ geometry/material/rig source, and one deterministic object-shadow path:
   completion with reason `window-close`, stable process/actor identity, idle object policies, exit
   zero, and no activation, key transition, direct destroy, process termination, product behavior,
   schema, telemetry, engine/GPU, or resource change;
-- one accepted native focus-discontinuity session gate that atomically posts Space then W
+- one accepted native focus-discontinuity session gate that atomically posts Space/F/Enter/W
   immediately before `WM_KILLFOCUS` on the exact visible process window thread, observes suspended
   sampling, posts `WM_SETFOCUS`, and proves one suspend/resume pair, one post-resume reset, later
-  Ready progress, zero elapsed backlog/stalls/blocks, and exact unchanged actor state; the queued
-  Jump edge and held locomotion cannot reach resumed nonzero simulation, without claiming immediate
+  Ready progress, zero elapsed backlog/stalls/blocks, exact unchanged actor state, and idle
+  observation/interaction with zero action counts; the queued Jump, observation, and activation
+  edges plus held locomotion cannot reach resumed nonzero simulation, without claiming immediate
   edge deletion or adding product input/clock/schema/telemetry or Runtime/GPU/resource changes;
 - one accepted native Jump-readmission session gate that posts one grounded Space, waits beyond
   the exact 48-step flight without a stall, posts Space up/down, and uses one same-helper monotonic
@@ -588,6 +589,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0136-native-focus-jump-suppression.md` | Accepted same-batch native Space/W focus-loss suppression across resumed Ready simulation. |
 | `docs/adr/0137-bounded-object-suppression-dwell.md` | Accepted 250 ms post-action dwell guaranteeing evidence beyond the 12-frame acknowledgement boundary. |
 | `docs/adr/0138-retired-startup-report-branches.md` | Accepted deletion of eight residual startup-report compatibility branches with one current-source removal guard. |
+| `docs/adr/0139-native-focus-object-intent-suppression.md` | Accepted same-batch native F/Enter focus-loss suppression beside retained Jump/locomotion evidence. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -694,6 +696,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0133-native-focus-jump-suppression/README.md` | Accepted same-batch Space/W focus-loss action and locomotion suppression evidence. |
 | `experiments/0134-bounded-object-suppression-dwell/README.md` | Accepted bounded post-action exit timing with a deterministic suppression-frame witness. |
 | `experiments/0135-retired-startup-report-branches/README.md` | Mandatory deletion of eight residual startup-report shape branches from current native-session oracles. |
+| `experiments/0136-native-focus-object-intent-suppression/README.md` | Accepted same-batch F/Enter focus-loss suppression with exact idle object-policy completion evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
