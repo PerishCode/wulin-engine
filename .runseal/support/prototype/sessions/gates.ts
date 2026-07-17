@@ -1,0 +1,166 @@
+import { fail, type Json, number, object, same } from "../../canonical-runtime.ts";
+import { nativeWindowCloseInvariant } from "../input/actions.ts";
+import {
+    cameraRepeatSessionInvariant,
+    invalidKeySessionInvariant,
+    oppositeCameraSessionInvariant,
+} from "../camera.ts";
+import { jumpMidairInvariant, jumpReadmissionInvariant } from "../jump.ts";
+import { sustainedCapacityInvariant } from "../object/gates.ts";
+import { focusSessionInvariant } from "./focus.ts";
+import { gracefulCompletionInvariant, gracefulExit, idleCompletionInvariant } from "./mod.ts";
+
+type LaunchInvariant = (launch: Json) => Json;
+
+export async function sessionGates(
+    executable: string,
+    config: string,
+    first: Json,
+    sustained: Json,
+    sustainedBaseline: Json,
+    startupInvariant: LaunchInvariant,
+    jumpInvariant: LaunchInvariant,
+    source: string,
+    windowCenter: [number, number],
+): Promise<Json> {
+    if (first.completionEmitted !== false || first.trailingOutput !== "") {
+        fail("prototype forced readiness process emitted session completion");
+    }
+    const escape = await gracefulExit(executable, config, "prototype Escape press exit");
+    const windowClose = await gracefulExit(
+        executable,
+        config,
+        "prototype native window close exit",
+        undefined,
+        null,
+        "window-close",
+    );
+    const focusDiscontinuity = await gracefulExit(
+        executable,
+        config,
+        "prototype native focus discontinuity",
+        undefined,
+        "focus-discontinuity",
+    );
+    const jumpReadmission = await gracefulExit(
+        executable,
+        config,
+        "prototype native Jump readmission",
+        undefined,
+        "jump-readmission",
+    );
+    const jumpMidair = await gracefulExit(
+        executable,
+        config,
+        "prototype native midair Jump rejection",
+        undefined,
+        "jump-midair",
+    );
+    const cameraRepeat = await gracefulExit(
+        executable,
+        config,
+        "prototype native held camera repeat",
+        "camera-clockwise",
+        "camera-repeat",
+    );
+    const invalidKey = await gracefulExit(
+        executable,
+        config,
+        "prototype native out-of-range camera key",
+        undefined,
+        "invalid-camera-alias",
+    );
+    const oppositeCamera = await gracefulExit(
+        executable,
+        config,
+        "prototype native opposite camera edges",
+        undefined,
+        "opposite-camera",
+    );
+    sameInitial(escape, first, "Escape", startupInvariant, jumpInvariant);
+    sameInitial(windowClose, first, "window-close", startupInvariant, jumpInvariant);
+    same(
+        startupInvariant(focusDiscontinuity),
+        startupInvariant(first),
+        "prototype focus-discontinuity configuration",
+    );
+    sameInitial(jumpReadmission, first, "Jump-readmission", startupInvariant, jumpInvariant);
+    sameInitial(jumpMidair, first, "midair-Jump", startupInvariant, jumpInvariant);
+    sameInitial(cameraRepeat, first, "held-camera-repeat", startupInvariant, jumpInvariant);
+    sameInitial(invalidKey, first, "invalid-key", startupInvariant, jumpInvariant);
+    sameInitial(oppositeCamera, first, "opposite-camera", startupInvariant, jumpInvariant);
+    same(
+        startupInvariant(sustained),
+        startupInvariant(sustainedBaseline),
+        "prototype sustained session configuration",
+    );
+    return {
+        escape,
+        escapeInvariant: idleCompletionInvariant(escape),
+        windowClose,
+        windowCloseInvariant: {
+            ...idleCompletionInvariant(windowClose, "window-close"),
+            nativeWindowClose: nativeWindowCloseInvariant(
+                object(windowClose, "exitInput"),
+                number(windowClose, "processId"),
+            ),
+        },
+        focusDiscontinuity,
+        focusDiscontinuityInvariant: focusSessionInvariant(
+            focusDiscontinuity,
+            idleCompletionInvariant(focusDiscontinuity),
+        ),
+        jumpReadmission,
+        jumpReadmissionInvariant: jumpReadmissionInvariant(
+            jumpReadmission,
+            idleCompletionInvariant(jumpReadmission),
+        ),
+        jumpMidair,
+        jumpMidairInvariant: jumpMidairInvariant(
+            jumpMidair,
+            idleCompletionInvariant(jumpMidair),
+        ),
+        cameraRepeat,
+        cameraRepeatInvariant: cameraRepeatSessionInvariant(
+            cameraRepeat,
+            idleCompletionInvariant(cameraRepeat),
+        ),
+        invalidKey,
+        invalidKeyInvariant: invalidKeySessionInvariant(
+            invalidKey,
+            idleCompletionInvariant(invalidKey),
+        ),
+        oppositeCamera,
+        oppositeCameraInvariant: oppositeCameraSessionInvariant(
+            oppositeCamera,
+            idleCompletionInvariant(oppositeCamera),
+        ),
+        sustained,
+        sustainedInvariant: await sustainedCapacityInvariant(
+            sustained,
+            gracefulCompletionInvariant(sustained, "escape"),
+            source,
+            windowCenter,
+        ),
+        forcedReadinessCompletionEmitted: false,
+    };
+}
+
+function sameInitial(
+    launch: Json,
+    first: Json,
+    label: string,
+    startupInvariant: LaunchInvariant,
+    jumpInvariant: LaunchInvariant,
+): void {
+    same(
+        startupInvariant(launch),
+        startupInvariant(first),
+        `prototype ${label} configuration`,
+    );
+    same(
+        jumpInvariant(launch),
+        jumpInvariant(first),
+        `prototype ${label} initial grounded policy`,
+    );
+}

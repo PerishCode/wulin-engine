@@ -10,6 +10,7 @@ export type PrototypeKey = {
         | "Escape"
         | "F"
         | "OutOfRangeE"
+        | "Q"
         | "Shift"
         | "Space"
         | "W";
@@ -55,8 +56,7 @@ export async function postPrototypeWindowAction(
         (atomicBatch &&
             (action !== "input" ||
                 keys.length < 2 ||
-                keyDelays.some((delay) => delay !== 0) ||
-                exitAfterLastMilliseconds !== 0))
+                keyDelays.some((delay) => delay !== 0)))
     ) fail(`prototype native ${action} action delay diverged`);
     const nativeKeys = keys;
     const expectedMessages = requiresKeys

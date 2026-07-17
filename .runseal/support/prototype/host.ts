@@ -18,11 +18,8 @@ import { BOUNDARY_HOLD_MILLISECONDS, boundarySurvival } from "./boundary.ts";
 import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
 import { objectFeedbackGates, restartObservation } from "./object/gates.ts";
-import {
-    capturedReady as captureReady,
-    sessionGates,
-    sustainedCapacitySession,
-} from "./sessions/mod.ts";
+import { capturedReady as captureReady, sustainedCapacitySession } from "./sessions/mod.ts";
+import { sessionGates } from "./sessions/gates.ts";
 import {
     CAMERA_FORWARD_COMMAND,
     type ExpectedCommand,
