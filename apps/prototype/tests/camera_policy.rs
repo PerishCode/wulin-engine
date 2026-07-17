@@ -93,3 +93,21 @@ fn held_key_does_not_repeat_and_uncommitted_candidate_has_no_effect() {
     let held_candidate = policy.candidate(&input);
     assert_eq!(held_candidate.rig().orbit_index, 1);
 }
+
+#[test]
+fn focus_cleanup_retains_one_camera_press() {
+    let mut input = input(vec![key(0x45, true), NativeMessage::FocusLost]);
+    assert!(!input.is_held(0x45));
+    assert!(input.was_pressed(0x45));
+    assert!(input.was_released(0x45));
+
+    let mut policy = camera::Policy::new();
+    let candidate = policy.candidate(&input);
+    assert_eq!(candidate.rig().orbit_index, 1);
+    policy.commit(candidate);
+
+    input.ingest(Vec::new());
+    assert!(!input.was_pressed(0x45));
+    assert!(!input.was_released(0x45));
+    assert_eq!(policy.candidate(&input).rig().orbit_index, 1);
+}
