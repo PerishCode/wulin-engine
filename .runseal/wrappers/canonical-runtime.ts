@@ -70,7 +70,7 @@ import {
     targetDepartureReturn,
     visibleObjectTarget,
 } from "../support/object/feedback.ts";
-const REVISION = "canonical-runtime-v18";
+const REVISION = "canonical-runtime-v19";
 const COLLECTION = "canonical-runtime";
 const BASE: Coord = [2 ** 40, -(2 ** 40)];
 if (Deno.args.includes("--help") || Deno.args.includes("-h")) {

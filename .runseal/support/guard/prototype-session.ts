@@ -123,12 +123,10 @@ export async function requireBoundedPrototypeSession(
         (main.match(/session::publish_readiness/g)?.length ?? 0) !== 1 ||
         (main.match(/session::publish_completion/g)?.length ?? 0) !== 1 ||
         /(^|[^A-Za-z])println!/m.test(main) ||
-        !session.includes('REVISION: &str = "live-prototype-session-completion-v1"') ||
+        !session.includes('REVISION: &str = "live-prototype-session-completion-v2"') ||
         !session.includes('"sequence": 1') ||
         !session.includes('"sequence": 2') ||
         !session.includes('"completion": "graceful-exit-only"') ||
-        !session.includes('"eventStream": false') ||
-        !session.includes('"eventHistory": false') ||
         !session.includes('"live-prototype-object-rejected-feedback-v3"') ||
         (session.match(/println!/g)?.length ?? 0) !== 2 ||
         !acceptance.includes('outputLine(reader, "session completion"') ||
@@ -357,6 +355,20 @@ export async function requireBoundedPrototypeSession(
     const actionAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/object/interaction.ts`,
     );
+    const currentSessionOwners = [
+        session,
+        await Deno.readTextFile(`${root}/apps/prototype/tests/session_report.rs`),
+        acceptance,
+        objectObservation,
+        actionAcceptance,
+        objectGates,
+    ];
+    for (const parts of [["event", "Stream"], ["event", "History"], ["copied", "ObjectState"]]) {
+        const field = parts.join("");
+        if (currentSessionOwners.some((source) => source.includes(field))) {
+            fail(`guard: retired negative session field returned: ${field}`);
+        }
+    }
     if (
         interaction.includes("FrameCompletion") ||
         interaction.includes("pub(crate) fn attempt(") ||

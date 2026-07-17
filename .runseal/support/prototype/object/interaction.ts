@@ -34,8 +34,7 @@ export function idleInteractionInvariant(launch: Json): Json {
         driver.nearestExclusion !== null ||
         suppression.submitted !== null ||
         suppression.projected !== null ||
-        number(suppression, "projectedFrameCount") !== 0 ||
-        driver.copiedObjectState !== false
+        number(suppression, "projectedFrameCount") !== 0
     ) fail("prototype idle object interaction driver diverged");
     return {
         revision: driver.revision,
@@ -51,6 +50,5 @@ export function idleInteractionInvariant(launch: Json): Json {
         rejectedFrameCount: 0,
         consumed: null,
         suppressionProjectedFrameCount: 0,
-        copiedObjectState: false,
     };
 }

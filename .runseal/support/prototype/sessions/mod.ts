@@ -27,7 +27,7 @@ import {
     repressJumpAndExit,
 } from "../input/sequences.ts";
 
-const REVISION = "live-prototype-session-completion-v1";
+const REVISION = "live-prototype-session-completion-v2";
 
 export async function outputLine(
     reader: ReadableStreamDefaultReader<string>,
@@ -354,7 +354,6 @@ export function gracefulCompletionInvariant(
         number(contract, "readinessSequence") !== 1 ||
         number(contract, "completionSequence") !== 2 ||
         contract.completion !== "graceful-exit-only" ||
-        contract.eventStream !== false ||
         completion.role !== "prototype-session-completion" ||
         completion.revision !== REVISION ||
         number(completion, "sequence") !== 2 ||
@@ -395,12 +394,9 @@ export function gracefulCompletionInvariant(
     ) fail("prototype session final clock regressed");
     const observation = object(completion, "object_observation");
     const interaction = object(completion, "object_interaction");
-    if (
-        observation.copiedObjectState !== false ||
-        interaction.eventHistory !== false ||
-        interaction.copiedObjectState !== false ||
-        number(interaction, "capacity") !== 1
-    ) fail("prototype session completion retained diagnostic or copied object state");
+    if (number(interaction, "capacity") !== 1) {
+        fail("prototype session completion interaction capacity diverged");
+    }
 
     return {
         revision: REVISION,
@@ -416,8 +412,6 @@ export function gracefulCompletionInvariant(
         finalObservation: observation,
         finalInteraction: interaction,
         exactlyTwoValues: true,
-        eventStream: false,
-        copiedObjectState: false,
     };
 }
 
