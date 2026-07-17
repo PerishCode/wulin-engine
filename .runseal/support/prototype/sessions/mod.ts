@@ -3,6 +3,7 @@ import {
     applyStartupInput,
     nativeWindowCloseInvariant,
     postCameraRepeatSequence,
+    postInvalidAliasSequence,
     postMidairSequence,
     postPrototypeCapacityRejection,
     pressPrototypeEscape,
@@ -13,7 +14,7 @@ import {
     type StartupInput,
     suspendWithForward,
 } from "../input.ts";
-import { cameraRepeatSessionInvariant } from "../camera.ts";
+import { cameraRepeatSessionInvariant, invalidKeySessionInvariant } from "../camera.ts";
 import { focusSessionInvariant } from "./focus.ts";
 import { jumpMidairInvariant, jumpReadmissionInvariant } from "../jump.ts";
 import { sustainedCapacityInvariant } from "../object/gates.ts";
@@ -122,6 +123,7 @@ async function gracefulExit(
         | "capacity-rejection"
         | "camera-repeat"
         | "focus-discontinuity"
+        | "invalid-camera-alias"
         | "jump-midair"
         | "jump-readmission"
         | null = null,
@@ -163,6 +165,10 @@ async function gracefulExit(
             const resumed = await resumePrototypeFocus(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
             postReadinessInput = { suspended, resumed };
+        } else if (postReadiness === "invalid-camera-alias") {
+            const sequence = await postInvalidAliasSequence(child.pid);
+            postReadinessInput = { sequence };
+            exitInput = sequence;
         } else if (postReadiness === "jump-readmission") {
             const firstJump = await pressPrototypeJump(child.pid);
             const firstJumpPostedAt = performance.now();
@@ -288,6 +294,13 @@ export async function sessionGates(
         "camera-clockwise",
         "camera-repeat",
     );
+    const invalidKey = await gracefulExit(
+        executable,
+        config,
+        "prototype native out-of-range camera key",
+        undefined,
+        "invalid-camera-alias",
+    );
     const sustained = await gracefulExit(
         executable,
         config,
@@ -295,57 +308,17 @@ export async function sessionGates(
         "observe-action-facing",
         "capacity-rejection",
     );
-    same(startupInvariant(escape), startupInvariant(first), "prototype Escape configuration");
-    same(
-        jumpInvariant(escape),
-        jumpInvariant(first),
-        "prototype Escape jump policy",
-    );
-    same(
-        startupInvariant(windowClose),
-        startupInvariant(first),
-        "prototype window-close configuration",
-    );
-    same(
-        jumpInvariant(windowClose),
-        jumpInvariant(first),
-        "prototype window-close jump policy",
-    );
+    sameInitial(escape, first, "Escape", startupInvariant, jumpInvariant);
+    sameInitial(windowClose, first, "window-close", startupInvariant, jumpInvariant);
     same(
         startupInvariant(focusDiscontinuity),
         startupInvariant(first),
         "prototype focus-discontinuity configuration",
     );
-    same(
-        startupInvariant(jumpReadmission),
-        startupInvariant(first),
-        "prototype Jump-readmission configuration",
-    );
-    same(
-        jumpInvariant(jumpReadmission),
-        jumpInvariant(first),
-        "prototype Jump-readmission initial grounded policy",
-    );
-    same(
-        startupInvariant(jumpMidair),
-        startupInvariant(first),
-        "prototype midair-Jump configuration",
-    );
-    same(
-        jumpInvariant(jumpMidair),
-        jumpInvariant(first),
-        "prototype midair-Jump initial grounded policy",
-    );
-    same(
-        startupInvariant(cameraRepeat),
-        startupInvariant(first),
-        "prototype held-camera-repeat configuration",
-    );
-    same(
-        jumpInvariant(cameraRepeat),
-        jumpInvariant(first),
-        "prototype held-camera-repeat initial grounded policy",
-    );
+    sameInitial(jumpReadmission, first, "Jump-readmission", startupInvariant, jumpInvariant);
+    sameInitial(jumpMidair, first, "midair-Jump", startupInvariant, jumpInvariant);
+    sameInitial(cameraRepeat, first, "held-camera-repeat", startupInvariant, jumpInvariant);
+    sameInitial(invalidKey, first, "invalid-key", startupInvariant, jumpInvariant);
     same(
         startupInvariant(sustained),
         startupInvariant(first),
@@ -382,6 +355,11 @@ export async function sessionGates(
             cameraRepeat,
             idleCompletionInvariant(cameraRepeat),
         ),
+        invalidKey,
+        invalidKeyInvariant: invalidKeySessionInvariant(
+            invalidKey,
+            idleCompletionInvariant(invalidKey),
+        ),
         sustained,
         sustainedInvariant: await sustainedCapacityInvariant(
             sustained,
@@ -391,6 +369,25 @@ export async function sessionGates(
         ),
         forcedReadinessCompletionEmitted: false,
     };
+}
+
+function sameInitial(
+    launch: Json,
+    first: Json,
+    label: string,
+    startupInvariant: (launch: Json) => Json,
+    jumpInvariant: (launch: Json) => Json,
+): void {
+    same(
+        startupInvariant(launch),
+        startupInvariant(first),
+        `prototype ${label} configuration`,
+    );
+    same(
+        jumpInvariant(launch),
+        jumpInvariant(first),
+        `prototype ${label} initial grounded policy`,
+    );
 }
 
 export function gracefulCompletionInvariant(
