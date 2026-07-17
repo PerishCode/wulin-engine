@@ -22,7 +22,7 @@ export async function requireBoundedPrototypeSession(
         !session.includes('"completion": "graceful-exit-only"') ||
         !session.includes('"eventStream": false') ||
         !session.includes('"eventHistory": false') ||
-        !session.includes('"live-prototype-object-rejected-feedback-v2"') ||
+        !session.includes('"live-prototype-object-rejected-feedback-v3"') ||
         (session.match(/println!/g)?.length ?? 0) !== 2 ||
         !acceptance.includes('outputLine(reader, "session completion"') ||
         !acceptance.includes("trailing session output") ||
@@ -46,4 +46,40 @@ export async function requireBoundedPrototypeSession(
             session,
         )
     ) fail("guard: Prototype completion became recurring diagnostics or changed exit ordering");
+
+    console.log("==> removed transient Prototype action report");
+    const interaction = await Deno.readTextFile(
+        `${root}/apps/prototype/src/object/interaction.rs`,
+    );
+    const tests = await Deno.readTextFile(
+        `${root}/apps/prototype/tests/object_interaction_policy.rs`,
+    );
+    const actionAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/object/interaction.ts`,
+    );
+    if (
+        interaction.includes("FrameCompletion") ||
+        interaction.includes("pub(crate) fn attempt(") ||
+        interaction.includes("Result<Option<FrameCompletion>>") ||
+        session.includes("interaction_attempt") ||
+        session.includes("interaction_completion") ||
+        session.includes('"attempt":') ||
+        session.includes('"completion": evidence.interaction') ||
+        main.includes("interaction_completion") ||
+        tests.includes("report::attempt") ||
+        tests.includes("completion.applied") ||
+        tests.includes("completion.feedback") ||
+        actionAcceptance.includes("driver.attempt") ||
+        actionAcceptance.includes("driver.completion") ||
+        actionAcceptance.includes('object(driver, "attempt")') ||
+        actionAcceptance.includes('object(driver, "completion")')
+    ) fail("guard: retired transient Prototype action report returned");
+    if (
+        !interaction.includes(") -> Result<()>") ||
+        !actionAcceptance.includes('"attempt" in driver') ||
+        !actionAcceptance.includes('"completion" in driver') ||
+        !actionAcceptance.includes("projectedFeedback: feedback") ||
+        !actionAcceptance.includes("exactCommittedOriginProximity: true") ||
+        !actionAcceptance.includes("exactCommittedFacing: true")
+    ) fail("guard: current projected-feedback/state authority diverged");
 }

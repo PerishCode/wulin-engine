@@ -8,53 +8,6 @@ use reference_host::HostElapsedSample;
 pub(crate) mod report {
     use serde_json::{Value, json};
 
-    pub(crate) fn attempt(attempt: super::Attempt) -> Value {
-        match attempt {
-            super::Attempt::Eligible(eligible) => json!({
-                "outcome": "eligible",
-                "feedback": eligible.feedback,
-                "proximity": eligible.proximity,
-                "facing": facing(eligible.facing),
-            }),
-            super::Attempt::Rejected(super::Rejected::OutsideFacing {
-                feedback,
-                proximity,
-                facing: evidence,
-            }) => json!({
-                "outcome": "ineligible",
-                "reason": "outside-facing",
-                "feedback": feedback,
-                "proximity": proximity,
-                "facing": facing(evidence),
-            }),
-            super::Attempt::Rejected(super::Rejected::CapacityExhausted { feedback }) => json!({
-                "outcome": "ineligible",
-                "reason": "capacity-exhausted",
-                "feedback": feedback,
-            }),
-            super::Attempt::Ineligible(reason) => json!({
-                "outcome": "ineligible",
-                "reason": match reason {
-                    super::Ineligible::MissingTarget => "missing-target",
-                    super::Ineligible::UnavailableTarget => "unavailable-target",
-                    super::Ineligible::SourceReplaced => "source-replaced",
-                    super::Ineligible::OutsidePublishedWindow => "outside-published-window",
-                    super::Ineligible::OutsideRadius => "outside-radius",
-                    super::Ineligible::CapacityExhausted => "capacity-exhausted",
-                },
-            }),
-        }
-    }
-
-    fn facing(facing: super::Facing) -> Value {
-        json!({
-            "yawQ16": facing.yaw_q16,
-            "directionX": facing.direction_x,
-            "directionZ": facing.direction_z,
-            "dotQ9": facing.dot_q9,
-        })
-    }
-
     pub(crate) fn acknowledgement(acknowledgement: super::Acknowledgement) -> Value {
         json!({
             "identity": acknowledgement.identity,
@@ -139,12 +92,6 @@ pub(crate) enum Attempt {
     Eligible(Eligible),
     Rejected(Rejected),
     Ineligible(Ineligible),
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct FrameCompletion {
-    pub applied: bool,
-    pub feedback: ObjectTargetFeedback,
 }
 
 pub(crate) struct Policy {
@@ -367,7 +314,7 @@ impl Policy {
         attempt: Option<Attempt>,
         submitted: Option<ObjectTargetFeedback>,
         rendered: Option<ObjectTargetFeedback>,
-    ) -> Result<Option<FrameCompletion>> {
+    ) -> Result<()> {
         ensure!(
             rendered.is_none() || rendered == submitted,
             "rendered object feedback diverged from the submitted frame candidate"
@@ -397,10 +344,7 @@ impl Policy {
             } else {
                 self.acknowledgement = None;
             }
-            return Ok(Some(FrameCompletion {
-                applied,
-                feedback: eligible.feedback,
-            }));
+            return Ok(());
         }
         if let Some(Attempt::Rejected(rejected)) = attempt {
             let feedback = rejected.feedback();
@@ -414,10 +358,7 @@ impl Policy {
                 kind: feedback.kind,
                 remaining_frames: ACKNOWLEDGEMENT_FRAME_COUNT - 1,
             });
-            return Ok(Some(FrameCompletion {
-                applied: false,
-                feedback,
-            }));
+            return Ok(());
         }
         if let Some(mut acknowledgement) = self.acknowledgement
             && rendered
@@ -430,7 +371,7 @@ impl Policy {
             self.acknowledgement =
                 (acknowledgement.remaining_frames != 0).then_some(acknowledgement);
         }
-        Ok(None)
+        Ok(())
     }
 
     pub(crate) fn observe_target(&mut self, target: Option<Target>) {

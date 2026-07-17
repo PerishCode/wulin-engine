@@ -52,8 +52,6 @@ pub(crate) struct Readiness {
     pub jump_status: jump::Status,
     pub object_observation: Option<observation::Completed>,
     pub observation_status: observation::Status,
-    pub interaction_attempt: Option<interaction::Attempt>,
-    pub interaction_completion: Option<interaction::FrameCompletion>,
     pub interaction_status: interaction::Status,
 }
 
@@ -93,9 +91,6 @@ fn readiness_value(evidence: Readiness) -> Result<Value> {
             "query": completed.query,
         })
     });
-    let object_action_attempt = evidence
-        .interaction_attempt
-        .map(interaction::report::attempt);
     Ok(json!({
         "role": "prototype",
         "sequence": 1,
@@ -163,7 +158,7 @@ fn readiness_value(evidence: Readiness) -> Result<Value> {
             },
         },
         "object_interaction_driver": {
-            "revision": "live-prototype-object-rejected-feedback-v2",
+            "revision": "live-prototype-object-rejected-feedback-v3",
             "input": "Enter",
             "maxDistanceQ9": interaction::OBJECT_ACTION_RADIUS_Q9,
             "facingRule": {
@@ -172,11 +167,6 @@ fn readiness_value(evidence: Readiness) -> Result<Value> {
                 "coincidentEligible": true,
             },
             "acknowledgementFrameCount": interaction::ACKNOWLEDGEMENT_FRAME_COUNT,
-            "attempt": object_action_attempt,
-            "completion": evidence.interaction_completion.map(|completion| json!({
-                "applied": completion.applied,
-                "feedback": completion.feedback,
-            })),
             "status": interaction_status(evidence.interaction_status),
             "activatedFrameCount": evidence.object_action_frame_count,
             "rejectedFrameCount": evidence.object_rejection_frame_count,
