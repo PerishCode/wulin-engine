@@ -41,10 +41,13 @@ export function nativeWindowCloseInvariant(evidence: Json, processId: number): J
     };
 }
 
-export async function suspendWithForward(processId: number): Promise<Json> {
+export async function suspendWithActionBatch(processId: number): Promise<Json> {
     return await postPrototypeWindowAction(
         processId,
-        [{ key: "W", virtualKey: 0x57, down: true }],
+        [
+            { key: "Space", virtualKey: 0x20, down: true },
+            { key: "W", virtualKey: 0x57, down: true },
+        ],
         true,
         "suspend",
         [],

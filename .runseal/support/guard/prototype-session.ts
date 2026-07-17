@@ -252,6 +252,11 @@ export async function requireBoundedPrototypeSession(
         !forwardReleaseAcceptance.includes("walkHoldIntervalMilliseconds") ||
         !forwardReleaseAcceptance.includes("stationaryHoldIntervalMilliseconds") ||
         !focusAcceptance.includes("atomicWindowThreadBatch") ||
+        !focusAcceptance.includes("sameBatchJumpDidNotReachResumedSimulation: true") ||
+        !focusAcceptance.includes("heldLocomotionDidNotReachSimulation: true") ||
+        !focusAcceptance.includes("resumedReadyProgress: true") ||
+        !focusAcceptance.includes("actionAfterReadiness: true") ||
+        !focusAcceptance.includes("actionPressBeforeFocusLoss: true") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||
         !hostInput.includes("down == key_is_set(&self.held, key)") ||
@@ -298,7 +303,9 @@ export async function requireBoundedPrototypeSession(
         !canonicalSetup.includes(
             "objectActionTraversalCenter: Coord = [base[0] + 5, base[1] + 1]",
         ) ||
-        !inputActions.includes("suspendWithForward") ||
+        !inputActions.includes("suspendWithActionBatch") ||
+        inputActions.includes("suspendWithJumpAndForward") ||
+        inputActions.includes("suspendWithForward") ||
         !inputActions.includes("resumePrototypeFocus") ||
         !input.includes("0x0010") ||
         !input.includes("0x0008") ||
