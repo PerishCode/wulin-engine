@@ -39,6 +39,27 @@ fn origin() -> TerrainPosition {
     TerrainPosition::new(RegionCoord::ZERO, 0, 0).unwrap()
 }
 
+fn consume(policy: &mut interaction::Policy, id: u32) {
+    policy.ingest(true);
+    let attempt = policy
+        .prepare_after_advance(
+            1,
+            origin(),
+            0,
+            Some(target(id, true)),
+            Some(CanonicalObjectResolution::Resolved(object(id, 0))),
+        )
+        .unwrap();
+    let submitted = policy.frame_feedback(Some(identity(id)), attempt);
+    policy
+        .complete_frame(attempt, submitted, submitted)
+        .unwrap();
+    for _ in 1..interaction::ACKNOWLEDGEMENT_FRAME_COUNT {
+        let submitted = policy.frame_feedback(Some(identity(id)), None);
+        policy.complete_frame(None, submitted, submitted).unwrap();
+    }
+}
+
 #[test]
 fn intent_lifetime_is_bounded() {
     let mut policy = interaction::Policy::new();
@@ -200,31 +221,49 @@ fn projection_and_target_change() {
 #[test]
 fn consumption_capacity_and_source_lifetime_are_exact() {
     let mut policy = interaction::Policy::new();
-    policy.ingest(true);
-    let attempt = policy
-        .prepare_after_advance(
-            1,
-            origin(),
-            0,
-            Some(target(7, true)),
-            Some(CanonicalObjectResolution::Resolved(object(7, 0))),
-        )
-        .unwrap();
-    let submitted = policy.frame_feedback(Some(identity(7)), attempt);
-    policy
-        .complete_frame(attempt, submitted, submitted)
-        .unwrap();
+    consume(&mut policy, 7);
+    assert_eq!(policy.frame_suppression(), Some(identity(7)));
 
     policy.ingest(true);
-    assert_eq!(
-        policy
-            .prepare_after_advance(1, origin(), 0, Some(target(8, true)), None)
-            .unwrap(),
-        Some(interaction::Attempt::Ineligible(
-            interaction::Ineligible::CapacityExhausted
-        ))
-    );
+    let attempt = policy
+        .prepare_after_advance(1, origin(), 0, Some(target(8, true)), None)
+        .unwrap();
+    let Some(interaction::Attempt::Rejected(interaction::Rejected::CapacityExhausted { feedback })) =
+        attempt
+    else {
+        panic!("resolved second target did not produce capacity rejection feedback");
+    };
+    assert_eq!(feedback.identity, identity(8));
+    assert_eq!(feedback.kind, ObjectTargetFeedbackKind::Rejected);
+    let report = interaction::report::attempt(attempt.unwrap());
+    assert_eq!(report["reason"], "capacity-exhausted");
+    assert!(report.get("proximity").is_none());
+    assert!(report.get("facing").is_none());
+    let submitted = policy.frame_feedback(Some(identity(8)), attempt);
+    assert_eq!(submitted, Some(feedback));
+    assert_eq!(policy.frame_suppression(), Some(identity(7)));
+    let completion = policy
+        .complete_frame(attempt, submitted, submitted)
+        .unwrap()
+        .unwrap();
+    assert!(!completion.applied);
+    assert_eq!(completion.feedback, feedback);
+    assert_eq!(policy.status().committed_count, 1);
+    assert_eq!(policy.status().ineligible_count, 1);
     assert_eq!(policy.status().consumed, Some(identity(7)));
+    assert_eq!(
+        policy.status().acknowledgement.unwrap().identity,
+        identity(8)
+    );
+    assert_eq!(policy.frame_suppression(), Some(identity(7)));
+    for _ in 1..interaction::ACKNOWLEDGEMENT_FRAME_COUNT {
+        let submitted = policy.frame_feedback(Some(identity(8)), None);
+        assert_eq!(submitted, Some(feedback));
+        assert_eq!(policy.frame_suppression(), Some(identity(7)));
+        policy.complete_frame(None, submitted, submitted).unwrap();
+    }
+    assert_eq!(policy.status().acknowledgement, None);
+    assert_eq!(policy.frame_suppression(), Some(identity(7)));
 
     policy.observe_source(identity(7).source_namespace);
     assert_eq!(policy.status().consumed, Some(identity(7)));
@@ -232,6 +271,58 @@ fn consumption_capacity_and_source_lifetime_are_exact() {
     assert_eq!(policy.status().consumed, None);
     assert_eq!(policy.status().acknowledgement, None);
     assert_eq!(policy.nearest_exclusion(), None);
+}
+
+#[test]
+fn capacity_rejection_requires_a_distinct_resolved_target_and_projection() {
+    let mut policy = interaction::Policy::new();
+    consume(&mut policy, 7);
+
+    policy.ingest(true);
+    let before = policy.status();
+    assert!(
+        policy
+            .prepare_after_advance(1, origin(), 0, Some(target(7, true)), None)
+            .is_err()
+    );
+    assert_eq!(policy.status(), before);
+
+    let mut unavailable = interaction::Policy::new();
+    consume(&mut unavailable, 7);
+    unavailable.ingest(true);
+    let attempt = unavailable
+        .prepare_after_advance(1, origin(), 0, Some(target(8, false)), None)
+        .unwrap();
+    assert_eq!(
+        attempt,
+        Some(interaction::Attempt::Ineligible(
+            interaction::Ineligible::CapacityExhausted
+        ))
+    );
+    assert_ne!(
+        unavailable
+            .frame_feedback(Some(identity(8)), attempt)
+            .unwrap()
+            .kind,
+        ObjectTargetFeedbackKind::Rejected
+    );
+    assert_eq!(unavailable.frame_suppression(), Some(identity(7)));
+
+    let mut unprojected = interaction::Policy::new();
+    consume(&mut unprojected, 7);
+    unprojected.ingest(true);
+    let attempt = unprojected
+        .prepare_after_advance(1, origin(), 0, Some(target(8, true)), None)
+        .unwrap();
+    let submitted = unprojected.frame_feedback(Some(identity(8)), attempt);
+    let completion = unprojected
+        .complete_frame(attempt, submitted, None)
+        .unwrap()
+        .unwrap();
+    assert!(!completion.applied);
+    assert_eq!(unprojected.status().acknowledgement, None);
+    assert_eq!(unprojected.status().consumed, Some(identity(7)));
+    assert_eq!(unprojected.frame_suppression(), Some(identity(7)));
 }
 
 #[test]
@@ -285,12 +376,16 @@ fn side_back_and_zero_distance_are_exact() {
                 Some(CanonicalObjectResolution::Resolved(object)),
             )
             .unwrap();
-        let Some(interaction::Attempt::Rejected(rejected)) = attempt else {
+        let Some(interaction::Attempt::Rejected(interaction::Rejected::OutsideFacing {
+            proximity: _,
+            feedback,
+            facing,
+        })) = attempt
+        else {
             panic!("side/rear target did not produce exact rejection feedback");
         };
-        assert_eq!(rejected.reason, interaction::Ineligible::OutsideFacing);
-        assert_eq!(rejected.feedback.kind, ObjectTargetFeedbackKind::Rejected);
-        assert!(rejected.facing.dot_q9 <= 0);
+        assert_eq!(feedback.kind, ObjectTargetFeedbackKind::Rejected);
+        assert!(facing.dot_q9 <= 0);
         assert_eq!(policy.status().ineligible_count, 1);
     }
 

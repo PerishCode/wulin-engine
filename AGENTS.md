@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0108 and the current ADR set through 0111 define one live content runtime
+Experiments 0031-0109 and the current ADR set through 0112 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -306,6 +306,11 @@ geometry/material/rig source, and one deterministic object-shadow path:
   sequence-2 completion value only after a later graceful Escape or window-close exit in the same
   process, after GPU idle and before teardown, with exact final actor/clock/frame/object-action
   state, no event stream/history, and forced termination remaining completion-free;
+- one accepted identity-only Prototype capacity-exhaustion rejection that submits existing red
+  `Rejected` feedback only for a different currently resolved target without canonical resolution,
+  proximity, or facing work, returns `applied=false`, reuses the sole acknowledgement owner, and
+  preserves the immutable first consumed identity, count, exclusion, and simultaneous suppression
+  without another timer, result history, mutation, registry, inventory, or product effect;
 - one mandatory compatibility cleanup that deletes ten recurring process requests for settled
   calibration/world, standalone-contact, and caller-owned terrain-body routes plus their
   `removedVerbs` report and mixed-purpose support module; owner-specific static guards remain the
@@ -436,6 +441,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0109-committed-prototype-object-facing.md` | Accepted exact committed eight-way front-half-plane Prototype action gate. |
 | `docs/adr/0110-frame-bound-object-rejection-feedback.md` | Accepted exact red facing-rejection projection over the existing frame transaction and bounded acknowledgement. |
 | `docs/adr/0111-bounded-prototype-session-completion.md` | Accepted one-readiness/one-graceful-completion session contract and sustained post-readiness acceptance boundary. |
+| `docs/adr/0112-frame-bound-capacity-exhaustion-feedback.md` | Accepted identity-only red capacity rejection with continuous first-identity suppression. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -515,6 +521,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0106-committed-prototype-object-facing/README.md` | Accepted native front-facing admission and side-facing rejection evidence. |
 | `experiments/0107-rejected-object-action-feedback/README.md` | Accepted exact Rejected projection, bounded acknowledgement reuse, and zero-effect native rejection evidence. |
 | `experiments/0108-bounded-prototype-session-completion/README.md` | Accepted bounded readiness/completion framing, sustained native post-readiness action, and forced-termination silence evidence. |
+| `experiments/0109-capacity-exhausted-object-action-feedback/README.md` | Accepted exclusion-aware second-target capacity rejection and concurrent first-target suppression evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -563,8 +570,8 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `apps/prototype/src/object/mod.rs` | Prototype-owned object observation and interaction policy boundary. |
 | `apps/prototype/src/object/observation.rs` | Prototype-owned F intent plus identity-only target admission, consumed-target clearing, snapshot-gated resolution, window/source lifetime, and rollback policy. |
 | `apps/prototype/tests/object_observation_policy.rs` | Admission/consumed-clear/empty-clear/rollback, stamp work-elimination, window revisit, source replacement, and discontinuity evidence. |
-| `apps/prototype/src/object/interaction.rs` | Prototype-owned capacity-one Enter intent, exact committed proximity/facing admission, projected Activated/Rejected acknowledgement, consumption commit, nearest exclusion, and deferred suppression. |
-| `apps/prototype/tests/object_interaction_policy.rs` | Intent/consumption/source lifetime, capacity exhaustion, ineligible consumption, malformed rollback, projection miss, target change, and 12-frame acknowledgement evidence. |
+| `apps/prototype/src/object/interaction.rs` | Prototype-owned capacity-one Enter intent, exact committed proximity/facing admission, identity-only capacity rejection, projected acknowledgement, consumption/exclusion, and identity-aware suppression. |
+| `apps/prototype/tests/object_interaction_policy.rs` | Intent/consumption/source lifetime, capacity rejection, concurrent suppression, ineligible consumption, malformed rollback, projection miss, target change, and acknowledgement evidence. |
 | `apps/prototype/src/session.rs` | Bounded one-readiness/one-graceful-completion report ownership over final Prototype state. |
 | `apps/prototype/tests/session_report.rs` | Exact completion schema, reason, final-state, and checked frame-total evidence. |
 | `apps/prototype/src/presentation.rs` | Prototype-owned imported Survey/Walk/Run and committed eight-way locomotion-facing policy. |
@@ -622,7 +629,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/object/observation.ts` | Committed-origin observation, identity-only retained target, snapshot revalidation, and independent source-oracle gate. |
 | `.runseal/support/prototype/object/observation_order.ts` | Zero-dependency valid asynchronous traversal/observation token-order contract. |
 | `.runseal/support/prototype/object/observation_test.ts` | Equivalent pre/post asynchronous traversal observation order and impossible-token rejection evidence. |
-| `.runseal/support/prototype/object/interaction.ts` | Native exact-proximity, activated-frame consumption/exclusion commit, deferred suppression, acknowledgement, restart, and copied-state-absence gate. |
+| `.runseal/support/prototype/object/interaction.ts` | Native exact-proximity/facing, activated/rejected frame, consumption/exclusion, continuous suppression, acknowledgement, restart, and copied-state-absence gates. |
 | `.runseal/support/prototype/object/gates.ts` | Prototype observation/action process, restart, and unchanged-subsystem gate composition. |
 | `.runseal/support/object/integration.ts` | Object resolution/nearest source, window, movement, and corrupt-pair preservation integration gates. |
 | `.runseal/support/idle-shell.ts` | Current clear-only status, renderer-health, image, and uniformly background semantic evidence. |
@@ -645,9 +652,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/boundary.ts` | Real activated held-input finite-edge process survival and cleanup evidence owner. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
 | `.runseal/support/prototype/camera.ts` | Exact default/orbit rig, actor anchor, and camera/frame readiness invariant owner. |
-| `.runseal/support/prototype/input.ts` | Process-qualified ordered native prototype-window W/Shift/Escape/E/Space/F/Enter transitions, chords, and exact Enter re-press injection for sustained action acceptance. |
+| `.runseal/support/prototype/input.ts` | Process-qualified ordered native prototype-window transitions/chords plus exact locomotion release and F/Enter re-press injection for sustained action acceptance. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk/Run, locomotion yaw, and committed actor presentation invariant owner. |
-| `.runseal/support/prototype/session.ts` | Shared readiness/completion framing, sustained native session gates, Escape exit, and prototype Sidecar status/PID process owner. |
+| `.runseal/support/prototype/session.ts` | Shared readiness/completion framing, sustained exclusion-oracle session gates, Escape exit, and prototype Sidecar status/PID process owner. |
 | `.runseal/support/prototype/simulation.ts` | Exact stationary, Walk, Run, camera-relative Walk, and Jump command expectation owner. |
 | `.runseal/support/prototype/traversal.ts` | Exact default/orbit traversal targets, bounded async/latest-wins publication, and no-prefetch/block/failure invariant owner. |
 | `.runseal/support/terrain/query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |

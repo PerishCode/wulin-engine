@@ -127,15 +127,18 @@ export async function requireTypedObjectResolution(
         !interaction.includes("pub(crate) const ACKNOWLEDGEMENT_FRAME_COUNT: u32 = 12") ||
         !interaction.includes("object.proximity_from(origin, OBJECT_ACTION_RADIUS_Q9)?") ||
         !interaction.includes("kind: ObjectTargetFeedbackKind::Activated") ||
-        !interaction.includes("CapacityExhausted") ||
+        !interaction.includes("Rejected::CapacityExhausted") ||
+        !interaction.includes("Some(target.identity) != self.consumed") ||
         !interaction.includes("pub(crate) const fn nearest_exclusion") ||
-        !interaction.includes("pub(crate) const fn frame_suppression") ||
+        !interaction.includes("pub(crate) fn frame_suppression") ||
+        !interaction.includes("acknowledgement.identity == consumed") ||
         !interaction.includes("pub(crate) fn observe_source") ||
         !runtime.includes("pub object_target_feedback: Option<ObjectTargetFeedback>") ||
         !runtime.includes("pub object_suppression: Option<CanonicalObjectIdentity>") ||
         !renderer.includes("pub object_target_feedback: Option<ObjectTargetFeedback>") ||
         !renderer.includes("pub object_suppression: Option<CanonicalObjectIdentity>") ||
         !prototypeMain.includes("resolve_canonical_object(identity)") ||
+        !prototypeMain.includes("(Some(_), _) => None") ||
         !prototypeMain.includes("interaction_policy.nearest_exclusion()") ||
         !prototypeMain.includes("interaction_policy.frame_suppression()") ||
         !prototypeMain.includes("observation_policy.clear_target(identity)") ||

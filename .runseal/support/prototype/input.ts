@@ -191,10 +191,13 @@ export async function pressPrototypeEscape(processId: number): Promise<Json> {
     return await postPrototypeKeys(processId, [{ key: "Escape", virtualKey: 0x1B }], false);
 }
 
-export async function repressPrototypeEnter(processId: number): Promise<Json> {
+export async function postPrototypeCapacityRejection(processId: number): Promise<Json> {
     return await postPrototypeTransitions(
         processId,
         [
+            { key: "D", virtualKey: 0x44, down: false },
+            { key: "F", virtualKey: 0x46, down: false },
+            { key: "F", virtualKey: 0x46, down: true },
             { key: "Enter", virtualKey: 0x0D, down: false },
             { key: "Enter", virtualKey: 0x0D, down: true },
         ],

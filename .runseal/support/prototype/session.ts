@@ -8,10 +8,11 @@ import {
     same,
     string,
 } from "../canonical-runtime.ts";
+import { objectNearestOracle } from "../object/nearest.ts";
 import {
     applyStartupInput,
+    postPrototypeCapacityRejection,
     pressPrototypeEscape,
-    repressPrototypeEnter,
     type StartupInput,
 } from "./input.ts";
 
@@ -115,7 +116,7 @@ async function gracefulExit(
     config: string,
     label: string,
     startupInput?: StartupInput,
-    repeatEnter = false,
+    capacityRejection = false,
 ): Promise<Json> {
     const started = performance.now();
     const child = new Deno.Command(executable, {
@@ -139,8 +140,9 @@ async function gracefulExit(
         startupNativeInput = await applyStartupInput(child.pid, startupInput);
         readiness = JSON.parse(await readinessLine(reader)) as Json;
         if (readiness.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
-        if (repeatEnter) {
-            postReadinessInput = await repressPrototypeEnter(child.pid);
+        if (capacityRejection) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            postReadinessInput = await postPrototypeCapacityRejection(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
         }
         escapeInput = await pressPrototypeEscape(child.pid);
@@ -226,6 +228,8 @@ export async function sessionGates(
     first: Json,
     startupInvariant: (launch: Json) => Json,
     jumpInvariant: (launch: Json) => Json,
+    source: string,
+    windowCenter: [number, number],
 ): Promise<Json> {
     if (first.completionEmitted !== false || first.trailingOutput !== "") {
         fail("prototype forced readiness process emitted session completion");
@@ -253,7 +257,7 @@ export async function sessionGates(
         escape,
         escapeInvariant: idleCompletionInvariant(escape),
         sustained,
-        sustainedInvariant: sustainedCapacityInvariant(sustained),
+        sustainedInvariant: await sustainedCapacityInvariant(sustained, source, windowCenter),
         forcedReadinessCompletionEmitted: false,
     };
 }
@@ -358,7 +362,11 @@ export function idleCompletionInvariant(launch: Json): Json {
     };
 }
 
-export function sustainedCapacityInvariant(launch: Json): Json {
+export async function sustainedCapacityInvariant(
+    launch: Json,
+    source: string,
+    windowCenter: [number, number],
+): Promise<Json> {
     const session = gracefulCompletionInvariant(launch, "escape");
     const readiness = object(launch, "readiness");
     const completion = object(launch, "completion");
@@ -377,7 +385,7 @@ export function sustainedCapacityInvariant(launch: Json): Json {
         number(finalInteraction, "committedCount") !== 1 ||
         number(finalInteraction, "ineligibleCount") !== 1 ||
         finalObservation.pending !== false ||
-        finalObservation.target !== null
+        finalObservation.target === null
     ) fail("prototype sustained capacity-one state diverged");
     same(
         object(finalInteraction, "consumed"),
@@ -389,15 +397,20 @@ export function sustainedCapacityInvariant(launch: Json): Json {
         consumed,
         "prototype sustained nearest exclusion",
     );
+    const finalTarget = object(finalObservation, "target");
+    if (
+        finalTarget.availability !== "resolved" ||
+        JSON.stringify(object(finalTarget, "identity")) === JSON.stringify(consumed)
+    ) fail("prototype sustained capacity rejection did not retain a different resolved target");
 
     const frames = object(completion, "frames");
     if (
         number(frames, "liveFrameCount") <=
             number(object(readiness, "simulation_driver"), "liveFrameCount") ||
         number(frames, "activatedFrameCount") < 1 ||
-        number(frames, "rejectedFrameCount") !== 0 ||
+        number(frames, "rejectedFrameCount") !== 12 ||
         number(frames, "suppressionProjectedFrameCount") < 1
-    ) fail("prototype sustained session did not advance through suppression");
+    ) fail("prototype sustained session did not project exact capacity rejection and suppression");
     const readyPosition = object(
         object(
             object(object(object(readiness, "actor"), "state"), "motion"),
@@ -420,27 +433,51 @@ export function sustainedCapacityInvariant(launch: Json): Json {
     if (number(finalPosition, "localXQ9") <= number(readyPosition, "localXQ9")) {
         fail("prototype sustained actor did not advance after readiness");
     }
+    const finalRegion = object(finalPosition, "region");
+    const expected = await objectNearestOracle(
+        source,
+        {
+            region: [number(finalRegion, "x"), number(finalRegion, "z")],
+            localXQ9: number(finalPosition, "localXQ9"),
+            localZQ9: number(finalPosition, "localZQ9"),
+            maxDistanceQ9: 512,
+            excludedIdentity: consumed,
+        },
+        windowCenter,
+    );
+    const expectedIdentity = object(object(object(expected, "nearest"), "object"), "identity");
+    same(
+        object(finalTarget, "identity"),
+        expectedIdentity,
+        "prototype sustained exclusion-aware second target",
+    );
 
     const postReadiness = object(launch, "postReadinessInput");
     const transitions = postReadiness.keys;
     if (
         !Array.isArray(transitions) ||
-        transitions.length !== 2 ||
+        transitions.length !== 5 ||
         JSON.stringify(transitions) !== JSON.stringify([
+                { key: "D", virtualKey: 68, down: false },
+                { key: "F", virtualKey: 70, down: false },
+                { key: "F", virtualKey: 70, down: true },
                 { key: "Enter", virtualKey: 13, down: false },
                 { key: "Enter", virtualKey: 13, down: true },
             ])
-    ) fail("prototype sustained Enter edge evidence diverged");
+    ) fail("prototype sustained capacity-rejection input evidence diverged");
 
     return {
         ...session,
         consumedIdentity: consumed,
+        rejectedTargetIdentity: expectedIdentity,
         committedCount: 1,
         postReadinessIneligibleCount: 1,
         acknowledgement: null,
+        capacityRejectedFrameCount: 12,
         suppressionProjectedFrameCount: number(frames, "suppressionProjectedFrameCount"),
         actorAdvancedAfterReadiness: true,
-        postReadinessEnterEdge: postReadiness,
+        postReadinessCapacityRejection: postReadiness,
+        independentExclusionOracle: true,
         exactCapacityOneRollback: true,
     };
 }
