@@ -18,6 +18,7 @@ function nativeDiagonalRunInvariant(launch: Json): Json {
                 { key: "Shift", virtualKey: 0x10, down: true },
                 { key: "W", virtualKey: 0x57, down: true },
                 { key: "A", virtualKey: 0x41, down: true },
+                { key: "W", virtualKey: 0x57, down: false },
             ]) ||
         JSON.stringify(sequence.messages) !==
             JSON.stringify([
@@ -25,16 +26,20 @@ function nativeDiagonalRunInvariant(launch: Json): Json {
                 "WM_KEYDOWN:Shift",
                 "WM_KEYDOWN:W",
                 "WM_KEYDOWN:A",
+                "WM_KEYUP:W",
                 "WM_KEYDOWN:Escape",
             ]) ||
         JSON.stringify(sequence.delaysBeforeKeysMilliseconds) !==
-            JSON.stringify([0, 0, 0]) ||
+            JSON.stringify([0, 0, 0, 250]) ||
         !Array.isArray(intervals) ||
-        intervals.length !== 2 ||
-        intervals.some((interval) =>
+        intervals.length !== 3 ||
+        intervals.slice(0, 2).some((interval) =>
             typeof interval !== "number" || interval < 0 || interval > 50
         ) ||
-        sequence.atomicBatch !== true ||
+        typeof intervals[2] !== "number" ||
+        intervals[2] < 250 ||
+        intervals[2] > 750 ||
+        sequence.atomicBatch !== false ||
         number(sequence, "atomicPrefixLength") !== 3 ||
         typeof sequence.batchThreadId !== "number" ||
         !Number.isSafeInteger(sequence.batchThreadId) ||
@@ -42,9 +47,9 @@ function nativeDiagonalRunInvariant(launch: Json): Json {
         typeof sequence.batchSpanMilliseconds !== "number" ||
         sequence.batchSpanMilliseconds < 0 ||
         sequence.batchSpanMilliseconds > 50 ||
-        number(sequence, "exitAfterLastMilliseconds") !== 200 ||
-        exitInterval < 200 ||
-        exitInterval > 700
+        number(sequence, "exitAfterLastMilliseconds") !== 250 ||
+        exitInterval < 250 ||
+        exitInterval > 750
     ) fail("prototype native diagonal Run input evidence diverged");
     same(sequence, object(launch, "exitInput"), "prototype diagonal Run exit input");
     return {
@@ -52,9 +57,10 @@ function nativeDiagonalRunInvariant(launch: Json): Json {
         atomicWindowThreadBatch: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
-        keyPostIntervalsMilliseconds: intervals,
+        diagonalKeyPostIntervalsMilliseconds: intervals.slice(0, 2),
+        diagonalHoldMilliseconds: intervals[2],
         orderedMessages: sequence.messages,
-        exitIntervalMilliseconds: exitInterval,
+        leftRunHoldMilliseconds: exitInterval,
         actionAfterReadiness: true,
     };
 }
@@ -101,18 +107,23 @@ export function diagonalRunSessionInvariant(launch: Json, session: Json): Json {
     const deltaXQ9 = number(finalPosition, "localXQ9") - readyXQ9;
     const deltaZQ9 = number(finalPosition, "localZQ9") - readyZQ9;
     if (
-        deltaXQ9 >= 0 ||
-        deltaXQ9 !== deltaZQ9 ||
-        deltaXQ9 % 45 !== 0
-    ) fail("prototype diagonal Run completion normalization diverged");
-    const diagonalRunStepCount = -deltaXQ9 / 45;
-    if (diagonalRunStepCount < 1 || diagonalRunStepCount > 512) {
-        fail("prototype diagonal Run completion step bound diverged");
+        deltaZQ9 >= 0 ||
+        deltaZQ9 % 45 !== 0 ||
+        deltaXQ9 >= deltaZQ9 ||
+        (deltaZQ9 - deltaXQ9) % 64 !== 0
+    ) fail("prototype diagonal-to-left Run decomposition diverged");
+    const diagonalRunStepCount = -deltaZQ9 / 45;
+    const leftRunStepCount = (deltaZQ9 - deltaXQ9) / 64;
+    if (
+        diagonalRunStepCount < 1 || diagonalRunStepCount > 512 ||
+        leftRunStepCount < 1 || leftRunStepCount > 512
+    ) {
+        fail("prototype diagonal-to-left Run phase bounds diverged");
     }
     const finalPresentation = presentationInvariant(
         object(finalActor, "presentation"),
         2,
-        40_960,
+        32_768,
         "prototype diagonal Run completion",
     );
     if (
@@ -141,7 +152,11 @@ export function diagonalRunSessionInvariant(launch: Json, session: Json): Json {
         atomicDiagonalRunInput: true,
         nativeLeftInput: true,
         exactRunNormalization: true,
+        forwardInputReleased: true,
+        retainedLeftRun: true,
+        exactTwoPhaseDisplacement: true,
         diagonalRunStepCount,
+        leftRunStepCount,
         deltaXQ9,
         deltaZQ9,
         readyPresentation,
