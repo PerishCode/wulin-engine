@@ -1,6 +1,7 @@
 import { fail, type Json, number, object, root, same, string } from "../../canonical-runtime.ts";
 import {
     postConsumptionCapacity,
+    postFocusLocomotionReadmission,
     postObjectActionExit,
     postPrototypeCapacityRejection,
     pressPrototypeEscape,
@@ -232,7 +233,9 @@ export async function gracefulExit(
             await new Promise((resolve) => setTimeout(resolve, 250));
             const resumed = await resumePrototypeFocus(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
-            postReadinessInput = { suspended, resumed };
+            const readmission = await postFocusLocomotionReadmission(child.pid);
+            postReadinessInput = { suspended, resumed, readmission };
+            exitInput = readmission;
         } else if (postReadiness === "forward-release") {
             const sequence = await postForwardRelease(child.pid);
             postReadinessInput = { sequence };
