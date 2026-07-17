@@ -117,9 +117,13 @@ export async function requireBoundedPrototypeSession(
         "new Deno.Command(executable",
         gracefulExitIndex,
     );
-    const boundaryReadyIndex = boundaryAcceptance.indexOf("await readinessLine(reader)");
-    const boundaryActionIndex = boundaryAcceptance.indexOf(
-        "await holdPrototypeBoundaryRun(child.pid)",
+    const gracefulReadyIndex = acceptance.indexOf(
+        "readiness = JSON.parse(await readinessLine(reader))",
+        gracefulExitIndex,
+    );
+    const boundaryActionIndex = acceptance.indexOf(
+        "await postBoundaryRunStart(child.pid)",
+        gracefulExitIndex,
     );
     if (
         !main.includes("mod session;") ||
@@ -174,7 +178,9 @@ export async function requireBoundedPrototypeSession(
         !inputActions.includes("postObjectActionExit") ||
         !inputActions.includes("postConsumptionCapacity") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
-        !inputActions.includes("holdPrototypeBoundaryRun") ||
+        !inputActions.includes("postBoundaryRunStart") ||
+        inputActions.includes("holdPrototypeBoundaryRun") ||
+        inputActions.includes("postBoundaryRunExit") ||
         inputActions.includes("holdPrototypeForwardKey") ||
         !inputSequences.includes("repressJumpAndExit") ||
         !inputSequences.includes("postMidairSequence") ||
@@ -217,14 +223,30 @@ export async function requireBoundedPrototypeSession(
         capturedReadySource.includes("nativeInput") ||
         gracefulExitIndex < 0 ||
         gracefulSpawnIndex <= gracefulExitIndex ||
-        boundaryReadyIndex < 0 ||
-        boundaryActionIndex <= boundaryReadyIndex ||
+        gracefulReadyIndex <= gracefulExitIndex ||
+        boundaryActionIndex <= gracefulReadyIndex ||
+        !acceptance.includes('"boundary-run"') ||
+        !acceptance.includes("BOUNDARY_RUN_HOLD_MILLISECONDS = 15_000") ||
+        !acceptance.includes("heldMilliseconds = performance.now() - heldStartedAt") ||
+        !acceptance.includes("await pressPrototypeEscape(child.pid)") ||
+        boundaryAcceptance.includes("boundarySurvival") ||
+        boundaryAcceptance.includes("processRemainedLive") ||
+        boundaryAcceptance.includes("forcedEvidenceExitCode") ||
+        boundaryAcceptance.includes("completionEmitted") ||
+        !boundaryAcceptance.includes("boundaryCompletionSession") ||
+        !boundaryAcceptance.includes("boundarySessionInvariant") ||
         !boundaryAcceptance.includes("actionAfterReadiness: true") ||
         !boundaryAcceptance.includes("boundaryRunInputInvariant") ||
         !boundaryAcceptance.includes('{ key: "Shift", virtualKey: 0x10, down: true }') ||
         !boundaryAcceptance.includes('{ key: "W", virtualKey: 0x57, down: true }') ||
         !boundaryAcceptance.includes("atomicWindowThreadBatch: true") ||
-        !prototypeHost.includes("boundaryRunInputInvariant(boundary)") ||
+        !boundaryAcceptance.includes("exactFinalBoundaryBand") ||
+        !boundaryAcceptance.includes("committedRunStepCount") ||
+        !boundaryAcceptance.includes("presentationLifetimeAdvanced: true") ||
+        !boundaryAcceptance.includes("stationaryAtFiniteBoundary: true") ||
+        !boundaryAcceptance.includes("surveyPresentationRetained: true") ||
+        !prototypeHost.includes("boundaryCompletionSession(EXECUTABLE, CONFIG)") ||
+        !prototypeHost.includes("boundarySessionInvariant(boundary)") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
         !cameraAcceptance.includes("actionAfterReadiness: true") ||

@@ -1000,6 +1000,16 @@ owner region 的 authored ID 496。clock 恰增加一次 suspend/resume/reset，
 samples，零 stall/render block，stdout 恰为两值；448,810-byte report 与全部 103
 engine-runtime、48 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有
 warning。产品、Runtime、renderer/GPU/source/resource/synchronization 均未改变。
+Experiment 0144 把唯一 15 秒 finite-boundary Run 进程从证据强杀升级为现有两值 graceful
+completion：readiness 后原子 Shift/W，单调保持至少 15 秒，再向同一 PID/window 投递标准
+Escape。`canonical-prototype-v59` 最终在 175.188 秒通过；PID 30632 / thread 21468 的
+Shift/W interval/span 均为 0.0019ms，hold 为 15014.8593ms。actor 保持 generation/region/
+shape，精确提交 57 个 64-Q9 Run steps 后停在 local `(0,-3648)`，处于最大八步候选削减的
+完整 `[-4096,-3648]` 终止带，最终为 Survey clip0/yaw49152、epoch110、零竖直速度。
+clock Ready/sample 为 `1007/1008`，1008 个 live frames 全部零 stall/render block，对象
+状态 idle，stdout 恰为两值；454,446-byte report 与全部 103 engine-runtime、48 Prototype、
+20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning。共享 native helper 的
+1000ms 延迟上限及产品、Runtime、renderer/GPU/source/resource/synchronization 均未改变。
 
 ## Project model
 
@@ -1074,8 +1084,8 @@ source fixtures are invariant across every allowed first batch, whose bounded re
 independent source oracle, and whose exact Activated/Rejected targets commit only through the
 successful frame, whose 250 ms post-action dwell proves at least one frame of suppression after
 the exact 12-frame acknowledgement, plus sustained post-readiness motion/capacity rejection,
-one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-W
-finite-edge survival, exact native Escape and visible-window WM_CLOSE clean exits, native
+one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-Run
+finite-edge endpoint and graceful completion, exact native Escape and visible-window WM_CLOSE clean exits, native
 same-batch Space/F/Enter/W focus-loss action/held-input suppression plus no-backlog resume and
 same-process fresh-A Walk/release readmission, one exact atomic same-ingest opposite-Q/E
 camera-edge cancellation with negative-Z Walk proof, direct restart equality, and Sidecar cleanup.

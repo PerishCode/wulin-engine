@@ -1,7 +1,7 @@
 import { fail, type Json } from "../../canonical-runtime.ts";
 import { postPrototypeKeys, postPrototypeWindowAction } from "./mod.ts";
 
-export async function holdPrototypeBoundaryRun(processId: number): Promise<Json> {
+export async function postBoundaryRunStart(processId: number): Promise<Json> {
     return await postPrototypeKeys(
         processId,
         [
