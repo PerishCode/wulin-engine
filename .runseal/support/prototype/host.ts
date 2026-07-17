@@ -13,11 +13,7 @@ import {
 } from "../canonical-runtime.ts";
 import { jumpMotionInvariant, jumpPolicyInvariant } from "./jump.ts";
 import { actorInvariant } from "./actor.ts";
-import {
-    BOUNDARY_HOLD_MILLISECONDS,
-    boundaryRunInputInvariant,
-    boundarySurvival,
-} from "./boundary.ts";
+import { boundaryCompletionSession, boundarySessionInvariant } from "./boundary.ts";
 import { cameraDriverInvariant } from "./camera.ts";
 import { presentationInvariant } from "./presentation.ts";
 import { objectFeedbackGates, restartObservation } from "./object/gates.ts";
@@ -311,7 +307,7 @@ export async function prototypeHostGates(
         objects,
         base,
     );
-    const boundary = await boundarySurvival(EXECUTABLE, CONFIG);
+    const boundary = await boundaryCompletionSession(EXECUTABLE, CONFIG);
     if (number(first, "processId") === number(restarted, "processId")) {
         fail("prototype evidence restart reused the process identity");
     }
@@ -366,10 +362,7 @@ export async function prototypeHostGates(
         jump: jumpPolicyInvariant(boundary, true),
         camera: cameraDriverInvariant(boundary),
         traversal: traversalInvariant(boundary, base),
-        minimumHoldMilliseconds: BOUNDARY_HOLD_MILLISECONDS,
-        processRemainedLive: boundary.processRemainedLive,
-        actionAfterReadiness: boundary.actionAfterReadiness,
-        nativeInput: boundaryRunInputInvariant(boundary),
+        ...boundarySessionInvariant(boundary),
     };
 
     await lifecycle("start");

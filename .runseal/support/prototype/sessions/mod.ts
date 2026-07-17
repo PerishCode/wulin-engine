@@ -1,5 +1,6 @@
 import { fail, type Json, number, object, root, same, string } from "../../canonical-runtime.ts";
 import {
+    postBoundaryRunStart,
     postConsumptionCapacity,
     postFocusLocomotionReadmission,
     postObjectActionExit,
@@ -31,6 +32,7 @@ import {
 } from "../input/sequences.ts";
 
 const REVISION = "live-prototype-session-completion-v2";
+export const BOUNDARY_RUN_HOLD_MILLISECONDS = 15_000;
 
 export async function outputLine(
     reader: ReadableStreamDefaultReader<string>,
@@ -147,6 +149,7 @@ export async function gracefulExit(
     config: string,
     label: string,
     postReadiness:
+        | "boundary-run"
         | "capacity-rejection"
         | "camera-repeat"
         | "camera-repress"
@@ -188,7 +191,20 @@ export async function gracefulExit(
     try {
         readiness = JSON.parse(await readinessLine(reader)) as Json;
         if (readiness.role !== "prototype") fail(`${label} emitted the wrong readiness role`);
-        if (postReadiness === "capacity-rejection") {
+        if (postReadiness === "boundary-run") {
+            const sequence = await postBoundaryRunStart(child.pid);
+            const heldStartedAt = performance.now();
+            await new Promise((resolve) => setTimeout(resolve, BOUNDARY_RUN_HOLD_MILLISECONDS));
+            const heldMilliseconds = performance.now() - heldStartedAt;
+            const exit = await pressPrototypeEscape(child.pid);
+            postReadinessInput = {
+                sequence,
+                exit,
+                heldMilliseconds,
+                minimumHoldMilliseconds: BOUNDARY_RUN_HOLD_MILLISECONDS,
+            };
+            exitInput = exit;
+        } else if (postReadiness === "capacity-rejection") {
             await new Promise((resolve) => setTimeout(resolve, 250));
             postReadinessInput = await postPrototypeCapacityRejection(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
