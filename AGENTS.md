@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0119 and the current ADR set through 0122 define one live content runtime
+Experiments 0031-0120 and the current ADR set through 0123 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -344,6 +344,12 @@ geometry/material/rig source, and one deterministic object-shadow path:
   stationary yaw-zero signed-source fixtures with exact positive/negative-X nearest deltas to prove
   Activated/Rejected across every allowed first batch without a time reset, retry, relaxed
   threshold, dynamic outcome acceptance, product change, or Runtime/GPU/resource change;
+- one mandatory bootstrap compatibility/resource cleanup that deletes three recurring
+  fallback-driven invalid-document process launches, their report fields, and fallback/schema-1
+  unit assertions while retaining current path/projection/bounds and missing/corrupt source
+  failures; the existing compatibility-removal guard is the sole return authority, and the
+  scheduled operator removes only resolved workspace-local `target/` and `out/` after validation
+  without a cleanup wrapper, global-cache mutation, or product behavior;
 - one accepted identity-only Prototype capacity-exhaustion rejection that submits existing red
   `Rejected` feedback only for a different currently resolved target without canonical resolution,
   proximity, or facing work, returns `applied=false`, reuses the sole acknowledgement owner, and
@@ -502,6 +508,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0120-native-out-of-range-key-rejection.md` | Accepted full-value native invalid-key rejection with low-byte camera-alias exclusion. |
 | `docs/adr/0121-batch-invariant-native-object-feedback.md` | Accepted atomic native F/Enter transport and stationary batch-invariant Activated/Rejected source fixtures. |
 | `docs/adr/0122-native-opposite-camera-edge-cancellation.md` | Accepted atomic same-ingest opposite Q/E edge cancellation with exact orbit-zero Walk proof. |
+| `docs/adr/0123-retired-bootstrap-probes-resource-cleanup.md` | Accepted fallback/schema-1 bootstrap probe deletion and scheduled workspace compiler/generated-resource cleanup. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -592,6 +599,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0117-native-out-of-range-key-rejection/README.md` | Accepted native key 325 rejection and low-byte E truncation exclusion evidence. |
 | `experiments/0118-batch-invariant-native-object-feedback/README.md` | Accepted root-cause diagnosis, atomic F/Enter transport, and stationary batch-invariant Activated/Rejected evidence. |
 | `experiments/0119-native-opposite-camera-edge-cancellation/README.md` | Accepted atomic native Q/E/W batch and exact opposite-camera-edge cancellation evidence. |
+| `experiments/0120-retired-bootstrap-probes-resource-cleanup/README.md` | Accepted recurring bootstrap compatibility-probe/report deletion and measured target/out cleanup evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -704,7 +712,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/object/integration.ts` | Object resolution/nearest source, window, movement, and corrupt-pair preservation integration gates. |
 | `.runseal/support/idle-shell.ts` | Current clear-only status, renderer-health, image, and uniformly background semantic evidence. |
 | `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for retired dense/standalone contact surfaces and required private witness authority. |
-| `.runseal/support/guard/compatibility-witness-removal.ts` | Forbidden old support/report names plus required current idle-shell authority gate. |
+| `.runseal/support/guard/compatibility-witness-removal.ts` | Forbidden old support/report names and retired bootstrap fallback/schema probes plus required current idle-shell authority gate. |
 | `.runseal/support/guard/terrain-transaction-removal.ts` | Forbidden-file/symbol gate for retired copied-value terrain mutation controls and support. |
 | `.runseal/support/guard/simulation-control-removal.ts` | Forbidden-file/symbol gate for retired independent controls, duplicate schedule status, recurring history evidence, retained-body history, and pre-owner actor support paths. |
 | `.runseal/support/guard/presentation-status-removal.ts` | Forbidden-symbol/verb gate for the retired standalone presentation status chain. |
@@ -718,8 +726,8 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |
 | `.runseal/support/actor/animation.ts` | Fixed-tick spawn/transition actor epoch, GPU local-phase, same-clip retention, and fractional rollback support. |
 | `.runseal/support/actor/simulation.ts` | Canonical-aggregate schedule assertions plus schema-2 fractional, partition, rollback, and sole actor advance support. |
-| `.runseal/support/runtime-bootstrap.ts` | Configured canonical-ready/restart plus bounded full-runtime prototype failure, invariant, and cleanup checkpoints. |
-| `.runseal/support/prototype/host.ts` | Prototype startup/failure, exact Walk/Run/Jump and two-center batch-invariant object-target/action simulation, camera-orbit/zero-block readiness, boundary survival, Sidecar status/PID ownership, restart, and no-inspect lifecycle orchestration. |
+| `.runseal/support/runtime-bootstrap.ts` | Configured canonical-ready/restart plus current missing/corrupt failure and bounded Prototype invariant/lifecycle checkpoints. |
+| `.runseal/support/prototype/host.ts` | Prototype current missing/corrupt startup failures, exact Walk/Run/Jump and two-center batch-invariant object-target/action simulation, camera-orbit/zero-block readiness, boundary survival, Sidecar status/PID ownership, restart, and no-inspect lifecycle orchestration. |
 | `.runseal/support/prototype/boundary.ts` | Real activated held-input finite-edge process survival and cleanup evidence owner. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
 | `.runseal/support/prototype/camera.ts` | Exact default/orbit rig, actor anchor, camera/frame readiness, held-repeat, invalid-key, and atomic opposite-edge locomotion oracle owner. |

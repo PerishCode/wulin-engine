@@ -36,4 +36,24 @@ export async function requireCompatibilityWitnessRemoved(
         !idleShell.includes('number(image, "differentPixelCount") !== 0') ||
         !idleShell.includes('array(fullFrame, "objects").length !== 0')
     ) fail("guard: current idle-shell authority diverged");
+
+    const bootstrapTests = await Deno.readTextFile(
+        `${root}/crates/reference-host/tests/private/bootstrap.rs`,
+    );
+    if (
+        bootstrapTests.includes("document_rejects_unknown_old_schema_path_and_projection") ||
+        bootstrapTests.includes('\\"fallback\\": true') ||
+        bootstrapTests.includes('\\"schemaVersion\\": 1')
+    ) fail("guard: retired bootstrap compatibility tests returned");
+    for (
+        const path of [
+            ".runseal/support/runtime-bootstrap.ts",
+            ".runseal/support/prototype/host.ts",
+        ]
+    ) {
+        const source = await Deno.readTextFile(`${root}/${path}`);
+        if (/\.fallback\s*=/.test(source)) {
+            fail(`guard: retired bootstrap fallback probe returned: ${path}`);
+        }
+    }
 }

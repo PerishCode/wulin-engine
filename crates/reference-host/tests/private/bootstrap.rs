@@ -69,19 +69,8 @@ fn schema_two_document_decodes_exact_paths_signed_config_and_bounds() {
 }
 
 #[test]
-fn document_rejects_unknown_old_schema_path_and_projection() {
+fn document_rejects_escaping_path_and_invalid_projection() {
     let path = PathBuf::from("out/cooked/test/bootstrap.json");
-    let unknown = String::from_utf8(valid_document()).unwrap().replace(
-        "\"activeRadius\": 2",
-        "\"activeRadius\": 2, \"fallback\": true",
-    );
-    assert!(Plan::decode(path.clone(), unknown.as_bytes()).is_err());
-
-    let schema = String::from_utf8(valid_document())
-        .unwrap()
-        .replace("\"schemaVersion\": 2", "\"schemaVersion\": 1");
-    assert!(Plan::decode(path.clone(), schema.as_bytes()).is_err());
-
     let escaping = String::from_utf8(valid_document())
         .unwrap()
         .replace("out/cooked/test/terrain.wlt", "out/cooked/../terrain.wlt");
