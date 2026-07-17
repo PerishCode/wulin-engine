@@ -15,7 +15,7 @@ export async function requestPrototypeWindowClose(processId: number): Promise<Js
 
 export function nativeWindowCloseInvariant(evidence: Json, processId: number): Json {
     if (
-        evidence.schema !== "prototype-native-window-action-v3" ||
+        evidence.schema !== "prototype-native-window-action-v4" ||
         evidence.action !== "close" ||
         evidence.processId !== processId ||
         evidence.activated !== false ||

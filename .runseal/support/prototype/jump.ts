@@ -131,7 +131,7 @@ function sessionFlightInvariant(launch: Json, label: string): SessionFlight {
 function nativeReadmissionInvariant(first: Json, second: Json, processId: number): Json {
     const intervals = second.keyPostIntervalsMilliseconds;
     if (
-        first.schema !== "prototype-native-window-action-v3" ||
+        first.schema !== "prototype-native-window-action-v4" ||
         first.action !== "input" ||
         first.processId !== processId ||
         first.activated !== true ||
@@ -142,7 +142,7 @@ function nativeReadmissionInvariant(first: Json, second: Json, processId: number
             JSON.stringify([{ key: "Space", virtualKey: 32, down: true }]) ||
         JSON.stringify(first.messages) !==
             JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:Space"]) ||
-        second.schema !== "prototype-native-window-action-v3" ||
+        second.schema !== "prototype-native-window-action-v4" ||
         second.action !== "input" ||
         second.processId !== processId ||
         second.windowHandle !== first.windowHandle ||
@@ -188,7 +188,7 @@ function nativeMidairInvariant(evidence: Json, processId: number): Json {
         { key: "W", virtualKey: 87, down: true },
     ];
     if (
-        evidence.schema !== "prototype-native-window-action-v3" ||
+        evidence.schema !== "prototype-native-window-action-v4" ||
         evidence.action !== "input" ||
         evidence.processId !== processId ||
         evidence.activated !== true ||

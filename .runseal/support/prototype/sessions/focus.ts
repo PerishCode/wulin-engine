@@ -2,7 +2,7 @@ import { fail, type Json, number, object, same } from "../../canonical-runtime.t
 
 function nativeFocusInvariant(suspended: Json, resumed: Json, processId: number): Json {
     if (
-        suspended.schema !== "prototype-native-window-action-v3" ||
+        suspended.schema !== "prototype-native-window-action-v4" ||
         suspended.action !== "suspend" ||
         suspended.processId !== processId ||
         suspended.activated !== true ||
@@ -16,7 +16,7 @@ function nativeFocusInvariant(suspended: Json, resumed: Json, processId: number)
         suspended.atomicBatch !== true ||
         number(suspended, "batchThreadId") <= 0 ||
         number(suspended, "batchSpanMilliseconds") !== 0 ||
-        resumed.schema !== "prototype-native-window-action-v3" ||
+        resumed.schema !== "prototype-native-window-action-v4" ||
         resumed.action !== "resume" ||
         resumed.processId !== processId ||
         resumed.windowHandle !== suspended.windowHandle ||

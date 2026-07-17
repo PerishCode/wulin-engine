@@ -2,7 +2,7 @@ import { fail, type Json, number, object, same } from "../../canonical-runtime.t
 import { cameraDriverInvariant } from "../camera.ts";
 import { presentationInvariant } from "../presentation.ts";
 
-function nativeDiagonalWalkInvariant(launch: Json): Json {
+function nativeDiagonalRunInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
     const sequence = object(launch, "startupNativeInput");
     const intervals = sequence.keyPostIntervalsMilliseconds;
@@ -13,23 +13,29 @@ function nativeDiagonalWalkInvariant(launch: Json): Json {
         sequence.processId !== processId ||
         sequence.requiredVisible !== true ||
         sequence.windowWasVisible !== true ||
-        JSON.stringify(sequence.keys) !== JSON.stringify([
+        JSON.stringify(sequence.keys) !==
+            JSON.stringify([
+                { key: "Shift", virtualKey: 0x10, down: true },
                 { key: "W", virtualKey: 0x57, down: true },
                 { key: "A", virtualKey: 0x41, down: true },
             ]) ||
-        JSON.stringify(sequence.messages) !== JSON.stringify([
+        JSON.stringify(sequence.messages) !==
+            JSON.stringify([
                 "WM_SETFOCUS",
+                "WM_KEYDOWN:Shift",
                 "WM_KEYDOWN:W",
                 "WM_KEYDOWN:A",
                 "WM_KEYDOWN:Escape",
             ]) ||
-        JSON.stringify(sequence.delaysBeforeKeysMilliseconds) !== JSON.stringify([0, 0]) ||
+        JSON.stringify(sequence.delaysBeforeKeysMilliseconds) !==
+            JSON.stringify([0, 0, 0]) ||
         !Array.isArray(intervals) ||
-        intervals.length !== 1 ||
-        typeof intervals[0] !== "number" ||
-        intervals[0] < 0 ||
-        intervals[0] > 50 ||
+        intervals.length !== 2 ||
+        intervals.some((interval) =>
+            typeof interval !== "number" || interval < 0 || interval > 50
+        ) ||
         sequence.atomicBatch !== true ||
+        number(sequence, "atomicPrefixLength") !== 3 ||
         typeof sequence.batchThreadId !== "number" ||
         !Number.isSafeInteger(sequence.batchThreadId) ||
         sequence.batchThreadId <= 0 ||
@@ -40,20 +46,20 @@ function nativeDiagonalWalkInvariant(launch: Json): Json {
         exitInterval < 200 ||
         exitInterval > 700 ||
         launch.postReadinessInput !== null
-    ) fail("prototype native diagonal Walk input evidence diverged");
-    same(sequence, object(launch, "exitInput"), "prototype diagonal Walk exit input");
+    ) fail("prototype native diagonal Run input evidence diverged");
+    same(sequence, object(launch, "exitInput"), "prototype diagonal Run exit input");
     return {
         exactProcessWindow: true,
         atomicWindowThreadBatch: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
-        keyPostIntervalMilliseconds: intervals[0],
+        keyPostIntervalsMilliseconds: intervals,
         orderedMessages: sequence.messages,
         exitIntervalMilliseconds: exitInterval,
     };
 }
 
-export function diagonalWalkSessionInvariant(launch: Json, session: Json): Json {
+export function diagonalRunSessionInvariant(launch: Json, session: Json): Json {
     const camera = cameraDriverInvariant(launch, 0);
     const readiness = object(launch, "readiness");
     const completion = object(launch, "completion");
@@ -70,55 +76,55 @@ export function diagonalWalkSessionInvariant(launch: Json, session: Json): Json 
     if (
         readyXQ9 >= 0 ||
         readyXQ9 !== readyZQ9 ||
-        readyXQ9 % 23 !== 0
-    ) fail("prototype diagonal Walk readiness normalization diverged");
-    const readyStepCount = -readyXQ9 / 23;
+        readyXQ9 % 45 !== 0
+    ) fail("prototype diagonal Run readiness normalization diverged");
+    const readyStepCount = -readyXQ9 / 45;
     if (readyStepCount < 1 || readyStepCount > 8) {
-        fail("prototype diagonal Walk readiness step bound diverged");
+        fail("prototype diagonal Run readiness step bound diverged");
     }
     const readyPresentation = presentationInvariant(
         object(readyActor, "presentation"),
-        1,
+        2,
         40_960,
-        "prototype diagonal Walk readiness",
+        "prototype diagonal Run readiness",
     );
     same(
         object(finalActor, "handle"),
         object(readyActor, "handle"),
-        "prototype diagonal Walk actor handle",
+        "prototype diagonal Run actor handle",
     );
     same(
         object(finalPosition, "region"),
         object(readyPosition, "region"),
-        "prototype diagonal Walk actor region",
+        "prototype diagonal Run actor region",
     );
     if (
         number(finalBody, "halfHeightNumerator") !==
             number(readyBody, "halfHeightNumerator") ||
         number(finalMotion, "stepVelocityQ16") !== 0
-    ) fail("prototype diagonal Walk vertical state diverged");
+    ) fail("prototype diagonal Run vertical state diverged");
 
     const deltaXQ9 = number(finalPosition, "localXQ9") - readyXQ9;
     const deltaZQ9 = number(finalPosition, "localZQ9") - readyZQ9;
     if (
         deltaXQ9 >= 0 ||
         deltaXQ9 !== deltaZQ9 ||
-        deltaXQ9 % 23 !== 0
-    ) fail("prototype diagonal Walk completion normalization diverged");
-    const diagonalStepCount = -deltaXQ9 / 23;
-    if (diagonalStepCount < 1 || diagonalStepCount > 512) {
-        fail("prototype diagonal Walk completion step bound diverged");
+        deltaXQ9 % 45 !== 0
+    ) fail("prototype diagonal Run completion normalization diverged");
+    const diagonalRunStepCount = -deltaXQ9 / 45;
+    if (diagonalRunStepCount < 1 || diagonalRunStepCount > 512) {
+        fail("prototype diagonal Run completion step bound diverged");
     }
     const finalPresentation = presentationInvariant(
         object(finalActor, "presentation"),
-        1,
+        2,
         40_960,
-        "prototype diagonal Walk completion",
+        "prototype diagonal Run completion",
     );
     if (
         number(finalActor, "animationEpochTick") !==
             number(readyActor, "animationEpochTick")
-    ) fail("prototype diagonal Walk unexpectedly reset its animation epoch");
+    ) fail("prototype diagonal Run unexpectedly reset its animation epoch");
 
     const readyClock = object(object(readiness, "simulation_driver"), "clock");
     const finalClock = object(completion, "clock");
@@ -132,17 +138,17 @@ export function diagonalWalkSessionInvariant(launch: Json, session: Json): Json 
         number(finalClock, "readyCount") <= number(readyClock, "readyCount") ||
         number(finalClock, "sampleCount") <= number(readyClock, "sampleCount") ||
         number(object(completion, "frames"), "renderBlockCount") !== 0
-    ) fail("prototype diagonal Walk clock continuity diverged");
+    ) fail("prototype diagonal Run clock continuity diverged");
 
     return {
         ...session,
-        nativeInput: nativeDiagonalWalkInvariant(launch),
+        nativeInput: nativeDiagonalRunInvariant(launch),
         readinessCamera: camera,
-        atomicDiagonalInput: true,
+        atomicDiagonalRunInput: true,
         nativeLeftInput: true,
-        exactWalkNormalization: true,
+        exactRunNormalization: true,
         readyStepCount,
-        diagonalStepCount,
+        diagonalRunStepCount,
         deltaXQ9,
         deltaZQ9,
         readyPresentation,

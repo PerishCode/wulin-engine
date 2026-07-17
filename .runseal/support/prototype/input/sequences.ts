@@ -133,6 +133,7 @@ export async function postCounterClockwiseSequence(processId: number): Promise<J
 export type StartupInput =
     | "camera-clockwise"
     | "camera-forward"
+    | "diagonal-run"
     | "diagonal-walk"
     | "forward"
     | "jump"
@@ -154,7 +155,8 @@ export async function prepareStartupInput(
         "input",
         request.delaysBeforeKeysMilliseconds,
         request.exitAfterLastMilliseconds,
-        request.atomicBatch,
+        request.atomicPrefixLength === request.keys.length,
+        request.atomicPrefixLength,
     );
 }
 
@@ -163,7 +165,7 @@ type StartupInputRequest = {
     requireVisible: boolean;
     delaysBeforeKeysMilliseconds?: number[];
     exitAfterLastMilliseconds?: number;
-    atomicBatch?: boolean;
+    atomicPrefixLength: number;
 };
 
 function startupInputRequest(input?: StartupInput): StartupInputRequest | null {
@@ -172,6 +174,7 @@ function startupInputRequest(input?: StartupInput): StartupInputRequest | null {
             return {
                 keys: [{ key: "E", virtualKey: 0x45, down: true }],
                 requireVisible: true,
+                atomicPrefixLength: 1,
             };
         case "camera-forward":
             return {
@@ -180,6 +183,7 @@ function startupInputRequest(input?: StartupInput): StartupInputRequest | null {
                     { key: "W", virtualKey: 0x57, down: true },
                 ],
                 requireVisible: true,
+                atomicPrefixLength: 2,
             };
         case "diagonal-walk":
             return {
@@ -190,17 +194,31 @@ function startupInputRequest(input?: StartupInput): StartupInputRequest | null {
                 requireVisible: true,
                 delaysBeforeKeysMilliseconds: [0, 0],
                 exitAfterLastMilliseconds: 200,
-                atomicBatch: true,
+                atomicPrefixLength: 2,
+            };
+        case "diagonal-run":
+            return {
+                keys: [
+                    { key: "Shift", virtualKey: 0x10, down: true },
+                    { key: "W", virtualKey: 0x57, down: true },
+                    { key: "A", virtualKey: 0x41, down: true },
+                ],
+                requireVisible: true,
+                delaysBeforeKeysMilliseconds: [0, 0, 0],
+                exitAfterLastMilliseconds: 200,
+                atomicPrefixLength: 3,
             };
         case "forward":
             return {
                 keys: [{ key: "W", virtualKey: 0x57, down: true }],
                 requireVisible: false,
+                atomicPrefixLength: 1,
             };
         case "jump":
             return {
                 keys: [{ key: "Space", virtualKey: 0x20, down: true }],
                 requireVisible: true,
+                atomicPrefixLength: 1,
             };
         case "object-action":
             return {
@@ -209,7 +227,7 @@ function startupInputRequest(input?: StartupInput): StartupInputRequest | null {
                     { key: "Enter", virtualKey: 0x0D, down: true },
                 ],
                 requireVisible: true,
-                atomicBatch: true,
+                atomicPrefixLength: 2,
             };
         case "opposed-run":
             return {
@@ -219,7 +237,7 @@ function startupInputRequest(input?: StartupInput): StartupInputRequest | null {
                     { key: "S", virtualKey: 0x53, down: true },
                 ],
                 requireVisible: true,
-                atomicBatch: true,
+                atomicPrefixLength: 3,
             };
         case "run-forward":
             return {
@@ -228,6 +246,7 @@ function startupInputRequest(input?: StartupInput): StartupInputRequest | null {
                     { key: "W", virtualKey: 0x57, down: true },
                 ],
                 requireVisible: true,
+                atomicPrefixLength: 2,
             };
         case "run-release":
             return {
@@ -239,6 +258,7 @@ function startupInputRequest(input?: StartupInput): StartupInputRequest | null {
                 requireVisible: true,
                 delaysBeforeKeysMilliseconds: [0, 0, 500],
                 exitAfterLastMilliseconds: 200,
+                atomicPrefixLength: 2,
             };
         case "run-repress":
             return {
@@ -249,6 +269,7 @@ function startupInputRequest(input?: StartupInput): StartupInputRequest | null {
                 requireVisible: true,
                 delaysBeforeKeysMilliseconds: [0, 500],
                 exitAfterLastMilliseconds: 200,
+                atomicPrefixLength: 1,
             };
         case undefined:
             return null;

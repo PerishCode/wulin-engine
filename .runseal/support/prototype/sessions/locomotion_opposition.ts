@@ -7,7 +7,7 @@ function nativeOppositionInvariant(launch: Json): Json {
     const startup = object(launch, "startupNativeInput");
     const startupIntervals = startup.keyPostIntervalsMilliseconds;
     if (
-        startup.schema !== "prototype-native-window-action-v3" ||
+        startup.schema !== "prototype-native-window-action-v4" ||
         startup.action !== "input" ||
         startup.processId !== processId ||
         startup.requiredVisible !== true ||
@@ -43,7 +43,7 @@ function nativeOppositionInvariant(launch: Json): Json {
     const release = object(object(launch, "postReadinessInput"), "sequence");
     const exitInterval = number(release, "exitIntervalMilliseconds");
     if (
-        release.schema !== "prototype-native-window-action-v3" ||
+        release.schema !== "prototype-native-window-action-v4" ||
         release.action !== "input" ||
         release.processId !== processId ||
         release.requiredVisible !== true ||

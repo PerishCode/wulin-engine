@@ -47,6 +47,9 @@ export async function requireBoundedPrototypeSession(
     const diagonalWalkAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/sessions/diagonal_walk.ts`,
     );
+    const diagonalRunAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/sessions/diagonal_run.ts`,
+    );
     const cameraPolicy = await Deno.readTextFile(`${root}/apps/prototype/src/camera.rs`);
     const hostInput = await Deno.readTextFile(`${root}/crates/reference-host/src/input.rs`);
     const objectGates = await Deno.readTextFile(
@@ -66,6 +69,14 @@ export async function requireBoundedPrototypeSession(
         '[Console]::Out.WriteLine("prototype-native-helper-ready-v1")',
     );
     const windowSearchIndex = input.indexOf("do {", helperReadyIndex);
+    const atomicPrefixIndex = input.indexOf(
+        "if ($atomicPrefixLength -gt 0)",
+        windowSearchIndex,
+    );
+    const remainingInputIndex = input.indexOf(
+        "if ($atomicPrefixLength -lt $keys.Count)",
+        atomicPrefixIndex,
+    );
     const capturedReadyIndex = acceptance.indexOf("export async function capturedReady");
     const capturedPreparationIndex = acceptance.indexOf(
         "await prepareStartupInput(startupInput)",
@@ -117,6 +128,7 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("runRepressSessionInvariant") ||
         !sessionGates.includes("locomotionOppositionSessionInvariant") ||
         !sessionGates.includes("diagonalWalkSessionInvariant") ||
+        !sessionGates.includes("diagonalRunSessionInvariant") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
         !inputSequences.includes("repressJumpAndExit") ||
@@ -130,12 +142,15 @@ export async function requireBoundedPrototypeSession(
         !inputSequences.includes('case "run-repress"') ||
         !inputSequences.includes("releaseOpposedRun") ||
         !inputSequences.includes('case "diagonal-walk"') ||
+        !inputSequences.includes('case "diagonal-run"') ||
         !inputSequences.includes('{ key: "A", virtualKey: 0x41, down: true }') ||
         acceptance.includes("applyStartupInput(") ||
         (acceptance.match(/await prepareStartupInput\(startupInput\)/g)?.length ?? 0) !== 2 ||
         nativeTypeIndex < 0 ||
         helperReadyIndex <= nativeTypeIndex ||
         windowSearchIndex <= helperReadyIndex ||
+        atomicPrefixIndex <= windowSearchIndex ||
+        remainingInputIndex <= atomicPrefixIndex ||
         capturedReadyIndex < 0 ||
         capturedPreparationIndex <= capturedReadyIndex ||
         capturedSpawnIndex <= capturedPreparationIndex ||
@@ -162,10 +177,12 @@ export async function requireBoundedPrototypeSession(
         !runReleaseAcceptance.includes("retainedForwardInput: true") ||
         !runReleaseAcceptance.includes("transitionedToWalk: true") ||
         !runReleaseAcceptance.includes("runHoldIntervalMilliseconds") ||
+        !runReleaseAcceptance.includes("atomicStartupPrefix: true") ||
         !runRepressAcceptance.includes("runModifierReadmitted: true") ||
         !runRepressAcceptance.includes("retainedForwardInput: true") ||
         !runRepressAcceptance.includes("transitionedToRun: true") ||
         !runRepressAcceptance.includes("walkHoldIntervalMilliseconds") ||
+        !runRepressAcceptance.includes("atomicStartupPrefix: true") ||
         !locomotionOppositionAcceptance.includes("oppositeAxisCancelled: true") ||
         !locomotionOppositionAcceptance.includes("stationarySurveyReadiness: true") ||
         !locomotionOppositionAcceptance.includes("releasedBackwardInput: true") ||
@@ -175,17 +192,27 @@ export async function requireBoundedPrototypeSession(
         !diagonalWalkAcceptance.includes("nativeLeftInput: true") ||
         !diagonalWalkAcceptance.includes("exactWalkNormalization: true") ||
         !diagonalWalkAcceptance.includes("diagonalStepCount") ||
+        !diagonalRunAcceptance.includes("atomicDiagonalRunInput: true") ||
+        !diagonalRunAcceptance.includes("nativeLeftInput: true") ||
+        !diagonalRunAcceptance.includes("exactRunNormalization: true") ||
+        !diagonalRunAcceptance.includes("diagonalRunStepCount") ||
         !focusAcceptance.includes("atomicWindowThreadBatch") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||
         !hostInput.includes("down == key_is_set(&self.held, key)") ||
         !hostInput.includes("u8::try_from(key)") ||
         !input.includes("[Diagnostics.Stopwatch]::StartNew()") ||
-        input.includes("prototype-native-window-action-v2") ||
+        !input.includes("prototype-native-window-action-v4") ||
+        /prototype-native-window-action-v[23]/.test(input) ||
         !input.includes("startPreparedWindowAction") ||
         !preparedInput.includes('"prototype-native-helper-ready-v1"') ||
         !preparedInput.includes("completePrototypeWindowAction") ||
         !input.includes("PostAtomicInputBatch") ||
+        !input.includes(
+            "$atomicBatch = $atomicPrefixLength -eq $keys.Count -and $atomicPrefixLength -gt 0",
+        ) ||
+        !input.includes("atomicPrefixLength = $atomicPrefixLength") ||
+        !preparedInput.includes("evidence.atomicPrefixLength !== expected.atomicPrefixLength") ||
         !input.includes("suspendAfterInput") ||
         !input.includes("0x0008u") ||
         !input.includes("SuspendThread") ||
