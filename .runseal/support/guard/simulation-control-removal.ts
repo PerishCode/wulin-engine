@@ -67,7 +67,9 @@ export async function requireSimulationHistoryRemoved(
         "simulationBodyGates",
         "retiredControlGate",
         "retiredControls",
-        "simulation\\.(advance|probe)",
+        "retiredStatusGate",
+        "retiredStatus",
+        "simulation\\.(advance|probe|status)",
         "canonical\\.terrain\\.body\\.(spawn|read|despawn|retained\\.(advance|batch))",
         "simulation\\.terrain\\.body\\.advance",
     ].join("|");
