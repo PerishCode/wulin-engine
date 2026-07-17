@@ -1033,6 +1033,16 @@ Ready/sample 从 `2/3 -> 92/93`，零 stall/render block，对象状态 idle，s
 exit code 0；全部 103 engine-runtime、48 Prototype、20 reference-host 测试通过，Flavor
 0 deny / 5 个既有 warning。产品、Runtime、renderer/GPU/source/resource/synchronization
 与 process count 均未改变。
+Experiment 0147 对既有 diagonal-Run 子进程施加同样严格但独立的两阶段证明：readiness 后
+Shift/W/A 为原子 prefix，至少 250ms 后释放 W 并保留 Shift+A，再至少 250ms 后 Escape。
+`canonical-prototype-v62` 首轮在 169.946 秒通过，455,214-byte report 中 PID 15960 / thread
+30396 的 key intervals 为 0.0015/0.0018ms、atomic span 为 0.0033ms，diagonal hold 为
+268.9852ms，left-only hold 为 262.2319ms。最终 local `(-1744,-720)` Q9 唯一分解为 16 个
+`(-45,-45)` diagonal Run steps 和 16 个 `(-64,0)` left Run steps，最终为
+clip2/yaw32768、epoch `1 -> 48`。clock Ready/sample 从 `2/3 -> 78/79`，零
+stall/render block，对象状态 idle，stdout 恰为两值且 exit code 0；全部 103 engine-runtime、
+48 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning。产品、Runtime、
+renderer/GPU/source/resource/synchronization 与 process count 均未改变。
 
 ## Project model
 
@@ -1111,6 +1121,7 @@ one exact camera-derived traversal schedule with prefetch disabled, explicitly a
 finite-edge endpoint and graceful completion, exact native Escape and visible-window WM_CLOSE clean exits, native
 same-batch Space/F/Enter/W focus-loss action/held-input suppression plus no-backlog resume and
 same-process fresh-A Walk/release readmission, one exact native diagonal-to-left Walk release with
+two-phase fixed-Q9 decomposition, one exact native diagonal-to-left Run release with independent
 two-phase fixed-Q9 decomposition, one exact atomic same-ingest opposite-Q/E
 camera-edge cancellation with negative-Z Walk proof, direct restart equality, and Sidecar cleanup.
 

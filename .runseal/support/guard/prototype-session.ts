@@ -309,8 +309,12 @@ export async function requireBoundedPrototypeSession(
         !diagonalRunAcceptance.includes("atomicDiagonalRunInput: true") ||
         !diagonalRunAcceptance.includes("nativeLeftInput: true") ||
         !diagonalRunAcceptance.includes("exactRunNormalization: true") ||
+        !diagonalRunAcceptance.includes("forwardInputReleased: true") ||
+        !diagonalRunAcceptance.includes("retainedLeftRun: true") ||
+        !diagonalRunAcceptance.includes("exactTwoPhaseDisplacement: true") ||
         !diagonalRunAcceptance.includes("actionAfterReadiness: true") ||
         !diagonalRunAcceptance.includes("diagonalRunStepCount") ||
+        !diagonalRunAcceptance.includes("leftRunStepCount") ||
         !forwardReleaseAcceptance.includes("normalForwardReleased: true") ||
         !forwardReleaseAcceptance.includes("movedThenStopped: true") ||
         !forwardReleaseAcceptance.includes("transitionedToSurvey: true") ||

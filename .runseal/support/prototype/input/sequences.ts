@@ -98,12 +98,14 @@ export async function postDiagonalRun(processId: number): Promise<Json> {
             { key: "Shift", virtualKey: 0x10, down: true },
             { key: "W", virtualKey: 0x57, down: true },
             { key: "A", virtualKey: 0x41, down: true },
+            { key: "W", virtualKey: 0x57, down: false },
         ],
         true,
         "input",
-        [0, 0, 0],
-        200,
-        true,
+        [0, 0, 0, 250],
+        250,
+        false,
+        3,
     );
 }
 
