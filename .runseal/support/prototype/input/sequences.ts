@@ -90,6 +90,20 @@ export async function postRunReleaseSequence(processId: number): Promise<Json> {
     );
 }
 
+export async function postRunRepressSequence(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "W", virtualKey: 0x57, down: true },
+            { key: "Shift", virtualKey: 0x10, down: true },
+        ],
+        true,
+        "input",
+        [0, 500],
+        200,
+    );
+}
+
 export async function postInvalidAliasSequence(processId: number): Promise<Json> {
     return await postPrototypeWindowAction(
         processId,
@@ -142,7 +156,8 @@ export type StartupInput =
     | "jump"
     | "object-action"
     | "run-forward"
-    | "run-release";
+    | "run-release"
+    | "run-repress";
 
 export async function applyStartupInput(
     processId: number,
@@ -163,6 +178,8 @@ export async function applyStartupInput(
             return await holdRunForwardKeys(processId);
         case "run-release":
             return await postRunReleaseSequence(processId);
+        case "run-repress":
+            return await postRunRepressSequence(processId);
         case undefined:
             return null;
     }

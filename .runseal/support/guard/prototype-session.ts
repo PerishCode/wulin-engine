@@ -35,6 +35,9 @@ export async function requireBoundedPrototypeSession(
     const runReleaseAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/sessions/run_release.ts`,
     );
+    const runRepressAcceptance = await Deno.readTextFile(
+        `${root}/.runseal/support/prototype/sessions/run_repress.ts`,
+    );
     const cameraPolicy = await Deno.readTextFile(`${root}/apps/prototype/src/camera.rs`);
     const hostInput = await Deno.readTextFile(`${root}/crates/reference-host/src/input.rs`);
     const objectGates = await Deno.readTextFile(
@@ -79,6 +82,7 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("oppositeCameraSessionInvariant") ||
         !sessionGates.includes("counterClockwiseSessionInvariant") ||
         !sessionGates.includes("runReleaseSessionInvariant") ||
+        !sessionGates.includes("runRepressSessionInvariant") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
         !inputSequences.includes("repressJumpAndExit") ||
@@ -89,6 +93,7 @@ export async function requireBoundedPrototypeSession(
         !inputSequences.includes("postOppositeCameraSequence") ||
         !inputSequences.includes("postCounterClockwiseSequence") ||
         !inputSequences.includes("postRunReleaseSequence") ||
+        !inputSequences.includes("postRunRepressSequence") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
         !cameraAcceptance.includes("checkedRangeRejected: true") ||
@@ -108,6 +113,10 @@ export async function requireBoundedPrototypeSession(
         !runReleaseAcceptance.includes("retainedForwardInput: true") ||
         !runReleaseAcceptance.includes("transitionedToWalk: true") ||
         !runReleaseAcceptance.includes("runHoldIntervalMilliseconds") ||
+        !runRepressAcceptance.includes("runModifierReadmitted: true") ||
+        !runRepressAcceptance.includes("retainedForwardInput: true") ||
+        !runRepressAcceptance.includes("transitionedToRun: true") ||
+        !runRepressAcceptance.includes("walkHoldIntervalMilliseconds") ||
         !focusAcceptance.includes("atomicWindowThreadBatch") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(CLOCKWISE))") ||
         !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||

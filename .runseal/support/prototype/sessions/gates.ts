@@ -10,6 +10,7 @@ import { cameraRepressSessionInvariant } from "../camera_repress.ts";
 import { jumpMidairInvariant, jumpReadmissionInvariant } from "../jump.ts";
 import { sustainedCapacityInvariant } from "../object/gates.ts";
 import { runReleaseSessionInvariant } from "./run_release.ts";
+import { runRepressSessionInvariant } from "./run_repress.ts";
 import { focusSessionInvariant } from "./focus.ts";
 import { gracefulCompletionInvariant, gracefulExit, idleCompletionInvariant } from "./mod.ts";
 
@@ -100,6 +101,12 @@ export async function sessionGates(
         "prototype native Run modifier release",
         "run-release",
     );
+    const runRepress = await gracefulExit(
+        executable,
+        config,
+        "prototype native Run modifier re-press readmission",
+        "run-repress",
+    );
     sameInitial(escape, first, "Escape", startupInvariant, jumpInvariant);
     sameInitial(windowClose, first, "window-close", startupInvariant, jumpInvariant);
     same(
@@ -121,6 +128,7 @@ export async function sessionGates(
         jumpInvariant,
     );
     sameInitial(runRelease, first, "Run-release", startupInvariant, jumpInvariant);
+    sameInitial(runRepress, first, "Run-repress", startupInvariant, jumpInvariant);
     same(
         startupInvariant(sustained),
         startupInvariant(sustainedBaseline),
@@ -181,6 +189,11 @@ export async function sessionGates(
         runReleaseInvariant: runReleaseSessionInvariant(
             runRelease,
             idleCompletionInvariant(runRelease),
+        ),
+        runRepress,
+        runRepressInvariant: runRepressSessionInvariant(
+            runRepress,
+            idleCompletionInvariant(runRepress),
         ),
         sustained,
         sustainedInvariant: await sustainedCapacityInvariant(
