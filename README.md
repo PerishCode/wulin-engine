@@ -945,6 +945,14 @@ Experiment 0137 固定了 Q/E 与 simulation-bound intents 在失焦边界上的
 原生 session/process 矩阵保持不变，report 447,306 bytes；全部 103 engine-runtime、46
 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning；Runtime、
 renderer/GPU/source/resource/synchronization 均未改变。
+Experiment 0138 固定了已 held 相机键的互补失焦边界，没有修改产品：先以 E-down 提交
+orbit `0 -> 1`，下一 ingest 的重复 E-down 因 held 被抑制，随后 FocusLost 只产生 release
+cleanup；最终 held=false、pressed=false、released=true，camera candidate/commit 均保持
+orbit 1，不会重复步进。focused camera tests 5/5 通过，Prototype 总数增至 47；没有增加原生
+child、报告字段或 camera/HostInput/main-loop 逻辑。`canonical-prototype-v53` 首轮在
+170.211 秒通过，现有原生 session/process 矩阵保持不变，report 447,346 bytes；全部 103
+engine-runtime、47 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning；
+Runtime、renderer/GPU/source/resource/synchronization 均未改变。
 
 ## Project model
 
