@@ -157,15 +157,6 @@ export async function objectResolutionGates(
     ) {
         fail("unqualified canonical object resolution was not rejected at the current schema");
     }
-    const retiredVerb = await rejectedEvent("canonical.objects.query", {
-        source_namespace: sourceNamespace,
-        region_x: base[0],
-        region_z: base[1],
-        authored_local_id: 0,
-    });
-    if (typeof retiredVerb.error !== "string" || !retiredVerb.error.startsWith("unknown_event: ")) {
-        fail("retired canonical.objects.query verb remains live");
-    }
     const samples = await resolveObjectSamples(source, base, OBJECT_RESOLUTION_SAMPLE_IDS);
     const published = object(publication, "published");
     const snapshot = canonicalObjectSnapshot(samples[0]);
@@ -179,7 +170,6 @@ export async function objectResolutionGates(
         outside,
         sourceMismatch,
         unqualified,
-        retiredVerb,
         samples,
         snapshot,
     };

@@ -116,18 +116,8 @@ async function scheduleStatus(): Promise<Json> {
     return object(await event("canonical.status"), "simulationSchedule");
 }
 
-async function retiredStatusGate(): Promise<Json> {
-    const verb = "simulation.status";
-    const rejected = await rejectedEvent(verb, {});
-    if (typeof rejected.error !== "string" || !rejected.error.startsWith("unknown_event: ")) {
-        fail(`${verb} did not fail through the retired-status contract`);
-    }
-    return { verb, rejected };
-}
-
 async function prepublication(center: Coord): Promise<Json> {
     await event("workbench.pause");
-    const retiredStatus = await retiredStatusGate();
     const before = await scheduleStatus();
     const stored = object(
         await event("actor.spawn", actorPayload(center, HALF_HEIGHT_Q16)),
@@ -201,7 +191,6 @@ async function prepublication(center: Coord): Promise<Json> {
     ) fail("prepublication schedule commit diverged");
     await event("actor.despawn", { generation: 1 });
     return {
-        retiredStatus,
         before,
         retiredPayload,
         aliasPayload,

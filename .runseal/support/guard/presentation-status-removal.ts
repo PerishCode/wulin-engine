@@ -9,6 +9,8 @@ export async function requirePresentationStatusRemoved(
         "CanonicalTimeStatus",
         "presentation_time_status",
         "canonical\\.time\\.status",
+        "retiredStatusGate",
+        "retiredStatus",
     ].join("|");
     const output = await new Deno.Command("git", {
         args: [

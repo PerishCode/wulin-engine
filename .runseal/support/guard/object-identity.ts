@@ -55,7 +55,8 @@ export async function requireTypedObjectResolution(
         !routing.includes('"canonical.objects.resolve" => objects::resolve(payload)') ||
         routing.includes('"canonical.objects.query" =>') ||
         !acceptance.includes("unqualified canonical object resolution") ||
-        !acceptance.includes("retired canonical.objects.query verb remains live") ||
+        acceptance.includes("canonical.objects.query") ||
+        acceptance.includes("retiredVerb") ||
         !dispatch.includes("versioned-canonical-object-resolution-v2") ||
         !dispatch.includes("versioned-canonical-object-nearest-v3") ||
         !routing.includes('"canonical.objects.target.set" => objects::target(payload)') ||

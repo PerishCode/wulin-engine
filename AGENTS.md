@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0114 and the current ADR set through 0117 define one live content runtime
+Experiments 0031-0115 and the current ADR set through 0118 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -227,7 +227,7 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one mandatory post-v0 cleanup that deletes the duplicate standalone simulation-schedule Runtime
   forwarder and inspect verb plus the recurring eight-request retired-control report; exact schedule
   state remains available only through the canonical aggregate/frame probe and per-transaction
-  actor advance, with one current unknown-event witness and a stable removal guard;
+  actor advance, with no recurring retired request and a stable removal guard;
 - one accepted post-v0 Run modifier whose prototype derives a private gait fact only from held Shift
   plus final admitted nonzero W/A/S/D, selects exact fixed 64/45-Q9 displacement and the existing
   imported Run clip in the sole actor transaction, and adds no retained gait state, host/engine
@@ -345,7 +345,13 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one mandatory post-v0 cleanup that deletes the duplicate standalone presentation-timeline Runtime
   forwarder and inspect verb; exact presentation state remains readable only through
   `canonical.status.presentationClock`, pause/resume/set/step keep their direct exact responses, and
-  one current unknown-event witness plus a stable guard prevent the old route from returning;
+  no recurring retired request remains while a stable guard prevents the old route from returning;
+- one mandatory compatibility cleanup that deletes the final recurring `simulation.status`,
+  `canonical.time.status`, and `canonical.objects.query` unknown-event requests, both private
+  retired-status helpers, and all three copied report fields; existing simulation, presentation,
+  and object owner guards become the sole absence authority, current malformed-payload and
+  transaction-rollback tests remain live, and no alias, decoder, rejection registry, product
+  behavior, or engine/GPU/resource ownership changes;
 - one accepted plain Prototype v0 stage boundary over that exact self-contained finite single-actor
   loop; it does not claim sustained product traversal, a source service, finite-edge behavior,
   gameplay interaction, multiple actors, networking, or Wulin content;
@@ -473,6 +479,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0115-native-prototype-focus-discontinuity.md` | Accepted exact real-process native focus-loss cleanup and no-backlog recovery proof. |
 | `docs/adr/0116-native-prototype-jump-readmission.md` | Accepted complete live Jump landing and exact second native press readmission proof. |
 | `docs/adr/0117-native-midair-jump-rejection.md` | Accepted exact native midair Space rejection with same-batch Walk admission proof. |
+| `docs/adr/0118-retired-final-unknown-event-witnesses.md` | Accepted final recurring retired-verb IPC/report deletion and static owner authority. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -558,6 +565,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0112-native-focus-discontinuity/README.md` | Accepted native W/focus-loss cleanup, suspended sampling, exact recovery, and unchanged-actor evidence. |
 | `experiments/0113-native-jump-readmission/README.md` | Accepted full first Jump landing, timed Space re-press, and exact second-flight completion evidence. |
 | `experiments/0114-native-midair-jump-rejection/README.md` | Accepted timed midair Space rejection, single-flight arithmetic, and Walk admission evidence. |
+| `experiments/0115-retired-final-unknown-event-witnesses/README.md` | Accepted final three unknown-event request/helper/report deletions and preserved current strictness evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -680,7 +688,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/object-identity.ts` | Required typed source-qualified resolver, nearest exclusion, frame suppression, prototype consumption, and forbidden old-surface gate. |
 | `.runseal/support/guard/prototype-session.ts` | Required bounded Escape/window-close/focus/Jump-readmission/midair-rejection session contract plus forbidden old native timing and transient action surfaces. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
-| `.runseal/support/actor/admission.ts` | Retired standalone-status rejection, canonical-aggregate schedule evidence, schema-2 advance, typed pending block, zero-commit rollback, and retained-frame support. |
+| `.runseal/support/actor/admission.ts` | Canonical-aggregate schedule evidence, strict schema-2 advance, typed pending block, zero-commit rollback, and retained-frame support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |
 | `.runseal/support/actor/animation.ts` | Fixed-tick spawn/transition actor epoch, GPU local-phase, same-clip retention, and fractional rollback support. |
 | `.runseal/support/actor/simulation.ts` | Canonical-aggregate schedule assertions plus schema-2 fractional, partition, rollback, and sole actor advance support. |
@@ -698,7 +706,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/traversal.ts` | Exact default/orbit traversal targets, bounded async/latest-wins publication, and no-prefetch/block/failure invariant owner. |
 | `.runseal/support/terrain/query.ts` | Exact single-query rejection, seam, triangle, and dense snapshot acceptance support. |
 | `.runseal/support/cooked-gltf-presentation.ts` | Imported geometry/material/rig metadata, exact GPU palette, and controlled articulation acceptance support. |
-| `.runseal/support/temporal-presentation.ts` | Aggregate-clock ownership, retired-status rejection, fixed-quantum duration time, common-period, and held-pair acceptance support. |
+| `.runseal/support/temporal-presentation.ts` | Aggregate-clock ownership, fixed-quantum duration time, current-operation rollback, common-period, and held-pair acceptance support. |
 
 ## 6. Core Operational Workflows
 

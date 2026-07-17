@@ -49,15 +49,6 @@ async function presentationClock(): Promise<Json> {
     return object(await event("canonical.status"), "presentationClock");
 }
 
-async function retiredStatusGate(): Promise<Json> {
-    const verb = ["canonical", "time", "status"].join(".");
-    const rejected = await rejectedEvent(verb, {});
-    if (typeof rejected.error !== "string" || !rejected.error.startsWith("unknown_event: ")) {
-        fail(`${verb} did not fail through the retired-status contract`);
-    }
-    return { verb, rejected };
-}
-
 function assertTemporalChange(before: Json, after: Json, label: string): void {
     const beforeStable = object(before, "stable");
     const afterStable = object(after, "stable");
@@ -93,7 +84,6 @@ export async function temporalGates(
     collection: string,
     persistArtifacts = true,
 ): Promise<Json> {
-    const retiredStatus = await retiredStatusGate();
     const timeZeroStatus = await event("canonical.status");
     const timeZeroClock = object(timeZeroStatus, "presentationClock");
     assertClock(timeZeroClock, 0, false, "paused tick zero");
@@ -170,7 +160,6 @@ export async function temporalGates(
     ) fail("automatic frame did not use the paused observed tick");
     await event("canonical.time.set", { tick: 0 });
     return {
-        retiredStatus,
         timeZeroStatus,
         timeOneClock,
         timeOne,
