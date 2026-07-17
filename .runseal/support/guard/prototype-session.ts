@@ -140,7 +140,13 @@ export async function requireBoundedPrototypeSession(
         !objectGates.includes("capacityRejectedFrameCount: 12") ||
         !objectGates.includes("postReadinessCapacityRejection") ||
         !objectGates.includes("actionAfterReadiness: true") ||
+        !objectGates.includes("staleObjectIntentsDidNotReachResumedSimulation: true") ||
+        !objectGates.includes("freshObjectIntentsAfterFocusReadmitted: true") ||
+        !objectGates.includes("atomicCancelledIntents") ||
+        !objectGates.includes("exactSuspendResumeCount: 1") ||
+        !objectGates.includes("postResumeResetCount: 1") ||
         !acceptance.includes("objectFeedbackSession") ||
+        !acceptance.includes('"object-feedback-focus"') ||
         !sessionGates.includes("nativeWindowCloseInvariant") ||
         !sessionGates.includes("forwardReleaseSessionInvariant") ||
         sessionGates.includes("prototype Escape press exit") ||
@@ -340,6 +346,7 @@ export async function requireBoundedPrototypeSession(
         inputActions.includes("suspendWithForward") ||
         !inputActions.includes("resumePrototypeFocus") ||
         !inputActions.includes("suspendHeldPrototypeJump") ||
+        !inputActions.includes("suspendWithObjectBatch") ||
         !inputActions.includes("postFocusLocomotionReadmission") ||
         !inputActions.includes('{ key: "A", virtualKey: 0x41, down: true }') ||
         !inputActions.includes('{ key: "A", virtualKey: 0x41, down: false }') ||

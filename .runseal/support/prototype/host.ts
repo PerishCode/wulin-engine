@@ -285,6 +285,7 @@ export async function prototypeHostGates(
         EXECUTABLE,
         CONFIG,
         "prototype invariant activated object action",
+        true,
     );
     const sustained = await sustainedCapacitySession(EXECUTABLE, CONFIG);
     const objectActionCenter: Coord = [base[0] + 4, base[1]];
@@ -296,6 +297,7 @@ export async function prototypeHostGates(
         EXECUTABLE,
         CONFIG,
         "prototype invariant rejected object action",
+        false,
     );
     await writeDocument(document(terrain, objects, base));
     const sessions = await sessionGates(

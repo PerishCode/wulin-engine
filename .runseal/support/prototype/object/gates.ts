@@ -149,6 +149,25 @@ async function feedbackSessionInvariant(
         );
     }
 
+    const postReadiness = object(launch, "postReadinessInput");
+    const processId = number(launch, "processId");
+    let nativeInput: Json;
+    let focusRecovery: Json | null = null;
+    if (expectedKind === "activated") {
+        focusRecovery = nativeObjectFocusInvariant(
+            launch,
+            postReadiness,
+            processId,
+        );
+        nativeInput = object(focusRecovery, "freshAction");
+    } else {
+        nativeInput = nativeObjectActionInvariant(
+            object(postReadiness, "sequence"),
+            processId,
+            true,
+        );
+    }
+
     return {
         ...gracefulCompletionInvariant(launch, "escape"),
         readiness: {
@@ -159,11 +178,12 @@ async function feedbackSessionInvariant(
             camera: cameraDriverInvariant(launch),
             traversal: traversalInvariant(launch, windowCenter),
         },
-        nativeInput: nativeObjectActionInvariant(
-            object(object(launch, "postReadinessInput"), "sequence"),
-            number(launch, "processId"),
-            true,
-        ),
+        nativeInput,
+        ...(focusRecovery === null ? {} : {
+            focusRecovery,
+            staleObjectIntentsDidNotReachResumedSimulation: true,
+            freshObjectIntentsAfterFocusReadmitted: true,
+        }),
         expectedKind,
         exactSourceIdentity: expectedIdentity,
         actionAfterReadiness: true,
@@ -171,6 +191,96 @@ async function feedbackSessionInvariant(
         exactCommittedFacing: true,
         stationaryActor: true,
         acknowledgementFrameCount: 12,
+    };
+}
+
+function nativeObjectFocusInvariant(
+    launch: Json,
+    postReadiness: Json,
+    processId: number,
+): Json {
+    const suspended = object(postReadiness, "suspended");
+    const resumed = object(postReadiness, "resumed");
+    const sequence = object(postReadiness, "sequence");
+    if (
+        suspended.schema !== "prototype-native-window-action-v4" ||
+        suspended.action !== "suspend" ||
+        number(suspended, "processId") !== processId ||
+        suspended.activated !== true ||
+        suspended.closeRequested !== false ||
+        suspended.requiredVisible !== true ||
+        suspended.windowWasVisible !== true ||
+        JSON.stringify(suspended.keys) !== JSON.stringify([
+                { key: "F", virtualKey: 70, down: true },
+                { key: "Enter", virtualKey: 13, down: true },
+            ]) ||
+        JSON.stringify(suspended.messages) !== JSON.stringify([
+                "WM_SETFOCUS",
+                "WM_KEYDOWN:F",
+                "WM_KEYDOWN:Enter",
+                "WM_KILLFOCUS",
+            ]) ||
+        JSON.stringify(suspended.delaysBeforeKeysMilliseconds) !== JSON.stringify([0, 0]) ||
+        !Array.isArray(suspended.keyPostIntervalsMilliseconds) ||
+        suspended.keyPostIntervalsMilliseconds.length !== 1 ||
+        typeof suspended.keyPostIntervalsMilliseconds[0] !== "number" ||
+        suspended.keyPostIntervalsMilliseconds[0] < 0 ||
+        suspended.keyPostIntervalsMilliseconds[0] > 50 ||
+        suspended.atomicBatch !== true ||
+        number(suspended, "atomicPrefixLength") !== 2 ||
+        !Number.isSafeInteger(suspended.batchThreadId) ||
+        number(suspended, "batchThreadId") <= 0 ||
+        number(suspended, "batchSpanMilliseconds") < 0 ||
+        number(suspended, "batchSpanMilliseconds") > 50 ||
+        number(suspended, "exitAfterLastMilliseconds") !== 0 ||
+        suspended.exitIntervalMilliseconds !== null ||
+        resumed.schema !== "prototype-native-window-action-v4" ||
+        resumed.action !== "resume" ||
+        number(resumed, "processId") !== processId ||
+        resumed.windowHandle !== suspended.windowHandle ||
+        resumed.activated !== true ||
+        resumed.closeRequested !== false ||
+        resumed.requiredVisible !== true ||
+        resumed.windowWasVisible !== true ||
+        !Array.isArray(resumed.keys) ||
+        resumed.keys.length !== 0 ||
+        JSON.stringify(resumed.messages) !== JSON.stringify(["WM_SETFOCUS"]) ||
+        sequence.windowHandle !== suspended.windowHandle
+    ) fail("prototype native object focus-readmission evidence diverged");
+
+    const readyClock = object(object(object(launch, "readiness"), "simulation_driver"), "clock");
+    const completion = object(launch, "completion");
+    const finalClock = object(completion, "clock");
+    if (
+        finalClock.suspended !== false ||
+        finalClock.hasBaseline !== true ||
+        number(finalClock, "suspendCount") !== number(readyClock, "suspendCount") + 1 ||
+        number(finalClock, "resumeCount") !== number(readyClock, "resumeCount") + 1 ||
+        number(finalClock, "resetCount") !== number(readyClock, "resetCount") + 1 ||
+        number(finalClock, "suspendedSampleCount") <=
+            number(readyClock, "suspendedSampleCount") ||
+        number(finalClock, "readyCount") <= number(readyClock, "readyCount") ||
+        number(finalClock, "sampleCount") <= number(readyClock, "sampleCount") ||
+        number(finalClock, "stallCount") !== number(readyClock, "stallCount") ||
+        number(object(completion, "frames"), "renderBlockCount") !== 0
+    ) fail("prototype object focus-readmission clock recovery diverged");
+
+    return {
+        exactProcessWindow: true,
+        suspendedMessages: suspended.messages,
+        resumedMessages: resumed.messages,
+        atomicCancelledIntents: {
+            threadId: suspended.batchThreadId,
+            spanMilliseconds: suspended.batchSpanMilliseconds,
+        },
+        freshAction: nativeObjectActionInvariant(sequence, processId, true),
+        clock: {
+            ready: readyClock,
+            final: finalClock,
+            exactSuspendResumeCount: 1,
+            postResumeResetCount: 1,
+            elapsedBacklog: false,
+        },
     };
 }
 

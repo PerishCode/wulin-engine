@@ -9,6 +9,7 @@ import {
     resumePrototypeFocus,
     suspendHeldPrototypeJump,
     suspendWithActionBatch,
+    suspendWithObjectBatch,
 } from "../input/actions.ts";
 import {
     postCameraRepeatSequence,
@@ -131,8 +132,14 @@ export async function objectFeedbackSession(
     executable: string,
     config: string,
     label: string,
+    focusRecovery: boolean,
 ): Promise<Json> {
-    return await gracefulExit(executable, config, label, "object-feedback");
+    return await gracefulExit(
+        executable,
+        config,
+        label,
+        focusRecovery ? "object-feedback-focus" : "object-feedback",
+    );
 }
 
 export async function gracefulExit(
@@ -153,6 +160,7 @@ export async function gracefulExit(
         | "jump-midair"
         | "jump-readmission"
         | "object-feedback"
+        | "object-feedback-focus"
         | "opposed-run-release"
         | "opposite-camera"
         | "run-release"
@@ -190,6 +198,14 @@ export async function gracefulExit(
         } else if (postReadiness === "object-feedback") {
             const sequence = await postObjectActionExit(child.pid);
             postReadinessInput = { sequence };
+            exitInput = sequence;
+        } else if (postReadiness === "object-feedback-focus") {
+            const suspended = await suspendWithObjectBatch(child.pid);
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            const resumed = await resumePrototypeFocus(child.pid);
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            const sequence = await postObjectActionExit(child.pid);
+            postReadinessInput = { suspended, resumed, sequence };
             exitInput = sequence;
         } else if (postReadiness === "camera-repeat") {
             const initialPress = await pressPrototypeCameraClockwise(child.pid);
