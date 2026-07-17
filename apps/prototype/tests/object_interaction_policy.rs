@@ -151,11 +151,9 @@ fn projected_candidate_commits_twelve_frames() {
         .unwrap();
     let submitted = policy.frame_feedback(Some(identity(7)), attempt);
     assert_eq!(submitted.unwrap().kind, ObjectTargetFeedbackKind::Activated);
-    let completion = policy
+    policy
         .complete_frame(attempt, submitted, submitted)
-        .unwrap()
         .unwrap();
-    assert!(completion.applied);
     assert_eq!(policy.status().committed_count, 1);
     assert_eq!(policy.status().consumed, Some(identity(7)));
     assert_eq!(policy.nearest_exclusion(), Some(identity(7)));
@@ -190,11 +188,7 @@ fn projection_and_target_change() {
         )
         .unwrap();
     let submitted = policy.frame_feedback(Some(identity(7)), attempt);
-    let completion = policy
-        .complete_frame(attempt, submitted, None)
-        .unwrap()
-        .unwrap();
-    assert!(!completion.applied);
+    policy.complete_frame(attempt, submitted, None).unwrap();
     assert_eq!(policy.status().committed_count, 0);
     assert_eq!(policy.status().acknowledgement, None);
 
@@ -235,19 +229,12 @@ fn consumption_capacity_and_source_lifetime_are_exact() {
     };
     assert_eq!(feedback.identity, identity(8));
     assert_eq!(feedback.kind, ObjectTargetFeedbackKind::Rejected);
-    let report = interaction::report::attempt(attempt.unwrap());
-    assert_eq!(report["reason"], "capacity-exhausted");
-    assert!(report.get("proximity").is_none());
-    assert!(report.get("facing").is_none());
     let submitted = policy.frame_feedback(Some(identity(8)), attempt);
     assert_eq!(submitted, Some(feedback));
     assert_eq!(policy.frame_suppression(), Some(identity(7)));
-    let completion = policy
+    policy
         .complete_frame(attempt, submitted, submitted)
-        .unwrap()
         .unwrap();
-    assert!(!completion.applied);
-    assert_eq!(completion.feedback, feedback);
     assert_eq!(policy.status().committed_count, 1);
     assert_eq!(policy.status().ineligible_count, 1);
     assert_eq!(policy.status().consumed, Some(identity(7)));
@@ -315,11 +302,9 @@ fn capacity_rejection_requires_a_distinct_resolved_target_and_projection() {
         .prepare_after_advance(1, origin(), 0, Some(target(8, true)), None)
         .unwrap();
     let submitted = unprojected.frame_feedback(Some(identity(8)), attempt);
-    let completion = unprojected
+    unprojected
         .complete_frame(attempt, submitted, None)
-        .unwrap()
         .unwrap();
-    assert!(!completion.applied);
     assert_eq!(unprojected.status().acknowledgement, None);
     assert_eq!(unprojected.status().consumed, Some(identity(7)));
     assert_eq!(unprojected.frame_suppression(), Some(identity(7)));
@@ -421,17 +406,9 @@ fn projected_rejection_reuses_acknowledgement_without_consumption() {
         .unwrap();
     let submitted = policy.frame_feedback(Some(identity(7)), attempt);
     assert_eq!(submitted.unwrap().kind, ObjectTargetFeedbackKind::Rejected);
-    let attempt_report = interaction::report::attempt(attempt.unwrap());
-    assert_eq!(attempt_report["outcome"], "ineligible");
-    assert_eq!(attempt_report["reason"], "outside-facing");
-    assert_eq!(attempt_report["feedback"]["kind"], "rejected");
-    assert_eq!(attempt_report["facing"]["dotQ9"], 0);
-    let completion = policy
+    policy
         .complete_frame(attempt, submitted, submitted)
-        .unwrap()
         .unwrap();
-    assert!(!completion.applied);
-    assert_eq!(completion.feedback.kind, ObjectTargetFeedbackKind::Rejected);
     let acknowledgement = policy.status().acknowledgement.unwrap();
     assert_eq!(acknowledgement.kind, ObjectTargetFeedbackKind::Rejected);
     let acknowledgement_report = interaction::report::acknowledgement(acknowledgement);
@@ -467,11 +444,9 @@ fn projected_rejection_reuses_acknowledgement_without_consumption() {
         )
         .unwrap();
     let submitted = unprojected.frame_feedback(Some(identity(7)), attempt);
-    let completion = unprojected
+    unprojected
         .complete_frame(attempt, submitted, None)
-        .unwrap()
         .unwrap();
-    assert!(!completion.applied);
     assert_eq!(unprojected.status().acknowledgement, None);
 }
 

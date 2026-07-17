@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0109 and the current ADR set through 0112 define one live content runtime
+Experiments 0031-0110 and the current ADR set through 0113 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -311,6 +311,12 @@ geometry/material/rig source, and one deterministic object-shadow path:
   proximity, or facing work, returns `applied=false`, reuses the sole acknowledgement owner, and
   preserves the immutable first consumed identity, count, exclusion, and simultaneous suppression
   without another timer, result history, mutation, registry, inventory, or product effect;
+- one mandatory compatibility cleanup that deletes the duplicate transient Prototype action
+  `attempt`/`completion` readiness fields, `FrameCompletion` return echo, report mapper,
+  composition plumbing, test assertions, and acceptance consumers without an alias or fallback;
+  exact renderer-returned projected feedback plus acknowledgement/counter/consumption/exclusion/
+  suppression state remain the sole authority, with stable absence checks in the existing session
+  guard and no behavior or engine/GPU/resource change;
 - one mandatory compatibility cleanup that deletes ten recurring process requests for settled
   calibration/world, standalone-contact, and caller-owned terrain-body routes plus their
   `removedVerbs` report and mixed-purpose support module; owner-specific static guards remain the
@@ -442,6 +448,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0110-frame-bound-object-rejection-feedback.md` | Accepted exact red facing-rejection projection over the existing frame transaction and bounded acknowledgement. |
 | `docs/adr/0111-bounded-prototype-session-completion.md` | Accepted one-readiness/one-graceful-completion session contract and sustained post-readiness acceptance boundary. |
 | `docs/adr/0112-frame-bound-capacity-exhaustion-feedback.md` | Accepted identity-only red capacity rejection with continuous first-identity suppression. |
+| `docs/adr/0113-retired-transient-object-action-report.md` | Accepted deletion of duplicate transient action readiness/return/report surfaces. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -522,6 +529,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0107-rejected-object-action-feedback/README.md` | Accepted exact Rejected projection, bounded acknowledgement reuse, and zero-effect native rejection evidence. |
 | `experiments/0108-bounded-prototype-session-completion/README.md` | Accepted bounded readiness/completion framing, sustained native post-readiness action, and forced-termination silence evidence. |
 | `experiments/0109-capacity-exhausted-object-action-feedback/README.md` | Accepted exclusion-aware second-target capacity rejection and concurrent first-target suppression evidence. |
+| `experiments/0110-retired-transient-object-action-report/README.md` | Accepted transient action field/type/mapper/consumer removal and projected-state authority evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -570,9 +578,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `apps/prototype/src/object/mod.rs` | Prototype-owned object observation and interaction policy boundary. |
 | `apps/prototype/src/object/observation.rs` | Prototype-owned F intent plus identity-only target admission, consumed-target clearing, snapshot-gated resolution, window/source lifetime, and rollback policy. |
 | `apps/prototype/tests/object_observation_policy.rs` | Admission/consumed-clear/empty-clear/rollback, stamp work-elimination, window revisit, source replacement, and discontinuity evidence. |
-| `apps/prototype/src/object/interaction.rs` | Prototype-owned capacity-one Enter intent, exact committed proximity/facing admission, identity-only capacity rejection, projected acknowledgement, consumption/exclusion, and identity-aware suppression. |
-| `apps/prototype/tests/object_interaction_policy.rs` | Intent/consumption/source lifetime, capacity rejection, concurrent suppression, ineligible consumption, malformed rollback, projection miss, target change, and acknowledgement evidence. |
-| `apps/prototype/src/session.rs` | Bounded one-readiness/one-graceful-completion report ownership over final Prototype state. |
+| `apps/prototype/src/object/interaction.rs` | Prototype-owned capacity-one Enter intent, exact admission/rejection, state-only frame commit, projected acknowledgement, consumption/exclusion, and identity-aware suppression. |
+| `apps/prototype/tests/object_interaction_policy.rs` | Durable intent/consumption/source/capacity/suppression/acknowledgement state plus malformed/projection rollback evidence without return echoes. |
+| `apps/prototype/src/session.rs` | Bounded one-readiness/one-graceful-completion report ownership without copied transient action results. |
 | `apps/prototype/tests/session_report.rs` | Exact completion schema, reason, final-state, and checked frame-total evidence. |
 | `apps/prototype/src/presentation.rs` | Prototype-owned imported Survey/Walk/Run and committed eight-way locomotion-facing policy. |
 | `apps/prototype/src/time.rs` | Prototype-only HostClock admission plus no-retry/no-backlog render-block consumption policy. |
@@ -629,7 +637,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/object/observation.ts` | Committed-origin observation, identity-only retained target, snapshot revalidation, and independent source-oracle gate. |
 | `.runseal/support/prototype/object/observation_order.ts` | Zero-dependency valid asynchronous traversal/observation token-order contract. |
 | `.runseal/support/prototype/object/observation_test.ts` | Equivalent pre/post asynchronous traversal observation order and impossible-token rejection evidence. |
-| `.runseal/support/prototype/object/interaction.ts` | Native exact-proximity/facing, activated/rejected frame, consumption/exclusion, continuous suppression, acknowledgement, restart, and copied-state-absence gates. |
+| `.runseal/support/prototype/object/interaction.ts` | Projected-feedback plus independently derived proximity/facing, durable consumption/exclusion/suppression/acknowledgement, restart, and removed-key gates. |
 | `.runseal/support/prototype/object/gates.ts` | Prototype observation/action process, restart, and unchanged-subsystem gate composition. |
 | `.runseal/support/object/integration.ts` | Object resolution/nearest source, window, movement, and corrupt-pair preservation integration gates. |
 | `.runseal/support/idle-shell.ts` | Current clear-only status, renderer-health, image, and uniformly background semantic evidence. |
@@ -642,6 +650,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/live-operator-surface.ts` | Exact wrapper set, single current-boundary authority, and maintained prototype-operator documentation gate. |
 | `.runseal/support/guard/input-journal-removal.ts` | Forbidden-file/symbol/verb/command gate for the retired diagnostic input journal surface. |
 | `.runseal/support/guard/object-identity.ts` | Required typed source-qualified resolver, nearest exclusion, frame suppression, prototype consumption, and forbidden old-surface gate. |
+| `.runseal/support/guard/prototype-session.ts` | Required bounded session/order contract plus forbidden transient action report/type/consumer gate. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/actor/admission.ts` | Retired standalone-status rejection, canonical-aggregate schedule evidence, schema-2 advance, typed pending block, zero-commit rollback, and retained-frame support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |

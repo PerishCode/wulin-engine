@@ -179,16 +179,7 @@ unsafe fn run() -> Result<()> {
         };
         let completed = advance
             .filter(|advance| advance.simulation.step_count != 0)
-            .map(|advance| {
-                (
-                    sample,
-                    clock.status(),
-                    advance,
-                    command,
-                    object_observation,
-                    interaction_attempt,
-                )
-            });
+            .map(|advance| (sample, clock.status(), advance, command, object_observation));
         let anchored_rig = camera_candidate.rig();
         runtime.set_actor_relative_camera(
             runtime_actor.handle,
@@ -215,7 +206,7 @@ unsafe fn run() -> Result<()> {
                 object_suppression,
             })?
         };
-        let interaction_completion = interaction_policy
+        interaction_policy
             .complete_frame(
                 interaction_attempt,
                 object_target_feedback,
@@ -274,8 +265,7 @@ unsafe fn run() -> Result<()> {
                 available: target.availability == observation::Availability::Resolved,
             }
         }));
-        if let Some((sample, clock, advance, command, object_observation, interaction_attempt)) =
-            completed
+        if let Some((sample, clock, advance, command, object_observation)) = completed
             && let Some(startup) = startup.take()
         {
             session::publish_readiness(session::Readiness {
@@ -302,8 +292,6 @@ unsafe fn run() -> Result<()> {
                 jump_status: jump_policy.status(),
                 object_observation,
                 observation_status: observation_policy.status(),
-                interaction_attempt,
-                interaction_completion,
                 interaction_status: interaction_policy.status(),
             })?;
         }
