@@ -4,8 +4,8 @@ import { presentationInvariant } from "../presentation.ts";
 
 function nativeOppositionInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const postReadiness = object(launch, "postReadinessInput");
-    const opposedInput = object(postReadiness, "opposedInput");
+    const nativeInput = object(launch, "nativeInput");
+    const opposedInput = object(nativeInput, "opposedInput");
     const opposedIntervals = opposedInput.keyPostIntervalsMilliseconds;
     if (
         opposedInput.schema !== "prototype-native-window-action-v4" ||
@@ -40,11 +40,11 @@ function nativeOppositionInvariant(launch: Json): Json {
         opposedInput.batchSpanMilliseconds > 50 ||
         opposedInput.exitAfterLastMilliseconds !== 0 ||
         opposedInput.exitIntervalMilliseconds !== null ||
-        number(postReadiness, "requestedOpposedHoldMilliseconds") !== 250 ||
-        number(postReadiness, "opposedHoldMilliseconds") < 250
+        number(nativeInput, "requestedOpposedHoldMilliseconds") !== 250 ||
+        number(nativeInput, "opposedHoldMilliseconds") < 250
     ) fail("prototype native opposite locomotion input evidence diverged");
 
-    const release = object(postReadiness, "sequence");
+    const release = object(nativeInput, "sequence");
     const exitInterval = number(release, "exitIntervalMilliseconds");
     if (
         release.schema !== "prototype-native-window-action-v4" ||
@@ -70,7 +70,6 @@ function nativeOppositionInvariant(launch: Json): Json {
         exitInterval < 200 ||
         exitInterval > 700
     ) fail("prototype native opposite locomotion release evidence diverged");
-    same(release, object(launch, "exitInput"), "prototype opposite locomotion exit input");
     return {
         exactProcessWindow: true,
         atomicWindowThreadBatch: true,
@@ -78,7 +77,7 @@ function nativeOppositionInvariant(launch: Json): Json {
         batchSpanMilliseconds: opposedInput.batchSpanMilliseconds,
         orderedOpposedMessages: opposedInput.messages,
         orderedReleaseMessages: release.messages,
-        opposedHoldMilliseconds: postReadiness.opposedHoldMilliseconds,
+        opposedHoldMilliseconds: nativeInput.opposedHoldMilliseconds,
         exitIntervalMilliseconds: exitInterval,
     };
 }

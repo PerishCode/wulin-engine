@@ -24,12 +24,12 @@ export async function boundaryCompletionSession(
 
 export function boundaryRunInputInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const postReadiness = object(launch, "postReadinessInput");
-    const sequence = object(postReadiness, "sequence");
-    const tangentialRun = object(postReadiness, "tangentialRun");
+    const nativeInput = object(launch, "nativeInput");
+    const sequence = object(nativeInput, "sequence");
+    const tangentialRun = object(nativeInput, "tangentialRun");
     const intervals = sequence.keyPostIntervalsMilliseconds;
     const tangentialIntervals = tangentialRun.keyPostIntervalsMilliseconds;
-    const heldMilliseconds = number(postReadiness, "heldMilliseconds");
+    const heldMilliseconds = number(nativeInput, "heldMilliseconds");
     if (
         sequence.schema !== "prototype-native-window-action-v4" ||
         sequence.action !== "input" ||
@@ -66,7 +66,7 @@ export function boundaryRunInputInvariant(launch: Json): Json {
         sequence.batchSpanMilliseconds > 50 ||
         number(sequence, "exitAfterLastMilliseconds") !== 0 ||
         sequence.exitIntervalMilliseconds !== null ||
-        number(postReadiness, "minimumHoldMilliseconds") !==
+        number(nativeInput, "minimumHoldMilliseconds") !==
             BOUNDARY_RUN_HOLD_MILLISECONDS ||
         heldMilliseconds < BOUNDARY_RUN_HOLD_MILLISECONDS ||
         heldMilliseconds > BOUNDARY_RUN_HOLD_MILLISECONDS + 15_000 ||
@@ -122,7 +122,6 @@ export function boundaryRunInputInvariant(launch: Json): Json {
         number(tangentialRun, "batchSpanMilliseconds") < 0 ||
         number(tangentialRun, "batchSpanMilliseconds") > 50
     ) fail("prototype native finite-boundary Run input evidence diverged");
-    same(tangentialRun, object(launch, "exitInput"), "prototype boundary exit input");
     return {
         exactProcessWindow: true,
         atomicWindowThreadBatch: true,

@@ -185,8 +185,8 @@ export async function gracefulExit(
         .getReader();
     let readiness: Json;
     let completion: Json;
-    let postReadinessInput: Json | null = null;
-    let exitInput: Json | null = null;
+    let nativeInput: Json | null = null;
+    let terminalInput: Json | null = null;
     let status: Deno.CommandStatus;
     let trailingOutput = "";
     try {
@@ -198,23 +198,23 @@ export async function gracefulExit(
             await new Promise((resolve) => setTimeout(resolve, BOUNDARY_RUN_HOLD_MILLISECONDS));
             const heldMilliseconds = performance.now() - heldStartedAt;
             const tangentialRun = await postBoundarySlideExit(child.pid);
-            postReadinessInput = {
+            nativeInput = {
                 sequence,
                 tangentialRun,
                 heldMilliseconds,
                 minimumHoldMilliseconds: BOUNDARY_RUN_HOLD_MILLISECONDS,
             };
-            exitInput = tangentialRun;
+            terminalInput = tangentialRun;
         } else if (postReadiness === "capacity-rejection") {
             await new Promise((resolve) => setTimeout(resolve, 250));
-            postReadinessInput = await postPrototypeCapacityRejection(child.pid);
+            nativeInput = await postPrototypeCapacityRejection(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
         } else if (postReadiness === "consumption-capacity-rejection") {
-            postReadinessInput = await postConsumptionCapacity(child.pid);
+            nativeInput = await postConsumptionCapacity(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
         } else if (postReadiness === "object-feedback") {
-            postReadinessInput = await postOutsideRadiusExit(child.pid);
-            exitInput = object(postReadinessInput, "outsideRadius");
+            nativeInput = await postOutsideRadiusExit(child.pid);
+            terminalInput = object(nativeInput, "outsideRadius");
         } else if (postReadiness === "object-feedback-focus") {
             const suspended = await suspendWithObjectBatch(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
@@ -225,7 +225,7 @@ export async function gracefulExit(
             await new Promise((resolve) => setTimeout(resolve, 250));
             const missingHoldMilliseconds = performance.now() - missingStartedAt;
             const sequence = await postObjectRecoveryExit(child.pid);
-            postReadinessInput = {
+            nativeInput = {
                 suspended,
                 resumed,
                 missingTarget,
@@ -233,78 +233,78 @@ export async function gracefulExit(
                 missingHoldMilliseconds,
                 sequence,
             };
-            exitInput = sequence;
+            terminalInput = sequence;
         } else if (postReadiness === "camera-repeat") {
             const initialPress = await pressPrototypeCameraClockwise(child.pid);
             const initialPressedAt = performance.now();
             await new Promise((resolve) => setTimeout(resolve, 250));
             const initialHoldMilliseconds = performance.now() - initialPressedAt;
             const sequence = await postCameraRepeatSequence(child.pid);
-            postReadinessInput = {
+            nativeInput = {
                 initialPress,
                 sequence,
                 requestedInitialHoldMilliseconds: 250,
                 initialHoldMilliseconds,
             };
-            exitInput = sequence;
+            terminalInput = sequence;
         } else if (postReadiness === "camera-repress") {
             const initialPress = await pressPrototypeCameraClockwise(child.pid);
             const initialPressedAt = performance.now();
             await new Promise((resolve) => setTimeout(resolve, 250));
             const initialHoldMilliseconds = performance.now() - initialPressedAt;
             const sequence = await postCameraRepressSequence(child.pid);
-            postReadinessInput = {
+            nativeInput = {
                 initialPress,
                 sequence,
                 requestedInitialHoldMilliseconds: 250,
                 initialHoldMilliseconds,
             };
-            exitInput = sequence;
+            terminalInput = sequence;
         } else if (postReadiness === "counter-clockwise-camera") {
             const sequence = await postCounterClockwiseSequence(child.pid);
-            postReadinessInput = { sequence };
-            exitInput = sequence;
+            nativeInput = { sequence };
+            terminalInput = sequence;
         } else if (postReadiness === "diagonal-run") {
             const sequence = await postDiagonalRun(child.pid);
-            postReadinessInput = { sequence };
-            exitInput = sequence;
+            nativeInput = { sequence };
+            terminalInput = sequence;
         } else if (postReadiness === "diagonal-walk") {
             const sequence = await postDiagonalWalk(child.pid);
-            postReadinessInput = { sequence };
-            exitInput = sequence;
+            nativeInput = { sequence };
+            terminalInput = sequence;
         } else if (postReadiness === "focus-discontinuity") {
             const suspended = await suspendWithActionBatch(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
             const resumed = await resumePrototypeFocus(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
             const readmission = await postFocusLocomotionReadmission(child.pid);
-            postReadinessInput = { suspended, resumed, readmission };
-            exitInput = readmission;
+            nativeInput = { suspended, resumed, readmission };
+            terminalInput = readmission;
         } else if (postReadiness === "forward-release") {
             const sequence = await postForwardRelease(child.pid);
-            postReadinessInput = { sequence };
-            exitInput = sequence;
+            nativeInput = { sequence };
+            terminalInput = sequence;
         } else if (postReadiness === "invalid-camera-alias") {
             const sequence = await postInvalidAliasSequence(child.pid);
-            postReadinessInput = { sequence };
-            exitInput = sequence;
+            nativeInput = { sequence };
+            terminalInput = sequence;
         } else if (postReadiness === "opposite-camera") {
             const sequence = await postOppositeCameraSequence(child.pid);
-            postReadinessInput = { sequence };
-            exitInput = sequence;
+            nativeInput = { sequence };
+            terminalInput = sequence;
         } else if (postReadiness === "opposed-run-release") {
             const opposedInput = await postOpposedRun(child.pid);
             const opposedStartedAt = performance.now();
             await new Promise((resolve) => setTimeout(resolve, 250));
             const opposedHoldMilliseconds = performance.now() - opposedStartedAt;
             const sequence = await releaseOpposedRun(child.pid);
-            postReadinessInput = {
+            nativeInput = {
                 opposedInput,
                 sequence,
                 requestedOpposedHoldMilliseconds: 250,
                 opposedHoldMilliseconds,
             };
-            exitInput = sequence;
+            terminalInput = sequence;
         } else if (postReadiness === "jump-readmission") {
             const firstJump = await pressPrototypeJump(child.pid);
             const firstJumpPostedAt = performance.now();
@@ -315,31 +315,34 @@ export async function gracefulExit(
             await new Promise((resolve) => setTimeout(resolve, 250));
             const readmitStartedAt = performance.now();
             const secondJump = await repressJumpAndExit(child.pid);
-            postReadinessInput = {
+            nativeInput = {
                 firstJump,
                 suspended,
                 resumed,
                 secondJump,
                 firstToSecondPostingLowerBoundMs: readmitStartedAt - firstJumpPostedAt,
             };
-            exitInput = secondJump;
+            terminalInput = secondJump;
         } else if (postReadiness === "jump-midair") {
             const sequence = await postMidairSequence(child.pid);
-            postReadinessInput = { sequence };
-            exitInput = sequence;
+            nativeInput = { sequence };
+            terminalInput = sequence;
         } else if (postReadiness === "run-release") {
             const sequence = await postRunRelease(child.pid);
-            postReadinessInput = { sequence };
-            exitInput = sequence;
+            nativeInput = { sequence };
+            terminalInput = sequence;
         } else if (postReadiness === "run-repress") {
             const sequence = await postRunRepress(child.pid);
-            postReadinessInput = { sequence };
-            exitInput = sequence;
+            nativeInput = { sequence };
+            terminalInput = sequence;
         }
-        if (exitInput === null) {
-            exitInput = exitReason === "escape"
+        if (terminalInput === null) {
+            terminalInput = exitReason === "escape"
                 ? await pressPrototypeEscape(child.pid)
                 : await requestPrototypeWindowClose(child.pid);
+            nativeInput = nativeInput === null
+                ? terminalInput
+                : { ...nativeInput, terminal: terminalInput };
         }
         completion = JSON.parse(await outputLine(reader, "session completion", 10_000)) as Json;
         const exit = await Promise.race([
@@ -384,8 +387,7 @@ export async function gracefulExit(
         elapsedMs: performance.now() - started,
         exitCode: status.code,
         stderr: stderrText,
-        postReadinessInput,
-        exitInput,
+        nativeInput,
         exitReason,
         readiness,
         completion,

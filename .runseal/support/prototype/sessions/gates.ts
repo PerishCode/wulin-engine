@@ -164,7 +164,7 @@ export async function sessionGates(
         windowCloseInvariant: {
             ...idleCompletionInvariant(windowClose, "window-close"),
             nativeWindowClose: nativeWindowCloseInvariant(
-                object(windowClose, "exitInput"),
+                object(windowClose, "nativeInput"),
                 number(windowClose, "processId"),
             ),
         },

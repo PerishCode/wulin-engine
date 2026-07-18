@@ -1144,6 +1144,16 @@ ineligible 2、Rejected 12 帧、Activated/suppression/render-block 0 帧、exit
 空 stderr/trailing output；103/48/20 tests 与 0 deny / 5 个既有 Flavor warning 通过。
 没有新增进程、scan、产品 Rust、Runtime、renderer/GPU/source/synchronization 或资源清理。
 
+Experiment 0157 收敛全部 graceful Prototype native-input 报告所有权：v71 的 19 个
+`postReadinessInput` / 19 个 `exitInput` 中，17 个 terminal value 是精确重复，单独占
+11,217 minified bytes；v72 让每个 launch 只保留一个 `nativeInput`，sustained capacity
+的独立 Escape 明确位于唯一的 `terminal` 子值，window-close 直接以 `WM_CLOSE` 作为完整
+input。`canonical-prototype-v72` 首轮在 174.608 秒通过，441,885-byte report 比 v71
+减少 21,590 bytes（4.66%），两个旧字段均为零；19 个 unique PID 全部 exit 0、两值、空
+stderr/trailing output。Activated/Rejected/sustained 的 action 与 12-frame feedback
+计数保持门限，103/48/20 tests 与 0 deny / 5 个既有 Flavor warning 通过。中央 guard
+仍为 500 行；没有 alias、decoder、dual write、产品 Rust、Runtime、GPU/source 或资源清理。
+
 ## Project model
 
 - [Repository ownership model](docs/architecture/repository-model.md)

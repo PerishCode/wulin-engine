@@ -1,5 +1,4 @@
 type Fail = (message: string) => never;
-
 export async function requireBoundedPrototypeSession(
     root: string,
     fail: Fail,
@@ -13,15 +12,12 @@ export async function requireBoundedPrototypeSession(
     const sessionGates = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/sessions/gates.ts`,
     );
-    const focusAcceptance = await Deno.readTextFile(
-        `${root}/.runseal/support/prototype/sessions/focus.ts`,
-    );
-    const forwardReleaseAcceptance = await Deno.readTextFile(
-        `${root}/.runseal/support/prototype/sessions/forward_release.ts`,
-    );
-    const jumpAcceptance = await Deno.readTextFile(
-        `${root}/.runseal/support/prototype/jump.ts`,
-    );
+    // deno-fmt-ignore
+    const focusAcceptance = await Deno.readTextFile(`${root}/.runseal/support/prototype/sessions/focus.ts`);
+    // deno-fmt-ignore
+    const forwardReleaseAcceptance = await Deno.readTextFile(`${root}/.runseal/support/prototype/sessions/forward_release.ts`);
+    // deno-fmt-ignore
+    const jumpAcceptance = await Deno.readTextFile(`${root}/.runseal/support/prototype/jump.ts`);
     const boundaryAcceptance = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/boundary.ts`,
     );
@@ -93,14 +89,18 @@ export async function requireBoundedPrototypeSession(
         fail("guard: retired startup native-input report branch returned");
     }
     const actionReports = [
+        acceptance,
+        sessionGates,
+        jumpAcceptance,
+        counterClockwiseCameraAcceptance,
         ...currentNativeSessionSources,
         focusAcceptance,
         boundaryAcceptance,
         objectGates,
         await Deno.readTextFile(`${root}/.runseal/support/prototype/object/input-gates.ts`),
     ];
-    // Match report field spellings without rejecting the live internal expectation parameter.
-    if (actionReports.some((source) => /actionAfterReadiness|delayedExit/.test(source))) {
+    // deno-fmt-ignore
+    if (actionReports.some((source) => /actionAfterReadiness|delayedExit|postReadinessInput|exitInput/.test(source))) {
         fail("guard: retired Prototype action report field returned");
     }
     const nativeTypeIndex = input.indexOf("Add-Type -TypeDefinition");

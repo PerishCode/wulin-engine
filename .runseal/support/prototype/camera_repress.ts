@@ -4,9 +4,9 @@ import { presentationInvariant } from "./presentation.ts";
 
 function nativeCameraRepressInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const postReadiness = object(launch, "postReadinessInput");
-    const initialPress = object(postReadiness, "initialPress");
-    const sequence = object(postReadiness, "sequence");
+    const nativeInput = object(launch, "nativeInput");
+    const initialPress = object(nativeInput, "initialPress");
+    const sequence = object(nativeInput, "sequence");
     const expectedInitialKeys = [{ key: "E", virtualKey: 0x45, down: true }];
     const expectedSequenceKeys = [
         { key: "E", virtualKey: 0x45, down: false },
@@ -26,8 +26,8 @@ function nativeCameraRepressInvariant(launch: Json): Json {
             JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:E"]) ||
         initialPress.atomicBatch !== true ||
         number(initialPress, "atomicPrefixLength") !== 1 ||
-        number(postReadiness, "requestedInitialHoldMilliseconds") !== 250 ||
-        number(postReadiness, "initialHoldMilliseconds") < 250 ||
+        number(nativeInput, "requestedInitialHoldMilliseconds") !== 250 ||
+        number(nativeInput, "initialHoldMilliseconds") < 250 ||
         sequence.schema !== "prototype-native-window-action-v4" ||
         sequence.action !== "input" ||
         sequence.processId !== processId ||
@@ -55,12 +55,11 @@ function nativeCameraRepressInvariant(launch: Json): Json {
         exitInterval < 200 ||
         exitInterval > 700
     ) fail("prototype native camera re-press evidence diverged");
-    same(sequence, object(launch, "exitInput"), "prototype camera re-press exit input");
     return {
         exactProcessWindow: true,
         initialPress: initialPress.messages,
         releaseAndRepress: sequence.messages,
-        initialHoldMilliseconds: postReadiness.initialHoldMilliseconds,
+        initialHoldMilliseconds: nativeInput.initialHoldMilliseconds,
         atomicBatch: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,

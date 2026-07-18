@@ -209,9 +209,8 @@ export function focusSessionInvariant(launch: Json, session: Json): Json {
         number(object(completion, "frames"), "renderBlockCount") !== 0
     ) fail("prototype focus-discontinuity clock recovery diverged");
 
-    const postReadiness = object(launch, "postReadinessInput");
-    const readmission = object(postReadiness, "readmission");
-    same(readmission, object(launch, "exitInput"), "prototype focus readmission exit input");
+    const nativeInput = object(launch, "nativeInput");
+    const readmission = object(nativeInput, "readmission");
     return {
         ...session,
         readinessCamera: camera,
@@ -239,8 +238,8 @@ export function focusSessionInvariant(launch: Json, session: Json): Json {
             elapsedBacklog: false,
         },
         nativeFocus: nativeFocusInvariant(
-            object(postReadiness, "suspended"),
-            object(postReadiness, "resumed"),
+            object(nativeInput, "suspended"),
+            object(nativeInput, "resumed"),
             readmission,
             number(launch, "processId"),
         ),
