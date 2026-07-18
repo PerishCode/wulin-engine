@@ -155,12 +155,13 @@ async function feedbackSessionInvariant(
     let nativeInput: Json;
     let focusRecovery: Json | null = null;
     if (expectedKind === "activated") {
-        focusRecovery = nativeObjectFocusInvariant(
+        const focus = nativeObjectFocusInvariant(
             launch,
             postReadiness,
             processId,
         );
-        nativeInput = object(focusRecovery, "freshAction");
+        focusRecovery = object(focus, "focusRecovery");
+        nativeInput = object(focus, "nativeInput");
     } else {
         nativeInput = nativeObjectActionInvariant(
             object(postReadiness, "sequence"),
@@ -180,11 +181,7 @@ async function feedbackSessionInvariant(
             traversal: traversalInvariant(launch, windowCenter),
         },
         nativeInput,
-        ...(focusRecovery === null ? {} : {
-            focusRecovery,
-            staleObjectIntentsDidNotReachResumedSimulation: true,
-            freshObjectIntentsAfterFocusReadmitted: true,
-        }),
+        ...(focusRecovery === null ? {} : { focusRecovery }),
         expectedKind,
         exactSourceIdentity: expectedIdentity,
         exactCommittedOriginProximity: true,
@@ -269,32 +266,34 @@ function nativeObjectFocusInvariant(
         number(object(completion, "frames"), "renderBlockCount") !== 0
     ) fail("prototype object focus-readmission clock recovery diverged");
 
+    const nativeInput = objectRecoveryInputInvariant(
+        sequence,
+        processId,
+        suspended.windowHandle,
+    );
     return {
-        exactProcessWindow: true,
-        suspendedMessages: suspended.messages,
-        resumedMessages: resumed.messages,
-        atomicCancelledIntents: {
-            threadId: suspended.batchThreadId,
-            spanMilliseconds: suspended.batchSpanMilliseconds,
-        },
-        missingTarget: missingTargetInputInvariant(
-            missingTarget,
-            processId,
-            suspended.windowHandle,
-        ),
-        missingHoldMilliseconds: postReadiness.missingHoldMilliseconds,
-        freshAction: objectRecoveryInputInvariant(
-            sequence,
-            processId,
-            suspended.windowHandle,
-        ),
-        missingTargetCommittedBeforeRecovery: true,
-        clock: {
-            ready: readyClock,
-            final: finalClock,
-            exactSuspendResumeCount: 1,
-            postResumeResetCount: 1,
-            elapsedBacklog: false,
+        nativeInput,
+        focusRecovery: {
+            exactProcessWindow: true,
+            suspendedMessages: suspended.messages,
+            resumedMessages: resumed.messages,
+            atomicCancelledIntents: {
+                threadId: suspended.batchThreadId,
+                spanMilliseconds: suspended.batchSpanMilliseconds,
+            },
+            missingTarget: missingTargetInputInvariant(
+                missingTarget,
+                processId,
+                suspended.windowHandle,
+            ),
+            missingHoldMilliseconds: postReadiness.missingHoldMilliseconds,
+            clock: {
+                ready: readyClock,
+                final: finalClock,
+                exactSuspendResumeCount: 1,
+                postResumeResetCount: 1,
+                elapsedBacklog: false,
+            },
         },
     };
 }

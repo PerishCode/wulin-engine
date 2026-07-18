@@ -1111,6 +1111,17 @@ render block，Escape exit 0、两值、空 stderr/trailing output。103/48/20 t
 0 deny / 5 个既有 Flavor warning 通过；产品 Rust、Runtime、renderer/GPU/source/
 synchronization、schema 和进程数均未改变。
 
+Experiment 0154 收敛 object-focus acceptance 的报告所有权：v68 顶层 `nativeInput` 与
+`focusRecovery.freshAction` 是完全相同的 349-byte minified value，另有三个恒真解释字段
+重复精确 message/clock/final-count 证据。v69 只保留一次顶层 recovery input，并让
+`focusRecovery` 仅持有 cancel/resume、missing-target、hold 与 clock；中央 guard 禁止
+四个旧 token 回归。`canonical-prototype-v69` 首轮在 172.610 秒通过，459,491-byte
+report 比 v68 减少 774 bytes，旧 token 全为零。最终仍为 ineligible/committed 各 1、
+Activated 12 帧、Rejected 0 帧、suppression 2 帧、source-qualified local ID 496、
+target/acknowledgement null；336 live frames 内零 stall/render block，exit 0、两值、空
+stderr/trailing output。103/48/20 tests 与 0 deny / 5 个既有 Flavor warning 通过；
+产品 Rust、Runtime、renderer/GPU/source/synchronization、schema、进程数与资源清理均未改变。
+
 ## Project model
 
 - [Repository ownership model](docs/architecture/repository-model.md)

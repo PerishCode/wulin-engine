@@ -163,9 +163,10 @@ export async function requireBoundedPrototypeSession(
         !objectGates.includes("objectNearestOracle") ||
         !objectGates.includes("capacityRejectedFrameCount: 12") ||
         !objectGates.includes("postReadinessCapacityRejection") ||
-        !objectGates.includes("staleObjectIntentsDidNotReachResumedSimulation: true") ||
-        !objectGates.includes("freshObjectIntentsAfterFocusReadmitted: true") ||
-        !objectGates.includes("missingTargetCommittedBeforeRecovery: true") ||
+        objectGates.includes("staleObjectIntentsDidNotReachResumedSimulation") ||
+        objectGates.includes("freshObjectIntentsAfterFocusReadmitted") ||
+        objectGates.includes("missingTargetCommittedBeforeRecovery") ||
+        objectGates.includes("freshAction:") ||
         !objectGates.includes("atomicCancelledIntents") ||
         !objectGates.includes("exactSuspendResumeCount: 1") ||
         !objectGates.includes("postResumeResetCount: 1") ||
@@ -437,7 +438,6 @@ export async function requireBoundedPrototypeSession(
         !inputActions.includes('{ key: "F", virtualKey: 0x46, down: false }') ||
         !inputActions.includes('{ key: "Enter", virtualKey: 0x0D, down: false }')
     ) fail("guard: bounded Prototype session contract diverged");
-
     const waitIndex = main.indexOf("runtime.wait_idle()");
     const completionIndex = main.indexOf("session::publish_completion");
     const teardownIndex = main.indexOf("window::teardown()");
