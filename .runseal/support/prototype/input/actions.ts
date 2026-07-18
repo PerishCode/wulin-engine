@@ -1,6 +1,9 @@
 import { fail, type Json } from "../../canonical-runtime.ts";
 import { postPrototypeKeys, postPrototypeWindowAction } from "./mod.ts";
 
+export const BOUNDARY_SLIDE_HOLD_MILLISECONDS = 500;
+export const BOUNDARY_STATIONARY_HOLD_MILLISECONDS = 250;
+
 export async function postBoundaryRunStart(processId: number): Promise<Json> {
     return await postPrototypeKeys(
         processId,
@@ -10,6 +13,22 @@ export async function postBoundaryRunStart(processId: number): Promise<Json> {
         ],
         true,
         true,
+    );
+}
+
+export async function postBoundarySlideExit(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "A", virtualKey: 0x41, down: true },
+            { key: "A", virtualKey: 0x41, down: false },
+            { key: "W", virtualKey: 0x57, down: false },
+            { key: "Shift", virtualKey: 0x10, down: false },
+        ],
+        true,
+        "input",
+        [0, BOUNDARY_SLIDE_HOLD_MILLISECONDS, 0, 0],
+        BOUNDARY_STATIONARY_HOLD_MILLISECONDS,
     );
 }
 
