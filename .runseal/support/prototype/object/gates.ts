@@ -174,27 +174,27 @@ async function feedbackSessionInvariant(
         );
     }
 
-    const postReadiness = object(launch, "postReadinessInput");
+    const launchInput = object(launch, "nativeInput");
     const processId = number(launch, "processId");
     let nativeInput: Json;
     let focusRecovery: Json | null = null;
     if (expectedKind === "activated") {
         const focus = nativeObjectFocusInvariant(
             launch,
-            postReadiness,
+            launchInput,
             processId,
         );
         focusRecovery = object(focus, "focusRecovery");
         nativeInput = object(focus, "nativeInput");
     } else {
-        const initialRejection = object(postReadiness, "initialRejection");
+        const initialRejection = object(launchInput, "initialRejection");
         nativeInput = {
             initialRejection: nativeSelectionInvariant(
                 initialRejection,
                 processId,
             ),
             rangeMotion: outsideRadiusInputInvariant(
-                postReadiness,
+                launchInput,
                 processId,
                 initialRejection.windowHandle,
             ),
@@ -405,18 +405,18 @@ export async function sustainedCapacityInvariant(
         "prototype sustained exclusion-aware second target",
     );
 
-    const postReadiness = object(launch, "postReadinessInput");
+    const launchInput = object(launch, "nativeInput");
     if (
-        postReadiness.revision !== "prototype-post-ready-consumption-capacity-input-v1" ||
-        number(postReadiness, "requestedConsumptionHoldMilliseconds") !== 250 ||
-        number(postReadiness, "consumptionHoldMilliseconds") < 250
+        launchInput.revision !== "prototype-post-ready-consumption-capacity-input-v1" ||
+        number(launchInput, "requestedConsumptionHoldMilliseconds") !== 250 ||
+        number(launchInput, "consumptionHoldMilliseconds") < 250
     ) fail("prototype sustained post-ready consumption timing diverged");
     const consumptionInput = nativeSelectionInvariant(
-        object(postReadiness, "consumption"),
+        object(launchInput, "consumption"),
         number(launch, "processId"),
     );
     const capacityInput = capacityRejectionInputInvariant(
-        object(postReadiness, "capacity"),
+        object(launchInput, "capacity"),
         number(launch, "processId"),
     );
 

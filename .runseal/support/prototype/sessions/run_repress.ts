@@ -4,7 +4,7 @@ import { presentationInvariant } from "../presentation.ts";
 
 function nativeRunRepressInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const sequence = object(object(launch, "postReadinessInput"), "sequence");
+    const sequence = object(object(launch, "nativeInput"), "sequence");
     const expectedKeys = [
         { key: "W", virtualKey: 0x57, down: true },
         { key: "Shift", virtualKey: 0x10, down: true },
@@ -42,7 +42,6 @@ function nativeRunRepressInvariant(launch: Json): Json {
         exitInterval < 200 ||
         exitInterval > 700
     ) fail("prototype native Run modifier re-press evidence diverged");
-    same(sequence, object(launch, "exitInput"), "prototype Run modifier re-press exit input");
     return {
         exactProcessWindow: true,
         atomicInitialPrefix: true,

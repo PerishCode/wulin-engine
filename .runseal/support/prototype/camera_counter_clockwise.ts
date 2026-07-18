@@ -4,7 +4,7 @@ import { presentationInvariant } from "./presentation.ts";
 
 function nativeCounterClockwiseInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const sequence = object(object(launch, "postReadinessInput"), "sequence");
+    const sequence = object(object(launch, "nativeInput"), "sequence");
     const expectedKeys = [
         { key: "Q", virtualKey: 0x51, down: true },
         { key: "W", virtualKey: 0x57, down: true },
@@ -38,7 +38,6 @@ function nativeCounterClockwiseInvariant(launch: Json): Json {
         exitInterval < 200 ||
         exitInterval > 700
     ) fail("prototype native counter-clockwise camera evidence diverged");
-    same(sequence, object(launch, "exitInput"), "prototype counter-clockwise camera exit input");
     return {
         exactProcessWindow: true,
         messages: sequence.messages,

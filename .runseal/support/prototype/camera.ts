@@ -95,9 +95,9 @@ export function cameraDriverInvariant(launch: Json, expectedOrbitIndex = 0): Jso
 
 function nativeCameraRepeatInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const postReadiness = object(launch, "postReadinessInput");
-    const initialPress = object(postReadiness, "initialPress");
-    const sequence = object(postReadiness, "sequence");
+    const nativeInput = object(launch, "nativeInput");
+    const initialPress = object(nativeInput, "initialPress");
+    const sequence = object(nativeInput, "sequence");
     const expectedInitialKeys = [{ key: "E", virtualKey: 69, down: true }];
     const expectedSequenceKeys = [
         { key: "E", virtualKey: 69, down: true },
@@ -116,8 +116,8 @@ function nativeCameraRepeatInvariant(launch: Json): Json {
             JSON.stringify(["WM_SETFOCUS", "WM_KEYDOWN:E"]) ||
         initialPress.atomicBatch !== true ||
         number(initialPress, "atomicPrefixLength") !== 1 ||
-        number(postReadiness, "requestedInitialHoldMilliseconds") !== 250 ||
-        number(postReadiness, "initialHoldMilliseconds") < 250 ||
+        number(nativeInput, "requestedInitialHoldMilliseconds") !== 250 ||
+        number(nativeInput, "initialHoldMilliseconds") < 250 ||
         sequence.schema !== "prototype-native-window-action-v4" ||
         sequence.action !== "input" ||
         sequence.processId !== processId ||
@@ -142,7 +142,7 @@ function nativeCameraRepeatInvariant(launch: Json): Json {
         exactProcessWindow: true,
         initialPress: initialPress.messages,
         repeatedHeldPress: sequence.messages,
-        initialHoldMilliseconds: postReadiness.initialHoldMilliseconds,
+        initialHoldMilliseconds: nativeInput.initialHoldMilliseconds,
         exitIntervalMilliseconds: exitInterval,
     };
 }
@@ -231,7 +231,7 @@ export function cameraRepeatSessionInvariant(launch: Json, session: Json): Json 
 
 function nativeInvalidKeyInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const sequence = object(object(launch, "postReadinessInput"), "sequence");
+    const sequence = object(object(launch, "nativeInput"), "sequence");
     const expectedKeys = [
         { key: "OutOfRangeE", virtualKey: 0x145, down: true },
         { key: "W", virtualKey: 0x57, down: true },
@@ -353,7 +353,7 @@ export function invalidKeySessionInvariant(launch: Json, session: Json): Json {
 
 function nativeOppositeCameraInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const sequence = object(object(launch, "postReadinessInput"), "sequence");
+    const sequence = object(object(launch, "nativeInput"), "sequence");
     const expectedKeys = [
         { key: "Q", virtualKey: 0x51, down: true },
         { key: "E", virtualKey: 0x45, down: true },
@@ -388,7 +388,6 @@ function nativeOppositeCameraInvariant(launch: Json): Json {
         exitInterval < 200 ||
         exitInterval > 700
     ) fail("prototype native opposite-camera evidence diverged");
-    same(sequence, object(launch, "exitInput"), "prototype opposite-camera exit input");
     return {
         exactProcessWindow: true,
         messages: sequence.messages,

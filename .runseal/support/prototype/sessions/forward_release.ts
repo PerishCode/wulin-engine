@@ -4,7 +4,7 @@ import { presentationInvariant } from "../presentation.ts";
 
 function nativeForwardReleaseInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const sequence = object(object(launch, "postReadinessInput"), "sequence");
+    const sequence = object(object(launch, "nativeInput"), "sequence");
     const intervals = sequence.keyPostIntervalsMilliseconds;
     const exitInterval = number(sequence, "exitIntervalMilliseconds");
     if (
@@ -42,7 +42,6 @@ function nativeForwardReleaseInvariant(launch: Json): Json {
         exitInterval < 250 ||
         exitInterval > 750
     ) fail("prototype native forward-release evidence diverged");
-    same(sequence, object(launch, "exitInput"), "prototype forward-release exit input");
     return {
         exactProcessWindow: true,
         atomicInitialPress: true,

@@ -310,16 +310,16 @@ export function jumpReadmissionInvariant(launch: Json, session: Json): Json {
             number(flight.readyActor, "animationEpochTick")
     ) fail("prototype Jump-readmission animation epoch diverged");
 
-    const postReadiness = object(launch, "postReadinessInput");
+    const nativeInput = object(launch, "nativeInput");
     const landingLowerMs = number(
-        postReadiness,
+        nativeInput,
         "firstToSecondPostingLowerBoundMs",
     );
     const nativeJump = nativeReadmissionInvariant(
-        object(postReadiness, "firstJump"),
-        object(postReadiness, "suspended"),
-        object(postReadiness, "resumed"),
-        object(postReadiness, "secondJump"),
+        object(nativeInput, "firstJump"),
+        object(nativeInput, "suspended"),
+        object(nativeInput, "resumed"),
+        object(nativeInput, "secondJump"),
         number(launch, "processId"),
     );
     const flightIntervalMs = number(nativeJump, "secondToExitIntervalMs");
@@ -381,9 +381,9 @@ export function jumpMidairInvariant(launch: Json, session: Json): Json {
             number(flight.readyActor, "animationEpochTick")
     ) fail("prototype midair-Jump forward witness diverged");
 
-    const postReadiness = object(launch, "postReadinessInput");
+    const nativeInput = object(launch, "nativeInput");
     const nativeJump = nativeMidairInvariant(
-        object(postReadiness, "sequence"),
+        object(nativeInput, "sequence"),
         number(launch, "processId"),
     );
     return {

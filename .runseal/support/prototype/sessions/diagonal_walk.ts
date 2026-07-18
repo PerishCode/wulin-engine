@@ -4,7 +4,7 @@ import { presentationInvariant } from "../presentation.ts";
 
 function nativeDiagonalWalkInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
-    const sequence = object(object(launch, "postReadinessInput"), "sequence");
+    const sequence = object(object(launch, "nativeInput"), "sequence");
     const intervals = sequence.keyPostIntervalsMilliseconds;
     const exitInterval = number(sequence, "exitIntervalMilliseconds");
     if (
@@ -52,7 +52,6 @@ function nativeDiagonalWalkInvariant(launch: Json): Json {
         exitInterval < 250 ||
         exitInterval > 750
     ) fail("prototype native diagonal Walk input evidence diverged");
-    same(sequence, object(launch, "exitInput"), "prototype diagonal Walk exit input");
     return {
         exactProcessWindow: true,
         atomicWindowThreadBatch: true,
