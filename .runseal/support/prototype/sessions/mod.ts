@@ -1,6 +1,7 @@
 import { fail, type Json, number, object, root, same, string } from "../../canonical-runtime.ts";
 import {
     postBoundaryRunStart,
+    postBoundarySlideExit,
     postConsumptionCapacity,
     postFocusLocomotionReadmission,
     postObjectActionExit,
@@ -194,14 +195,14 @@ export async function gracefulExit(
             const heldStartedAt = performance.now();
             await new Promise((resolve) => setTimeout(resolve, BOUNDARY_RUN_HOLD_MILLISECONDS));
             const heldMilliseconds = performance.now() - heldStartedAt;
-            const exit = await pressPrototypeEscape(child.pid);
+            const tangentialRun = await postBoundarySlideExit(child.pid);
             postReadinessInput = {
                 sequence,
-                exit,
+                tangentialRun,
                 heldMilliseconds,
                 minimumHoldMilliseconds: BOUNDARY_RUN_HOLD_MILLISECONDS,
             };
-            exitInput = exit;
+            exitInput = tangentialRun;
         } else if (postReadiness === "capacity-rejection") {
             await new Promise((resolve) => setTimeout(resolve, 250));
             postReadinessInput = await postPrototypeCapacityRejection(child.pid);

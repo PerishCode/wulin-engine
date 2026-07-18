@@ -1,4 +1,8 @@
 import { fail, type Json, number, object, same } from "../canonical-runtime.ts";
+import {
+    BOUNDARY_SLIDE_HOLD_MILLISECONDS,
+    BOUNDARY_STATIONARY_HOLD_MILLISECONDS,
+} from "./input/actions.ts";
 import { presentationInvariant } from "./presentation.ts";
 import {
     BOUNDARY_RUN_HOLD_MILLISECONDS,
@@ -22,8 +26,9 @@ export function boundaryRunInputInvariant(launch: Json): Json {
     const processId = number(launch, "processId");
     const postReadiness = object(launch, "postReadinessInput");
     const sequence = object(postReadiness, "sequence");
-    const exit = object(postReadiness, "exit");
+    const tangentialRun = object(postReadiness, "tangentialRun");
     const intervals = sequence.keyPostIntervalsMilliseconds;
+    const tangentialIntervals = tangentialRun.keyPostIntervalsMilliseconds;
     const heldMilliseconds = number(postReadiness, "heldMilliseconds");
     if (
         sequence.schema !== "prototype-native-window-action-v4" ||
@@ -65,32 +70,50 @@ export function boundaryRunInputInvariant(launch: Json): Json {
             BOUNDARY_RUN_HOLD_MILLISECONDS ||
         heldMilliseconds < BOUNDARY_RUN_HOLD_MILLISECONDS ||
         heldMilliseconds > BOUNDARY_RUN_HOLD_MILLISECONDS + 15_000 ||
-        exit.schema !== "prototype-native-window-action-v4" ||
-        exit.action !== "input" ||
-        number(exit, "processId") !== processId ||
-        exit.windowHandle !== sequence.windowHandle ||
-        exit.activated !== true ||
-        exit.closeRequested !== false ||
-        exit.requiredVisible !== false ||
-        exit.windowWasVisible !== true ||
-        JSON.stringify(exit.keys) !== JSON.stringify([
-                { key: "Escape", virtualKey: 0x1B, down: true },
+        tangentialRun.schema !== "prototype-native-window-action-v4" ||
+        tangentialRun.action !== "input" ||
+        number(tangentialRun, "processId") !== processId ||
+        tangentialRun.windowHandle !== sequence.windowHandle ||
+        tangentialRun.activated !== true ||
+        tangentialRun.closeRequested !== false ||
+        tangentialRun.requiredVisible !== true ||
+        tangentialRun.windowWasVisible !== true ||
+        JSON.stringify(tangentialRun.keys) !== JSON.stringify([
+                { key: "A", virtualKey: 0x41, down: true },
+                { key: "A", virtualKey: 0x41, down: false },
+                { key: "W", virtualKey: 0x57, down: false },
+                { key: "Shift", virtualKey: 0x10, down: false },
             ]) ||
-        JSON.stringify(exit.messages) !== JSON.stringify([
+        JSON.stringify(tangentialRun.messages) !== JSON.stringify([
                 "WM_SETFOCUS",
+                "WM_KEYDOWN:A",
+                "WM_KEYUP:A",
+                "WM_KEYUP:W",
+                "WM_KEYUP:Shift",
                 "WM_KEYDOWN:Escape",
             ]) ||
-        JSON.stringify(exit.delaysBeforeKeysMilliseconds) !== JSON.stringify([0]) ||
-        !Array.isArray(exit.keyPostIntervalsMilliseconds) ||
-        exit.keyPostIntervalsMilliseconds.length !== 0 ||
-        number(exit, "exitAfterLastMilliseconds") !== 0 ||
-        exit.exitIntervalMilliseconds !== null ||
-        exit.atomicBatch !== false ||
-        number(exit, "atomicPrefixLength") !== 0 ||
-        exit.batchThreadId !== null ||
-        exit.batchSpanMilliseconds !== null
+        JSON.stringify(tangentialRun.delaysBeforeKeysMilliseconds) !==
+            JSON.stringify([0, BOUNDARY_SLIDE_HOLD_MILLISECONDS, 0, 0]) ||
+        !Array.isArray(tangentialIntervals) ||
+        tangentialIntervals.length !== 3 ||
+        typeof tangentialIntervals[0] !== "number" ||
+        tangentialIntervals[0] < BOUNDARY_SLIDE_HOLD_MILLISECONDS ||
+        tangentialIntervals[0] > BOUNDARY_SLIDE_HOLD_MILLISECONDS + 500 ||
+        tangentialIntervals.slice(1).some((interval) =>
+            typeof interval !== "number" || interval < 0 || interval > 50
+        ) ||
+        number(tangentialRun, "exitAfterLastMilliseconds") !==
+            BOUNDARY_STATIONARY_HOLD_MILLISECONDS ||
+        typeof tangentialRun.exitIntervalMilliseconds !== "number" ||
+        tangentialRun.exitIntervalMilliseconds < BOUNDARY_STATIONARY_HOLD_MILLISECONDS ||
+        tangentialRun.exitIntervalMilliseconds >
+            BOUNDARY_STATIONARY_HOLD_MILLISECONDS + 500 ||
+        tangentialRun.atomicBatch !== false ||
+        number(tangentialRun, "atomicPrefixLength") !== 0 ||
+        tangentialRun.batchThreadId !== null ||
+        tangentialRun.batchSpanMilliseconds !== null
     ) fail("prototype native finite-boundary Run input evidence diverged");
-    same(exit, object(launch, "exitInput"), "prototype boundary exit input");
+    same(tangentialRun, object(launch, "exitInput"), "prototype boundary exit input");
     return {
         exactProcessWindow: true,
         atomicWindowThreadBatch: true,
@@ -102,6 +125,13 @@ export function boundaryRunInputInvariant(launch: Json): Json {
         forwardHeld: true,
         minimumHoldMilliseconds: BOUNDARY_RUN_HOLD_MILLISECONDS,
         heldMilliseconds,
+        tangentialRun: {
+            keyPostIntervalsMilliseconds: tangentialIntervals,
+            holdMilliseconds: tangentialIntervals[0],
+            releaseIntervalsMilliseconds: tangentialIntervals.slice(1),
+        },
+        forwardAndRunReleased: true,
+        stationaryHoldMilliseconds: tangentialRun.exitIntervalMilliseconds,
         delayedEscape: true,
     };
 }
@@ -129,19 +159,29 @@ export function boundarySessionInvariant(launch: Json): Json {
         "prototype finite-boundary actor region",
     );
     const finalLocalZQ9 = number(finalPosition, "localZQ9");
+    const finalLocalXQ9 = number(finalPosition, "localXQ9");
+    const tangentialRunStepCount = -finalLocalXQ9 / 45;
     if (
-        number(finalPosition, "localXQ9") !== 0 ||
+        finalLocalXQ9 >= 0 ||
+        finalLocalXQ9 % 45 !== 0 ||
+        tangentialRunStepCount < 16 ||
+        tangentialRunStepCount > 48 ||
         finalLocalZQ9 < -4096 ||
         finalLocalZQ9 > -3648 ||
-        (-finalLocalZQ9) % 64 !== 0 ||
         number(finalBody, "halfHeightNumerator") !==
             number(readyBody, "halfHeightNumerator") ||
         number(finalMotion, "stepVelocityQ16") !== 0
-    ) fail("prototype finite-boundary final motion diverged");
+    ) {
+        fail(
+            `prototype finite-boundary final motion diverged: ${
+                JSON.stringify({ finalLocalXQ9, finalLocalZQ9, tangentialRunStepCount })
+            }`,
+        );
+    }
     const presentation = presentationInvariant(
         object(finalActor, "presentation"),
         0,
-        49_152,
+        32_768,
         "prototype finite-boundary Survey",
     );
     const readyEpoch = number(readyActor, "animationEpochTick");
@@ -178,16 +218,23 @@ export function boundarySessionInvariant(launch: Json): Json {
         nativeInput: boundaryRunInputInvariant(launch),
         actorIdentityStable: true,
         exactFinalBoundaryBand: {
-            localXQ9: 0,
+            finalLocalZQ9,
             minimumLocalZQ9: -4096,
             maximumLocalZQ9: -3648,
-            stepQuantumQ9: 64,
-            committedRunStepCount: -finalLocalZQ9 / 64,
         },
-        stationaryAtFiniteBoundary: true,
+        exactTangentialRun: {
+            finalLocalXQ9,
+            componentQ9: 45,
+            committedRunStepCount: tangentialRunStepCount,
+            maximumCoupledStepCount: 9,
+            minimumTangentialOnlyStepCount: tangentialRunStepCount - 9,
+        },
+        blockedForwardAxisRetainedBoundaryBand: true,
+        tangentialRunAdmitted: true,
+        stationaryAfterTangentialRun: true,
         finalPresentation: presentation,
         surveyPresentationRetained: true,
-        retainedForwardYawQ16: 49_152,
+        retainedTangentialYawQ16: 32_768,
         presentationLifetimeAdvanced: true,
         liveFramesAdvanced: true,
         renderBlockCount: 0,

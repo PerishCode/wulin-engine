@@ -139,6 +139,10 @@ export async function requireBoundedPrototypeSession(
         "await postBoundaryRunStart(child.pid)",
         gracefulExitIndex,
     );
+    const boundaryTangentialActionIndex = acceptance.indexOf(
+        "await postBoundarySlideExit(child.pid)",
+        boundaryActionIndex,
+    );
     if (
         !main.includes("mod session;") ||
         (main.match(/session::publish_readiness/g)?.length ?? 0) !== 1 ||
@@ -194,6 +198,9 @@ export async function requireBoundedPrototypeSession(
         !inputActions.includes("postConsumptionCapacity") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
         !inputActions.includes("postBoundaryRunStart") ||
+        !inputActions.includes("postBoundarySlideExit") ||
+        !inputActions.includes("BOUNDARY_SLIDE_HOLD_MILLISECONDS = 500") ||
+        !inputActions.includes("BOUNDARY_STATIONARY_HOLD_MILLISECONDS = 250") ||
         inputActions.includes("holdPrototypeBoundaryRun") ||
         inputActions.includes("postBoundaryRunExit") ||
         inputActions.includes("holdPrototypeForwardKey") ||
@@ -250,9 +257,11 @@ export async function requireBoundedPrototypeSession(
         gracefulSpawnIndex <= gracefulExitIndex ||
         gracefulReadyIndex <= gracefulExitIndex ||
         boundaryActionIndex <= gracefulReadyIndex ||
+        boundaryTangentialActionIndex <= boundaryActionIndex ||
         !acceptance.includes('"boundary-run"') ||
         !acceptance.includes("BOUNDARY_RUN_HOLD_MILLISECONDS = 15_000") ||
         !acceptance.includes("heldMilliseconds = performance.now() - heldStartedAt") ||
+        !acceptance.includes("await postBoundarySlideExit(child.pid)") ||
         !acceptance.includes("await pressPrototypeEscape(child.pid)") ||
         boundaryAcceptance.includes("boundarySurvival") ||
         boundaryAcceptance.includes("processRemainedLive") ||
@@ -265,10 +274,16 @@ export async function requireBoundedPrototypeSession(
         !boundaryAcceptance.includes('{ key: "W", virtualKey: 0x57, down: true }') ||
         !boundaryAcceptance.includes("atomicWindowThreadBatch: true") ||
         !boundaryAcceptance.includes("exactFinalBoundaryBand") ||
+        !boundaryAcceptance.includes("exactTangentialRun") ||
         !boundaryAcceptance.includes("committedRunStepCount") ||
+        !boundaryAcceptance.includes("maximumCoupledStepCount: 9") ||
+        !boundaryAcceptance.includes("minimumTangentialOnlyStepCount") ||
         !boundaryAcceptance.includes("presentationLifetimeAdvanced: true") ||
-        !boundaryAcceptance.includes("stationaryAtFiniteBoundary: true") ||
+        !boundaryAcceptance.includes("blockedForwardAxisRetainedBoundaryBand: true") ||
+        !boundaryAcceptance.includes("tangentialRunAdmitted: true") ||
+        !boundaryAcceptance.includes("stationaryAfterTangentialRun: true") ||
         !boundaryAcceptance.includes("surveyPresentationRetained: true") ||
+        !boundaryAcceptance.includes("retainedTangentialYawQ16: 32_768") ||
         !prototypeHost.includes("boundaryCompletionSession(EXECUTABLE, CONFIG)") ||
         !prototypeHost.includes("boundarySessionInvariant(boundary)") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||

@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0150 and the current ADR set through 0153 define one live content runtime
+Experiments 0031-0151 and the current ADR set through 0154 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -199,12 +199,14 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one accepted post-v0 finite-edge policy whose maintained operator declares inclusive `[-6,6]²`
   playable bounds inside cooked `[-8,8]²` centers, whose sole focused real process receives exact-PID
   atomic held Shift/W only after idle readiness, runs for at least 15 seconds, and exits through the
-  existing two-value Escape completion on the same window; stable identity/region/shape, exact
-  64-Q9 Run quantization into inclusive local-Z `[-4096,-3648]`, final Survey/negative-Z yaw,
-  continuous clock/frame progress, and idle object state complement the pure product tests' exact
-  maximum-batch/per-axis reduction authority, without a second boundary process, engine boundary
-  mode, source-index inference, compatibility decoder, product telemetry, new output type, or
-  weakened runtime source/query failure;
+  existing two-value Escape completion on the same window; after reaching inclusive local-Z
+  `[-4096,-3648]`, one bounded A phase commits 16..=48 exact negative-X 45-Q9 Run steps, of which
+  at least seven must occur after the maximum-nine-step coupled prefix and therefore prove live
+  tangential-only admission while Z is reduced; stable identity/region/shape, final
+  Survey/tangential yaw, continuous clock/frame progress, and idle object state complement the pure
+  product tests' exact maximum-batch/per-axis authority, without a second boundary process, engine
+  boundary mode, source-index inference, compatibility decoder, product telemetry, new output
+  type, or weakened runtime source/query failure;
 - one accepted post-v0 host input-edge boundary that exposes sample-scoped `was_pressed` and
   `was_released` facts beside continuous `is_held`, expires them on empty ingest, and proves the
   first live consumer through a real Escape press and clean prototype exit without an action queue;
@@ -654,6 +656,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0151-native-diagonal-walk-stop.md` | Accepted final-direction release to retained-facing Survey after exact diagonal-to-left Walk in the existing process. |
 | `docs/adr/0152-native-diagonal-run-stop.md` | Accepted final-direction release to Shift-only retained-facing Survey after exact diagonal-to-left Run in the existing process. |
 | `docs/adr/0153-retired-post-readiness-report-flags.md` | Accepted deletion of redundant post-readiness report flags with structural execution ordering and one current-owner removal guard. |
+| `docs/adr/0154-native-finite-boundary-axis-reduction.md` | Accepted real-process finite-edge tangential Run continuation after independent forward-axis reduction. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -775,6 +778,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0148-native-diagonal-walk-stop/README.md` | Accepted complete diagonal-Walk direction-key lifetime, retained-facing Survey, and exact movement evidence without a new process. |
 | `experiments/0149-native-diagonal-run-stop/README.md` | Accepted complete diagonal-Run direction-key lifetime, Shift-only retained-facing Survey, and exact movement evidence without a new process. |
 | `experiments/0150-retired-post-readiness-report-flags/README.md` | Mandatory redundant post-readiness report/check deletion with unchanged full native-session evidence. |
+| `experiments/0151-native-finite-boundary-axis-reduction/README.md` | Accepted exact native tangential Run continuation after finite-edge forward-axis reduction without a new process. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |

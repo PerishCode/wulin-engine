@@ -1077,6 +1077,17 @@ warning。Runtime v20 report 原本即为零 occurrence，因为其 Prototype ch
 readiness-only capture；产品、Runtime、renderer/GPU/source/resource/synchronization 与
 process count 均未改变。本阶段不清理资源，下一次仍为 Experiment 0160。
 
+Experiment 0151 让唯一 15 秒 finite-boundary 子进程继续证明真实逐轴 admission：原子
+Shift/W 到达负 Z 边缘后，在同一 PID/window 保持 A 约 500ms，再释放 A/W/Shift 并延迟
+Escape。`canonical-prototype-v66` 在 170.657 秒通过，457,402-byte report 中 PID 2188
+先保持 Run 15,012.6987ms，再以 506.4753ms A 阶段结束于 local
+`(-1395,-3738)` Q9。X 为 31 个精确 45-Q9 Run step；任意 1..=8 batch partition 下
+最多只有 9 步仍可与 Z 耦合，因此至少 22 步明确发生在 Z 已被边界归零之后。最终为
+Survey clip 0/yaw 32,768，1,080 live frames 内零 stall/render block/object effect，
+Escape exit 0、两值、空 stderr/trailing output。全部 103 engine-runtime、48 Prototype、
+20 reference-host tests 与零 deny/五个既有 Flavor warning 通过；没有产品 Rust、Runtime、
+renderer/GPU/source/resource/synchronization、schema 或进程数变化。
+
 ## Project model
 
 - [Repository ownership model](docs/architecture/repository-model.md)
@@ -1151,7 +1162,8 @@ independent source oracle, and whose exact Activated/Rejected targets commit onl
 successful frame, whose 250 ms post-action dwell proves at least one frame of suppression after
 the exact 12-frame acknowledgement, plus sustained post-readiness motion/capacity rejection,
 one exact camera-derived traversal schedule with prefetch disabled, explicitly activated held-Run
-finite-edge endpoint and graceful completion, exact native Escape and visible-window WM_CLOSE clean exits, native
+finite-edge endpoint, independent tangential-axis continuation, and graceful completion, exact
+native Escape and visible-window WM_CLOSE clean exits, native
 same-batch Space/F/Enter/W focus-loss action/held-input suppression plus no-backlog resume and
 same-process fresh-A Walk/release readmission, one exact native diagonal-Walk lifetime from
 diagonal-to-left two-phase fixed-Q9 movement through final-direction release to retained-facing
