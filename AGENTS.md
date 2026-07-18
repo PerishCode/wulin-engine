@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0148 and the current ADR set through 0151 define one live content runtime
+Experiments 0031-0149 and the current ADR set through 0152 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -283,7 +283,9 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one accepted native diagonal-to-left Run transition in that same process: the atomic Shift/W/A
   prefix is held before a bounded delayed W release, retained Shift+A continues exact 64-Q9 left
   movement, and final displacement uniquely decomposes into positive 45-Q9 diagonal plus 64-Q9
-  cardinal step counts with final Run/yaw 32,768, unchanged clock/object/process ownership, and no
+  cardinal step counts; after another bounded hold A release retains that exact position with
+  Shift-only stationary work and completes as Survey/yaw 32,768, with unchanged clock/object/
+  process ownership and no
   intermediate output, query, retry, threshold relaxation, product behavior, or Runtime/GPU/source/
   resource change;
 - one accepted post-v0 camera-relative locomotion policy that uses the current pure Q/E camera
@@ -643,6 +645,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0149-native-diagonal-walk-release.md` | Accepted exact native diagonal-to-left Walk release transition in the existing process. |
 | `docs/adr/0150-native-diagonal-run-release.md` | Accepted exact native diagonal-to-left Run release transition in the existing process. |
 | `docs/adr/0151-native-diagonal-walk-stop.md` | Accepted final-direction release to retained-facing Survey after exact diagonal-to-left Walk in the existing process. |
+| `docs/adr/0152-native-diagonal-run-stop.md` | Accepted final-direction release to Shift-only retained-facing Survey after exact diagonal-to-left Run in the existing process. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -762,6 +765,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0146-native-diagonal-walk-release/README.md` | Accepted exact two-phase diagonal-to-left Walk displacement and bounded native release evidence without a new process. |
 | `experiments/0147-native-diagonal-run-release/README.md` | Accepted exact two-phase diagonal-to-left Run displacement and bounded native release evidence without a new process. |
 | `experiments/0148-native-diagonal-walk-stop/README.md` | Accepted complete diagonal-Walk direction-key lifetime, retained-facing Survey, and exact movement evidence without a new process. |
+| `experiments/0149-native-diagonal-run-stop/README.md` | Accepted complete diagonal-Run direction-key lifetime, Shift-only retained-facing Survey, and exact movement evidence without a new process. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -852,7 +856,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/wrappers/gpu-lab.ts` | Experiment 0001 operator entry point. |
 | `.runseal/wrappers/prototype.ts` | Self-contained finite-sandbox cook, conservative playable bounds, strict bootstrap, and manual prototype lifecycle entry point. |
 | `.runseal/wrappers/workbench.ts` | Compact manual workbench control. |
-| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype input-edge/exact finite-boundary completion/gravity/camera-relative Walk/Run/diagonal-Walk stop/diagonal-Run release/Run-release/re-press/opposite-locomotion/Jump/readmission/midair rejection/held-camera repeat/re-press/invalid-key rejection/opposite-camera cancellation/counter-clockwise wrap/post-readiness atomic object feedback/action/focus-readmission/consumption/presentation/traversal/backpressure, Escape/window-close/same-batch focus-action sessions, restart, failure, and lifecycle entry point. |
+| `.runseal/wrappers/canonical-prototype.ts` | Focused fresh-source prototype input-edge/exact finite-boundary completion/gravity/camera-relative Walk/Run/diagonal-Walk/Run stops/Run-release/re-press/opposite-locomotion/Jump/readmission/midair rejection/held-camera repeat/re-press/invalid-key rejection/opposite-camera cancellation/counter-clockwise wrap/post-readiness atomic object feedback/action/focus-readmission/consumption/presentation/traversal/backpressure, Escape/window-close/same-batch focus-action sessions, restart, failure, and lifecycle entry point. |
 | `.runseal/wrappers/canonical-actor.ts` | Focused fresh-source actor lifecycle, schedule/actor partition and rollback, render admission, animation epoch, and GPU phase entry point. |
 | `.runseal/wrappers/canonical-frame.ts` | Focused fresh-source typed object snapshot/resolution/position/nearest/exclusion, exact GPU feedback/suppression, clear, and replay entry point. |
 | `.runseal/wrappers/canonical-resources.ts` | Focused deep active/recovery GPU resource plateau and 16-cycle lifecycle entry point. |
@@ -898,7 +902,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/input/mod.ts` | Explicit-PID native request/script owner, monotonic delayed keys/exits, bounded exact-window-thread atomic input/focus-loss batches, suspend/resume/close actions, and schema-4 timing evidence. |
 | `.runseal/support/prototype/input/prepared.ts` | PowerShell helper-ready handshake, bounded process completion, and exact-PID schema-4 native-window/prefix evidence validation owner. |
 | `.runseal/support/prototype/input/actions.ts` | Named Prototype boundary Run start, bounded post-readiness object/capacity action, atomic focus-loss action/locomotion/object batches, Escape, resume, and window-close native actions. |
-| `.runseal/support/prototype/input/sequences.ts` | Exact-PID post-readiness forward release, diagonal Walk component/final release, diagonal Run component release, Run transitions, Jump, opposed-locomotion, camera, invalid-key, and delayed-exit native input sequences. |
+| `.runseal/support/prototype/input/sequences.ts` | Exact-PID post-readiness forward release, diagonal Walk/Run component and final releases, Run transitions, Jump, opposed-locomotion, camera, invalid-key, and delayed-exit native input sequences. |
 | `.runseal/support/prototype/jump.ts` | Exact native Jump policy, first/second/single-flight arithmetic, landing/readmission, and midair-rejection oracles. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk/Run, locomotion yaw, and committed actor presentation invariant owner. |
 | `.runseal/support/prototype/sessions/focus.ts` | Exact atomic Space/W/focus-loss batch, clock recovery, and resumed-simulation suppression oracle. |
@@ -906,7 +910,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/sessions/mod.ts` | Shared Prototype readiness/completion framing, direct readiness-only stdout/stderr enforcement, plus exact-PID finite-boundary, object/action, and focus-recovery execution. |
 | `.runseal/support/prototype/sessions/forward_release.ts` | Post-readiness W hold/release, exact Walk-to-Survey retained-facing transition, clock, and bounded session oracle owner. |
 | `.runseal/support/prototype/sessions/diagonal_walk.ts` | Post-readiness atomic W/A, delayed W/A releases, exact 23-Q9 diagonal plus 32-Q9 retained-left Walk decomposition, retained-facing Survey, clock, and bounded session oracle owner. |
-| `.runseal/support/prototype/sessions/diagonal_run.ts` | Post-readiness atomic Shift/W/A, delayed W release, exact 45-Q9 diagonal plus 64-Q9 retained-left Run decomposition, final yaw/epoch, clock, and bounded session oracle owner. |
+| `.runseal/support/prototype/sessions/diagonal_run.ts` | Post-readiness atomic Shift/W/A, delayed W/A releases, exact 45-Q9 diagonal plus 64-Q9 retained-left Run decomposition, Shift-only retained-facing Survey, clock, and bounded session oracle owner. |
 | `.runseal/support/prototype/sessions/locomotion_opposition.ts` | Post-readiness atomic Shift/W/S hold, S-release Run readmission, clock, and bounded session oracle owner. |
 | `.runseal/support/prototype/sessions/run_release.ts` | Post-readiness atomic Shift/W prefix, delayed Shift release, retained-W Walk transition, clock, and bounded session oracle owner. |
 | `.runseal/support/prototype/sessions/run_repress.ts` | Post-readiness atomic W prefix, delayed Shift re-press, Run transition, clock, and bounded session oracle owner. |
