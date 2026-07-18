@@ -52,7 +52,7 @@ function nativeRunReleaseInvariant(launch: Json): Json {
         atomicInitialPrefix: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
-        orderedMessages: sequence.messages,
+        exactMessageOrder: true,
         runHoldIntervalMilliseconds: intervals[1],
         exitIntervalMilliseconds: exitInterval,
     };
@@ -143,8 +143,7 @@ export function runReleaseSessionInvariant(launch: Json, session: Json): Json {
         readyPresentation,
         finalPresentation,
         clock: {
-            ready: readyClock,
-            final: finalClock,
+            continuityValidated: true,
             discontinuity: false,
         },
     };

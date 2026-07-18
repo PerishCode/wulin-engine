@@ -57,13 +57,13 @@ function nativeCameraRepressInvariant(launch: Json): Json {
     ) fail("prototype native camera re-press evidence diverged");
     return {
         exactProcessWindow: true,
-        initialPress: initialPress.messages,
-        releaseAndRepress: sequence.messages,
+        exactInitialPressMessages: true,
+        exactReleaseAndRepressMessages: true,
         initialHoldMilliseconds: nativeInput.initialHoldMilliseconds,
         atomicBatch: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
-        keyPostIntervalsMilliseconds: intervals,
+        keyPostIntervalCount: intervals.length,
         exitIntervalMilliseconds: exitInterval,
     };
 }
@@ -144,8 +144,7 @@ export function cameraRepressSessionInvariant(launch: Json, session: Json): Json
         deltaZQ9,
         presentation,
         clock: {
-            ready: readyClock,
-            final: finalClock,
+            continuityValidated: true,
             discontinuity: false,
         },
     };

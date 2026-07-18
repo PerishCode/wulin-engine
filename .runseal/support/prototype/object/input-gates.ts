@@ -43,7 +43,7 @@ export function nativeSelectionInvariant(
         batchThreadId: evidence.batchThreadId,
         batchSpanMilliseconds: evidence.batchSpanMilliseconds,
         keyPostIntervalMilliseconds: intervals[0],
-        orderedMessages: evidence.messages,
+        exactMessageOrder: true,
         exitIntervalMilliseconds: evidence.exitIntervalMilliseconds,
     };
 }
@@ -81,7 +81,7 @@ export function missingTargetInputInvariant(
     ) fail("prototype missing-target native input evidence diverged");
     return {
         exactProcessWindow: true,
-        orderedMessages: evidence.messages,
+        exactMessageOrder: true,
         noFeedbackCandidate: true,
     };
 }
@@ -135,8 +135,8 @@ export function objectRecoveryInputInvariant(
         atomicWindowThreadBatch: true,
         batchThreadId: evidence.batchThreadId,
         batchSpanMilliseconds: evidence.batchSpanMilliseconds,
-        keyPostIntervalsMilliseconds: intervals,
-        orderedMessages: evidence.messages,
+        keyPostIntervalCount: intervals.length,
+        exactMessageOrder: true,
         releasedMissingTargetKey: true,
         exitIntervalMilliseconds: evidence.exitIntervalMilliseconds,
     };
@@ -235,10 +235,10 @@ export function outsideRadiusInputInvariant(
         motionHoldMilliseconds: intervals[2],
         batchThreadId: motion.batchThreadId,
         batchSpanMilliseconds: motion.batchSpanMilliseconds,
-        keyPostIntervalsMilliseconds: intervals,
-        motionMessages: motion.messages,
+        keyPostIntervalCount: intervals.length,
+        exactMotionMessageOrder: true,
         outsideRadiusBatchSpanMilliseconds: outsideRadius.batchSpanMilliseconds,
-        outsideRadiusMessages: outsideRadius.messages,
+        exactOutsideRadiusMessageOrder: true,
         exitIntervalMilliseconds: outsideRadius.exitIntervalMilliseconds,
     };
 }

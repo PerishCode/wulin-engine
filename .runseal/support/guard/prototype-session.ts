@@ -6,25 +6,21 @@ export async function requireBoundedPrototypeSession(
     console.log("==> bounded non-diagnostic Prototype session");
     const main = await Deno.readTextFile(`${root}/apps/prototype/src/main.rs`);
     const session = await Deno.readTextFile(`${root}/apps/prototype/src/session.rs`);
-    const acceptance = await Deno.readTextFile(
-        `${root}/.runseal/support/prototype/sessions/mod.ts`,
-    );
-    const sessionGates = await Deno.readTextFile(
-        `${root}/.runseal/support/prototype/sessions/gates.ts`,
-    );
+    // deno-fmt-ignore
+    const acceptance = await Deno.readTextFile(`${root}/.runseal/support/prototype/sessions/mod.ts`);
+    // deno-fmt-ignore
+    const sessionGates = await Deno.readTextFile(`${root}/.runseal/support/prototype/sessions/gates.ts`);
     // deno-fmt-ignore
     const focusAcceptance = await Deno.readTextFile(`${root}/.runseal/support/prototype/sessions/focus.ts`);
     // deno-fmt-ignore
     const forwardReleaseAcceptance = await Deno.readTextFile(`${root}/.runseal/support/prototype/sessions/forward_release.ts`);
     // deno-fmt-ignore
     const jumpAcceptance = await Deno.readTextFile(`${root}/.runseal/support/prototype/jump.ts`);
-    const boundaryAcceptance = await Deno.readTextFile(
-        `${root}/.runseal/support/prototype/boundary.ts`,
-    );
+    // deno-fmt-ignore
+    const boundaryAcceptance = await Deno.readTextFile(`${root}/.runseal/support/prototype/boundary.ts`);
     const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input/mod.ts`);
-    const preparedInput = await Deno.readTextFile(
-        `${root}/.runseal/support/prototype/input/prepared.ts`,
-    );
+    // deno-fmt-ignore
+    const preparedInput = await Deno.readTextFile(`${root}/.runseal/support/prototype/input/prepared.ts`);
     const inputActions = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/input/actions.ts`,
     );
@@ -198,7 +194,11 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("runRepressSessionInvariant") ||
         !sessionGates.includes("locomotionOppositionSessionInvariant") ||
         !sessionGates.includes("diagonalWalkSessionInvariant") ||
+        // deno-fmt-ignore
         !sessionGates.includes("diagonalRunSessionInvariant") ||
+        !sessionGates.includes("MINIMUM_COPIED_SUBTREE_BYTES = 16") ||
+        !sessionGates.includes("requireSingleOwnerInvariant(") ||
+        !prototypeHost.includes("nontrivialCopiedSubtreeCount: 0") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
         !inputActions.includes("postOutsideRadiusExit") ||
         !inputActions.includes("postMissingTarget") ||

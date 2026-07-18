@@ -85,10 +85,10 @@ export function cameraDriverInvariant(launch: Json, expectedOrbitIndex = 0): Jso
     ) fail("prototype camera/frame ordering diverged");
     return {
         revision: driver.revision,
-        actor: driver.actor,
+        actorHandleStable: true,
         orbitIndex: expectedOrbitIndex,
-        rig,
-        camera,
+        exactRig: true,
+        exactCamera: true,
         anchorPerLiveFrame: true,
     };
 }
@@ -140,8 +140,8 @@ function nativeCameraRepeatInvariant(launch: Json): Json {
     ) fail("prototype native held-camera-repeat evidence diverged");
     return {
         exactProcessWindow: true,
-        initialPress: initialPress.messages,
-        repeatedHeldPress: sequence.messages,
+        exactInitialPressMessages: true,
+        exactRepeatedHeldPressMessages: true,
         initialHoldMilliseconds: nativeInput.initialHoldMilliseconds,
         exitIntervalMilliseconds: exitInterval,
     };
@@ -222,8 +222,7 @@ export function cameraRepeatSessionInvariant(launch: Json, session: Json): Json 
         deltaZQ9,
         presentation,
         clock: {
-            ready: readyClock,
-            final: finalClock,
+            continuityValidated: true,
             discontinuity: false,
         },
     };
@@ -262,7 +261,7 @@ function nativeInvalidKeyInvariant(launch: Json): Json {
         exactProcessWindow: true,
         virtualKey: 0x145,
         truncatedAliasVirtualKey: 0x45,
-        messages: sequence.messages,
+        exactMessageOrder: true,
         keyPostIntervalMilliseconds: intervals[0],
         exitIntervalMilliseconds: exitInterval,
     };
@@ -344,8 +343,7 @@ export function invalidKeySessionInvariant(launch: Json, session: Json): Json {
         deltaZQ9,
         presentation,
         clock: {
-            ready: readyClock,
-            final: finalClock,
+            continuityValidated: true,
             discontinuity: false,
         },
     };
@@ -390,11 +388,11 @@ function nativeOppositeCameraInvariant(launch: Json): Json {
     ) fail("prototype native opposite-camera evidence diverged");
     return {
         exactProcessWindow: true,
-        messages: sequence.messages,
+        exactMessageOrder: true,
         atomicBatch: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
-        keyPostIntervalsMilliseconds: intervals,
+        keyPostIntervalCount: intervals.length,
         exitIntervalMilliseconds: exitInterval,
     };
 }
@@ -475,8 +473,7 @@ export function oppositeCameraSessionInvariant(launch: Json, session: Json): Jso
         deltaZQ9,
         presentation,
         clock: {
-            ready: readyClock,
-            final: finalClock,
+            continuityValidated: true,
             discontinuity: false,
         },
     };

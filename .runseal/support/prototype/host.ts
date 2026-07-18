@@ -22,7 +22,11 @@ import {
     objectFeedbackSession,
     sustainedCapacitySession,
 } from "./sessions/mod.ts";
-import { sessionGates } from "./sessions/gates.ts";
+import {
+    MINIMUM_COPIED_SUBTREE_BYTES,
+    requireSingleOwnerInvariant,
+    sessionGates,
+} from "./sessions/gates.ts";
 import { type ExpectedCommand, STATIONARY_COMMAND } from "./simulation.ts";
 import { traversalInvariant } from "./traversal.ts";
 
@@ -238,7 +242,13 @@ export function simulationDriverInvariant(launch: Json, expected: ExpectedComman
     return {
         revision: driver.revision,
         outcome: sample.outcome,
-        command,
+        command: {
+            deltaXQ9: expected.deltaXQ9,
+            deltaZQ9: expected.deltaZQ9,
+            stepUpLimitQ16: expected.stepUpLimitQ16,
+            initialVelocityDeltaQ16: expected.initialVelocityDeltaQ16,
+            gravityQ16: -179,
+        },
         presentation: {
             command: commandPresentation,
             input: inputPresentation,
@@ -363,6 +373,21 @@ export async function prototypeHostGates(
         traversal: traversalInvariant(boundary, base),
         ...boundarySessionInvariant(boundary),
     };
+    requireSingleOwnerInvariant(
+        objectActionActivated,
+        object(objectFeedbackInvariant, "admitted"),
+        "prototype Activated object-feedback invariant",
+    );
+    requireSingleOwnerInvariant(
+        objectActionRejected,
+        object(objectFeedbackInvariant, "rejected"),
+        "prototype Rejected object-feedback invariant",
+    );
+    requireSingleOwnerInvariant(
+        boundary,
+        boundaryInvariant,
+        "prototype finite-boundary invariant",
+    );
 
     await lifecycle("start");
     const firstSidecar = await sidecarStatus(SIDECAR);
@@ -395,6 +420,12 @@ export async function prototypeHostGates(
         objectFeedbackInvariant,
         boundary,
         boundaryInvariant,
+        singleOwnerInvariantEvidence: {
+            revision: "prototype-single-owner-invariant-evidence-v1",
+            launchCount: 19,
+            minimumCopiedSubtreeBytes: MINIMUM_COPIED_SUBTREE_BYTES,
+            nontrivialCopiedSubtreeCount: 0,
+        },
         sidecar: { first: firstSidecar, restarted: restartedSidecar, stopped },
     };
 }

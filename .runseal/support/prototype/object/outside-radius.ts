@@ -35,7 +35,7 @@ export function outsideRadiusActorInvariant(readyActor: Json, finalActor: Json):
         translation,
         readyAnimationEpochTick: readyActor.animationEpochTick,
         finalAnimationEpochTick: finalActor.animationEpochTick,
-        finalPosition: finalBody.position,
+        finalPositionValidated: true,
         finalCenterHeightNumerator: finalBody.centerHeightNumerator,
     };
 }

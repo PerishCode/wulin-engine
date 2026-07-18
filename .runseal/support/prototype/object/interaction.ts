@@ -10,7 +10,11 @@ function facingRule(driver: Json): Json {
         rule.nonCoincidentDot !== "positive" ||
         rule.coincidentEligible !== true
     ) fail("prototype object interaction facing rule diverged");
-    return rule;
+    return {
+        committedEightWayYaw: true,
+        positiveNonCoincidentDot: true,
+        coincidentEligible: true,
+    };
 }
 
 export function idleInteractionInvariant(launch: Json): Json {

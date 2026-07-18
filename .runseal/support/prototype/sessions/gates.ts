@@ -19,6 +19,54 @@ import { locomotionOppositionSessionInvariant } from "./locomotion_opposition.ts
 import { gracefulCompletionInvariant, gracefulExit, idleCompletionInvariant } from "./mod.ts";
 
 type LaunchInvariant = (launch: Json) => Json;
+export const MINIMUM_COPIED_SUBTREE_BYTES = 16;
+const encoder = new TextEncoder();
+
+function collectObjectSubtrees(value: unknown, values: Set<string>): void {
+    if (value === null || typeof value !== "object") return;
+    const serialized = JSON.stringify(value);
+    if (encoder.encode(serialized).length >= MINIMUM_COPIED_SUBTREE_BYTES) {
+        values.add(serialized);
+    }
+    if (Array.isArray(value)) {
+        for (const child of value) collectObjectSubtrees(child, values);
+    } else {
+        for (const child of Object.values(value)) collectObjectSubtrees(child, values);
+    }
+}
+
+function rejectCopiedObjectSubtree(
+    value: unknown,
+    rawSubtrees: Set<string>,
+    label: string,
+    path: string,
+): void {
+    if (value === null || typeof value !== "object") return;
+    const serialized = JSON.stringify(value);
+    if (
+        encoder.encode(serialized).length >= MINIMUM_COPIED_SUBTREE_BYTES &&
+        rawSubtrees.has(serialized)
+    ) fail(`${label} copied raw launch evidence at ${path}`);
+    if (Array.isArray(value)) {
+        value.forEach((child, index) =>
+            rejectCopiedObjectSubtree(child, rawSubtrees, label, `${path}[${index}]`)
+        );
+    } else {
+        for (const [key, child] of Object.entries(value)) {
+            rejectCopiedObjectSubtree(child, rawSubtrees, label, `${path}.${key}`);
+        }
+    }
+}
+
+export function requireSingleOwnerInvariant(
+    launch: Json,
+    invariant: Json,
+    label: string,
+): void {
+    const rawSubtrees = new Set<string>();
+    collectObjectSubtrees(launch, rawSubtrees);
+    rejectCopiedObjectSubtree(invariant, rawSubtrees, label, "$");
+}
 
 export async function sessionGates(
     executable: string,
@@ -154,7 +202,7 @@ export async function sessionGates(
     sameInitial(diagonalWalk, first, "diagonal-Walk", startupInvariant, jumpInvariant);
     sameInitial(diagonalRun, first, "diagonal-Run", startupInvariant, jumpInvariant);
     sameInitial(sustained, sustainedBaseline, "sustained", startupInvariant, jumpInvariant);
-    return {
+    const evidence = {
         forwardRelease,
         forwardReleaseInvariant: forwardReleaseSessionInvariant(
             forwardRelease,
@@ -241,6 +289,33 @@ export async function sessionGates(
             windowCenter,
         ),
     };
+    for (
+        const name of [
+            "forwardRelease",
+            "windowClose",
+            "focusDiscontinuity",
+            "jumpReadmission",
+            "jumpMidair",
+            "cameraRepeat",
+            "cameraRepress",
+            "invalidKey",
+            "oppositeCamera",
+            "counterClockwiseCamera",
+            "runRelease",
+            "runRepress",
+            "locomotionOpposition",
+            "diagonalWalk",
+            "diagonalRun",
+            "sustained",
+        ]
+    ) {
+        requireSingleOwnerInvariant(
+            object(evidence, name),
+            object(evidence, `${name}Invariant`),
+            `prototype ${name} invariant`,
+        );
+    }
+    return evidence;
 }
 
 function sameInitial(
