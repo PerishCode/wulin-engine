@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0151 and the current ADR set through 0154 define one live content runtime
+Experiments 0031-0152 and the current ADR set through 0155 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -200,8 +200,10 @@ geometry/material/rig source, and one deterministic object-shadow path:
   playable bounds inside cooked `[-8,8]²` centers, whose sole focused real process receives exact-PID
   atomic held Shift/W only after idle readiness, runs for at least 15 seconds, and exits through the
   existing two-value Escape completion on the same window; after reaching inclusive local-Z
-  `[-4096,-3648]`, one bounded A phase commits 16..=48 exact negative-X 45-Q9 Run steps, of which
-  at least seven must occur after the maximum-nine-step coupled prefix and therefore prove live
+  `[-4096,-3648]`, the second exact-window helper atomically reasserts Shift/W with A before its
+  bounded phase, removing any implicit cross-helper held-state dependency while repeated downs
+  retain current normalization; it commits 16..=48 exact negative-X 45-Q9 Run steps, of which at
+  least seven must occur after the maximum-nine-step coupled prefix and therefore prove live
   tangential-only admission while Z is reduced; stable identity/region/shape, final
   Survey/tangential yaw, continuous clock/frame progress, and idle object state complement the pure
   product tests' exact maximum-batch/per-axis authority, without a second boundary process, engine
@@ -657,6 +659,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0152-native-diagonal-run-stop.md` | Accepted final-direction release to Shift-only retained-facing Survey after exact diagonal-to-left Run in the existing process. |
 | `docs/adr/0153-retired-post-readiness-report-flags.md` | Accepted deletion of redundant post-readiness report flags with structural execution ordering and one current-owner removal guard. |
 | `docs/adr/0154-native-finite-boundary-axis-reduction.md` | Accepted real-process finite-edge tangential Run continuation after independent forward-axis reduction. |
+| `docs/adr/0155-native-boundary-held-state-readmission.md` | Accepted exact-window Shift/W/A reassertion removing the finite-boundary phase's implicit cross-helper held-state dependency. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -779,6 +782,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0149-native-diagonal-run-stop/README.md` | Accepted complete diagonal-Run direction-key lifetime, Shift-only retained-facing Survey, and exact movement evidence without a new process. |
 | `experiments/0150-retired-post-readiness-report-flags/README.md` | Mandatory redundant post-readiness report/check deletion with unchanged full native-session evidence. |
 | `experiments/0151-native-finite-boundary-axis-reduction/README.md` | Accepted exact native tangential Run continuation after finite-edge forward-axis reduction without a new process. |
+| `experiments/0152-native-boundary-held-state-readmission/README.md` | Accepted atomic held-state reassertion and clean-commit finite-boundary evidence without product or process expansion. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -907,14 +911,14 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/actor/simulation.ts` | Canonical-aggregate schedule assertions plus schema-2 fractional, partition, rollback, and sole actor advance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured canonical-ready/restart plus direct-output current missing/corrupt failure and bounded Prototype invariant/lifecycle checkpoints. |
 | `.runseal/support/prototype/host.ts` | Prototype direct-output current missing/corrupt startup failures, plain readiness/restart baselines, post-readiness action sessions, exact boundary completion, Sidecar status/PID ownership, and no-inspect lifecycle orchestration. |
-| `.runseal/support/prototype/boundary.ts` | Post-readiness exact-PID held-Run duration, conservative endpoint band, final Survey, clock/frame, and graceful finite-edge completion oracle. |
+| `.runseal/support/prototype/boundary.ts` | Post-readiness exact-PID held-Run duration, atomic tangential-phase held-state reassertion, conservative endpoint band, final Survey, clock/frame, and graceful finite-edge completion oracle. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
 | `.runseal/support/prototype/camera.ts` | Exact default/orbit rig, actor anchor, camera/frame readiness, held-repeat, invalid-key, and atomic opposite-edge locomotion oracle owner. |
 | `.runseal/support/prototype/camera_counter_clockwise.ts` | Exact native counter-clockwise wrap, orbit-three Walk, clock, and bounded session oracle owner. |
 | `.runseal/support/prototype/camera_repress.ts` | Exact native held-E release/re-press, orbit-two Walk, clock, and bounded session oracle owner. |
 | `.runseal/support/prototype/input/mod.ts` | Explicit-PID native request/script owner, monotonic delayed keys/exits, bounded exact-window-thread atomic input/focus-loss batches, suspend/resume/close actions, and schema-4 timing evidence. |
 | `.runseal/support/prototype/input/prepared.ts` | PowerShell helper-ready handshake, bounded process completion, and exact-PID schema-4 native-window/prefix evidence validation owner. |
-| `.runseal/support/prototype/input/actions.ts` | Named Prototype boundary Run start, bounded post-readiness object/capacity action, atomic focus-loss action/locomotion/object batches, Escape, resume, and window-close native actions. |
+| `.runseal/support/prototype/input/actions.ts` | Named Prototype boundary Run start/reassertion, bounded post-readiness object/capacity action, atomic focus-loss action/locomotion/object batches, Escape, resume, and window-close native actions. |
 | `.runseal/support/prototype/input/sequences.ts` | Exact-PID post-readiness forward release, diagonal Walk/Run component and final releases, Run transitions, Jump, opposed-locomotion, camera, invalid-key, and delayed-exit native input sequences. |
 | `.runseal/support/prototype/jump.ts` | Exact native Jump policy, first/second/single-flight arithmetic, landing/readmission, and midair-rejection oracles. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk/Run, locomotion yaw, and committed actor presentation invariant owner. |

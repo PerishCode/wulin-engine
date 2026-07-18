@@ -20,6 +20,8 @@ export async function postBoundarySlideExit(processId: number): Promise<Json> {
     return await postPrototypeWindowAction(
         processId,
         [
+            { key: "Shift", virtualKey: 0x10, down: true },
+            { key: "W", virtualKey: 0x57, down: true },
             { key: "A", virtualKey: 0x41, down: true },
             { key: "A", virtualKey: 0x41, down: false },
             { key: "W", virtualKey: 0x57, down: false },
@@ -27,8 +29,10 @@ export async function postBoundarySlideExit(processId: number): Promise<Json> {
         ],
         true,
         "input",
-        [0, BOUNDARY_SLIDE_HOLD_MILLISECONDS, 0, 0],
+        [0, 0, 0, BOUNDARY_SLIDE_HOLD_MILLISECONDS, 0, 0],
         BOUNDARY_STATIONARY_HOLD_MILLISECONDS,
+        false,
+        3,
     );
 }
 
