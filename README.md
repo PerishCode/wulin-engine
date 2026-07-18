@@ -1099,6 +1099,18 @@ clean-commit `canonical-prototype-v67` 在 168.853 秒通过，458,350-byte repo
 stderr/trailing output；103/48/20 tests 与 0 deny / 5 个既有 Flavor warning 通过。
 产品、Runtime、renderer/GPU/source/resource/synchronization、schema 和进程数均未改变。
 
+Experiment 0153 在既有 Activated object-focus 子进程中补齐真实 `MissingTarget` 恢复：
+focus resume/reset 后先单独按 Enter 并保持 263.0453ms，使它在无 target 时恰好提交一次
+ineligible；随后同一 PID/window/thread 原子发送 Enter-up/F-down/Enter-down，再延迟
+Escape。`canonical-prototype-v68` 首轮在 175.470 秒通过，460,265-byte report 中 PID
+2580 / window `142084402` / thread 22988 的恢复前缀仅 0.0021ms。最终恰为
+`ineligible=1`、`committed=1`、Activated/object-target 各 12 帧、Rejected 0 帧、
+suppression 2 帧，并消费/排除同一 source-qualified local ID 496；target 与
+acknowledgement 均清空。343 live frames 内一组 suspend/resume、两次总 reset、零 stall/
+render block，Escape exit 0、两值、空 stderr/trailing output。103/48/20 tests 与
+0 deny / 5 个既有 Flavor warning 通过；产品 Rust、Runtime、renderer/GPU/source/
+synchronization、schema 和进程数均未改变。
+
 ## Project model
 
 - [Repository ownership model](docs/architecture/repository-model.md)

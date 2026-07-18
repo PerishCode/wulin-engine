@@ -4,7 +4,9 @@ import {
     postBoundarySlideExit,
     postConsumptionCapacity,
     postFocusLocomotionReadmission,
+    postMissingTarget,
     postObjectActionExit,
+    postObjectRecoveryExit,
     postPrototypeCapacityRejection,
     pressPrototypeEscape,
     requestPrototypeWindowClose,
@@ -219,8 +221,19 @@ export async function gracefulExit(
             await new Promise((resolve) => setTimeout(resolve, 250));
             const resumed = await resumePrototypeFocus(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
-            const sequence = await postObjectActionExit(child.pid);
-            postReadinessInput = { suspended, resumed, sequence };
+            const missingTarget = await postMissingTarget(child.pid);
+            const missingStartedAt = performance.now();
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            const missingHoldMilliseconds = performance.now() - missingStartedAt;
+            const sequence = await postObjectRecoveryExit(child.pid);
+            postReadinessInput = {
+                suspended,
+                resumed,
+                missingTarget,
+                requestedMissingHoldMilliseconds: 250,
+                missingHoldMilliseconds,
+                sequence,
+            };
             exitInput = sequence;
         } else if (postReadiness === "camera-repeat") {
             const initialPress = await pressPrototypeCameraClockwise(child.pid);
