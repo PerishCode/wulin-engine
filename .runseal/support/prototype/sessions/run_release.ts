@@ -56,7 +56,6 @@ function nativeRunReleaseInvariant(launch: Json): Json {
         orderedMessages: sequence.messages,
         runHoldIntervalMilliseconds: intervals[1],
         exitIntervalMilliseconds: exitInterval,
-        actionAfterReadiness: true,
     };
 }
 
@@ -139,7 +138,6 @@ export function runReleaseSessionInvariant(launch: Json, session: Json): Json {
         runModifierReleased: true,
         retainedForwardInput: true,
         transitionedToWalk: true,
-        actionAfterReadiness: true,
         deltaXQ9,
         deltaZQ9,
         forwardDisplacementUnits32Q9,

@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0149 and the current ADR set through 0152 define one live content runtime
+Experiments 0031-0150 and the current ADR set through 0153 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -288,6 +288,13 @@ geometry/material/rig source, and one deterministic object-shadow path:
   process ownership and no
   intermediate output, query, retry, threshold relaxation, product behavior, or Runtime/GPU/source/
   resource change;
+- one mandatory acceptance-report compatibility cleanup that deletes all 16 static
+  `actionAfterReadiness` fields and 11 positive source-shape expectations from boundary, camera,
+  object, focus, forward-release, Run-transition, opposed-locomotion, and diagonal owners;
+  readiness parsing before exact-PID action dispatch remains the sole live ordering authority, and
+  one central static guard scans all 11 current owners with no replacement flag, alias, decoder,
+  registry, fallback, retry, product delay, product/Runtime/GPU/source/resource behavior, or
+  process-count change;
 - one accepted post-v0 camera-relative locomotion policy that uses the current pure Q/E camera
   candidate to quarter-rotate exact local Walk/Run into world XZ before boundary admission, authors
   facing from that final world command, and still commits orbit state only after the existing checked
@@ -646,6 +653,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0150-native-diagonal-run-release.md` | Accepted exact native diagonal-to-left Run release transition in the existing process. |
 | `docs/adr/0151-native-diagonal-walk-stop.md` | Accepted final-direction release to retained-facing Survey after exact diagonal-to-left Walk in the existing process. |
 | `docs/adr/0152-native-diagonal-run-stop.md` | Accepted final-direction release to Shift-only retained-facing Survey after exact diagonal-to-left Run in the existing process. |
+| `docs/adr/0153-retired-post-readiness-report-flags.md` | Accepted deletion of redundant post-readiness report flags with structural execution ordering and one current-owner removal guard. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -766,6 +774,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0147-native-diagonal-run-release/README.md` | Accepted exact two-phase diagonal-to-left Run displacement and bounded native release evidence without a new process. |
 | `experiments/0148-native-diagonal-walk-stop/README.md` | Accepted complete diagonal-Walk direction-key lifetime, retained-facing Survey, and exact movement evidence without a new process. |
 | `experiments/0149-native-diagonal-run-stop/README.md` | Accepted complete diagonal-Run direction-key lifetime, Shift-only retained-facing Survey, and exact movement evidence without a new process. |
+| `experiments/0150-retired-post-readiness-report-flags/README.md` | Mandatory redundant post-readiness report/check deletion with unchanged full native-session evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -886,7 +895,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/live-operator-surface.ts` | Exact wrapper set, single current-boundary authority, and maintained prototype-operator documentation gate. |
 | `.runseal/support/guard/input-journal-removal.ts` | Forbidden-file/symbol/verb/command gate for the retired diagnostic input journal surface. |
 | `.runseal/support/guard/object-identity.ts` | Required typed source-qualified resolver, nearest exclusion, frame suppression, prototype consumption, and forbidden old-surface gate. |
-| `.runseal/support/guard/prototype-session.ts` | Required bounded Escape/window-close/focus/Jump/camera/Run/boundary/object post-readiness sessions, exact-PID schema-4 timing, direct forced-process enforcement, and forbidden negative-report/forced-boundary/startup-action/next-window/old timing/transient-action surfaces. |
+| `.runseal/support/guard/prototype-session.ts` | Required bounded Escape/window-close/focus/Jump/camera/Run/boundary/object post-readiness sessions, exact-PID schema-4 timing, direct forced-process enforcement, and forbidden negative-report/forced-boundary/startup-action/redundant-ordering/next-window/old timing/transient-action surfaces. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/actor/admission.ts` | Canonical-aggregate schedule evidence, strict schema-2 advance, typed pending block, zero-commit rollback, and retained-frame support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |

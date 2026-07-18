@@ -92,6 +92,17 @@ export async function requireBoundedPrototypeSession(
     if (currentNativeSessionSources.some((source) => source.includes("startupNativeInput"))) {
         fail("guard: retired startup native-input report branch returned");
     }
+    const currentActionReportSources = [
+        ...currentNativeSessionSources,
+        focusAcceptance,
+        boundaryAcceptance,
+        objectGates,
+    ];
+    if (
+        currentActionReportSources.some((source) => source.includes("actionAfterReadiness"))
+    ) {
+        fail("guard: retired post-readiness report flag returned");
+    }
     const nativeTypeIndex = input.indexOf("Add-Type -TypeDefinition");
     const helperReadyIndex = input.indexOf(
         '[Console]::Out.WriteLine("prototype-native-helper-ready-v1")',
@@ -148,7 +159,6 @@ export async function requireBoundedPrototypeSession(
         !objectGates.includes("objectNearestOracle") ||
         !objectGates.includes("capacityRejectedFrameCount: 12") ||
         !objectGates.includes("postReadinessCapacityRejection") ||
-        !objectGates.includes("actionAfterReadiness: true") ||
         !objectGates.includes("staleObjectIntentsDidNotReachResumedSimulation: true") ||
         !objectGates.includes("freshObjectIntentsAfterFocusReadmitted: true") ||
         !objectGates.includes("atomicCancelledIntents") ||
@@ -250,7 +260,6 @@ export async function requireBoundedPrototypeSession(
         boundaryAcceptance.includes("completionEmitted") ||
         !boundaryAcceptance.includes("boundaryCompletionSession") ||
         !boundaryAcceptance.includes("boundarySessionInvariant") ||
-        !boundaryAcceptance.includes("actionAfterReadiness: true") ||
         !boundaryAcceptance.includes("boundaryRunInputInvariant") ||
         !boundaryAcceptance.includes('{ key: "Shift", virtualKey: 0x10, down: true }') ||
         !boundaryAcceptance.includes('{ key: "W", virtualKey: 0x57, down: true }') ||
@@ -264,7 +273,6 @@ export async function requireBoundedPrototypeSession(
         !prototypeHost.includes("boundarySessionInvariant(boundary)") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
-        !cameraAcceptance.includes("actionAfterReadiness: true") ||
         !cameraAcceptance.includes("checkedRangeRejected: true") ||
         !cameraAcceptance.includes('truncationWouldAlias: "E"') ||
         !cameraAcceptance.includes("oppositePressEdgesRetained: true") ||
@@ -277,25 +285,21 @@ export async function requireBoundedPrototypeSession(
         !cameraRepressAcceptance.includes("heldKeyReleased: true") ||
         !cameraRepressAcceptance.includes("freshPressEdgeReadmitted: true") ||
         !cameraRepressAcceptance.includes("committedOrbitIndex: 2") ||
-        !cameraRepressAcceptance.includes("actionAfterReadiness: true") ||
         !cameraRepressAcceptance.includes("deltaZQ9 <= 0") ||
         !runReleaseAcceptance.includes("runModifierReleased: true") ||
         !runReleaseAcceptance.includes("retainedForwardInput: true") ||
         !runReleaseAcceptance.includes("transitionedToWalk: true") ||
         !runReleaseAcceptance.includes("runHoldIntervalMilliseconds") ||
         !runReleaseAcceptance.includes("atomicInitialPrefix: true") ||
-        !runReleaseAcceptance.includes("actionAfterReadiness: true") ||
         !runRepressAcceptance.includes("runModifierReadmitted: true") ||
         !runRepressAcceptance.includes("retainedForwardInput: true") ||
         !runRepressAcceptance.includes("transitionedToRun: true") ||
         !runRepressAcceptance.includes("walkHoldIntervalMilliseconds") ||
         !runRepressAcceptance.includes("atomicInitialPrefix: true") ||
-        !runRepressAcceptance.includes("actionAfterReadiness: true") ||
         !locomotionOppositionAcceptance.includes("oppositeAxisCancelled: true") ||
         !locomotionOppositionAcceptance.includes("opposedInputHeldBeforeRelease: true") ||
         !locomotionOppositionAcceptance.includes("releasedBackwardInput: true") ||
         !locomotionOppositionAcceptance.includes("retainedForwardRunReadmitted: true") ||
-        !locomotionOppositionAcceptance.includes("actionAfterReadiness: true") ||
         !locomotionOppositionAcceptance.includes("runStepCount") ||
         !diagonalWalkAcceptance.includes("atomicDiagonalInput: true") ||
         !diagonalWalkAcceptance.includes("nativeLeftInput: true") ||
@@ -307,7 +311,6 @@ export async function requireBoundedPrototypeSession(
         !diagonalWalkAcceptance.includes("movedThenStopped: true") ||
         !diagonalWalkAcceptance.includes("transitionedToSurvey: true") ||
         !diagonalWalkAcceptance.includes("retainedLeftYaw: true") ||
-        !diagonalWalkAcceptance.includes("actionAfterReadiness: true") ||
         !diagonalWalkAcceptance.includes("diagonalStepCount") ||
         !diagonalWalkAcceptance.includes("leftStepCount") ||
         !diagonalRunAcceptance.includes("atomicDiagonalRunInput: true") ||
@@ -320,14 +323,12 @@ export async function requireBoundedPrototypeSession(
         !diagonalRunAcceptance.includes("movedThenStopped: true") ||
         !diagonalRunAcceptance.includes("transitionedToSurvey: true") ||
         !diagonalRunAcceptance.includes("retainedLeftYaw: true") ||
-        !diagonalRunAcceptance.includes("actionAfterReadiness: true") ||
         !diagonalRunAcceptance.includes("diagonalRunStepCount") ||
         !diagonalRunAcceptance.includes("leftRunStepCount") ||
         !forwardReleaseAcceptance.includes("normalForwardReleased: true") ||
         !forwardReleaseAcceptance.includes("movedThenStopped: true") ||
         !forwardReleaseAcceptance.includes("transitionedToSurvey: true") ||
         !forwardReleaseAcceptance.includes("retainedForwardYaw: true") ||
-        !forwardReleaseAcceptance.includes("actionAfterReadiness: true") ||
         !forwardReleaseAcceptance.includes("walkHoldIntervalMilliseconds") ||
         !forwardReleaseAcceptance.includes("stationaryHoldIntervalMilliseconds") ||
         !focusAcceptance.includes("atomicWindowThreadBatch") ||
@@ -344,7 +345,6 @@ export async function requireBoundedPrototypeSession(
         !focusAcceptance.includes("stationaryHoldIntervalMilliseconds") ||
         !focusAcceptance.includes("objectPoliciesIdleAcrossDiscontinuity: true") ||
         !focusAcceptance.includes("resumedReadyProgress: true") ||
-        !focusAcceptance.includes("actionAfterReadiness: true") ||
         !focusAcceptance.includes("actionPressBeforeFocusLoss: true") ||
         !focusAcceptance.includes("observationPressBeforeFocusLoss: true") ||
         !focusAcceptance.includes("activationPressBeforeFocusLoss: true") ||

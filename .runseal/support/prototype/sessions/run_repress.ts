@@ -51,7 +51,6 @@ function nativeRunRepressInvariant(launch: Json): Json {
         orderedMessages: sequence.messages,
         walkHoldIntervalMilliseconds: intervals[0],
         exitIntervalMilliseconds: exitInterval,
-        actionAfterReadiness: true,
     };
 }
 
@@ -134,7 +133,6 @@ export function runRepressSessionInvariant(launch: Json, session: Json): Json {
         runModifierReadmitted: true,
         retainedForwardInput: true,
         transitionedToRun: true,
-        actionAfterReadiness: true,
         deltaXQ9,
         deltaZQ9,
         forwardDisplacementUnits32Q9,

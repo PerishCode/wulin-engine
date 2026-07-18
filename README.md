@@ -1065,6 +1065,17 @@ clock Ready/sample 从 `2/3 -> 91/92`，零 stall/render block，对象状态 id
 两值、stderr 为空且 exit code 0。全部 103 engine-runtime、48 Prototype、20
 reference-host 测试通过，Flavor 0 deny / 5 个既有 warning；产品、Runtime、renderer/GPU/
 source/resource/synchronization 与 process count 均未改变。下一阶段 0150 必须执行兼容清理。
+Experiment 0150 执行强制兼容清理：删除 11 个当前 Prototype acceptance owner 中全部 16 个
+静态 `actionAfterReadiness: true` report producer 和 11 个正向 shape expectation，不增加
+替代字段、alias 或 decoder。共享 session runner 先解析 readiness、再向 exact PID 分发
+action 的结构顺序成为唯一权威，中央 guard 扫描全部 owner 禁止旧 token 回归。
+`canonical-prototype-v65` 首轮在 162.812 秒通过，report 从 v64 的 456,292 bytes / 18 个旧
+字段降为 455,655 bytes / 0 个，减少 637 bytes。16 个 normal session 全部保持两值、
+exit 0、空 stderr/trailing output，finite-boundary 同样两值/exit 0；全部 103
+engine-runtime、48 Prototype、20 reference-host 测试通过，Flavor 0 deny / 5 个既有
+warning。Runtime v20 report 原本即为零 occurrence，因为其 Prototype checkpoint 只消费
+readiness-only capture；产品、Runtime、renderer/GPU/source/resource/synchronization 与
+process count 均未改变。本阶段不清理资源，下一次仍为 Experiment 0160。
 
 ## Project model
 

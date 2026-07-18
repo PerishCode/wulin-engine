@@ -186,7 +186,6 @@ async function feedbackSessionInvariant(
         }),
         expectedKind,
         exactSourceIdentity: expectedIdentity,
-        actionAfterReadiness: true,
         exactCommittedOriginProximity: true,
         exactCommittedFacing: true,
         stationaryActor: true,

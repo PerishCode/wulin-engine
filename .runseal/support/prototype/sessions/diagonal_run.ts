@@ -67,7 +67,6 @@ function nativeDiagonalRunInvariant(launch: Json): Json {
         orderedMessages: sequence.messages,
         leftRunHoldMilliseconds: intervals[3],
         stationaryHoldMilliseconds: exitInterval,
-        actionAfterReadiness: true,
     };
 }
 
@@ -171,7 +170,6 @@ export function diagonalRunSessionInvariant(launch: Json, session: Json): Json {
         deltaZQ9,
         readyPresentation,
         finalPresentation,
-        actionAfterReadiness: true,
         animationEpochTransitioned: true,
         clock: {
             ready: readyClock,

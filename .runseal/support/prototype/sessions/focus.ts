@@ -226,7 +226,6 @@ export function focusSessionInvariant(launch: Json, session: Json): Json {
         sameBatchForwardDidNotReachResumedSimulation: true,
         objectPoliciesIdleAcrossDiscontinuity: true,
         resumedReadyProgress: true,
-        actionAfterReadiness: true,
         deltaXQ9,
         deltaZQ9,
         leftStepCount,
