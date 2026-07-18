@@ -3,6 +3,8 @@ import { postPrototypeKeys, postPrototypeWindowAction } from "./mod.ts";
 
 export const BOUNDARY_SLIDE_HOLD_MILLISECONDS = 500;
 export const BOUNDARY_STATIONARY_HOLD_MILLISECONDS = 250;
+export const OBJECT_REJECTION_HOLD_MILLISECONDS = 250;
+export const OUTSIDE_RADIUS_HOLD_MILLISECONDS = 500;
 
 export async function postBoundaryRunStart(processId: number): Promise<Json> {
     return await postPrototypeKeys(
@@ -156,8 +158,10 @@ export async function postPrototypeCapacityRejection(processId: number): Promise
     };
 }
 
-export async function postObjectActionExit(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(
+export async function postOutsideRadiusExit(
+    processId: number,
+): Promise<Json> {
+    const initialRejection = await postPrototypeWindowAction(
         processId,
         [
             { key: "F", virtualKey: 0x46, down: true },
@@ -166,9 +170,45 @@ export async function postObjectActionExit(processId: number): Promise<Json> {
         true,
         "input",
         [0, 0],
+        0,
+        true,
+    );
+    const rejectionStartedAt = performance.now();
+    await new Promise((resolve) => setTimeout(resolve, OBJECT_REJECTION_HOLD_MILLISECONDS));
+    const rejectionHoldMilliseconds = performance.now() - rejectionStartedAt;
+    const motion = await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "F", virtualKey: 0x46, down: false },
+            { key: "Enter", virtualKey: 0x0D, down: false },
+            { key: "D", virtualKey: 0x44, down: true },
+            { key: "D", virtualKey: 0x44, down: false },
+        ],
+        true,
+        "input",
+        [0, 0, 0, OUTSIDE_RADIUS_HOLD_MILLISECONDS],
+        0,
+        false,
+        3,
+    );
+    const outsideRadius = await postPrototypeWindowAction(
+        processId,
+        [{ key: "Enter", virtualKey: 0x0D, down: true }],
+        true,
+        "input",
+        [0],
         250,
         true,
     );
+    return {
+        revision: "prototype-object-outside-radius-input-v1",
+        initialRejection,
+        requestedRejectionHoldMilliseconds: OBJECT_REJECTION_HOLD_MILLISECONDS,
+        rejectionHoldMilliseconds,
+        motion,
+        requestedMotionHoldMilliseconds: OUTSIDE_RADIUS_HOLD_MILLISECONDS,
+        outsideRadius,
+    };
 }
 
 export async function postMissingTarget(processId: number): Promise<Json> {

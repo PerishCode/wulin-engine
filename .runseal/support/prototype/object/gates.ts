@@ -5,12 +5,20 @@ import { cameraDriverInvariant } from "../camera.ts";
 import { jumpPolicyInvariant } from "../jump.ts";
 import { gracefulCompletionInvariant } from "../sessions/mod.ts";
 import { traversalInvariant } from "../traversal.ts";
-import { missingTargetInputInvariant, objectRecoveryInputInvariant } from "./input-gates.ts";
+import {
+    missingTargetInputInvariant,
+    nativeSelectionInvariant,
+    objectRecoveryInputInvariant,
+    outsideRadiusInputInvariant,
+} from "./input-gates.ts";
 import { idleInteractionInvariant } from "./interaction.ts";
 import { idleObservationInvariant } from "./observation.ts";
+import { exactObjectProximity, outsideRadiusActorInvariant } from "./outside-radius.ts";
 
 type StartupInvariant = (launch: Json) => Json;
 type SimulationInvariant = (launch: Json) => Json;
+
+const ACTION_RADIUS_Q9 = 512;
 
 export function restartObservation(restarted: Json, first: Json): void {
     same(
@@ -82,21 +90,37 @@ async function feedbackSessionInvariant(
     const completion = object(launch, "completion");
     const readyActor = object(object(readiness, "actor"), "state");
     const finalActor = object(object(completion, "actor"), "state");
-    same(finalActor, readyActor, `prototype post-ready ${expectedKind} stationary actor`);
-
+    const readyPosition = object(object(object(readyActor, "motion"), "body"), "position");
     const finalPosition = object(object(object(finalActor, "motion"), "body"), "position");
-    const region = object(finalPosition, "region");
+    const readyRegion = object(readyPosition, "region");
     const expected = await objectNearestOracle(
         source,
         {
-            region: [number(region, "x"), number(region, "z")],
-            localXQ9: number(finalPosition, "localXQ9"),
-            localZQ9: number(finalPosition, "localZQ9"),
-            maxDistanceQ9: 512,
+            region: [number(readyRegion, "x"), number(readyRegion, "z")],
+            localXQ9: number(readyPosition, "localXQ9"),
+            localZQ9: number(readyPosition, "localZQ9"),
+            maxDistanceQ9: ACTION_RADIUS_Q9,
         },
         windowCenter,
     );
-    const expectedIdentity = object(object(object(expected, "nearest"), "object"), "identity");
+    const expectedNearest = object(expected, "nearest");
+    const expectedIdentity = object(object(expectedNearest, "object"), "identity");
+    const finalTargetProximity = exactObjectProximity(
+        finalPosition,
+        object(expectedNearest, "terrainPosition"),
+    );
+    let actorTransition: Json | null = null;
+    if (expectedKind === "activated") {
+        same(finalActor, readyActor, "prototype post-ready Activated stationary actor");
+        if (number(finalTargetProximity, "distanceSquaredQ18") > ACTION_RADIUS_Q9 ** 2) {
+            fail("prototype post-ready Activated target left the action radius");
+        }
+    } else {
+        actorTransition = outsideRadiusActorInvariant(readyActor, finalActor);
+        if (number(finalTargetProximity, "distanceSquaredQ18") <= ACTION_RADIUS_Q9 ** 2) {
+            fail("prototype post-ready Rejected target remained inside the action radius");
+        }
+    }
     const interaction = object(completion, "object_interaction");
     const observation = object(completion, "object_observation");
     const frames = object(completion, "frames");
@@ -131,7 +155,7 @@ async function feedbackSessionInvariant(
     } else {
         if (
             number(interaction, "committedCount") !== 0 ||
-            number(interaction, "ineligibleCount") !== 1 ||
+            number(interaction, "ineligibleCount") !== 2 ||
             interaction.consumed !== null ||
             interaction.nearestExclusion !== null ||
             observation.target === null ||
@@ -163,11 +187,18 @@ async function feedbackSessionInvariant(
         focusRecovery = object(focus, "focusRecovery");
         nativeInput = object(focus, "nativeInput");
     } else {
-        nativeInput = nativeObjectActionInvariant(
-            object(postReadiness, "sequence"),
-            processId,
-            true,
-        );
+        const initialRejection = object(postReadiness, "initialRejection");
+        nativeInput = {
+            initialRejection: nativeSelectionInvariant(
+                initialRejection,
+                processId,
+            ),
+            rangeMotion: outsideRadiusInputInvariant(
+                postReadiness,
+                processId,
+                initialRejection.windowHandle,
+            ),
+        };
     }
 
     return {
@@ -184,9 +215,10 @@ async function feedbackSessionInvariant(
         ...(focusRecovery === null ? {} : { focusRecovery }),
         expectedKind,
         exactSourceIdentity: expectedIdentity,
+        finalTargetProximity,
         exactCommittedOriginProximity: true,
         exactCommittedFacing: true,
-        stationaryActor: true,
+        ...(actorTransition === null ? { stationaryActor: true } : { actorTransition }),
         acknowledgementFrameCount: 12,
     };
 }
@@ -379,10 +411,9 @@ export async function sustainedCapacityInvariant(
         number(postReadiness, "requestedConsumptionHoldMilliseconds") !== 250 ||
         number(postReadiness, "consumptionHoldMilliseconds") < 250
     ) fail("prototype sustained post-ready consumption timing diverged");
-    const consumptionInput = nativeObjectActionInvariant(
+    const consumptionInput = nativeSelectionInvariant(
         object(postReadiness, "consumption"),
         number(launch, "processId"),
-        false,
     );
     const capacityInput = capacityRejectionInputInvariant(
         object(postReadiness, "capacity"),
@@ -412,58 +443,6 @@ export async function sustainedCapacityInvariant(
         postReadinessCapacityRejection: capacityInput,
         independentExclusionOracle: true,
         exactCapacityOneRollback: true,
-    };
-}
-
-function nativeObjectActionInvariant(
-    evidence: Json,
-    processId: number,
-    expectDelayedExit: boolean,
-): Json {
-    const intervals = evidence.keyPostIntervalsMilliseconds;
-    const expectedMessages = [
-        "WM_SETFOCUS",
-        "WM_KEYDOWN:F",
-        "WM_KEYDOWN:Enter",
-        ...(expectDelayedExit ? ["WM_KEYDOWN:Escape"] : []),
-    ];
-    if (
-        evidence.schema !== "prototype-native-window-action-v4" ||
-        evidence.action !== "input" ||
-        number(evidence, "processId") !== processId ||
-        evidence.requiredVisible !== true ||
-        evidence.windowWasVisible !== true ||
-        JSON.stringify(evidence.keys) !== JSON.stringify([
-                { key: "F", virtualKey: 70, down: true },
-                { key: "Enter", virtualKey: 13, down: true },
-            ]) ||
-        JSON.stringify(evidence.messages) !== JSON.stringify(expectedMessages) ||
-        JSON.stringify(evidence.delaysBeforeKeysMilliseconds) !== JSON.stringify([0, 0]) ||
-        !Array.isArray(intervals) ||
-        intervals.length !== 1 ||
-        typeof intervals[0] !== "number" ||
-        intervals[0] < 0 ||
-        intervals[0] > 50 ||
-        evidence.atomicBatch !== true ||
-        number(evidence, "atomicPrefixLength") !== 2 ||
-        !Number.isSafeInteger(evidence.batchThreadId) ||
-        number(evidence, "batchThreadId") <= 0 ||
-        number(evidence, "batchSpanMilliseconds") < 0 ||
-        number(evidence, "batchSpanMilliseconds") > 50 ||
-        number(evidence, "exitAfterLastMilliseconds") !== (expectDelayedExit ? 250 : 0) ||
-        (expectDelayedExit
-            ? number(evidence, "exitIntervalMilliseconds") < 250 ||
-                number(evidence, "exitIntervalMilliseconds") > 750
-            : evidence.exitIntervalMilliseconds !== null)
-    ) fail("prototype post-ready native object action evidence diverged");
-    return {
-        exactProcessWindow: true,
-        atomicWindowThreadBatch: true,
-        batchThreadId: evidence.batchThreadId,
-        batchSpanMilliseconds: evidence.batchSpanMilliseconds,
-        keyPostIntervalMilliseconds: intervals[0],
-        orderedMessages: evidence.messages,
-        exitIntervalMilliseconds: evidence.exitIntervalMilliseconds,
     };
 }
 

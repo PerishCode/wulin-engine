@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0155 and the current ADR set through 0158 define one live content runtime
+Experiments 0031-0156 and the current ADR set through 0159 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -448,6 +448,14 @@ geometry/material/rig source, and one deterministic object-shadow path:
   completion; the private validator still enforces both current terminal and non-terminal modes,
   one current-owner guard rejects the retired spelling, and no replacement field, decoder,
   fallback, product behavior, process, Runtime, or GPU/resource change exists;
+- one accepted native retained-target OutsideRadius witness in the existing Rejected process that
+  completes the current 12-frame OutsideFacing acknowledgement, releases F/Enter, holds and
+  releases D inside one measured same-PID/window/thread native helper, then submits Enter without F
+  or another nearest scan; the same resolved source-qualified identity remains retained, an
+  independent signed-region/Q9 oracle proves exact Q18 distance beyond the inclusive radius, the
+  second ineligible action adds no Activated/Rejected/suppression frame, and no process, product
+  behavior, Runtime, renderer/GPU/source/synchronization owner, compatibility path, or resource
+  cleanup exists;
 - one mandatory acceptance compatibility cleanup that deletes five readiness-only action process
   launches, every `StartupInput` request/dispatcher, implicit PID-zero next-window selection,
   `startupNativeInput`, four action-only command expectations, and the remaining pre-child action
@@ -678,6 +686,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0156-native-missing-target-action-recovery.md` | Accepted one-shot missing-target ineligibility followed by exact-window source-qualified Activated recovery in the existing process. |
 | `docs/adr/0157-object-focus-evidence-single-ownership.md` | Accepted single-owner object recovery input evidence and deletion of duplicate focus report interpretations. |
 | `docs/adr/0158-retired-delayed-exit-report-alias.md` | Accepted deletion of redundant object-action delayed-exit report aliases with exact messages and intervals retained. |
+| `docs/adr/0159-native-retained-target-outside-radius.md` | Accepted real-process retained-target OutsideRadius proof with one measured native motion interval and independent exact proximity. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -804,6 +813,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0153-native-missing-target-action-recovery/README.md` | Accepted native missing-target consumption and immediate exact-object recovery without product or process expansion. |
 | `experiments/0154-object-focus-evidence-single-ownership/README.md` | Accepted single-owner native recovery evidence with a measured report reduction and unchanged behavior gates. |
 | `experiments/0155-retired-delayed-exit-report-alias/README.md` | Mandatory delayed-exit report-alias deletion with exact native message and interval evidence retained. |
+| `experiments/0156-native-retained-target-outside-radius/README.md` | Accepted same-process retained-target OutsideRadius evidence without another scan or process. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -912,8 +922,9 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/object/observation_order.ts` | Zero-dependency valid asynchronous traversal/observation token-order contract. |
 | `.runseal/support/prototype/object/observation_test.ts` | Equivalent pre/post asynchronous traversal observation order and impossible-token rejection evidence. |
 | `.runseal/support/prototype/object/interaction.ts` | Idle readiness action/facing/acknowledgement/consumption/suppression invariant owner. |
-| `.runseal/support/prototype/object/gates.ts` | Single-owner post-readiness exact-PID Activated focus/missing-target input evidence, Rejected/capacity completion, bounded suppression dwell, independent source identity, restart, and unchanged-subsystem gate composition. |
-| `.runseal/support/prototype/object/input-gates.ts` | Exact same-window missing-target and atomic Enter-release/F/Enter recovery input evidence owner. |
+| `.runseal/support/prototype/object/gates.ts` | Single-owner post-readiness exact-PID Activated focus/missing-target input evidence, Rejected retained-target range/capacity completion, bounded suppression dwell, independent source identity, restart, and unchanged-subsystem gate composition. |
+| `.runseal/support/prototype/object/input-gates.ts` | Exact same-window missing-target, atomic Enter-release/F/Enter recovery, and retained-target motion/action input evidence owner. |
+| `.runseal/support/prototype/object/outside-radius.ts` | Exact retained-target signed-region/Q9 proximity and bounded actor-transition acceptance owner. |
 | `.runseal/support/object/integration.ts` | Object resolution/nearest source, window, movement, and corrupt-pair preservation integration gates. |
 | `.runseal/support/idle-shell.ts` | Current clear-only status, renderer-health, image, and uniformly background semantic evidence. |
 | `.runseal/support/guard/contact-removal.ts` | Forbidden-symbol gate for retired dense/standalone contact surfaces and required private witness authority. |
