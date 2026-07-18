@@ -90,7 +90,6 @@ export function objectRecoveryInputInvariant(
         keyPostIntervalsMilliseconds: intervals,
         orderedMessages: evidence.messages,
         releasedMissingTargetKey: true,
-        delayedExit: true,
         exitIntervalMilliseconds: evidence.exitIntervalMilliseconds,
     };
 }

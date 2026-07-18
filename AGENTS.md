@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0154 and the current ADR set through 0157 define one live content runtime
+Experiments 0031-0155 and the current ADR set through 0158 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -442,6 +442,12 @@ geometry/material/rig source, and one deterministic object-shadow path:
   three constant interpretation flags; exact raw launch/completion and final behavior gates remain
   authoritative, with a central guard rejecting every retired token and no alias, decoder,
   compatibility layer, product behavior, process, Runtime, or GPU/resource change;
+- one mandatory compatibility cleanup that deletes three `delayedExit` object-action report aliases
+  from sustained consumption, Activated recovery, and Rejected action while retaining their exact
+  ordered messages, requested delay checks, measured exit intervals, native ownership, and process
+  completion; the private validator still enforces both current terminal and non-terminal modes,
+  one current-owner guard rejects the retired spelling, and no replacement field, decoder,
+  fallback, product behavior, process, Runtime, or GPU/resource change exists;
 - one mandatory acceptance compatibility cleanup that deletes five readiness-only action process
   launches, every `StartupInput` request/dispatcher, implicit PID-zero next-window selection,
   `startupNativeInput`, four action-only command expectations, and the remaining pre-child action
@@ -671,6 +677,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0155-native-boundary-held-state-readmission.md` | Accepted exact-window Shift/W/A reassertion removing the finite-boundary phase's implicit cross-helper held-state dependency. |
 | `docs/adr/0156-native-missing-target-action-recovery.md` | Accepted one-shot missing-target ineligibility followed by exact-window source-qualified Activated recovery in the existing process. |
 | `docs/adr/0157-object-focus-evidence-single-ownership.md` | Accepted single-owner object recovery input evidence and deletion of duplicate focus report interpretations. |
+| `docs/adr/0158-retired-delayed-exit-report-alias.md` | Accepted deletion of redundant object-action delayed-exit report aliases with exact messages and intervals retained. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -796,6 +803,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0152-native-boundary-held-state-readmission/README.md` | Accepted atomic held-state reassertion and clean-commit finite-boundary evidence without product or process expansion. |
 | `experiments/0153-native-missing-target-action-recovery/README.md` | Accepted native missing-target consumption and immediate exact-object recovery without product or process expansion. |
 | `experiments/0154-object-focus-evidence-single-ownership/README.md` | Accepted single-owner native recovery evidence with a measured report reduction and unchanged behavior gates. |
+| `experiments/0155-retired-delayed-exit-report-alias/README.md` | Mandatory delayed-exit report-alias deletion with exact native message and interval evidence retained. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |

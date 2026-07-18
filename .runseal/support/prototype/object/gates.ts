@@ -418,14 +418,14 @@ export async function sustainedCapacityInvariant(
 function nativeObjectActionInvariant(
     evidence: Json,
     processId: number,
-    delayedExit: boolean,
+    expectDelayedExit: boolean,
 ): Json {
     const intervals = evidence.keyPostIntervalsMilliseconds;
     const expectedMessages = [
         "WM_SETFOCUS",
         "WM_KEYDOWN:F",
         "WM_KEYDOWN:Enter",
-        ...(delayedExit ? ["WM_KEYDOWN:Escape"] : []),
+        ...(expectDelayedExit ? ["WM_KEYDOWN:Escape"] : []),
     ];
     if (
         evidence.schema !== "prototype-native-window-action-v4" ||
@@ -450,8 +450,8 @@ function nativeObjectActionInvariant(
         number(evidence, "batchThreadId") <= 0 ||
         number(evidence, "batchSpanMilliseconds") < 0 ||
         number(evidence, "batchSpanMilliseconds") > 50 ||
-        number(evidence, "exitAfterLastMilliseconds") !== (delayedExit ? 250 : 0) ||
-        (delayedExit
+        number(evidence, "exitAfterLastMilliseconds") !== (expectDelayedExit ? 250 : 0) ||
+        (expectDelayedExit
             ? number(evidence, "exitIntervalMilliseconds") < 250 ||
                 number(evidence, "exitIntervalMilliseconds") > 750
             : evidence.exitIntervalMilliseconds !== null)
@@ -463,7 +463,6 @@ function nativeObjectActionInvariant(
         batchSpanMilliseconds: evidence.batchSpanMilliseconds,
         keyPostIntervalMilliseconds: intervals[0],
         orderedMessages: evidence.messages,
-        delayedExit,
         exitIntervalMilliseconds: evidence.exitIntervalMilliseconds,
     };
 }
