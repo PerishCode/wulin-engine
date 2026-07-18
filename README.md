@@ -1133,6 +1133,17 @@ feedback、suppression、零 render block、source-qualified identity 与 clean 
 103/48/20 tests 与 0 deny / 5 个既有 Flavor warning 通过；产品 Rust、Runtime、
 renderer/GPU/source/synchronization、schema、进程数与资源清理均未改变。
 
+Experiment 0156 在既有 Rejected 子进程内直接证明 retained-target `OutsideRadius`：
+先完成原有 F/Enter `OutsideFacing` 与 12-frame red feedback，再在同一 PID/window/thread
+原子释放 F/Enter 并按下 D，在同一 native helper 内等待 513.2267ms 后释放 D，最后只按
+Enter（不再按 F/scan）并延迟 Escape。`canonical-prototype-v71` 在 172.403 秒通过，
+463,475-byte report 中 actor 精确移动 `(+960,0)` Q9（30 个 32-Q9 Walk step），同一
+resolved source-qualified local ID 495 的 final delta 为 `(-1184,-32)` Q9、squared
+distance 1,402,880 Q18，严格越过 inclusive 262,144 gate。最终恰为 committed 0 /
+ineligible 2、Rejected 12 帧、Activated/suppression/render-block 0 帧、exit 0、两值、
+空 stderr/trailing output；103/48/20 tests 与 0 deny / 5 个既有 Flavor warning 通过。
+没有新增进程、scan、产品 Rust、Runtime、renderer/GPU/source/synchronization 或资源清理。
+
 ## Project model
 
 - [Repository ownership model](docs/architecture/repository-model.md)

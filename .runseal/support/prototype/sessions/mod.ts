@@ -5,8 +5,8 @@ import {
     postConsumptionCapacity,
     postFocusLocomotionReadmission,
     postMissingTarget,
-    postObjectActionExit,
     postObjectRecoveryExit,
+    postOutsideRadiusExit,
     postPrototypeCapacityRejection,
     pressPrototypeEscape,
     requestPrototypeWindowClose,
@@ -213,9 +213,8 @@ export async function gracefulExit(
             postReadinessInput = await postConsumptionCapacity(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));
         } else if (postReadiness === "object-feedback") {
-            const sequence = await postObjectActionExit(child.pid);
-            postReadinessInput = { sequence };
-            exitInput = sequence;
+            postReadinessInput = await postOutsideRadiusExit(child.pid);
+            exitInput = object(postReadinessInput, "outsideRadius");
         } else if (postReadiness === "object-feedback-focus") {
             const suspended = await suspendWithObjectBatch(child.pid);
             await new Promise((resolve) => setTimeout(resolve, 250));

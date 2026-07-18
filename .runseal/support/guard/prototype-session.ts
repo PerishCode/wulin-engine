@@ -200,7 +200,7 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("diagonalWalkSessionInvariant") ||
         !sessionGates.includes("diagonalRunSessionInvariant") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
-        !inputActions.includes("postObjectActionExit") ||
+        !inputActions.includes("postOutsideRadiusExit") ||
         !inputActions.includes("postMissingTarget") ||
         !inputActions.includes("postObjectRecoveryExit") ||
         !inputActions.includes("postConsumptionCapacity") ||
@@ -430,13 +430,13 @@ export async function requireBoundedPrototypeSession(
         !input.includes("0x0010") ||
         !input.includes("0x0008") ||
         input.includes("DestroyWindow") ||
-        !inputActions.includes('{ key: "D", virtualKey: 0x44, down: true }') ||
-        !inputActions.includes('{ key: "D", virtualKey: 0x44, down: false }') ||
+        !inputActions.includes("OUTSIDE_RADIUS_HOLD_MILLISECONDS = 500") ||
+        !inputActions.includes('"prototype-object-outside-radius-input-v1"') ||
+        !objectGates.includes("nativeSelectionInvariant") ||
+        !objectGates.includes("finalTargetProximity") ||
         !inputActions.includes('"prototype-capacity-rejection-input-v1"') ||
-        !objectGates.includes("(expectDelayedExit ? 250 : 0)") ||
-        !objectGates.includes('number(evidence, "exitIntervalMilliseconds") < 250') ||
-        !inputActions.includes('{ key: "F", virtualKey: 0x46, down: false }') ||
-        !inputActions.includes('{ key: "Enter", virtualKey: 0x0D, down: false }')
+        !objectGates.includes("outsideRadiusActorInvariant") ||
+        !objectGates.includes("outsideRadiusInputInvariant")
     ) fail("guard: bounded Prototype session contract diverged");
     const waitIndex = main.indexOf("runtime.wait_idle()");
     const completionIndex = main.indexOf("session::publish_completion");
