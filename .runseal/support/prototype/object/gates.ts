@@ -36,8 +36,8 @@ export function restartObservation(restarted: Json, first: Json): void {
 export async function objectFeedbackGates(
     admitted: Json,
     rejected: Json,
-    admittedBaseline: Json,
-    rejectedBaseline: Json,
+    admittedStartup: Json,
+    rejectedStartup: Json,
     objects: string,
     admittedBase: Coord,
     rejectedBase: Coord,
@@ -48,7 +48,7 @@ export async function objectFeedbackGates(
     return {
         admitted: await feedbackSessionInvariant(
             admitted,
-            admittedBaseline,
+            admittedStartup,
             objects,
             admittedBase,
             "activated",
@@ -57,7 +57,7 @@ export async function objectFeedbackGates(
         ),
         rejected: await feedbackSessionInvariant(
             rejected,
-            rejectedBaseline,
+            rejectedStartup,
             objects,
             rejectedBase,
             "rejected",
@@ -69,7 +69,7 @@ export async function objectFeedbackGates(
 
 async function feedbackSessionInvariant(
     launch: Json,
-    baseline: Json,
+    expectedStartup: Json,
     source: string,
     windowCenter: Coord,
     expectedKind: "activated" | "rejected",
@@ -78,14 +78,10 @@ async function feedbackSessionInvariant(
 ): Promise<Json> {
     same(
         startupInvariant(launch),
-        startupInvariant(baseline),
+        expectedStartup,
         `prototype post-ready ${expectedKind} configuration`,
     );
-    same(
-        actorInvariant(launch, windowCenter),
-        actorInvariant(baseline, windowCenter),
-        `prototype post-ready ${expectedKind} initial actor authority`,
-    );
+    actorInvariant(launch, windowCenter);
     const readiness = object(launch, "readiness");
     const completion = object(launch, "completion");
     const readyActor = object(object(readiness, "actor"), "state");

@@ -113,10 +113,8 @@ export async function requireBoundedPrototypeSession(
         atomicPrefixIndex,
     );
     const capturedReadyIndex = acceptance.indexOf("export async function capturedReady");
-    const capturedReadyEndIndex = acceptance.indexOf(
-        "export async function sustainedCapacitySession",
-        capturedReadyIndex,
-    );
+    // deno-fmt-ignore
+    const capturedReadyEndIndex = acceptance.indexOf("export async function sustainedCapacitySession", capturedReadyIndex);
     const capturedReadySource = acceptance.slice(capturedReadyIndex, capturedReadyEndIndex);
     const capturedSpawnIndex = acceptance.indexOf(
         "new Deno.Command(executable",
@@ -199,6 +197,8 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("MINIMUM_COPIED_SUBTREE_BYTES = 16") ||
         !sessionGates.includes("requireSingleOwnerInvariant(") ||
         !prototypeHost.includes("nontrivialCopiedSubtreeCount: 0") ||
+        prototypeHost.includes("objectActionBaseline") ||
+        !prototypeHost.includes("startupDocumentExpectation(") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
         !inputActions.includes("postOutsideRadiusExit") ||
         !inputActions.includes("postMissingTarget") ||
