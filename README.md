@@ -1122,6 +1122,17 @@ target/acknowledgement null；336 live frames 内零 stall/render block，exit 0
 stderr/trailing output。103/48/20 tests 与 0 deny / 5 个既有 Flavor warning 通过；
 产品 Rust、Runtime、renderer/GPU/source/synchronization、schema、进程数与资源清理均未改变。
 
+Experiment 0155 执行强制兼容清理：删除 sustained consumption、Activated recovery 与
+Rejected object action 报告中三个可由 exact ordered messages 和 exit interval 唯一推导的
+`delayedExit` 别名；私有 validator 仍严格区分“无 Escape/null interval”和“延迟
+Escape/250..=750ms interval”，中央 500-line guard 扫描两个当前报告 owner 并禁止旧
+token 回归。`canonical-prototype-v70` 首轮在 172.820 秒通过，459,410-byte report 比
+v69 减少 81 bytes，旧 token 为零。三条证据分别保留 null、271.2995ms、269.0739ms
+exit interval；Activated/Rejected/sustained 路径保持既有 action count、12-frame
+feedback、suppression、零 render block、source-qualified identity 与 clean completion。
+103/48/20 tests 与 0 deny / 5 个既有 Flavor warning 通过；产品 Rust、Runtime、
+renderer/GPU/source/synchronization、schema、进程数与资源清理均未改变。
+
 ## Project model
 
 - [Repository ownership model](docs/architecture/repository-model.md)

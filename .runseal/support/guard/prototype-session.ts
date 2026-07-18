@@ -92,16 +92,16 @@ export async function requireBoundedPrototypeSession(
     if (currentNativeSessionSources.some((source) => source.includes("startupNativeInput"))) {
         fail("guard: retired startup native-input report branch returned");
     }
-    const currentActionReportSources = [
+    const actionReports = [
         ...currentNativeSessionSources,
         focusAcceptance,
         boundaryAcceptance,
         objectGates,
+        await Deno.readTextFile(`${root}/.runseal/support/prototype/object/input-gates.ts`),
     ];
-    if (
-        currentActionReportSources.some((source) => source.includes("actionAfterReadiness"))
-    ) {
-        fail("guard: retired post-readiness report flag returned");
+    // Match report field spellings without rejecting the live internal expectation parameter.
+    if (actionReports.some((source) => /actionAfterReadiness|delayedExit/.test(source))) {
+        fail("guard: retired Prototype action report field returned");
     }
     const nativeTypeIndex = input.indexOf("Add-Type -TypeDefinition");
     const helperReadyIndex = input.indexOf(
@@ -433,7 +433,7 @@ export async function requireBoundedPrototypeSession(
         !inputActions.includes('{ key: "D", virtualKey: 0x44, down: true }') ||
         !inputActions.includes('{ key: "D", virtualKey: 0x44, down: false }') ||
         !inputActions.includes('"prototype-capacity-rejection-input-v1"') ||
-        !objectGates.includes("(delayedExit ? 250 : 0)") ||
+        !objectGates.includes("(expectDelayedExit ? 250 : 0)") ||
         !objectGates.includes('number(evidence, "exitIntervalMilliseconds") < 250') ||
         !inputActions.includes('{ key: "F", virtualKey: 0x46, down: false }') ||
         !inputActions.includes('{ key: "Enter", virtualKey: 0x0D, down: false }')
