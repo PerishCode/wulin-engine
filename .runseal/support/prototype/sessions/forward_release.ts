@@ -47,7 +47,7 @@ function nativeForwardReleaseInvariant(launch: Json): Json {
         atomicInitialPress: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
-        orderedMessages: sequence.messages,
+        exactMessageOrder: true,
         walkHoldIntervalMilliseconds: intervals[0],
         stationaryHoldIntervalMilliseconds: exitInterval,
     };
@@ -139,8 +139,7 @@ export function forwardReleaseSessionInvariant(launch: Json, session: Json): Jso
         readyPresentation,
         finalPresentation,
         clock: {
-            ready: readyClock,
-            final: finalClock,
+            continuityValidated: true,
             discontinuity: false,
         },
     };

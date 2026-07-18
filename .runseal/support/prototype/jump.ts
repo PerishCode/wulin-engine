@@ -226,10 +226,10 @@ function nativeReadmissionInvariant(
     ) fail("prototype native Jump-readmission evidence diverged");
     return {
         exactProcessWindow: true,
-        firstMessages: first.messages,
-        suspendedMessages: suspended.messages,
-        resumedMessages: resumed.messages,
-        secondMessages: second.messages,
+        exactFirstMessageOrder: true,
+        exactSuspendedMessageOrder: true,
+        exactResumedMessageOrder: true,
+        exactSecondMessageOrder: true,
         atomicHeldCleanup: {
             threadId: suspended.batchThreadId,
             spanMilliseconds: suspended.batchSpanMilliseconds,
@@ -285,7 +285,7 @@ function nativeMidairInvariant(evidence: Json, processId: number): Json {
     ) fail("prototype native midair-Jump timing diverged");
     return {
         exactProcessWindow: true,
-        messages: evidence.messages,
+        exactMessageOrder: true,
         firstToSecondMs,
         secondToExitMs,
         normalizedMidairPress: true,
@@ -343,8 +343,7 @@ export function jumpReadmissionInvariant(launch: Json, session: Json): Json {
             secondActionToExitPostingUpperBoundMs: flightIntervalMs,
         },
         clock: {
-            ready: flight.readyClock,
-            final: flight.finalClock,
+            continuityValidated: true,
             exactFocusSuspendResumeCount: 1,
             postResumeResetCount: 1,
             elapsedBacklog: false,
@@ -401,8 +400,7 @@ export function jumpMidairInvariant(launch: Json, session: Json): Json {
             presentation: "walk",
         },
         clock: {
-            ready: flight.readyClock,
-            final: flight.finalClock,
+            continuityValidated: true,
             elapsedBacklog: false,
         },
         nativeJump,

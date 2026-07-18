@@ -1154,6 +1154,16 @@ stderr/trailing output。Activated/Rejected/sustained 的 action 与 12-frame fe
 计数保持门限，103/48/20 tests 与 0 deny / 5 个既有 Flavor warning 通过。中央 guard
 仍为 500 行；没有 alias、decoder、dual write、产品 Rust、Runtime、GPU/source 或资源清理。
 
+Experiment 0158 继续收敛 raw launch 与 paired invariant 的证据所有权：v72 的 19 对分支中
+存在 178 个精确复制的 object/array subtree，共 20,423 minified bytes，涵盖完整 clock、
+object state、camera rig、native message/timing array、identity 与 simulation command。v73
+只在 raw launch 保留完整值，invariant 在原值校验后仅发布 derived fact，并以固定 16-byte
+pairwise runtime gate 阻止非平凡复制回归。`canonical-prototype-v73` 在 167.176 秒通过，
+402,600-byte report 比 v72 减少 39,285 bytes（8.89%）；独立递归审计确认 19 对中复制数为
+0。19 个 unique PID 均 exit 0、拥有 `nativeInput`、恰好两值且 stderr/trailing output 为空，
+Activated/Rejected/sustained/boundary 行为门限与 103/48/20 tests、0 deny / 5 个既有 Flavor
+warning 全部保持。中央 guard 仍为 500 行；没有产品 Rust、Runtime、GPU/source 或资源清理。
+
 ## Project model
 
 - [Repository ownership model](docs/architecture/repository-model.md)

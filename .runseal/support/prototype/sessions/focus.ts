@@ -97,9 +97,9 @@ function nativeFocusInvariant(
     ) fail("prototype native focus-discontinuity evidence diverged");
     return {
         exactProcessWindow: true,
-        suspendedMessages: suspended.messages,
-        resumedMessages: resumed.messages,
-        readmissionMessages: readmission.messages,
+        exactSuspendedMessageOrder: true,
+        exactResumedMessageOrder: true,
+        exactReadmissionMessageOrder: true,
         atomicWindowThreadBatch: {
             threadId: suspended.batchThreadId,
             spanMilliseconds: suspended.batchSpanMilliseconds,
@@ -231,8 +231,7 @@ export function focusSessionInvariant(launch: Json, session: Json): Json {
         readyPresentation,
         finalPresentation,
         clock: {
-            ready: readyClock,
-            final: finalClock,
+            continuityValidated: true,
             exactSuspendResumeCount: 1,
             postResumeResetCount: 1,
             elapsedBacklog: false,

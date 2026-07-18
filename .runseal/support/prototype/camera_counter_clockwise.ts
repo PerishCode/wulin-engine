@@ -40,7 +40,7 @@ function nativeCounterClockwiseInvariant(launch: Json): Json {
     ) fail("prototype native counter-clockwise camera evidence diverged");
     return {
         exactProcessWindow: true,
-        messages: sequence.messages,
+        exactMessageOrder: true,
         atomicBatch: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
@@ -124,8 +124,7 @@ export function counterClockwiseSessionInvariant(launch: Json, session: Json): J
         deltaZQ9,
         presentation,
         clock: {
-            ready: readyClock,
-            final: finalClock,
+            continuityValidated: true,
             discontinuity: false,
         },
     };

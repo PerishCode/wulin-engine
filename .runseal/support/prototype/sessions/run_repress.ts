@@ -47,7 +47,7 @@ function nativeRunRepressInvariant(launch: Json): Json {
         atomicInitialPrefix: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
-        orderedMessages: sequence.messages,
+        exactMessageOrder: true,
         walkHoldIntervalMilliseconds: intervals[0],
         exitIntervalMilliseconds: exitInterval,
     };
@@ -138,8 +138,7 @@ export function runRepressSessionInvariant(launch: Json, session: Json): Json {
         readyPresentation,
         finalPresentation,
         clock: {
-            ready: readyClock,
-            final: finalClock,
+            continuityValidated: true,
             discontinuity: false,
         },
     };

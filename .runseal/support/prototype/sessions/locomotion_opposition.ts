@@ -75,8 +75,8 @@ function nativeOppositionInvariant(launch: Json): Json {
         atomicWindowThreadBatch: true,
         batchThreadId: opposedInput.batchThreadId,
         batchSpanMilliseconds: opposedInput.batchSpanMilliseconds,
-        orderedOpposedMessages: opposedInput.messages,
-        orderedReleaseMessages: release.messages,
+        exactOpposedMessageOrder: true,
+        exactReleaseMessageOrder: true,
         opposedHoldMilliseconds: nativeInput.opposedHoldMilliseconds,
         exitIntervalMilliseconds: exitInterval,
     };
@@ -169,8 +169,7 @@ export function locomotionOppositionSessionInvariant(launch: Json, session: Json
         readyPresentation,
         finalPresentation,
         clock: {
-            ready: readyClock,
-            final: finalClock,
+            continuityValidated: true,
             discontinuity: false,
         },
     };

@@ -214,7 +214,7 @@ async function feedbackSessionInvariant(
         nativeInput,
         ...(focusRecovery === null ? {} : { focusRecovery }),
         expectedKind,
-        exactSourceIdentity: expectedIdentity,
+        exactSourceIdentity: true,
         finalTargetProximity,
         exactCommittedOriginProximity: true,
         exactCommittedFacing: true,
@@ -307,8 +307,8 @@ function nativeObjectFocusInvariant(
         nativeInput,
         focusRecovery: {
             exactProcessWindow: true,
-            suspendedMessages: suspended.messages,
-            resumedMessages: resumed.messages,
+            exactSuspendedMessageOrder: true,
+            exactResumedMessageOrder: true,
             atomicCancelledIntents: {
                 threadId: suspended.batchThreadId,
                 spanMilliseconds: suspended.batchSpanMilliseconds,
@@ -320,8 +320,7 @@ function nativeObjectFocusInvariant(
             ),
             missingHoldMilliseconds: postReadiness.missingHoldMilliseconds,
             clock: {
-                ready: readyClock,
-                final: finalClock,
+                continuityValidated: true,
                 exactSuspendResumeCount: 1,
                 postResumeResetCount: 1,
                 elapsedBacklog: false,
@@ -430,8 +429,8 @@ export async function sustainedCapacityInvariant(
             camera: cameraDriverInvariant(launch),
             traversal: traversalInvariant(launch, windowCenter),
         },
-        consumedIdentity: consumed,
-        rejectedTargetIdentity: expectedIdentity,
+        exactConsumedIdentity: true,
+        exactRejectedTargetIdentity: true,
         committedCount: 1,
         postReadinessIneligibleCount: 1,
         acknowledgement: null,
@@ -467,8 +466,12 @@ function capacityRejectionInputInvariant(evidence: Json, processId: number): Jso
             ])
     ) fail("prototype sustained capacity-rejection input evidence diverged");
     return {
-        ...evidence,
+        revision: evidence.revision,
+        requestedMotionHoldMilliseconds: evidence.requestedMotionHoldMilliseconds,
+        motionHoldMilliseconds: evidence.motionHoldMilliseconds,
         exactProcessWindow: true,
+        exactMotionKeys: true,
+        exactActionKeys: true,
         motionThenStationaryAction: true,
     };
 }

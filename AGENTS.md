@@ -100,7 +100,7 @@ Additional conventions:
 This section is the sole changing live capability ledger. The repository model owns stable
 structure and dependency rules and must not duplicate a stage snapshot.
 
-Experiments 0031-0157 and the current ADR set through 0160 define one live content runtime
+Experiments 0031-0158 and the current ADR set through 0161 define one live content runtime
 with explicit object presentation authority, deterministic frame-driven presentation time,
 one explicit deterministic simulation schedule, private fixed terrain-motion/translation/advance
 contracts consumed by one retained runtime-actor lifecycle plus a sole transactional schedule/actor
@@ -463,6 +463,12 @@ geometry/material/rig source, and one deterministic object-shadow path:
   window-close input, and makes the existing 500-line session guard reject both retired spellings
   across current owners with no alias, decoder, dual write, version branch, product behavior,
   process, Runtime, renderer/GPU/source/synchronization change, or resource cleanup;
+- one accepted Prototype invariant-evidence ownership boundary that keeps complete readiness,
+  completion, native-input, clock, camera, simulation, and object values only under each of 19 raw
+  graceful launches; paired invariants retain only checked derived facts, and one fixed pairwise
+  runtime gate rejects every exact copied object/array subtree of at least 16 minified UTF-8 bytes,
+  with a zero-copy aggregate fact and no alias, decoder, dual write, relaxed behavior gate, process,
+  product, Runtime, renderer/GPU/source/synchronization change, or resource cleanup;
 - one mandatory acceptance compatibility cleanup that deletes five readiness-only action process
   launches, every `StartupInput` request/dispatcher, implicit PID-zero next-window selection,
   `startupNativeInput`, four action-only command expectations, and the remaining pre-child action
@@ -695,6 +701,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0158-retired-delayed-exit-report-alias.md` | Accepted deletion of redundant object-action delayed-exit report aliases with exact messages and intervals retained. |
 | `docs/adr/0159-native-retained-target-outside-radius.md` | Accepted real-process retained-target OutsideRadius proof with one measured native motion interval and independent exact proximity. |
 | `docs/adr/0160-single-owner-prototype-native-input.md` | Accepted one native-input report owner per graceful Prototype launch and deletion of split-field duplication. |
+| `docs/adr/0161-single-owner-prototype-invariant-evidence.md` | Accepted raw-launch evidence ownership with derived-only invariants and a fixed pairwise non-duplication gate. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -823,6 +830,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0155-retired-delayed-exit-report-alias/README.md` | Mandatory delayed-exit report-alias deletion with exact native message and interval evidence retained. |
 | `experiments/0156-native-retained-target-outside-radius/README.md` | Accepted same-process retained-target OutsideRadius evidence without another scan or process. |
 | `experiments/0157-single-owner-prototype-native-input/README.md` | Mandatory single-owner graceful native-input report convergence with measured duplicate-byte removal. |
+| `experiments/0158-single-owner-prototype-invariant-evidence/README.md` | Accepted derived-only Prototype invariants, fixed pairwise copy rejection, and measured report reduction. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -945,14 +953,14 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/live-operator-surface.ts` | Exact wrapper set, single current-boundary authority, and maintained prototype-operator documentation gate. |
 | `.runseal/support/guard/input-journal-removal.ts` | Forbidden-file/symbol/verb/command gate for the retired diagnostic input journal surface. |
 | `.runseal/support/guard/object-identity.ts` | Required typed source-qualified resolver, nearest exclusion, frame suppression, prototype consumption, and forbidden old-surface gate. |
-| `.runseal/support/guard/prototype-session.ts` | Required bounded Escape/window-close/focus/Jump/camera/Run/boundary/object post-readiness sessions, exact-PID schema-4 timing, single-owner native-input reporting, direct forced-process enforcement, and forbidden split/duplicate/negative/forced/startup/redundant/old/transient surfaces. |
+| `.runseal/support/guard/prototype-session.ts` | Required bounded Escape/window-close/focus/Jump/camera/Run/boundary/object post-readiness sessions, exact-PID schema-4 timing, single-owner native-input and invariant reporting, direct forced-process enforcement, and forbidden split/duplicate/negative/forced/startup/redundant/old/transient surfaces. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/actor/admission.ts` | Canonical-aggregate schedule evidence, strict schema-2 advance, typed pending block, zero-commit rollback, and retained-frame support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |
 | `.runseal/support/actor/animation.ts` | Fixed-tick spawn/transition actor epoch, GPU local-phase, same-clip retention, and fractional rollback support. |
 | `.runseal/support/actor/simulation.ts` | Canonical-aggregate schedule assertions plus schema-2 fractional, partition, rollback, and sole actor advance support. |
 | `.runseal/support/runtime-bootstrap.ts` | Configured canonical-ready/restart plus direct-output current missing/corrupt failure and bounded Prototype invariant/lifecycle checkpoints. |
-| `.runseal/support/prototype/host.ts` | Prototype direct-output current missing/corrupt startup failures, plain readiness/restart baselines, post-readiness action sessions, exact boundary completion, Sidecar status/PID ownership, and no-inspect lifecycle orchestration. |
+| `.runseal/support/prototype/host.ts` | Prototype direct-output current missing/corrupt startup failures, plain readiness/restart baselines, post-readiness action sessions, exact boundary completion, 19-pair single-owner evidence aggregation, Sidecar status/PID ownership, and no-inspect lifecycle orchestration. |
 | `.runseal/support/prototype/boundary.ts` | Post-readiness exact-PID held-Run duration, atomic tangential-phase held-state reassertion, conservative endpoint band, final Survey, clock/frame, and graceful finite-edge completion oracle. |
 | `.runseal/support/prototype/actor.ts` | Current actor, grounded spawn, and bounded animation-epoch readiness invariant owner. |
 | `.runseal/support/prototype/camera.ts` | Exact default/orbit rig, actor anchor, camera/frame readiness, held-repeat, invalid-key, and atomic opposite-edge locomotion oracle owner. |
@@ -965,7 +973,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/prototype/jump.ts` | Exact native Jump policy, first/second/single-flight arithmetic, landing/readmission, and midair-rejection oracles. |
 | `.runseal/support/prototype/presentation.ts` | Exact prototype Survey/Walk/Run, locomotion yaw, and committed actor presentation invariant owner. |
 | `.runseal/support/prototype/sessions/focus.ts` | Exact atomic Space/W/focus-loss batch, clock recovery, and resumed-simulation suppression oracle. |
-| `.runseal/support/prototype/sessions/gates.ts` | Bounded forward-release/window-close/focus/Jump/Run release/re-press/opposite-locomotion/diagonal-Walk/diagonal-Run/camera/input/sustained session matrix, positive baseline comparisons, and exact invariant composition. |
+| `.runseal/support/prototype/sessions/gates.ts` | Bounded forward-release/window-close/focus/Jump/Run release/re-press/opposite-locomotion/diagonal-Walk/diagonal-Run/camera/input/sustained session matrix, positive baseline comparisons, derived-only invariant composition, and fixed pairwise copied-subtree rejection. |
 | `.runseal/support/prototype/sessions/mod.ts` | Shared Prototype readiness/completion framing, single-owner graceful native-input report, direct readiness-only stdout/stderr enforcement, plus exact-PID finite-boundary, object/action, missing-target, and focus-recovery execution. |
 | `.runseal/support/prototype/sessions/forward_release.ts` | Post-readiness W hold/release, exact Walk-to-Survey retained-facing transition, clock, and bounded session oracle owner. |
 | `.runseal/support/prototype/sessions/diagonal_walk.ts` | Post-readiness atomic W/A, delayed W/A releases, exact 23-Q9 diagonal plus 32-Q9 retained-left Walk decomposition, retained-facing Survey, clock, and bounded session oracle owner. |

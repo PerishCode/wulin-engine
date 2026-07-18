@@ -463,9 +463,8 @@ export function gracefulCompletionInvariant(
         bootstrapFrameCount: bootstrapFrames,
         readyLiveFrameCount: number(object(readiness, "simulation_driver"), "liveFrameCount"),
         finalLiveFrameCount: liveFrames,
-        finalClock: clock,
-        finalObservation: observation,
-        finalInteraction: interaction,
+        finalClockMonotonic: true,
+        finalObjectStateValidated: true,
         exactlyTwoValues: true,
     };
 }

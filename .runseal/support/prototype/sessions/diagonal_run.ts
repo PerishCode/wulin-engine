@@ -61,9 +61,9 @@ function nativeDiagonalRunInvariant(launch: Json): Json {
         atomicWindowThreadBatch: true,
         batchThreadId: sequence.batchThreadId,
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
-        diagonalKeyPostIntervalsMilliseconds: intervals.slice(0, 2),
+        diagonalKeyPostIntervalCount: 2,
         diagonalHoldMilliseconds: intervals[2],
-        orderedMessages: sequence.messages,
+        exactMessageOrder: true,
         leftRunHoldMilliseconds: intervals[3],
         stationaryHoldMilliseconds: exitInterval,
     };
@@ -171,8 +171,7 @@ export function diagonalRunSessionInvariant(launch: Json, session: Json): Json {
         finalPresentation,
         animationEpochTransitioned: true,
         clock: {
-            ready: readyClock,
-            final: finalClock,
+            continuityValidated: true,
             discontinuity: false,
         },
     };
