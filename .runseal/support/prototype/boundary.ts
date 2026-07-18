@@ -79,6 +79,8 @@ export function boundaryRunInputInvariant(launch: Json): Json {
         tangentialRun.requiredVisible !== true ||
         tangentialRun.windowWasVisible !== true ||
         JSON.stringify(tangentialRun.keys) !== JSON.stringify([
+                { key: "Shift", virtualKey: 0x10, down: true },
+                { key: "W", virtualKey: 0x57, down: true },
                 { key: "A", virtualKey: 0x41, down: true },
                 { key: "A", virtualKey: 0x41, down: false },
                 { key: "W", virtualKey: 0x57, down: false },
@@ -86,6 +88,8 @@ export function boundaryRunInputInvariant(launch: Json): Json {
             ]) ||
         JSON.stringify(tangentialRun.messages) !== JSON.stringify([
                 "WM_SETFOCUS",
+                "WM_KEYDOWN:Shift",
+                "WM_KEYDOWN:W",
                 "WM_KEYDOWN:A",
                 "WM_KEYUP:A",
                 "WM_KEYUP:W",
@@ -93,13 +97,16 @@ export function boundaryRunInputInvariant(launch: Json): Json {
                 "WM_KEYDOWN:Escape",
             ]) ||
         JSON.stringify(tangentialRun.delaysBeforeKeysMilliseconds) !==
-            JSON.stringify([0, BOUNDARY_SLIDE_HOLD_MILLISECONDS, 0, 0]) ||
+            JSON.stringify([0, 0, 0, BOUNDARY_SLIDE_HOLD_MILLISECONDS, 0, 0]) ||
         !Array.isArray(tangentialIntervals) ||
-        tangentialIntervals.length !== 3 ||
-        typeof tangentialIntervals[0] !== "number" ||
-        tangentialIntervals[0] < BOUNDARY_SLIDE_HOLD_MILLISECONDS ||
-        tangentialIntervals[0] > BOUNDARY_SLIDE_HOLD_MILLISECONDS + 500 ||
-        tangentialIntervals.slice(1).some((interval) =>
+        tangentialIntervals.length !== 5 ||
+        tangentialIntervals.slice(0, 2).some((interval) =>
+            typeof interval !== "number" || interval < 0 || interval > 50
+        ) ||
+        typeof tangentialIntervals[2] !== "number" ||
+        tangentialIntervals[2] < BOUNDARY_SLIDE_HOLD_MILLISECONDS ||
+        tangentialIntervals[2] > BOUNDARY_SLIDE_HOLD_MILLISECONDS + 500 ||
+        tangentialIntervals.slice(3).some((interval) =>
             typeof interval !== "number" || interval < 0 || interval > 50
         ) ||
         number(tangentialRun, "exitAfterLastMilliseconds") !==
@@ -109,9 +116,11 @@ export function boundaryRunInputInvariant(launch: Json): Json {
         tangentialRun.exitIntervalMilliseconds >
             BOUNDARY_STATIONARY_HOLD_MILLISECONDS + 500 ||
         tangentialRun.atomicBatch !== false ||
-        number(tangentialRun, "atomicPrefixLength") !== 0 ||
-        tangentialRun.batchThreadId !== null ||
-        tangentialRun.batchSpanMilliseconds !== null
+        number(tangentialRun, "atomicPrefixLength") !== 3 ||
+        !Number.isSafeInteger(tangentialRun.batchThreadId) ||
+        number(tangentialRun, "batchThreadId") <= 0 ||
+        number(tangentialRun, "batchSpanMilliseconds") < 0 ||
+        number(tangentialRun, "batchSpanMilliseconds") > 50
     ) fail("prototype native finite-boundary Run input evidence diverged");
     same(tangentialRun, object(launch, "exitInput"), "prototype boundary exit input");
     return {
@@ -127,8 +136,12 @@ export function boundaryRunInputInvariant(launch: Json): Json {
         heldMilliseconds,
         tangentialRun: {
             keyPostIntervalsMilliseconds: tangentialIntervals,
-            holdMilliseconds: tangentialIntervals[0],
-            releaseIntervalsMilliseconds: tangentialIntervals.slice(1),
+            atomicPrefixLength: 3,
+            batchThreadId: tangentialRun.batchThreadId,
+            batchSpanMilliseconds: tangentialRun.batchSpanMilliseconds,
+            heldStateReasserted: true,
+            holdMilliseconds: tangentialIntervals[2],
+            releaseIntervalsMilliseconds: tangentialIntervals.slice(3),
         },
         forwardAndRunReleased: true,
         stationaryHoldMilliseconds: tangentialRun.exitIntervalMilliseconds,

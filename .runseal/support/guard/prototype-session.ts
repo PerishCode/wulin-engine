@@ -275,6 +275,7 @@ export async function requireBoundedPrototypeSession(
         !boundaryAcceptance.includes("atomicWindowThreadBatch: true") ||
         !boundaryAcceptance.includes("exactFinalBoundaryBand") ||
         !boundaryAcceptance.includes("exactTangentialRun") ||
+        !boundaryAcceptance.includes("heldStateReasserted: true") ||
         !boundaryAcceptance.includes("committedRunStepCount") ||
         !boundaryAcceptance.includes("maximumCoupledStepCount: 9") ||
         !boundaryAcceptance.includes("minimumTangentialOnlyStepCount") ||
