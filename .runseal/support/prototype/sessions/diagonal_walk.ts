@@ -17,24 +17,29 @@ function nativeDiagonalWalkInvariant(launch: Json): Json {
                 { key: "W", virtualKey: 0x57, down: true },
                 { key: "A", virtualKey: 0x41, down: true },
                 { key: "W", virtualKey: 0x57, down: false },
+                { key: "A", virtualKey: 0x41, down: false },
             ]) ||
         JSON.stringify(sequence.messages) !== JSON.stringify([
                 "WM_SETFOCUS",
                 "WM_KEYDOWN:W",
                 "WM_KEYDOWN:A",
                 "WM_KEYUP:W",
+                "WM_KEYUP:A",
                 "WM_KEYDOWN:Escape",
             ]) ||
         JSON.stringify(sequence.delaysBeforeKeysMilliseconds) !==
-            JSON.stringify([0, 0, 250]) ||
+            JSON.stringify([0, 0, 250, 250]) ||
         !Array.isArray(intervals) ||
-        intervals.length !== 2 ||
+        intervals.length !== 3 ||
         typeof intervals[0] !== "number" ||
         intervals[0] < 0 ||
         intervals[0] > 50 ||
         typeof intervals[1] !== "number" ||
         intervals[1] < 250 ||
         intervals[1] > 750 ||
+        typeof intervals[2] !== "number" ||
+        intervals[2] < 250 ||
+        intervals[2] > 750 ||
         sequence.atomicBatch !== false ||
         number(sequence, "atomicPrefixLength") !== 2 ||
         typeof sequence.batchThreadId !== "number" ||
@@ -55,8 +60,9 @@ function nativeDiagonalWalkInvariant(launch: Json): Json {
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
         diagonalKeyPostIntervalMilliseconds: intervals[0],
         diagonalHoldMilliseconds: intervals[1],
+        leftWalkHoldMilliseconds: intervals[2],
         orderedMessages: sequence.messages,
-        leftWalkHoldMilliseconds: exitInterval,
+        stationaryHoldMilliseconds: exitInterval,
         actionAfterReadiness: true,
     };
 }
@@ -118,7 +124,7 @@ export function diagonalWalkSessionInvariant(launch: Json, session: Json): Json 
     }
     const finalPresentation = presentationInvariant(
         object(finalActor, "presentation"),
-        1,
+        0,
         32_768,
         "prototype diagonal Walk completion",
     );
@@ -151,6 +157,10 @@ export function diagonalWalkSessionInvariant(launch: Json, session: Json): Json 
         forwardInputReleased: true,
         retainedLeftWalk: true,
         exactTwoPhaseDisplacement: true,
+        leftInputReleased: true,
+        movedThenStopped: true,
+        transitionedToSurvey: true,
+        retainedLeftYaw: true,
         diagonalStepCount,
         leftStepCount,
         deltaXQ9,
