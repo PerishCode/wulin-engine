@@ -93,11 +93,12 @@ export async function requireBoundedPrototypeSession(
         focusAcceptance,
         boundaryAcceptance,
         objectGates,
+        inputSequences,
         await Deno.readTextFile(`${root}/.runseal/support/prototype/object/input-gates.ts`),
     ];
     // deno-fmt-ignore
-    if (actionReports.some((source) => /actionAfterReadiness|delayedExit|postReadinessInput|exitInput/.test(source))) {
-        fail("guard: retired Prototype action report field returned");
+    if (actionReports.some((source) => /actionAfterReadiness|delayedExit|postReadinessInput|exitInput|invalid-camera-alias|invalidKeySessionInvariant|postInvalidAliasSequence|truncatedAliasVirtualKey|truncationWouldAlias/.test(source))) {
+        fail("guard: retired Prototype action or alias surface returned");
     }
     const nativeTypeIndex = input.indexOf("Add-Type -TypeDefinition");
     const helperReadyIndex = input.indexOf(
@@ -185,7 +186,6 @@ export async function requireBoundedPrototypeSession(
         !jumpAcceptance.includes("freshPressAfterFocus: true") ||
         !sessionGates.includes("cameraRepeatSessionInvariant") ||
         !sessionGates.includes("cameraRepressSessionInvariant") ||
-        !sessionGates.includes("invalidKeySessionInvariant") ||
         !sessionGates.includes("oppositeCameraSessionInvariant") ||
         !sessionGates.includes("counterClockwiseSessionInvariant") ||
         !sessionGates.includes("runReleaseSessionInvariant") ||
@@ -197,6 +197,7 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("MINIMUM_COPIED_SUBTREE_BYTES = 16") ||
         !sessionGates.includes("requireSingleOwnerInvariant(") ||
         !prototypeHost.includes("nontrivialCopiedSubtreeCount: 0") ||
+        !prototypeHost.includes("launchCount: 18") ||
         prototypeHost.includes("objectActionBaseline") ||
         !prototypeHost.includes("startupDocumentExpectation(") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
@@ -216,7 +217,6 @@ export async function requireBoundedPrototypeSession(
         !inputSequences.includes("postMidairSequence") ||
         !inputSequences.includes("postCameraRepeatSequence") ||
         !inputSequences.includes("postCameraRepressSequence") ||
-        !inputSequences.includes("postInvalidAliasSequence") ||
         !inputSequences.includes("postOppositeCameraSequence") ||
         !inputSequences.includes("postCounterClockwiseSequence") ||
         !inputSequences.includes("postRunRelease") ||
@@ -297,8 +297,6 @@ export async function requireBoundedPrototypeSession(
         !prototypeHost.includes("boundarySessionInvariant(boundary)") ||
         !cameraAcceptance.includes("heldRepeatSuppressed: true") ||
         !cameraAcceptance.includes("retainedOrbitIndex: 1") ||
-        !cameraAcceptance.includes("checkedRangeRejected: true") ||
-        !cameraAcceptance.includes('truncationWouldAlias: "E"') ||
         !cameraAcceptance.includes("oppositePressEdgesRetained: true") ||
         !cameraAcceptance.includes("cameraCandidateCancelled: true") ||
         !counterClockwiseCameraAcceptance.includes(

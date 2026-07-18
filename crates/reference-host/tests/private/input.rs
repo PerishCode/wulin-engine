@@ -16,7 +16,7 @@ fn normalization_exposes_only_state_changing_edges_and_focus_cleanup() {
         NativeMessage::FocusLost,
         key(68, false),
         key(0, true),
-        key(256, true),
+        key(0x145, true),
     ]);
 
     for key in [65, 68, 87] {
@@ -26,6 +26,9 @@ fn normalization_exposes_only_state_changing_edges_and_focus_cleanup() {
     }
     assert!(!input.was_pressed(0));
     assert!(!input.was_released(0));
+    assert!(!input.is_held(0x45));
+    assert!(!input.was_pressed(0x45));
+    assert!(!input.was_released(0x45));
 }
 
 #[test]
