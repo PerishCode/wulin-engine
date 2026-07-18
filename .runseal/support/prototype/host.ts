@@ -34,6 +34,7 @@ export const CONFIG = "out/cooked/bootstrap/runtime.json";
 export const SIDECAR = "sidecar.prototype.toml";
 const EXECUTABLE = "target/debug/prototype.exe";
 const decoder = new TextDecoder();
+const encoder = new TextEncoder();
 
 export async function sidecarStatus(config: string): Promise<Json> {
     const output = await new Deno.Command("sidecar", {
@@ -72,9 +73,42 @@ export function document(terrain: string, objects: string, center: Coord): Json 
     };
 }
 
+function serializedDocument(value: Json): string {
+    return `${JSON.stringify(value, null, 2)}\n`;
+}
+
 export async function writeDocument(value: Json): Promise<void> {
     await Deno.mkdir(`${root}/out/cooked/bootstrap`, { recursive: true });
-    await Deno.writeTextFile(`${root}/${CONFIG}`, `${JSON.stringify(value, null, 2)}\n`);
+    await Deno.writeTextFile(`${root}/${CONFIG}`, serializedDocument(value));
+}
+
+export async function startupDocumentExpectation(value: Json): Promise<Json> {
+    const bytes = encoder.encode(serializedDocument(value));
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    const globalCenter = object(value, "globalCenter");
+    const globalOrigin = object(value, "globalOrigin");
+    const bounds = object(value, "playableRegionBounds");
+    return {
+        revision: "declarative-runtime-bootstrap-v2",
+        mode: "canonical-bootstrap",
+        configPath: CONFIG,
+        configBytes: bytes.length,
+        configSha256: Array.from(
+            digest,
+            (byte) => byte.toString(16).padStart(2, "0"),
+        ).join(""),
+        terrainPath: value.terrain,
+        objectPath: value.objects,
+        globalConfig: {
+            activeRadius: value.activeRadius,
+            globalCenter: { x: globalCenter.x, z: globalCenter.z },
+            globalOrigin: { x: globalOrigin.x, z: globalOrigin.z },
+        },
+        playableRegionBounds: {
+            maximum: object(bounds, "maximum"),
+            minimum: object(bounds, "minimum"),
+        },
+    };
 }
 
 export async function failedStart(label: string): Promise<Json> {
@@ -283,7 +317,9 @@ export async function prototypeHostGates(
     const corruptCenter: Coord = [base[0] + 70, base[1]];
     await writeDocument(document(terrain, corruptObjects, corruptCenter));
     const corruptPayload = await failedStart("corrupt payload");
-    await writeDocument(document(terrain, objects, base));
+    const baseDocument = document(terrain, objects, base);
+    const baseStartup = await startupDocumentExpectation(baseDocument);
+    await writeDocument(baseDocument);
     const first = await capturedReady("prototype first process");
     const restarted = await capturedReady("prototype restarted process");
     const objectActionActivated = await objectFeedbackSession(
@@ -294,10 +330,9 @@ export async function prototypeHostGates(
     );
     const sustained = await sustainedCapacitySession(EXECUTABLE, CONFIG);
     const objectActionCenter: Coord = [base[0] + 4, base[1]];
-    await writeDocument(document(terrain, objects, objectActionCenter));
-    const objectActionBaseline = await capturedReady(
-        "prototype invariant object action baseline",
-    );
+    const objectActionDocument = document(terrain, objects, objectActionCenter);
+    const objectActionStartup = await startupDocumentExpectation(objectActionDocument);
+    await writeDocument(objectActionDocument);
     const objectActionRejected = await objectFeedbackSession(
         EXECUTABLE,
         CONFIG,
@@ -351,8 +386,8 @@ export async function prototypeHostGates(
     const objectFeedbackInvariant = await objectFeedbackGates(
         objectActionActivated,
         objectActionRejected,
-        first,
-        objectActionBaseline,
+        baseStartup,
+        objectActionStartup,
         objects,
         base,
         objectActionCenter,
@@ -414,7 +449,6 @@ export async function prototypeHostGates(
         first,
         restarted,
         sessions,
-        objectActionBaseline,
         objectActionActivated,
         objectActionRejected,
         objectFeedbackInvariant,
