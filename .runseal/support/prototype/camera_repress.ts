@@ -66,7 +66,6 @@ function nativeCameraRepressInvariant(launch: Json): Json {
         batchSpanMilliseconds: sequence.batchSpanMilliseconds,
         keyPostIntervalsMilliseconds: intervals,
         exitIntervalMilliseconds: exitInterval,
-        actionAfterReadiness: true,
     };
 }
 

@@ -63,7 +63,6 @@ function nativeDiagonalWalkInvariant(launch: Json): Json {
         leftWalkHoldMilliseconds: intervals[2],
         orderedMessages: sequence.messages,
         stationaryHoldMilliseconds: exitInterval,
-        actionAfterReadiness: true,
     };
 }
 
@@ -167,7 +166,6 @@ export function diagonalWalkSessionInvariant(launch: Json, session: Json): Json 
         deltaZQ9,
         readyPresentation,
         finalPresentation,
-        actionAfterReadiness: true,
         animationEpochTransitioned: true,
         clock: {
             ready: readyClock,

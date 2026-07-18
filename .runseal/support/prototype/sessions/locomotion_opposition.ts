@@ -80,7 +80,6 @@ function nativeOppositionInvariant(launch: Json): Json {
         orderedReleaseMessages: release.messages,
         opposedHoldMilliseconds: postReadiness.opposedHoldMilliseconds,
         exitIntervalMilliseconds: exitInterval,
-        actionAfterReadiness: true,
     };
 }
 
@@ -165,7 +164,6 @@ export function locomotionOppositionSessionInvariant(launch: Json, session: Json
         opposedInputHeldBeforeRelease: true,
         releasedBackwardInput: true,
         retainedForwardRunReadmitted: true,
-        actionAfterReadiness: true,
         deltaXQ9,
         deltaZQ9,
         runStepCount,

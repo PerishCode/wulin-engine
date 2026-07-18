@@ -144,7 +144,6 @@ function nativeCameraRepeatInvariant(launch: Json): Json {
         repeatedHeldPress: sequence.messages,
         initialHoldMilliseconds: postReadiness.initialHoldMilliseconds,
         exitIntervalMilliseconds: exitInterval,
-        actionAfterReadiness: true,
     };
 }
 

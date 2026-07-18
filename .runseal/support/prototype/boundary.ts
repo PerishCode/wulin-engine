@@ -103,7 +103,6 @@ export function boundaryRunInputInvariant(launch: Json): Json {
         minimumHoldMilliseconds: BOUNDARY_RUN_HOLD_MILLISECONDS,
         heldMilliseconds,
         delayedEscape: true,
-        actionAfterReadiness: true,
     };
 }
 

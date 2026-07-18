@@ -51,7 +51,6 @@ function nativeForwardReleaseInvariant(launch: Json): Json {
         orderedMessages: sequence.messages,
         walkHoldIntervalMilliseconds: intervals[0],
         stationaryHoldIntervalMilliseconds: exitInterval,
-        actionAfterReadiness: true,
     };
 }
 
@@ -135,7 +134,6 @@ export function forwardReleaseSessionInvariant(launch: Json, session: Json): Jso
         movedThenStopped: true,
         transitionedToSurvey: true,
         retainedForwardYaw: true,
-        actionAfterReadiness: true,
         deltaXQ9,
         deltaZQ9,
         forwardStepCount,
