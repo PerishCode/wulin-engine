@@ -1054,6 +1054,17 @@ stationary hold 依次为 265.2565/261.3792/259.2750ms。最终 local `(-857,-34
 exit code 0。全部 103 engine-runtime、48 Prototype、20 reference-host 测试通过，Flavor
 0 deny / 5 个既有 warning；产品、Runtime、renderer/GPU/source/resource/synchronization
 与 process count 均未改变，下一次资源清理仍为 Experiment 0160。
+Experiment 0149 对既有 diagonal-Run 子进程完成同构收尾：Shift/W/A 原子对角 Run 后延迟
+W-up 保留 Shift+A 左 Run，再延迟 A-up，并在 Shift-only stationary 状态至少保持 250ms
+后正常 Escape。`canonical-prototype-v64` 首轮在 163.101 秒通过，456,292-byte report 中
+PID 27272 / thread 30344 的 key intervals 为 0.0016/0.0010ms、atomic span 为 0.0026ms，
+diagonal、left-only、stationary hold 依次为 273.5453/259.1053/266.3092ms。最终 local
+`(-1680,-720)` Q9 唯一分解为 16 个 `(-45,-45)` diagonal Run steps 和 15 个 `(-64,0)`
+left Run steps；Shift-only 段不再移动，最终为 Survey clip0/yaw32768、epoch `1 -> 79`。
+clock Ready/sample 从 `2/3 -> 91/92`，零 stall/render block，对象状态 idle，stdout 恰为
+两值、stderr 为空且 exit code 0。全部 103 engine-runtime、48 Prototype、20
+reference-host 测试通过，Flavor 0 deny / 5 个既有 warning；产品、Runtime、renderer/GPU/
+source/resource/synchronization 与 process count 均未改变。下一阶段 0150 必须执行兼容清理。
 
 ## Project model
 
@@ -1133,8 +1144,9 @@ finite-edge endpoint and graceful completion, exact native Escape and visible-wi
 same-batch Space/F/Enter/W focus-loss action/held-input suppression plus no-backlog resume and
 same-process fresh-A Walk/release readmission, one exact native diagonal-Walk lifetime from
 diagonal-to-left two-phase fixed-Q9 movement through final-direction release to retained-facing
-Survey, one exact native diagonal-to-left Run release with independent
-two-phase fixed-Q9 decomposition, one exact atomic same-ingest opposite-Q/E
+Survey, one exact native diagonal-Run lifetime from independent diagonal-to-left two-phase fixed-Q9
+movement through final-direction release to Shift-only retained-facing Survey, one exact atomic
+same-ingest opposite-Q/E
 camera-edge cancellation with negative-Z Walk proof, direct restart equality, and Sidecar cleanup.
 
 `runseal :canonical-frame` is the focused real-process GPU regression workflow. It cooks a fresh

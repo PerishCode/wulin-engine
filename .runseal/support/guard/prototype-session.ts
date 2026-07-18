@@ -316,6 +316,10 @@ export async function requireBoundedPrototypeSession(
         !diagonalRunAcceptance.includes("forwardInputReleased: true") ||
         !diagonalRunAcceptance.includes("retainedLeftRun: true") ||
         !diagonalRunAcceptance.includes("exactTwoPhaseDisplacement: true") ||
+        !diagonalRunAcceptance.includes("leftInputReleased: true") ||
+        !diagonalRunAcceptance.includes("movedThenStopped: true") ||
+        !diagonalRunAcceptance.includes("transitionedToSurvey: true") ||
+        !diagonalRunAcceptance.includes("retainedLeftYaw: true") ||
         !diagonalRunAcceptance.includes("actionAfterReadiness: true") ||
         !diagonalRunAcceptance.includes("diagonalRunStepCount") ||
         !diagonalRunAcceptance.includes("leftRunStepCount") ||
