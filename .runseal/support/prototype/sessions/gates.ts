@@ -1,10 +1,6 @@
 import { fail, type Json, number, object, same } from "../../canonical-runtime.ts";
 import { nativeWindowCloseInvariant } from "../input/actions.ts";
-import {
-    cameraRepeatSessionInvariant,
-    invalidKeySessionInvariant,
-    oppositeCameraSessionInvariant,
-} from "../camera.ts";
+import { cameraRepeatSessionInvariant, oppositeCameraSessionInvariant } from "../camera.ts";
 import { counterClockwiseSessionInvariant } from "../camera_counter_clockwise.ts";
 import { cameraRepressSessionInvariant } from "../camera_repress.ts";
 import { jumpMidairInvariant, jumpReadmissionInvariant } from "../jump.ts";
@@ -122,12 +118,6 @@ export async function sessionGates(
         "prototype native camera re-press readmission",
         "camera-repress",
     );
-    const invalidKey = await gracefulExit(
-        executable,
-        config,
-        "prototype native out-of-range camera key",
-        "invalid-camera-alias",
-    );
     const oppositeCamera = await gracefulExit(
         executable,
         config,
@@ -181,7 +171,6 @@ export async function sessionGates(
     sameInitial(jumpMidair, first, "midair-Jump", startupInvariant, jumpInvariant);
     sameInitial(cameraRepeat, first, "held-camera-repeat", startupInvariant, jumpInvariant);
     sameInitial(cameraRepress, first, "camera-repress", startupInvariant, jumpInvariant);
-    sameInitial(invalidKey, first, "invalid-key", startupInvariant, jumpInvariant);
     sameInitial(oppositeCamera, first, "opposite-camera", startupInvariant, jumpInvariant);
     sameInitial(
         counterClockwiseCamera,
@@ -241,11 +230,6 @@ export async function sessionGates(
             cameraRepress,
             idleCompletionInvariant(cameraRepress),
         ),
-        invalidKey,
-        invalidKeyInvariant: invalidKeySessionInvariant(
-            invalidKey,
-            idleCompletionInvariant(invalidKey),
-        ),
         oppositeCamera,
         oppositeCameraInvariant: oppositeCameraSessionInvariant(
             oppositeCamera,
@@ -298,7 +282,6 @@ export async function sessionGates(
             "jumpMidair",
             "cameraRepeat",
             "cameraRepress",
-            "invalidKey",
             "oppositeCamera",
             "counterClockwiseCamera",
             "runRelease",

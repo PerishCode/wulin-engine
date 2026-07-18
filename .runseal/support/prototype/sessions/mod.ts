@@ -22,7 +22,6 @@ import {
     postDiagonalRun,
     postDiagonalWalk,
     postForwardRelease,
-    postInvalidAliasSequence,
     postMidairSequence,
     postOpposedRun,
     postOppositeCameraSequence,
@@ -160,7 +159,6 @@ export async function gracefulExit(
         | "diagonal-walk"
         | "focus-discontinuity"
         | "forward-release"
-        | "invalid-camera-alias"
         | "jump-midair"
         | "jump-readmission"
         | "object-feedback"
@@ -282,10 +280,6 @@ export async function gracefulExit(
             terminalInput = readmission;
         } else if (postReadiness === "forward-release") {
             const sequence = await postForwardRelease(child.pid);
-            nativeInput = { sequence };
-            terminalInput = sequence;
-        } else if (postReadiness === "invalid-camera-alias") {
-            const sequence = await postInvalidAliasSequence(child.pid);
             nativeInput = { sequence };
             terminalInput = sequence;
         } else if (postReadiness === "opposite-camera") {

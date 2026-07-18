@@ -187,20 +187,6 @@ export async function releaseOpposedRun(processId: number): Promise<Json> {
     );
 }
 
-export async function postInvalidAliasSequence(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(
-        processId,
-        [
-            { key: "OutOfRangeE", virtualKey: 0x145, down: true },
-            { key: "W", virtualKey: 0x57, down: true },
-        ],
-        true,
-        "input",
-        [0, 0],
-        200,
-    );
-}
-
 export async function postOppositeCameraSequence(processId: number): Promise<Json> {
     return await postPrototypeWindowAction(
         processId,

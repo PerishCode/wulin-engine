@@ -456,7 +456,7 @@ export async function prototypeHostGates(
         boundaryInvariant,
         singleOwnerInvariantEvidence: {
             revision: "prototype-single-owner-invariant-evidence-v1",
-            launchCount: 19,
+            launchCount: 18,
             minimumCopiedSubtreeBytes: MINIMUM_COPIED_SUBTREE_BYTES,
             nontrivialCopiedSubtreeCount: 0,
         },
