@@ -165,11 +165,16 @@ export async function requireBoundedPrototypeSession(
         !objectGates.includes("postReadinessCapacityRejection") ||
         !objectGates.includes("staleObjectIntentsDidNotReachResumedSimulation: true") ||
         !objectGates.includes("freshObjectIntentsAfterFocusReadmitted: true") ||
+        !objectGates.includes("missingTargetCommittedBeforeRecovery: true") ||
         !objectGates.includes("atomicCancelledIntents") ||
         !objectGates.includes("exactSuspendResumeCount: 1") ||
         !objectGates.includes("postResumeResetCount: 1") ||
         !acceptance.includes("objectFeedbackSession") ||
         !acceptance.includes('"object-feedback-focus"') ||
+        !acceptance.includes("await postMissingTarget(child.pid)") ||
+        !acceptance.includes("await postObjectRecoveryExit(child.pid)") ||
+        !acceptance.includes("requestedMissingHoldMilliseconds: 250") ||
+        !acceptance.includes("missingHoldMilliseconds") ||
         !sessionGates.includes("nativeWindowCloseInvariant") ||
         !sessionGates.includes("forwardReleaseSessionInvariant") ||
         sessionGates.includes("prototype Escape press exit") ||
@@ -195,6 +200,8 @@ export async function requireBoundedPrototypeSession(
         !sessionGates.includes("diagonalRunSessionInvariant") ||
         !inputActions.includes("postPrototypeCapacityRejection") ||
         !inputActions.includes("postObjectActionExit") ||
+        !inputActions.includes("postMissingTarget") ||
+        !inputActions.includes("postObjectRecoveryExit") ||
         !inputActions.includes("postConsumptionCapacity") ||
         !inputActions.includes("requestPrototypeWindowClose") ||
         !inputActions.includes("postBoundaryRunStart") ||

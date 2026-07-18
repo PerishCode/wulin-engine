@@ -5,6 +5,7 @@ import { cameraDriverInvariant } from "../camera.ts";
 import { jumpPolicyInvariant } from "../jump.ts";
 import { gracefulCompletionInvariant } from "../sessions/mod.ts";
 import { traversalInvariant } from "../traversal.ts";
+import { missingTargetInputInvariant, objectRecoveryInputInvariant } from "./input-gates.ts";
 import { idleInteractionInvariant } from "./interaction.ts";
 import { idleObservationInvariant } from "./observation.ts";
 
@@ -111,7 +112,7 @@ async function feedbackSessionInvariant(
     if (expectedKind === "activated") {
         if (
             number(interaction, "committedCount") !== 1 ||
-            number(interaction, "ineligibleCount") !== 0 ||
+            number(interaction, "ineligibleCount") !== 1 ||
             observation.target !== null ||
             number(frames, "activatedFrameCount") !== 12 ||
             number(frames, "rejectedFrameCount") !== 0 ||
@@ -200,6 +201,7 @@ function nativeObjectFocusInvariant(
 ): Json {
     const suspended = object(postReadiness, "suspended");
     const resumed = object(postReadiness, "resumed");
+    const missingTarget = object(postReadiness, "missingTarget");
     const sequence = object(postReadiness, "sequence");
     if (
         suspended.schema !== "prototype-native-window-action-v4" ||
@@ -244,6 +246,9 @@ function nativeObjectFocusInvariant(
         !Array.isArray(resumed.keys) ||
         resumed.keys.length !== 0 ||
         JSON.stringify(resumed.messages) !== JSON.stringify(["WM_SETFOCUS"]) ||
+        number(postReadiness, "requestedMissingHoldMilliseconds") !== 250 ||
+        number(postReadiness, "missingHoldMilliseconds") < 250 ||
+        missingTarget.windowHandle !== suspended.windowHandle ||
         sequence.windowHandle !== suspended.windowHandle
     ) fail("prototype native object focus-readmission evidence diverged");
 
@@ -272,7 +277,18 @@ function nativeObjectFocusInvariant(
             threadId: suspended.batchThreadId,
             spanMilliseconds: suspended.batchSpanMilliseconds,
         },
-        freshAction: nativeObjectActionInvariant(sequence, processId, true),
+        missingTarget: missingTargetInputInvariant(
+            missingTarget,
+            processId,
+            suspended.windowHandle,
+        ),
+        missingHoldMilliseconds: postReadiness.missingHoldMilliseconds,
+        freshAction: objectRecoveryInputInvariant(
+            sequence,
+            processId,
+            suspended.windowHandle,
+        ),
+        missingTargetCommittedBeforeRecovery: true,
         clock: {
             ready: readyClock,
             final: finalClock,

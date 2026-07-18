@@ -171,6 +171,30 @@ export async function postObjectActionExit(processId: number): Promise<Json> {
     );
 }
 
+export async function postMissingTarget(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [{ key: "Enter", virtualKey: 0x0D, down: true }],
+        true,
+    );
+}
+
+export async function postObjectRecoveryExit(processId: number): Promise<Json> {
+    return await postPrototypeWindowAction(
+        processId,
+        [
+            { key: "Enter", virtualKey: 0x0D, down: false },
+            { key: "F", virtualKey: 0x46, down: true },
+            { key: "Enter", virtualKey: 0x0D, down: true },
+        ],
+        true,
+        "input",
+        [0, 0, 0],
+        250,
+        true,
+    );
+}
+
 export async function postConsumptionCapacity(
     processId: number,
 ): Promise<Json> {
