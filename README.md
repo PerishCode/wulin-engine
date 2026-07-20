@@ -1227,6 +1227,15 @@ Experiment 0164 将唯一 live skeletal palette 从按 25,601 个候选预留收
 实验分支已从 live setting、HLSL、CPU oracle 和 report 删除，未来如需每实例独占姿态，
 必须重新通过有界存储实验。
 
+Experiment 0165 将完整 Prototype 验收中的 35 次原生窗口动作从逐次冷启动 PowerShell
+并动态 `Add-Type`，收敛为验收 Deno 进程内一次加载的 Win32 FFI；18 个产品 PID、35 组
+schema-4 动作、14 个原子线程批、17 Escape + 1 window-close、15 秒有限边界见证与
+zero-copy 全部保留。移除隐式 helper 延迟后，sustained gate 精确暴露出 250ms 只能完成
+8/12 个 Rejected 帧，现以 action owner 内可报告的 500ms hold 恢复 12 Activated /
+12 Rejected，而不是恢复外部进程。最终 `canonical-prototype-v79` 从 160.144 秒降至
+131.814 秒（-28.330 秒，-17.69%），18 个 action session 合计从 125.215 秒降至
+96.135 秒；热态 focused Activated lane 从 13.789 秒降至 10.317 秒。
+
 ## Project model
 
 - [Repository ownership model](docs/architecture/repository-model.md)

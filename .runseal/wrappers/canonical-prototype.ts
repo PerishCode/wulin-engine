@@ -8,9 +8,10 @@ import {
 } from "../support/canonical-runtime.ts";
 import { prototypeHostGates } from "../support/prototype/host.ts";
 import { requireActivatedFrameDesktop } from "../support/prototype/input/frame_completion_desktop.ts";
+import { closeNativeTransport } from "../support/prototype/input/prepared.ts";
 import { focusedActivatedFrameGate } from "../support/prototype/object/focused-frame.ts";
 
-const FULL_REVISION = "canonical-prototype-v78";
+const FULL_REVISION = "canonical-prototype-v79";
 const FULL_COLLECTION = "canonical-prototype";
 const ACTIVATED_FRAME_REVISION = "canonical-prototype-activated-frame-v1";
 const ACTIVATED_FRAME_COLLECTION = "canonical-prototype-activated-frame";
@@ -94,6 +95,7 @@ try {
     };
 } finally {
     await stopCanonicalProcesses();
+    closeNativeTransport();
 }
 
 if (!acceptance || !report) {

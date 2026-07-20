@@ -208,7 +208,6 @@ export async function gracefulExit(
             await new Promise((resolve) => setTimeout(resolve, 250));
         } else if (postReadiness === "consumption-capacity-rejection") {
             nativeInput = await postConsumptionCapacity(child.pid);
-            await new Promise((resolve) => setTimeout(resolve, 250));
         } else if (postReadiness === "object-feedback") {
             nativeInput = await postOutsideRadiusExit(child.pid);
             terminalInput = object(nativeInput, "outsideRadius");
