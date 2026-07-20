@@ -64,6 +64,5 @@ fn settings_json(settings: SkeletalSettings) -> Value {
         "boneCount": settings.bone_count,
         "phaseCount": settings.phase_count,
         "timeTick": settings.time_tick,
-        "uniquePoses": settings.unique_poses,
     })
 }

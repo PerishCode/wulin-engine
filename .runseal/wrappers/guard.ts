@@ -7,6 +7,7 @@ import { requireInputJournalRemoved } from "../support/guard/input-journal-remov
 import { requirePresentationStatusRemoved } from "../support/guard/presentation-status-removal.ts";
 import { requireBoundedPrototypeSession } from "../support/guard/prototype-session.ts";
 import { requireSimulationHistoryRemoved } from "../support/guard/simulation-control-removal.ts";
+import { requireSkeletalPalette } from "../support/guard/skeletal/palette.ts";
 import { requireTerrainHistoryRemoved } from "../support/guard/terrain-transaction-removal.ts";
 
 function fail(message: string): never {
@@ -399,9 +400,9 @@ if (Deno.args.length > 0) fail(`guard: unexpected argument: ${Deno.args[0]}`);
 const profilePath = Deno.env.get("RUNSEAL_PROFILE_PATH");
 if (!profilePath) fail("guard: RUNSEAL_PROFILE_PATH is not set");
 const root = profilePath.replace(/[\\/][^\\/]+$/, "");
-
 await requireCanonicalOperatorIdentity(root, fail);
 await requireLiveOperatorSurface(root, fail);
+await requireSkeletalPalette(root, fail);
 await requireInputJournalRemoved(root, fail);
 await requireRuntimeBoundary();
 await requireCalibrationSurfaceRemoved();

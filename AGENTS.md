@@ -141,6 +141,11 @@ geometry/material/rig source, and one deterministic object-shadow path:
 - one fixed actor candidate after the 25,600 streamed candidates, backed by one two-frame upload
   resource and consumed by the existing skeletal, surface, shadow, and occlusion path without a GPU
   copy or additional synchronization;
+- one exact 1,024-slot shared-pose GPU palette keyed only by the fixed two-rig/eight-clip/64-phase
+  catalog domain, retaining the 128-bone/48-byte affine stride in one 6,291,456-byte resource;
+  candidate/visible capacity remains independently 25,601, every live pose index is bounded by the
+  shared domain, and the historical unique-pose live branch has no setting, shader/oracle/report
+  path, alias, or fallback;
 - one private 0..=8 terrain-body motion batch that executes only local motion, applies one checked
   caller-supplied vertical velocity delta before its first emitted step, retains only the final
   existing step's exact optional grounded witness, and preserves exact zero-step/single-tick/
@@ -735,6 +740,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `docs/adr/0164-frame-observable-activated-completion.md` | Accepted bounded acceptance-owned visible-frame completion for the exact Activated acknowledgement and following suppression boundary. |
 | `docs/adr/0165-retired-graceful-transport-report-aliases.md` | Accepted deletion of constant graceful transport result aliases with shared runner control-flow enforcement retained. |
 | `docs/adr/0166-focused-activated-frame-acceptance.md` | Accepted one-process exact Activated-frame acceptance mode with interactive-desktop preflight, window-composition evidence, and unchanged full matrix. |
+| `docs/adr/0167-shared-pose-palette-capacity.md` | Accepted fixed 1,024-slot shared-pose GPU palette capacity and retired unique-pose live mode. |
 | `docs/experiments/README.md` | Experiment evidence and promotion rules. |
 | `experiments/0031-canonical-runtime-convergence/README.md` | Accepted convergence workload, evidence, and conclusion. |
 | `experiments/0032-authored-object-presentation/README.md` | Accepted explicit cooked archetype, material, orientation, animation, and triple-plane publication evidence. |
@@ -869,6 +875,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `experiments/0161-frame-observable-activated-completion/README.md` | Accepted replacement of the cold-fragile Activated wall-time proxy with bounded exact-window frame-semantic completion. |
 | `experiments/0162-retired-graceful-transport-report-aliases/README.md` | Mandatory graceful transport report-alias deletion with exact runner and product completion authority retained. |
 | `experiments/0163-focused-activated-frame-acceptance/README.md` | Accepted one-process focused Activated-frame loop with exact window-composition/shared-invariant evidence and full-matrix neutrality. |
+| `experiments/0164-shared-pose-palette-capacity/README.md` | Accepted exact shared-pose palette-capacity reduction with focused GPU, release timing, resource, and integration evidence. |
 | `assets/third-party/khronos-fox/README.md` | Pinned Khronos Fox source provenance, hashes, attribution, and redistributable license record. |
 | `crates/engine-runtime/Cargo.toml` | Canonical runtime package and dependency boundary. |
 | `crates/engine-runtime/build.rs` | Runtime shader compilation, Agility export linkage, and native SDK staging. |
@@ -947,6 +954,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `crates/engine-runtime/shaders/skeletal_scene.hlsl` | Sole streamed/actor skeletal cull, grounding, exact object suppression, compaction, animation admission, and visible-record emission. |
 | `crates/engine-runtime/tests/private/surface_target.rs` | Private authored-ID permutation and neighbor-exclusion target evidence. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/mod.rs` | Fixed visible-record layout, capacity, descriptors, and skeletal GPU resource ownership. |
+| `crates/engine-runtime/tests/private/palette_capacity.rs` | Exact 1,024-slot / 6 MiB shared-pose palette capacity and candidate-capacity independence evidence. |
 | `crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/actor.rs` | Exact frame-resolved actor-local phase encoding and two-frame GPU upload-resource ownership. |
 | `crates/engine-runtime/src/rendering/composition/traversal.rs` | Latest-wins traversal, prefetch, and rollover policy. |
 | `crates/engine-runtime/src/rendering/composition/probe.rs` | Canonical attachment and oracle evidence. |
@@ -994,6 +1002,7 @@ formats, controls, and wrappers are not live compatibility surfaces.
 | `.runseal/support/guard/prototype-session.ts` | Required bounded Escape/window-close/focus/Jump/camera/Run/boundary/object post-readiness sessions, acceptance-owned Activated frame completion, exact-PID schema-4 timing, 18-pair single-owner native-input/invariant reporting, deterministic object startup validation, direct forced-process enforcement, and forbidden split/duplicate/baseline/invalid-alias/negative/forced/startup/redundant/old/transient surfaces. |
 | `.runseal/support/guard/prototype/frame-completion.ts` | Required exact-window Activated-green rise/clear observer, bounded failure, delayed Escape, and forbidden fixed-dwell restoration gate. |
 | `.runseal/support/guard/prototype/transport-aliases.ts` | Required graceful runner timeout/status/stdout/stderr control flow and forbidden constant transport result alias gate. |
+| `.runseal/support/guard/skeletal/palette.ts` | Exact shared-pose palette allocation/descriptor/probe authority and forbidden retired unique-pose branch gate. |
 | `.runseal/support/actor/lifecycle.ts` | Actor presentation admission, lifecycle rollback, generation replay, restart reset, and independence support. |
 | `.runseal/support/actor/admission.ts` | Canonical-aggregate schedule evidence, strict schema-2 advance, typed pending block, zero-commit rollback, and retained-frame support. |
 | `.runseal/support/actor/gpu.ts` | Exact actor candidate, frame-slot, workload, semantic, compaction, and rollback acceptance support. |

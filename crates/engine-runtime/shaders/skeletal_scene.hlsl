@@ -325,22 +325,13 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         indirect_and_counters.InterlockedAdd(20, 1, animated_index);
         indirect_and_counters.InterlockedAdd(76, descriptor.vertex_count * 4u);
         animated_visible_indices[animated_index] = visible_index;
-        if (pose_shape.x != 0)
-        {
-            pose_slot = animated_index;
-            indirect_and_counters.InterlockedAdd(56, 1);
-            indirect_and_counters.InterlockedAdd(68, 1);
-        }
-        else
-        {
-            uint clip = presentation.animation & 255u;
-            uint rig = presentation_rig(archetype);
-            pose_slot = rig * POSE_KEYS_PER_RIG
-                + clip * 64u
-                + presentation_pose_phase(archetype, presentation.animation);
-            uint ignored;
-            pose_bitset.InterlockedOr((pose_slot / 32u) * 4u, 1u << (pose_slot % 32u), ignored);
-        }
+        uint clip = presentation.animation & 255u;
+        uint rig = presentation_rig(archetype);
+        pose_slot = rig * POSE_KEYS_PER_RIG
+            + clip * 64u
+            + presentation_pose_phase(archetype, presentation.animation);
+        uint ignored;
+        pose_bitset.InterlockedOr((pose_slot / 32u) * 4u, 1u << (pose_slot % 32u), ignored);
     }
     else
     {
@@ -371,10 +362,6 @@ void cull_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
 [numthreads(256, 1, 1)]
 void compact_main(uint group_thread : SV_GroupIndex)
 {
-    if (pose_shape.x != 0)
-    {
-        return;
-    }
     for (uint key = group_thread; key < MAX_POSE_KEYS; key += 256)
     {
         uint word = pose_bitset.Load((key / 32u) * 4u);
@@ -412,25 +399,6 @@ AffineTransform compose_affine(AffineTransform parent, AffineTransform child)
     return result;
 }
 
-float centered_byte(uint value)
-{
-    return float(value & 255u) / 255.0 - 0.5;
-}
-
-AffineTransform apply_variant(AffineTransform local, uint seed, uint bone)
-{
-    if (seed == 0)
-    {
-        return local;
-    }
-    uint first = seed * 747796405u + bone * 2891336453u;
-    uint rotated = (first << 13u) | (first >> 19u);
-    uint second = rotated * 2246822519u;
-    local.row0.w += centered_byte(first) * 0.012;
-    local.row2.w += centered_byte(second) * 0.012;
-    return local;
-}
-
 groupshared AffineTransform pose_globals[MAX_BONES];
 
 [numthreads(128, 1, 1)]
@@ -439,27 +407,12 @@ void pose_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
     uint pose_slot;
     uint clip;
     uint phase;
-    uint variant;
     uint rig;
-    if (pose_shape.x != 0)
-    {
-        uint visible_index = animated_visible_indices[group_id.x];
-        VisibleObject visible = visible_objects[visible_index];
-        pose_slot = group_id.x;
-        clip = visible.animation & 255u;
-        phase = presentation_pose_phase(visible.archetype, visible.animation);
-        variant = visible.animation >> 16u;
-        rig = presentation_rig(visible.archetype);
-    }
-    else
-    {
-        uint key = active_pose_keys[group_id.x];
-        pose_slot = key;
-        rig = key / POSE_KEYS_PER_RIG;
-        clip = (key % POSE_KEYS_PER_RIG) / 64u;
-        phase = key % 64u;
-        variant = 0;
-    }
+    uint key = active_pose_keys[group_id.x];
+    pose_slot = key;
+    rig = key / POSE_KEYS_PER_RIG;
+    clip = (key % POSE_KEYS_PER_RIG) / 64u;
+    phase = key % 64u;
 
     uint bone_count = animation_shape.y;
     BoneMeta bone;
@@ -471,10 +424,6 @@ void pose_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         uint sample_index = ((rig * CLIPS_PER_RIG + clip) * 64u + phase)
             * MAX_BONES + group_thread;
         local = catalog_samples[sample_index];
-        if (rig == 0u)
-        {
-            local = apply_variant(local, variant, group_thread);
-        }
     }
     [unroll]
     for (uint depth = 0; depth < 8; depth++)
@@ -512,7 +461,7 @@ void pose_main(uint3 group_id : SV_GroupID, uint group_thread : SV_GroupIndex)
         validation_sample.Store(0, clip);
         validation_sample.Store(4, phase);
         validation_sample.Store(8, bone_count);
-        validation_sample.Store(12, variant);
+        validation_sample.Store(12, 0u);
         validation_sample.Store(16, pose_slot);
         validation_sample.Store(20, rig);
     }

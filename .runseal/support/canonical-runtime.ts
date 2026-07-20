@@ -564,11 +564,19 @@ export function validateProbe(value: Json, allowPending = false): void {
     }
     const surface = object(value, "surface");
     const skeletal = object(surface, "skeletal");
+    const skeletalSettings = object(skeletal, "settings");
     same(skeletal.gpu, skeletal.cpuOracle, "skeletal GPU/CPU oracle");
     if (
+        skeletal.candidateCapacity !== 25_601 ||
+        skeletal.paletteSlotCapacity !== 1_024 ||
+        skeletal.paletteBoneStride !== 128 ||
+        skeletal.paletteElementCount !== 131_072 ||
+        skeletal.paletteStorageBytes !== 6_291_456 ||
+        number(skeletal, "paletteWriteBytes") > 6_291_456 ||
+        "uniquePoses" in skeletalSettings ||
         surface.invalidPayloadCount !== 0 ||
         number(surface, "maximumSampleChannelDelta") > number(surface, "sampleChannelTolerance")
-    ) fail("canonical surface resolve diverged");
+    ) fail("canonical skeletal capacity or surface resolve diverged");
     const occlusion = object(surface, "occlusion");
     if (
         occlusion.enabled !== true || occlusion.invalidQueries !== 0 || occlusion.overflow !== 0 ||
@@ -669,6 +677,11 @@ export function stableEvidence(probeValue: Json, captureValue: Json): Json {
             settings: skeletal.settings,
             gpu: skeletal.gpu,
             cpuOracle: skeletal.cpuOracle,
+            candidateCapacity: skeletal.candidateCapacity,
+            paletteSlotCapacity: skeletal.paletteSlotCapacity,
+            paletteBoneStride: skeletal.paletteBoneStride,
+            paletteElementCount: skeletal.paletteElementCount,
+            paletteStorageBytes: skeletal.paletteStorageBytes,
             paletteWriteBytes: skeletal.paletteWriteBytes,
             importedGeometry: skeletal.importedGeometry,
             importedRig: skeletal.importedRig,

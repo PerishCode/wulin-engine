@@ -23,7 +23,6 @@ pub struct SkeletalSettings {
     pub bone_count: u32,
     pub phase_count: u32,
     pub time_tick: u32,
-    pub unique_poses: bool,
 }
 
 impl Default for SkeletalSettings {
@@ -32,7 +31,6 @@ impl Default for SkeletalSettings {
             bone_count: 64,
             phase_count: 64,
             time_tick: 0,
-            unique_poses: false,
         }
     }
 }
@@ -351,7 +349,7 @@ impl SkeletalSceneRenderer {
         constants[49] = settings.bone_count;
         constants[50] = settings.phase_count;
         constants[51] = settings.time_tick;
-        constants[52] = u32::from(settings.unique_poses);
+        constants[52] = 0;
         constants[53] = SKELETAL_CANDIDATE_CAPACITY;
         constants[54] = MAX_SHARED_POSES;
         constants[55] = frame.grounding_mode;

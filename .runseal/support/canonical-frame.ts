@@ -23,6 +23,15 @@ const EXPECTED_SKELETAL_GPU = {
     visible: 10_538,
 };
 
+const EXPECTED_SKELETAL_CAPACITY = {
+    candidateCapacity: 25_601,
+    paletteSlotCapacity: 1_024,
+    paletteBoneStride: 128,
+    paletteElementCount: 131_072,
+    paletteStorageBytes: 6_291_456,
+    paletteWriteBytes: 2_973_696,
+};
+
 const EXPECTED_SURFACE_STATS = {
     backgroundPixels: 288_171,
     objectTarget: null,
@@ -82,6 +91,11 @@ export function assertCanonicalFrame(value: Json, label: string): Json {
 
     const skeletal = object(stable, "skeletal");
     same(object(skeletal, "gpu"), EXPECTED_SKELETAL_GPU, `${label} skeletal GPU evidence`);
+    same(
+        selectNumbersAndHashes(skeletal, Object.keys(EXPECTED_SKELETAL_CAPACITY)),
+        EXPECTED_SKELETAL_CAPACITY,
+        `${label} skeletal capacity evidence`,
+    );
     const surface = object(stable, "surface");
     same(object(surface, "stats"), EXPECTED_SURFACE_STATS, `${label} surface statistics`);
 
