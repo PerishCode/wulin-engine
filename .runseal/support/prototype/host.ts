@@ -32,7 +32,7 @@ import { traversalInvariant } from "./traversal.ts";
 
 export const CONFIG = "out/cooked/bootstrap/runtime.json";
 export const SIDECAR = "sidecar.prototype.toml";
-const EXECUTABLE = "target/debug/prototype.exe";
+export const EXECUTABLE = "target/debug/prototype.exe";
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 

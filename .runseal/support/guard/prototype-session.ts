@@ -1,9 +1,12 @@
+import { requirePrototypeFrameCompletion } from "./prototype/frame-completion.ts";
+import { requireTransportAliasesRemoved } from "./prototype/transport-aliases.ts";
 type Fail = (message: string) => never;
 export async function requireBoundedPrototypeSession(
     root: string,
     fail: Fail,
 ): Promise<void> {
-    console.log("==> bounded non-diagnostic Prototype session");
+    await requirePrototypeFrameCompletion(root, fail);
+    await requireTransportAliasesRemoved(root, fail);
     const main = await Deno.readTextFile(`${root}/apps/prototype/src/main.rs`);
     const session = await Deno.readTextFile(`${root}/apps/prototype/src/session.rs`);
     // deno-fmt-ignore
@@ -153,7 +156,6 @@ export async function requireBoundedPrototypeSession(
         !acceptance.includes("trailing session output") ||
         sessionGates.includes("forcedReadinessCompletionEmitted") ||
         sessionGates.includes("completionEmitted") ||
-        sessionGates.includes("first.trailingOutput") ||
         !acceptance.includes("buffered output after") ||
         !objectGates.includes("objectNearestOracle") ||
         !objectGates.includes("capacityRejectedFrameCount: 12") ||

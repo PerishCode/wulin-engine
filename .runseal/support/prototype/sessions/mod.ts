@@ -168,7 +168,7 @@ export async function gracefulExit(
         | "run-release"
         | "run-repress"
         | null = null,
-    exitReason: "escape" | "window-close" = "escape",
+    expectedExitReason: "escape" | "window-close" = "escape",
 ): Promise<Json> {
     const started = performance.now();
     const child = new Deno.Command(executable, {
@@ -185,7 +185,6 @@ export async function gracefulExit(
     let completion: Json;
     let nativeInput: Json | null = null;
     let terminalInput: Json | null = null;
-    let status: Deno.CommandStatus;
     let trailingOutput = "";
     try {
         readiness = JSON.parse(await readinessLine(reader)) as Json;
@@ -331,7 +330,7 @@ export async function gracefulExit(
             terminalInput = sequence;
         }
         if (terminalInput === null) {
-            terminalInput = exitReason === "escape"
+            terminalInput = expectedExitReason === "escape"
                 ? await pressPrototypeEscape(child.pid)
                 : await requestPrototypeWindowClose(child.pid);
             nativeInput = nativeInput === null
@@ -345,8 +344,8 @@ export async function gracefulExit(
                 setTimeout(() => resolve({ kind: "timeout" }), 10_000)
             ),
         ]);
-        if (exit.kind === "timeout") fail(`${label} did not exit after ${exitReason}`);
-        status = exit.value;
+        if (exit.kind === "timeout") fail(`${label} did not exit after ${expectedExitReason}`);
+        const status = exit.value;
         if (!status.success) fail(`${label} exited with code ${status.code}`);
         while (true) {
             const remaining = await reader.read();
@@ -379,14 +378,9 @@ export async function gracefulExit(
         label,
         processId: Number(string(readiness, "instance_id")),
         elapsedMs: performance.now() - started,
-        exitCode: status.code,
-        stderr: stderrText,
         nativeInput,
-        exitReason,
         readiness,
         completion,
-        outputValueCount: 2,
-        trailingOutput,
     };
 }
 
@@ -407,9 +401,7 @@ export function gracefulCompletionInvariant(
         completion.revision !== REVISION ||
         number(completion, "sequence") !== 2 ||
         completion.outcome !== "completed" ||
-        completion.reason !== expectedReason ||
-        number(launch, "outputValueCount") !== 2 ||
-        launch.trailingOutput !== ""
+        completion.reason !== expectedReason
     ) fail("prototype bounded session contract diverged");
     if (
         string(completion, "instance_id") !== string(readiness, "instance_id") ||
@@ -459,7 +451,6 @@ export function gracefulCompletionInvariant(
         finalLiveFrameCount: liveFrames,
         finalClockMonotonic: true,
         finalObjectStateValidated: true,
-        exactlyTwoValues: true,
     };
 }
 

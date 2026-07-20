@@ -91,54 +91,97 @@ export function objectRecoveryInputInvariant(
     processId: number,
     windowHandle: unknown,
 ): Json {
-    const intervals = evidence.keyPostIntervalsMilliseconds;
+    const input = object(evidence, "input");
+    const frameCompletion = object(evidence, "frameCompletion");
+    const intervals = input.keyPostIntervalsMilliseconds;
+    if (frameCompletion.completionObserved !== true) {
+        fail(
+            `prototype object recovery frame completion was not observed: ${
+                JSON.stringify(frameCompletion)
+            }`,
+        );
+    }
     if (
-        evidence.schema !== "prototype-native-window-action-v4" ||
-        evidence.action !== "input" ||
-        number(evidence, "processId") !== processId ||
-        evidence.windowHandle !== windowHandle ||
-        evidence.activated !== true ||
-        evidence.closeRequested !== false ||
-        evidence.requiredVisible !== true ||
-        evidence.windowWasVisible !== true ||
-        JSON.stringify(evidence.keys) !== JSON.stringify([
+        evidence.revision !== "prototype-object-recovery-frame-completion-v1" ||
+        input.schema !== "prototype-native-window-action-v4" ||
+        input.action !== "input" ||
+        number(input, "processId") !== processId ||
+        input.windowHandle !== windowHandle ||
+        input.activated !== true ||
+        input.closeRequested !== false ||
+        input.requiredVisible !== true ||
+        input.windowWasVisible !== true ||
+        JSON.stringify(input.keys) !== JSON.stringify([
                 { key: "Enter", virtualKey: 13, down: false },
                 { key: "F", virtualKey: 70, down: true },
                 { key: "Enter", virtualKey: 13, down: true },
             ]) ||
-        JSON.stringify(evidence.messages) !== JSON.stringify([
+        JSON.stringify(input.messages) !== JSON.stringify([
                 "WM_SETFOCUS",
                 "WM_KEYUP:Enter",
                 "WM_KEYDOWN:F",
                 "WM_KEYDOWN:Enter",
-                "WM_KEYDOWN:Escape",
             ]) ||
-        JSON.stringify(evidence.delaysBeforeKeysMilliseconds) !==
+        JSON.stringify(input.delaysBeforeKeysMilliseconds) !==
             JSON.stringify([0, 0, 0]) ||
         !Array.isArray(intervals) ||
         intervals.length !== 2 ||
         intervals.some((interval) =>
             typeof interval !== "number" || interval < 0 || interval > 50
         ) ||
-        evidence.atomicBatch !== true ||
-        number(evidence, "atomicPrefixLength") !== 3 ||
-        !Number.isSafeInteger(evidence.batchThreadId) ||
-        number(evidence, "batchThreadId") <= 0 ||
-        number(evidence, "batchSpanMilliseconds") < 0 ||
-        number(evidence, "batchSpanMilliseconds") > 50 ||
-        number(evidence, "exitAfterLastMilliseconds") !== 250 ||
-        number(evidence, "exitIntervalMilliseconds") < 250 ||
-        number(evidence, "exitIntervalMilliseconds") > 750
+        input.atomicBatch !== true ||
+        number(input, "atomicPrefixLength") !== 3 ||
+        !Number.isSafeInteger(input.batchThreadId) ||
+        number(input, "batchThreadId") <= 0 ||
+        number(input, "batchSpanMilliseconds") < 0 ||
+        number(input, "batchSpanMilliseconds") > 50 ||
+        number(input, "exitAfterLastMilliseconds") !== 0 ||
+        input.exitIntervalMilliseconds !== null ||
+        frameCompletion.schema !== "prototype-activated-frame-completion-v1" ||
+        number(frameCompletion, "processId") !== processId ||
+        frameCompletion.windowHandle !== windowHandle ||
+        frameCompletion.requiredVisible !== true ||
+        frameCompletion.windowWasVisible !== true ||
+        frameCompletion.captureVisibility !== "temporary-topmost-noactivate" ||
+        frameCompletion.captureMethod !== "print-window-client-full-content-v1" ||
+        frameCompletion.colorRule !== "activated-green-v1" ||
+        frameCompletion.captureOwner !== null ||
+        number(frameCompletion, "minimumActivatedPixelDelta") !== 64 ||
+        number(frameCompletion, "completionTolerancePixels") !== 16 ||
+        number(frameCompletion, "activatedPixelPeak") <
+            number(frameCompletion, "baselineActivatedPixelCount") + 64 ||
+        number(frameCompletion, "activatedSampleCount") < 1 ||
+        number(frameCompletion, "completionPixelCount") >
+            number(frameCompletion, "baselineActivatedPixelCount") + 16 ||
+        number(frameCompletion, "completionClearSampleCount") !== 2 ||
+        number(frameCompletion, "sampleCount") <
+            number(frameCompletion, "activatedSampleCount") + 2 ||
+        number(frameCompletion, "elapsedMilliseconds") <= 0 ||
+        number(frameCompletion, "elapsedMilliseconds") >= 10_000 ||
+        number(frameCompletion, "timeoutMilliseconds") !== 10_000 ||
+        JSON.stringify(frameCompletion.messages) !== JSON.stringify(["WM_KEYDOWN:Escape"])
     ) fail("prototype object recovery native input evidence diverged");
     return {
         exactProcessWindow: true,
         atomicWindowThreadBatch: true,
-        batchThreadId: evidence.batchThreadId,
-        batchSpanMilliseconds: evidence.batchSpanMilliseconds,
+        batchThreadId: input.batchThreadId,
+        batchSpanMilliseconds: input.batchSpanMilliseconds,
         keyPostIntervalCount: intervals.length,
         exactMessageOrder: true,
         releasedMissingTargetKey: true,
-        exitIntervalMilliseconds: evidence.exitIntervalMilliseconds,
+        frameCompletion: {
+            colorRule: frameCompletion.colorRule,
+            captureMethod: frameCompletion.captureMethod,
+            completionObserved: frameCompletion.completionObserved,
+            baselineActivatedPixelCount: frameCompletion.baselineActivatedPixelCount,
+            activatedPixelPeak: frameCompletion.activatedPixelPeak,
+            activatedSampleCount: frameCompletion.activatedSampleCount,
+            completionPixelCount: frameCompletion.completionPixelCount,
+            completionClearSampleCount: frameCompletion.completionClearSampleCount,
+            sampleCount: frameCompletion.sampleCount,
+            elapsedMilliseconds: frameCompletion.elapsedMilliseconds,
+            boundedTimeoutMilliseconds: frameCompletion.timeoutMilliseconds,
+        },
     };
 }
 

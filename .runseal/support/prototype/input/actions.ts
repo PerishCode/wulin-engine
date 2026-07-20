@@ -1,4 +1,5 @@
 import { fail, type Json } from "../../canonical-runtime.ts";
+import { prepareActivatedFrameCompletion } from "./frame_completion.ts";
 import { postPrototypeKeys, postPrototypeWindowAction } from "./mod.ts";
 
 export const BOUNDARY_SLIDE_HOLD_MILLISECONDS = 500;
@@ -220,19 +221,36 @@ export async function postMissingTarget(processId: number): Promise<Json> {
 }
 
 export async function postObjectRecoveryExit(processId: number): Promise<Json> {
-    return await postPrototypeWindowAction(
-        processId,
-        [
-            { key: "Enter", virtualKey: 0x0D, down: false },
-            { key: "F", virtualKey: 0x46, down: true },
-            { key: "Enter", virtualKey: 0x0D, down: true },
-        ],
-        true,
-        "input",
-        [0, 0, 0],
-        250,
-        true,
-    );
+    const frameCompletion = await prepareActivatedFrameCompletion(processId);
+    let input: Json;
+    try {
+        input = await postPrototypeWindowAction(
+            processId,
+            [
+                { key: "Enter", virtualKey: 0x0D, down: false },
+                { key: "F", virtualKey: 0x46, down: true },
+                { key: "Enter", virtualKey: 0x0D, down: true },
+            ],
+            true,
+            "input",
+            [0, 0, 0],
+            0,
+            true,
+        );
+    } catch (error) {
+        frameCompletion.cancel();
+        try {
+            await frameCompletion.evidence;
+        } catch {
+            // Preserve the native-input failure after bounded observer cleanup.
+        }
+        throw error;
+    }
+    return {
+        revision: "prototype-object-recovery-frame-completion-v1",
+        input,
+        frameCompletion: await frameCompletion.evidence,
+    };
 }
 
 export async function postConsumptionCapacity(
