@@ -142,11 +142,7 @@ fn shade_visible(
             presentation.animation_clip().unwrap(),
             pose_phase(presentation, input.skeletal_settings),
             input.skeletal_settings.bone_count,
-            if input.skeletal_settings.unique_poses {
-                presentation.animation_variant().unwrap()
-            } else {
-                0
-            },
+            0,
         )
     });
     let primitive = input.surface.primitives[primitive_index as usize];

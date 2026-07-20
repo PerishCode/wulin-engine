@@ -251,6 +251,15 @@ enabled = false
 reason = "Actor upload encoding tests exercise the private exact GPU record without exporting renderer resource ownership."
 
 [[overrides]]
+match = "crates/engine-runtime/src/rendering/meshlet_scene/skeletal/resources/mod.rs"
+kind = "file"
+priority = 10
+
+[overrides.rules."rust/tests/in-source"]
+enabled = false
+reason = "Palette capacity tests exercise private GPU resource sizing without exporting renderer ownership."
+
+[[overrides]]
 match = "crates/engine-runtime/src/rendering/terrain/transfer.rs"
 kind = "file"
 priority = 10

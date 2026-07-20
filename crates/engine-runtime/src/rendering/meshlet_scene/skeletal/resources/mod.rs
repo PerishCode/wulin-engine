@@ -26,7 +26,8 @@ pub const SKELETAL_CANDIDATE_CAPACITY: u32 = STREAMED_CANDIDATE_CAPACITY + 1;
 pub const GROUND_BYTES: u64 = STREAMED_CANDIDATE_CAPACITY as u64 * 4;
 pub const QUERY_COUNT: u32 = 9;
 pub const MAX_SHARED_POSES: u32 = animation_catalog::MAX_POSE_KEYS;
-pub const PALETTE_BYTES: u64 = SKELETAL_CANDIDATE_CAPACITY as u64 * BONE_COUNT as u64 * 48;
+pub const PALETTE_ELEMENT_COUNT: u32 = MAX_SHARED_POSES * BONE_COUNT;
+pub const PALETTE_BYTES: u64 = PALETTE_ELEMENT_COUNT as u64 * size_of::<Affine>() as u64;
 const DESCRIPTOR_COUNT: u32 = 220;
 pub const VISIBLE_OBJECT_BYTES: u32 = ACTOR_VISIBLE_RECORD_BYTES;
 pub const VISIBLE_OBJECT_WORDS: usize = VISIBLE_OBJECT_BYTES as usize / 4;
@@ -280,7 +281,7 @@ unsafe fn create_heap(
         (
             60,
             uavs[5],
-            (PALETTE_BYTES / 48) as u32,
+            PALETTE_ELEMENT_COUNT,
             size_of::<Affine>() as u32,
         ),
     ] {
@@ -331,8 +332,8 @@ unsafe fn create_heap(
         structured_uav(
             device,
             uavs[5],
-            (PALETTE_BYTES / 48) as u32,
-            48,
+            PALETTE_ELEMENT_COUNT,
+            size_of::<Affine>() as u32,
             cpu_handle(start, increment, 66),
         );
         raw_uav(
@@ -436,3 +437,7 @@ fn cpu_handle(
         ptr: start.ptr + increment * index,
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../../tests/private/palette_capacity.rs"]
+mod tests;

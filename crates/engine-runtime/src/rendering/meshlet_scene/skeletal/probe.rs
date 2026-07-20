@@ -15,7 +15,10 @@ use crate::scene::SceneState;
 use super::oracle::{self, WorkloadCounts};
 use super::renderer::{SKELETAL_REVISION, SkeletalSettings};
 use super::resources::actor::ACTOR_VISIBLE_RECORD_BYTES;
-use super::resources::{ExecutionResources, SKELETAL_CANDIDATE_CAPACITY, VISIBLE_OBJECT_BYTES};
+use super::resources::{
+    ExecutionResources, MAX_SHARED_POSES, PALETTE_BYTES, PALETTE_ELEMENT_COUNT,
+    SKELETAL_CANDIDATE_CAPACITY, VISIBLE_OBJECT_BYTES,
+};
 
 const PALETTE_TOLERANCE: f32 = 0.00002;
 
@@ -93,6 +96,10 @@ pub struct SkeletalProbe {
     pub dynamic_candidate_count: u32,
     pub object_suppression: Option<crate::rendering::ProjectedObjectSuppression>,
     pub candidate_capacity: u32,
+    pub palette_slot_capacity: u32,
+    pub palette_bone_stride: u32,
+    pub palette_element_count: u32,
+    pub palette_storage_bytes: u64,
     pub visible_record_bytes: u32,
     pub visible_storage_bytes: u64,
     pub actor_upload_record_bytes: u32,
@@ -181,6 +188,10 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
         counters[14] == counters[17],
         "skeletal pose dispatch and active counts diverged"
     );
+    ensure!(
+        counters[17] <= MAX_SHARED_POSES,
+        "skeletal active pose count exceeds palette capacity"
+    );
     let gpu = decode_counts(&counters, input.settings.bone_count);
     let projection = input.snapshot.projection()?;
     let cpu_oracle = oracle::evaluate(
@@ -221,6 +232,10 @@ pub unsafe fn read(input: ProbeInput<'_>) -> Result<SkeletalProbe> {
         dynamic_candidate_count: u32::from(input.actor.is_some()),
         object_suppression: input.object_suppression,
         candidate_capacity: SKELETAL_CANDIDATE_CAPACITY,
+        palette_slot_capacity: MAX_SHARED_POSES,
+        palette_bone_stride: animation_catalog::BONE_COUNT,
+        palette_element_count: PALETTE_ELEMENT_COUNT,
+        palette_storage_bytes: PALETTE_BYTES,
         visible_record_bytes: VISIBLE_OBJECT_BYTES,
         visible_storage_bytes: u64::from(SKELETAL_CANDIDATE_CAPACITY)
             * u64::from(VISIBLE_OBJECT_BYTES),
@@ -340,6 +355,10 @@ unsafe fn read_palette_sample(
     ensure!(
         rig < RIG_COUNT && clip < CLIP_COUNT && phase < 64,
         "skeletal sample metadata is invalid"
+    );
+    ensure!(
+        pose_slot < MAX_SHARED_POSES,
+        "skeletal sample palette slot exceeds capacity"
     );
     let expected = catalog.evaluate_pose_for_rig(rig, clip, phase, bone_count, variant);
     let sampled_bones = bone_count.min(4);

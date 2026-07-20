@@ -131,11 +131,7 @@ pub fn evaluate(
             &mut shared_poses,
         );
     }
-    counts.active_poses = if settings.unique_poses {
-        counts.animated
-    } else {
-        shared_poses.len() as u32
-    };
+    counts.active_poses = shared_poses.len() as u32;
     counts.reused_poses = counts.animated.saturating_sub(counts.active_poses);
     counts.evaluated_bones = counts.active_poses * settings.bone_count;
     Ok(counts)
@@ -181,9 +177,7 @@ fn classify_candidate(
     if presentation.is_animated() {
         counts.animated += 1;
         counts.skin_influences += descriptor.vertex_count * 4;
-        if !settings.unique_poses {
-            shared_poses.insert(pose_key(presentation, settings));
-        }
+        shared_poses.insert(pose_key(presentation, settings));
     } else {
         counts.static_count += 1;
     }
