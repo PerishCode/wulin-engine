@@ -126,7 +126,18 @@ function sessionFlightInvariant(
         number(finalClock, "readyCount") <= number(readyClock, "readyCount") ||
         number(finalClock, "sampleCount") <= number(readyClock, "sampleCount") ||
         number(object(completion, "frames"), "renderBlockCount") !== 0
-    ) fail(`prototype ${label} Jump clock continuity diverged`);
+    ) {
+        fail(
+            `prototype ${label} Jump clock continuity diverged: ${
+                JSON.stringify({
+                    focusDiscontinuity,
+                    readyClock,
+                    finalClock,
+                    renderBlockCount: number(object(completion, "frames"), "renderBlockCount"),
+                })
+            }`,
+        );
+    }
 
     return {
         readyActor,

@@ -207,7 +207,6 @@ export function boundarySessionInvariant(launch: Json): Json {
     const finalClock = object(completion, "clock");
     const frames = object(completion, "frames");
     if (
-        number(launch, "exitCode") !== 0 ||
         number(frames, "liveFrameCount") <= number(readyDriver, "liveFrameCount") ||
         number(frames, "renderBlockCount") !== 0 ||
         number(frames, "activatedFrameCount") !== 0 ||

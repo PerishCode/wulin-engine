@@ -46,12 +46,11 @@ export async function objectFeedbackGates(
     rejectedSimulation: SimulationInvariant,
 ): Promise<Json> {
     return {
-        admitted: await feedbackSessionInvariant(
+        admitted: await activatedObjectFeedbackInvariant(
             admitted,
             admittedStartup,
             objects,
             admittedBase,
-            "activated",
             startupInvariant,
             admittedSimulation,
         ),
@@ -65,6 +64,25 @@ export async function objectFeedbackGates(
             rejectedSimulation,
         ),
     };
+}
+
+export async function activatedObjectFeedbackInvariant(
+    launch: Json,
+    expectedStartup: Json,
+    source: string,
+    windowCenter: Coord,
+    startupInvariant: StartupInvariant,
+    simulationInvariant: SimulationInvariant,
+): Promise<Json> {
+    return await feedbackSessionInvariant(
+        launch,
+        expectedStartup,
+        source,
+        windowCenter,
+        "activated",
+        startupInvariant,
+        simulationInvariant,
+    );
 }
 
 async function feedbackSessionInvariant(
@@ -228,6 +246,7 @@ function nativeObjectFocusInvariant(
     const resumed = object(postReadiness, "resumed");
     const missingTarget = object(postReadiness, "missingTarget");
     const sequence = object(postReadiness, "sequence");
+    const recoveryInput = object(sequence, "input");
     if (
         suspended.schema !== "prototype-native-window-action-v4" ||
         suspended.action !== "suspend" ||
@@ -274,7 +293,7 @@ function nativeObjectFocusInvariant(
         number(postReadiness, "requestedMissingHoldMilliseconds") !== 250 ||
         number(postReadiness, "missingHoldMilliseconds") < 250 ||
         missingTarget.windowHandle !== suspended.windowHandle ||
-        sequence.windowHandle !== suspended.windowHandle
+        recoveryInput.windowHandle !== suspended.windowHandle
     ) fail("prototype native object focus-readmission evidence diverged");
 
     const readyClock = object(object(object(launch, "readiness"), "simulation_driver"), "clock");
@@ -292,7 +311,13 @@ function nativeObjectFocusInvariant(
         number(finalClock, "sampleCount") <= number(readyClock, "sampleCount") ||
         number(finalClock, "stallCount") !== number(readyClock, "stallCount") ||
         number(object(completion, "frames"), "renderBlockCount") !== 0
-    ) fail("prototype object focus-readmission clock recovery diverged");
+    ) {
+        fail(
+            `prototype object focus-readmission clock recovery diverged: ready=${
+                JSON.stringify(readyClock)
+            } final=${JSON.stringify(finalClock)}`,
+        );
+    }
 
     const nativeInput = objectRecoveryInputInvariant(
         sequence,
