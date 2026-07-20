@@ -75,6 +75,13 @@ export async function sessionGates(
     source: string,
     windowCenter: [number, number],
 ): Promise<Json> {
+    sameInitial(sustained, sustainedBaseline, "sustained", startupInvariant, jumpInvariant);
+    const sustainedInvariant = await sustainedCapacityInvariant(
+        sustained,
+        gracefulCompletionInvariant(sustained, "escape"),
+        source,
+        windowCenter,
+    );
     const forwardRelease = await gracefulExit(
         executable,
         config,
@@ -190,7 +197,6 @@ export async function sessionGates(
     );
     sameInitial(diagonalWalk, first, "diagonal-Walk", startupInvariant, jumpInvariant);
     sameInitial(diagonalRun, first, "diagonal-Run", startupInvariant, jumpInvariant);
-    sameInitial(sustained, sustainedBaseline, "sustained", startupInvariant, jumpInvariant);
     const evidence = {
         forwardRelease,
         forwardReleaseInvariant: forwardReleaseSessionInvariant(
@@ -266,12 +272,7 @@ export async function sessionGates(
             idleCompletionInvariant(diagonalRun),
         ),
         sustained,
-        sustainedInvariant: await sustainedCapacityInvariant(
-            sustained,
-            gracefulCompletionInvariant(sustained, "escape"),
-            source,
-            windowCenter,
-        ),
+        sustainedInvariant,
     };
     for (
         const name of [

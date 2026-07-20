@@ -1,4 +1,5 @@
 import { requirePrototypeFrameCompletion } from "./prototype/frame-completion.ts";
+import { requireNativeActionTransport } from "./prototype/native-action-transport.ts";
 import { requireTransportAliasesRemoved } from "./prototype/transport-aliases.ts";
 type Fail = (message: string) => never;
 export async function requireBoundedPrototypeSession(
@@ -6,6 +7,7 @@ export async function requireBoundedPrototypeSession(
     fail: Fail,
 ): Promise<void> {
     await requirePrototypeFrameCompletion(root, fail);
+    await requireNativeActionTransport(root, fail);
     await requireTransportAliasesRemoved(root, fail);
     const main = await Deno.readTextFile(`${root}/apps/prototype/src/main.rs`);
     const session = await Deno.readTextFile(`${root}/apps/prototype/src/session.rs`);
@@ -21,9 +23,6 @@ export async function requireBoundedPrototypeSession(
     const jumpAcceptance = await Deno.readTextFile(`${root}/.runseal/support/prototype/jump.ts`);
     // deno-fmt-ignore
     const boundaryAcceptance = await Deno.readTextFile(`${root}/.runseal/support/prototype/boundary.ts`);
-    const input = await Deno.readTextFile(`${root}/.runseal/support/prototype/input/mod.ts`);
-    // deno-fmt-ignore
-    const preparedInput = await Deno.readTextFile(`${root}/.runseal/support/prototype/input/prepared.ts`);
     const inputActions = await Deno.readTextFile(
         `${root}/.runseal/support/prototype/input/actions.ts`,
     );
@@ -103,19 +102,6 @@ export async function requireBoundedPrototypeSession(
     if (actionReports.some((source) => /actionAfterReadiness|delayedExit|postReadinessInput|exitInput|invalid-camera-alias|invalidKeySessionInvariant|postInvalidAliasSequence|truncatedAliasVirtualKey|truncationWouldAlias/.test(source))) {
         fail("guard: retired Prototype action or alias surface returned");
     }
-    const nativeTypeIndex = input.indexOf("Add-Type -TypeDefinition");
-    const helperReadyIndex = input.indexOf(
-        '[Console]::Out.WriteLine("prototype-native-helper-ready-v1")',
-    );
-    const windowSearchIndex = input.indexOf("do {", helperReadyIndex);
-    const atomicPrefixIndex = input.indexOf(
-        "if ($atomicPrefixLength -gt 0)",
-        windowSearchIndex,
-    );
-    const remainingInputIndex = input.indexOf(
-        "if ($atomicPrefixLength -lt $keys.Count)",
-        atomicPrefixIndex,
-    );
     const capturedReadyIndex = acceptance.indexOf("export async function capturedReady");
     // deno-fmt-ignore
     const capturedReadyEndIndex = acceptance.indexOf("export async function sustainedCapacitySession", capturedReadyIndex);
@@ -212,6 +198,7 @@ export async function requireBoundedPrototypeSession(
         !inputActions.includes("postBoundarySlideExit") ||
         !inputActions.includes("BOUNDARY_SLIDE_HOLD_MILLISECONDS = 500") ||
         !inputActions.includes("BOUNDARY_STATIONARY_HOLD_MILLISECONDS = 250") ||
+        !inputActions.includes("SUSTAINED_REJECTION_HOLD_MILLISECONDS = 500") ||
         inputActions.includes("holdPrototypeBoundaryRun") ||
         inputActions.includes("postBoundaryRunExit") ||
         inputActions.includes("holdPrototypeForwardKey") ||
@@ -242,11 +229,6 @@ export async function requireBoundedPrototypeSession(
         acceptance.includes("prepareStartupInput") ||
         acceptance.includes("startupInput") ||
         acceptance.includes("startupNativeInput") ||
-        nativeTypeIndex < 0 ||
-        helperReadyIndex <= nativeTypeIndex ||
-        windowSearchIndex <= helperReadyIndex ||
-        atomicPrefixIndex <= windowSearchIndex ||
-        remainingInputIndex <= atomicPrefixIndex ||
         capturedReadyIndex < 0 ||
         capturedReadyEndIndex <= capturedReadyIndex ||
         capturedSpawnIndex <= capturedReadyIndex ||
@@ -376,26 +358,6 @@ export async function requireBoundedPrototypeSession(
         !cameraPolicy.includes("i8::from(input.was_pressed(COUNTER_CLOCKWISE))") ||
         !hostInput.includes("down == key_is_set(&self.held, key)") ||
         !hostInput.includes("u8::try_from(key)") ||
-        !input.includes("[Diagnostics.Stopwatch]::StartNew()") ||
-        !input.includes("$windowProcessId -eq $expectedProcessId") ||
-        input.includes("$expectedProcessId -eq 0") ||
-        !input.includes("$keyDeadlineTicks") ||
-        input.includes("Start-Sleep -Milliseconds $keyDelay") ||
-        !input.includes("prototype-native-window-action-v4") ||
-        /prototype-native-window-action-v[23]/.test(input) ||
-        !input.includes("startPreparedWindowAction") ||
-        !preparedInput.includes('"prototype-native-helper-ready-v1"') ||
-        !preparedInput.includes("completePrototypeWindowAction") ||
-        !input.includes("PostAtomicInputBatch") ||
-        !input.includes(
-            "$atomicBatch = $atomicPrefixLength -eq $keys.Count -and $atomicPrefixLength -gt 0",
-        ) ||
-        !input.includes("atomicPrefixLength = $atomicPrefixLength") ||
-        !preparedInput.includes("evidence.atomicPrefixLength !== expected.atomicPrefixLength") ||
-        !input.includes("suspendAfterInput") ||
-        !input.includes("0x0008u") ||
-        !input.includes("SuspendThread") ||
-        !input.includes("ResumeThread") ||
         inputSequences.includes('case "object-action"') ||
         !objectObservation.includes("idleObservationInvariant") ||
         !prototypeHost.includes("objectActionCenter: Coord = [base[0] + 4, base[1]]") ||
@@ -427,9 +389,6 @@ export async function requireBoundedPrototypeSession(
         !inputActions.includes("postFocusLocomotionReadmission") ||
         !inputActions.includes('{ key: "A", virtualKey: 0x41, down: true }') ||
         !inputActions.includes('{ key: "A", virtualKey: 0x41, down: false }') ||
-        !input.includes("0x0010") ||
-        !input.includes("0x0008") ||
-        input.includes("DestroyWindow") ||
         !inputActions.includes("OUTSIDE_RADIUS_HOLD_MILLISECONDS = 500") ||
         !inputActions.includes('"prototype-object-outside-radius-input-v1"') ||
         !objectGates.includes("nativeSelectionInvariant") ||

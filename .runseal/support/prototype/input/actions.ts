@@ -6,6 +6,7 @@ export const BOUNDARY_SLIDE_HOLD_MILLISECONDS = 500;
 export const BOUNDARY_STATIONARY_HOLD_MILLISECONDS = 250;
 export const OBJECT_REJECTION_HOLD_MILLISECONDS = 250;
 export const OUTSIDE_RADIUS_HOLD_MILLISECONDS = 500;
+export const SUSTAINED_REJECTION_HOLD_MILLISECONDS = 500;
 
 export async function postBoundaryRunStart(processId: number): Promise<Json> {
     return await postPrototypeKeys(
@@ -272,11 +273,16 @@ export async function postConsumptionCapacity(
     await new Promise((resolve) => setTimeout(resolve, 250));
     const consumptionHoldMilliseconds = performance.now() - consumptionStartedAt;
     const capacity = await postPrototypeCapacityRejection(processId);
+    const rejectionStartedAt = performance.now();
+    await new Promise((resolve) => setTimeout(resolve, SUSTAINED_REJECTION_HOLD_MILLISECONDS));
+    const rejectionHoldMilliseconds = performance.now() - rejectionStartedAt;
     return {
         revision: "prototype-post-ready-consumption-capacity-input-v1",
         consumption,
         capacity,
         requestedConsumptionHoldMilliseconds: 250,
         consumptionHoldMilliseconds,
+        requestedRejectionHoldMilliseconds: SUSTAINED_REJECTION_HOLD_MILLISECONDS,
+        rejectionHoldMilliseconds,
     };
 }

@@ -463,8 +463,8 @@ await run("deno check", "deno", [
 ]);
 await run("acceptance support tests", "deno", [
     "test",
-    ".runseal/support/resource-acceptance_test.ts",
-    ".runseal/support/prototype/object/observation_test.ts",
+    "--allow-env=RUNSEAL_PROFILE_PATH",
+    ".runseal/support",
 ]);
 await run("flavor", "flavor", ["check", "--root", ".", "--config", "flavor.toml"]);
 await run("sidecar doctor", "sidecar", ["doctor", "--config", "sidecar.toml"]);
